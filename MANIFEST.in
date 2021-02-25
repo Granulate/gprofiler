@@ -1,0 +1,5 @@
+include gprofiler/resources/burn
+include gprofiler/resources/perf
+recursive-include gprofiler/resources/flamegraph *
+recursive-include gprofiler/resources/java *
+recursive-include gprofiler/resources/python *

@@ -1,0 +1,62 @@
+name: GProfiler CI
+
+on: pull_request
+
+jobs:
+  lint:
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7, 3.8]
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Checkout Code
+      uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r dev-requirements.txt
+        pip install -r requirements.txt
+
+    - name: Run linters
+      run: ./lint.sh
+
+  test:
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7, 3.8]
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Java
+      uses: actions/setup-java@v1
+      with:
+        java-version: '8.0.275'
+        java-package: jdk
+        architecture: x64
+
+    - name: Checkout Code
+      uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: |
+        sudo env "PATH=$PATH" python -m pip install --upgrade pip
+        sudo env "PATH=$PATH" pip install -r dev-requirements.txt
+        sudo env "PATH=$PATH" pip install -r requirements.txt
+        ./build.sh
+
+    - name: Run tests
+      run: sudo env "PATH=$PATH" python -m pytest -v tests/
