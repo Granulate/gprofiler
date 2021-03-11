@@ -15,7 +15,7 @@ import psutil
 from psutil import Process
 
 from .exceptions import StopEventSetException
-from .utils import run_process, pgrep, get_self_container_id, resource_path
+from .utils import run_process, pgrep_exe, get_self_container_id, resource_path
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +149,7 @@ class JavaProfiler:
     def profile_processes(self):
         futures = []
         results = {}
-        processes = pgrep("^java$")
+        processes = list(pgrep_exe(r"^.+/java$"))
         if not processes:
             return {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:

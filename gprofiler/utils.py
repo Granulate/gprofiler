@@ -100,11 +100,6 @@ def run_process(
     return result
 
 
-def pgrep(match: str) -> List[Process]:
-    pattern = re.compile(match)
-    return [process for process in psutil.process_iter() if pattern.match(process.name())]
-
-
 def pgrep_exe(match: str) -> Iterator[Process]:
     pattern = re.compile(match)
     return (process for process in psutil.process_iter() if pattern.match(process.exe()))
