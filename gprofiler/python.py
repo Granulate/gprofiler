@@ -9,7 +9,7 @@ from threading import Event
 from typing import Dict
 
 from .exceptions import StopEventSetException, ProcessStoppedException
-from .utils import pgrep, run_process, resource_path
+from .utils import pgrep_exe, run_process, resource_path
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,6 @@ PYTHON_PROFILER_MAX_FREQUENCY = 10
 
 class PythonProfiler:
     BLACKLISTED_PYTHON_PROCS = ["unattended-upgrades", "networkd-dispatcher", "supervisord", "tuned"]
-    PYTHON_KNOWN_PROCS = ["python", "uwsgi", "gunicorn", "celery", "ipython", "python3"]
 
     def __init__(self, frequency: int, duration: int, stop_event: Event, storage_dir: str):
         self._frequency = min(frequency, PYTHON_PROFILER_MAX_FREQUENCY)
@@ -69,7 +68,7 @@ class PythonProfiler:
 
     def find_python_processes_to_profile(self) -> Dict[str, str]:
         filtered_procs = {}
-        for process in pgrep("^{}$".format("|".join(self.PYTHON_KNOWN_PROCS))):
+        for process in pgrep_exe(r"^.+/python[^/]*$"):
             try:
                 if process.pid == os.getpid():
                     continue

@@ -10,7 +10,7 @@ import subprocess
 from functools import lru_cache
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from threading import Event
-from typing import Union, List, Optional
+from typing import Iterator, Union, List, Optional
 
 import importlib_resources
 import psutil
@@ -103,6 +103,11 @@ def run_process(
 def pgrep(match: str) -> List[Process]:
     pattern = re.compile(match)
     return [process for process in psutil.process_iter() if pattern.match(process.name())]
+
+
+def pgrep_exe(match: str) -> Iterator[Process]:
+    pattern = re.compile(match)
+    return (process for process in psutil.process_iter() if pattern.match(process.exe()))
 
 
 def get_iso8061_format_time(time: datetime.datetime) -> str:
