@@ -10,7 +10,8 @@ RUN ./build.sh
 COPY requirements.txt requirements.txt
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY LICENSE.md MANIFEST.in README.md setup.py ./
+COPY gprofiler gprofiler
 
 STOPSIGNAL SIGINT
 
