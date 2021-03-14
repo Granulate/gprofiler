@@ -88,17 +88,19 @@ class PythonProfiler:
         if not pids_to_profile:
             return {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(pids_to_profile)) as executor:
-            futures = {}
+            futures = []
             for pid, cmdline in pids_to_profile.items():
-                futures[executor.submit(self.profile_process, pid, cmdline)] = pid
+                future = executor.submit(self.profile_process, pid, cmdline)
+                future.pid = pid
+                futures.append(future)
 
             results = {}
             for future in concurrent.futures.as_completed(futures):
                 try:
-                    results[futures[future]] = future.result()
+                    results[future.pid] = future.result()
                 except StopEventSetException:
                     raise
                 except Exception:
-                    logger.exception(f"Failed to profile Python process {pid}")
+                    logger.exception(f"Failed to profile Python process {future.pid}")
 
         return results
