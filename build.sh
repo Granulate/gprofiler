@@ -27,3 +27,5 @@ curl -fL https://github.com/Granulate/burn/releases/download/v1.0.1g1/burn-v1.0.
  -z build/burn-v1.0.1g1.tar.gz -o build/burn-v1.0.1g1.tar.gz
 tar -xzf build/burn-v1.0.1g1.tar.gz -C gprofiler/resources burn
 chmod +x gprofiler/resources/burn
+
+rm -r build
