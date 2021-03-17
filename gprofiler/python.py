@@ -5,9 +5,11 @@
 import concurrent.futures
 import logging
 import os
+from pathlib import Path
 from threading import Event
 from typing import Dict
 
+from .merge import parse_collapsed
 from .exceptions import StopEventSetException, ProcessStoppedException
 from .utils import pgrep_exe, run_process, resource_path
 
@@ -64,7 +66,7 @@ class PythonProfiler:
             raise StopEventSetException
 
         logger.info(f"Finished profiling process {pid}")
-        return local_output_path
+        return parse_collapsed(Path(local_output_path).read_text())
 
     def find_python_processes_to_profile(self) -> Dict[str, str]:
         filtered_procs = {}

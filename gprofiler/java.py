@@ -6,6 +6,7 @@ import concurrent.futures
 import logging
 import os
 import shutil
+from pathlib import Path
 from subprocess import CalledProcessError
 from tempfile import NamedTemporaryFile
 from threading import Event
@@ -14,6 +15,7 @@ from typing import List
 import psutil
 from psutil import Process
 
+from .merge import parse_collapsed
 from .exceptions import StopEventSetException
 from .utils import run_process, pgrep_exe, get_self_container_id, resource_path
 
@@ -144,7 +146,7 @@ class JavaProfiler:
             raise StopEventSetException()
 
         logger.info(f"Finished profiling process {process.pid}")
-        return output_path
+        return parse_collapsed(Path(output_path).read_text())
 
     def profile_processes(self):
         futures = []
@@ -160,7 +162,9 @@ class JavaProfiler:
 
             for future in concurrent.futures.as_completed(futures):
                 try:
-                    results[future.pid] = future.result()
+                    result = future.result()
+                    if result is not None:
+                        results[future.pid] = result
                 except StopEventSetException:
                     raise
                 except Exception:

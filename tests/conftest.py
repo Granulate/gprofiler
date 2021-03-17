@@ -6,7 +6,7 @@ from pathlib import Path
 from subprocess import Popen, run
 from threading import Event
 from time import sleep
-from typing import Callable, List, Union, Dict, Generator
+from typing import Callable, List, Union, Dict, Generator, Mapping
 
 import docker
 from docker import DockerClient
@@ -105,15 +105,14 @@ def profiler(tmp_path: Path, runtime: str) -> Union[JavaProfiler, PythonProfiler
 
 
 @fixture(scope="session")
-def assert_collapsed(runtime: str) -> Callable[[str], None]:
+def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int]], None]:
     function_name = {
         "java": "Fibonacci.main",
         "python": "fibonacci",
     }[runtime]
 
-    def assert_collapsed(collapsed_path: str) -> None:
-        assert collapsed_path is not None
-        collapsed = Path(collapsed_path).read_text()
-        assert function_name in collapsed
+    def assert_collapsed(collapsed: Mapping[str, int]) -> None:
+        assert collapsed is not None
+        assert any((function_name in record) for record in collapsed.keys())
 
     return assert_collapsed
