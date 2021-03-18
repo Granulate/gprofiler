@@ -4,12 +4,14 @@
 #
 import logging
 import os
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import Event
 
 import psutil
 
 from .utils import run_process, resource_path
+from .merge import parse_perf_script
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +56,7 @@ class SystemProfiler:
         logger.info("Running global perf...")
         result = self.run_perf("global")
         logger.info("Finished running global perf")
-        return result
+        return parse_perf_script(Path(result).read_text())
 
         # TODO: run dwarf in parallel, after supporting it in merge.py
         # Alternatively: fix golang dwarf problems and the run just dwarf

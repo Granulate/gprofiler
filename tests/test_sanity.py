@@ -4,20 +4,23 @@
 #
 from glob import glob
 from pathlib import Path
-from typing import Callable, Union
+from typing import Callable, Union, Mapping
 
 from docker import DockerClient
 from docker.models.images import Image
 
 from gprofiler.java import JavaProfiler
 from gprofiler.python import PythonProfiler
+from gprofiler.merge import parse_collapsed
 
 
 def test_from_host(
-    application_pid: int, profiler: Union[JavaProfiler, PythonProfiler], assert_collapsed: Callable[[str], None]
+    application_pid: int,
+    profiler: Union[JavaProfiler, PythonProfiler],
+    assert_collapsed: Callable[[Mapping[str, int]], None]
 ) -> None:
-    process_collapsed_paths = profiler.profile_processes()
-    assert_collapsed(process_collapsed_paths.get(application_pid))
+    process_collapsed = profiler.profile_processes()
+    assert_collapsed(process_collapsed.get(application_pid))
 
 
 def test_from_container(
@@ -25,7 +28,7 @@ def test_from_container(
     application_pid: int,
     gprofiler_docker_image: Image,
     output_directory: Path,
-    assert_collapsed: Callable[[str], None],
+    assert_collapsed: Callable[[Mapping[str, int]], None],
 ) -> None:
     _ = application_pid  # Fixture only used for running the application.
     inner_output_directory = "/tmp/gpofiler"
@@ -45,5 +48,6 @@ def test_from_container(
     )
     output = glob(str(output_directory / "*.col"))
     assert len(output) == 1
-    collapsed = output[0]
+    collapsed_path = output[0]
+    collapsed = parse_collapsed(Path(collapsed_path).read_text())
     assert_collapsed(collapsed)

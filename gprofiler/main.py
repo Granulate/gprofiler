@@ -106,11 +106,9 @@ class GProfiler:
             try:
                 for future in concurrent.futures.as_completed(futures):
                     if futures[future] in ["java", "python"]:
-                        for pid, collapsed_file in future.result().items():
-                            if collapsed_file is not None:
-                                process_perfs[pid] = Path(collapsed_file).read_text()
+                        process_perfs.update(future.result())
                     else:
-                        system_perf = Path(future.result()).read_text()
+                        system_perf = future.result()
             except KeyboardInterrupt:
                 self._stop_event.set()
                 raise

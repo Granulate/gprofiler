@@ -5,7 +5,7 @@
 import logging
 import re
 from collections import Counter
-from typing import Dict
+from typing import Iterable, Mapping, MutableMapping
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +16,11 @@ SAMPLE_REGEX = re.compile(
 )
 
 
-def parse_collapsed(collapsed: str) -> Dict[str, int]:
-    stacks: Dict[str, int] = Counter()
+def parse_collapsed(collapsed: str) -> Mapping[str, int]:
+    """
+    Parse a stack-collapsed listing where all stacks are from the same process.
+    """
+    stacks: MutableMapping[str, int] = Counter()
     for line in collapsed.splitlines():
         if line.strip() == "":
             continue
@@ -48,11 +51,8 @@ def collapse_stack(stack: str, comm: str) -> str:
     return ";".join(funcs)
 
 
-def merge_perfs(perf_all: str, process_perfs: Dict[int, str]) -> str:
-    per_process_samples: Dict[int, int] = Counter()
-    new_samples: Dict[str, int] = Counter()
-    process_names = {}
-    for sample in perf_all.split("\n\n"):
+def parse_perf_script(script: str):
+    for sample in script.split("\n\n"):
         try:
             if sample.strip() == "":
                 continue
@@ -61,7 +61,17 @@ def merge_perfs(perf_all: str, process_perfs: Dict[int, str]) -> str:
             match = SAMPLE_REGEX.match(sample)
             if match is None:
                 raise Exception("Failed to match sample")
-            parsed = match.groupdict()
+            yield match.groupdict()
+        except Exception:
+            logger.exception(f"Error processing sample: {sample}")
+
+
+def merge_perfs(perf_all: Iterable[Mapping[str, str]], process_perfs: Mapping[int, Mapping[str, int]]) -> str:
+    per_process_samples: MutableMapping[int, int] = Counter()
+    new_samples: MutableMapping[str, int] = Counter()
+    process_names = {}
+    for parsed in perf_all:
+        try:
             pid = int(parsed["pid"])
             if pid in process_perfs:
                 per_process_samples[pid] += 1
@@ -69,10 +79,10 @@ def merge_perfs(perf_all: str, process_perfs: Dict[int, str]) -> str:
             elif parsed["stack"] is not None:
                 new_samples[collapse_stack(parsed["stack"], parsed["comm"])] += 1
         except Exception:
-            logger.exception(f"Error processing sample: {sample}")
+            logger.exception(f"Error processing sample: {parsed}")
 
     for pid, perf_all_count in per_process_samples.items():
-        process_stacks = parse_collapsed(process_perfs[pid])
+        process_stacks = process_perfs[pid]
         process_perf_count = sum(process_stacks.values())
         if process_perf_count > 0:
             ratio = perf_all_count / process_perf_count
