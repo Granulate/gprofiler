@@ -17,7 +17,7 @@ from gprofiler.merge import parse_collapsed
 def test_from_host(
     application_pid: int,
     profiler: Union[JavaProfiler, PythonProfiler],
-    assert_collapsed: Callable[[Mapping[str, int]], None]
+    assert_collapsed: Callable[[Mapping[str, int]], None],
 ) -> None:
     process_collapsed = profiler.profile_processes()
     assert_collapsed(process_collapsed.get(application_pid))
