@@ -15,7 +15,7 @@ tar -xzf build/async-profiler-1.8.3-linux-x64.tar.gz -C gprofiler/resources/java
 
 # py-spy
 mkdir -p gprofiler/resources/python
-curl -fL https://github.com/Granulate/py-spy/releases/download/v0.3.4g1/py-spy -o gprofiler/resources/python/py-spy
+curl -fL https://github.com/Granulate/py-spy/releases/download/v0.3.5g1/py-spy -o gprofiler/resources/python/py-spy
 chmod +x gprofiler/resources/python/py-spy
 
 # perf

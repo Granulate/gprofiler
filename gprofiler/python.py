@@ -59,6 +59,7 @@ class PythonProfiler:
                     local_output_path,
                     "-p",
                     str(pid),
+                    "--full-filenames",
                 ],
                 stop_event=self._stop_event,
             )
