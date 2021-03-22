@@ -11,7 +11,7 @@ from typing import Dict
 
 from .merge import parse_collapsed
 from .exceptions import StopEventSetException, ProcessStoppedException
-from .utils import pgrep_exe, run_process, resource_path
+from .utils import pgrep_maps, run_process, resource_path
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class PythonProfiler:
 
     def find_python_processes_to_profile(self) -> Dict[str, str]:
         filtered_procs = {}
-        for process in pgrep_exe(r"^.+/python[^/]*$"):
+        for process in pgrep_maps(r"^.+/(?:lib)?python[^/]*$"):
             try:
                 if process.pid == os.getpid():
                     continue
