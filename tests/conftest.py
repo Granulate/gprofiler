@@ -2,11 +2,11 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import os
 from pathlib import Path
 from subprocess import Popen, run
-from threading import Event
 from time import sleep
-from typing import Callable, List, Union, Dict, Generator, Mapping
+from typing import Callable, List, Mapping
 
 import docker
 from docker import DockerClient
@@ -14,20 +14,18 @@ from docker.models.containers import Container
 from docker.models.images import Image
 from pytest import fixture  # type: ignore
 
-from gprofiler.java import JavaProfiler
-from gprofiler.python import PythonProfiler
-
-HERE = Path(__file__).parent
-PARENT = HERE.parent
-CONTAINERS_DIRECTORY = HERE / "containers"
+from tests import PARENT, CONTAINERS_DIRECTORY
 
 
-@fixture(scope="session", params=["java", "python"])
-def runtime(request) -> str:
-    return request.param
+@fixture
+def runtime():
+    """
+    Parametrize this with application runtime name (java, python).
+    """
+    raise NotImplementedError
 
 
-@fixture(scope="session", params=[False, True])
+@fixture(params=[False, True])
 def in_container(request) -> bool:
     return request.param
 
@@ -49,7 +47,11 @@ def command_line(tmp_path: Path, runtime: str) -> List:
 
 
 @fixture
-def application_process(command_line: List) -> Generator[Popen, None, None]:
+def application_process(in_container: bool, command_line: List):
+    if in_container:
+        yield None
+        return
+
     popen = Popen(command_line)
     yield popen
     popen.kill()
@@ -67,15 +69,31 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Image:
     docker_client.images.remove(image.id, force=True)
 
 
-@fixture(scope="session")
-def application_docker_image(docker_client: DockerClient, runtime: str) -> Image:
-    image: Image = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime))[0]
-    yield image
-    docker_client.images.remove(image.id, force=True)
+@fixture(scope='session')
+def application_docker_images(docker_client: DockerClient):
+    images = {}
+    for runtime in os.listdir(str(CONTAINERS_DIRECTORY)):
+        images[runtime], _ = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime))
+    yield images
+    for image in images.values():
+        docker_client.images.remove(image.id, force=True)
 
 
 @fixture
-def application_docker_container(docker_client: DockerClient, application_docker_image: Image) -> Container:
+def application_docker_image(application_docker_images: Mapping[str, Image], runtime: str) -> Image:
+    yield application_docker_images[runtime]
+
+
+@fixture
+def application_docker_container(
+    in_container: bool,
+    docker_client: DockerClient,
+    application_docker_image: Image
+):
+    if not in_container:
+        yield None
+        return
+
     container: Container = docker_client.containers.run(application_docker_image, detach=True, user="5555:6666")
     while container.status != "running":
         sleep(1)
@@ -89,22 +107,12 @@ def output_directory(tmp_path: Path) -> Path:
     return tmp_path / "output"
 
 
-# TODO: Avoid running the not chosen application variant.
 @fixture
 def application_pid(in_container: bool, application_process: Popen, application_docker_container: Container):
     return application_docker_container.attrs["State"]["Pid"] if in_container else application_process.pid
 
 
 @fixture
-def profiler(tmp_path: Path, runtime: str) -> Union[JavaProfiler, PythonProfiler]:
-    profilers: Dict[str, Union[JavaProfiler, PythonProfiler]] = {
-        "java": JavaProfiler(1000, 1, True, Event(), str(tmp_path)),
-        "python": PythonProfiler(1000, 1, Event(), str(tmp_path)),
-    }
-    return profilers[runtime]
-
-
-@fixture(scope="session")
 def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int]], None]:
     function_name = {
         "java": "Fibonacci.main",
