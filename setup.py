@@ -2,7 +2,9 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import re
 from typing import List
+from pathlib import Path
 
 import setuptools
 
@@ -12,12 +14,15 @@ def read_requirements(path: str) -> List[str]:
         return [line for line in f.readlines() if not line.startswith("#")]
 
 
+version = re.search(r'__version__\s*=\s*"(.*?)"', Path("gprofiler/__init__.py").read_text())
+assert version is not None, "could not parse version!"
+
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="gprofiler",
-    version="1.0b1",
+    version=version.group(1),
     author="Granulate",
     author_email="",  # TODO
     description="Production Profiling, Made Easy",

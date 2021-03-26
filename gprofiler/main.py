@@ -21,6 +21,7 @@ from typing import Optional
 import configargparse
 from requests import RequestException, Timeout
 
+from . import __version__
 from . import merge
 from .client import APIClient, APIError, GRANULATE_SERVER_HOST, DEFAULT_UPLOAD_TIMEOUT
 from .java import JavaProfiler
@@ -248,7 +249,7 @@ def main():
     setup_logger(logging.DEBUG if args.verbose else logging.INFO, args.log_file)
 
     try:
-        logger.info("Running gprofiler...")
+        logger.info(f"Running gprofiler (version {__version__})...")
 
         if not verify_preconditions():
             sys.exit(1)

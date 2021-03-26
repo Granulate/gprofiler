@@ -12,6 +12,7 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY LICENSE.md MANIFEST.in README.md setup.py ./
 COPY gprofiler gprofiler
+RUN python3 setup.py install
 
 STOPSIGNAL SIGINT
 
