@@ -105,9 +105,21 @@ def pgrep_exe(match: str) -> Iterator[Process]:
     return (process for process in psutil.process_iter() if pattern.match(process.exe()))
 
 
-def pgrep_maps(match: str) -> Iterator[Process]:
-    pattern = re.compile(match)
-    return (process for process in psutil.process_iter() if any(pattern.match(m.path) for m in process.memory_maps()))
+def pgrep_maps(match: str) -> List[Process]:
+    # this is much faster than iterating over processes' maps with psutil.
+    result = subprocess.run(
+        f"grep -lP '{match}' /proc/*/maps", stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=True
+    )
+    # might get 2 (which 'grep' exits with, if some files were unavailable, because processes have exited)
+    assert result.returncode in (0, 2)
+
+    processes: List[Process] = []
+    for line in result.stdout.splitlines():
+        assert line.startswith(b"/proc/") and line.endswith(b"/maps")
+        pid = int(line[len(b"/proc/") : -len(b"/maps")])
+        processes.append(Process(pid))
+
+    return processes
 
 
 def get_iso8061_format_time(time: datetime.datetime) -> str:
