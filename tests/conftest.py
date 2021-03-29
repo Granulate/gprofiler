@@ -12,7 +12,7 @@ import docker
 from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
-from pytest import fixture
+from pytest import fixture  # type: ignore
 
 from gprofiler.java import JavaProfiler
 from gprofiler.python import PythonProfiler
