@@ -4,7 +4,7 @@
 #
 from docker import DockerClient
 from docker.models.images import Image
-import pytest
+import pytest  # type: ignore
 
 from gprofiler.python import PythonProfiler
 

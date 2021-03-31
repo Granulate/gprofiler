@@ -29,7 +29,7 @@ from .perf import SystemProfiler
 from .python import PythonProfiler
 from .utils import is_root, run_process, get_iso8061_format_time, resource_path
 
-logger: Optional[Logger] = None
+logger: Logger
 
 TEMPORARY_STORAGE_PATH = "/tmp/gprofiler"
 
@@ -61,10 +61,12 @@ class GProfiler:
     def close(self):
         self._system_modifications_stack.close()
 
-    def _generate_output_files(self, collapsed_data):
-        base_filename = os.path.join(
-            self._output_dir, "profile_{}".format(get_iso8061_format_time(datetime.datetime.now()))
-        )
+    def _generate_output_files(
+        self, collapsed_data: str, local_start_time: datetime.datetime, local_end_time: datetime.datetime
+    ) -> None:
+        start_ts = get_iso8061_format_time(local_start_time)
+        end_ts = get_iso8061_format_time(local_end_time)
+        base_filename = os.path.join(self._output_dir, "profile_{}".format(end_ts))
         collapsed_path = base_filename + ".col"
         Path(collapsed_path).write_text(collapsed_data)
 
@@ -78,6 +80,8 @@ class GProfiler:
                     [resource_path("burn"), "convert", "--type=folded", collapsed_path], suppress_log=True
                 ).stdout.decode(),
             )
+            .replace("{{{START_TIME}}}", start_ts)
+            .replace("{{{END_TIME}}}", end_ts)
         )
         Path(flamegraph_path).write_text(flamegraph)
         logger.info(f"Saved flamegraph to {flamegraph_path}")
@@ -114,16 +118,14 @@ class GProfiler:
                 self._stop_event.set()
                 raise
 
+            local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
             merged_result = merge.merge_perfs(system_perf, process_perfs)
 
             if self._output_dir:
-                self._generate_output_files(merged_result)
+                self._generate_output_files(merged_result, local_start_time, local_end_time)
 
             if self._client:
                 try:
-                    local_end_time = local_start_time + datetime.timedelta(
-                        seconds=(time.monotonic() - monotonic_start_time)
-                    )
                     self._client.submit_profile(local_start_time, local_end_time, gethostname(), merged_result)
                 except Timeout:
                     logger.error("Upload of profile to server timed out.")
