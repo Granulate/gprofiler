@@ -124,16 +124,22 @@ class JavaProfiler:
             raise Exception(f"Not enough free disk space: {free_disk}kb")
 
         profiler_event = "itimer" if self._use_itimer else "cpu"
-        run_process(
-            self.get_async_profiler_start_cmd(
-                process.pid,
-                profiler_event,
-                self._interval,
-                remote_context_output_path,
-                resource_path("java/jattach"),
-                libasyncprofiler_path,
+        try:
+            run_process(
+                self.get_async_profiler_start_cmd(
+                    process.pid,
+                    profiler_event,
+                    self._interval,
+                    remote_context_output_path,
+                    resource_path("java/jattach"),
+                    libasyncprofiler_path,
+                )
             )
-        )
+        except CalledProcessError:
+            is_loaded = f" {libasyncprofiler_path}\n" in Path(f"/proc/{process.pid}/maps").read_text()
+            logger.warning(f"async-profiler DSO was{'' if is_loaded else ' not'} loaded into {process.pid}")
+            raise
+
         self._stop_event.wait(self._duration)
         if process.is_running():
             run_process(
