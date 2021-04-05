@@ -17,7 +17,7 @@ from psutil import Process
 
 from .merge import parse_collapsed
 from .exceptions import StopEventSetException
-from .utils import run_process, pgrep_exe, get_self_container_id, resource_path
+from .utils import run_process, pgrep_exe, get_self_container_id, resource_path, resolve_proc_root_links, remove_prefix
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,7 @@ class JavaProfiler:
             return
 
         process_root = f"/proc/{process.pid}/root"
-        storage_dir = process_root + self._storage_dir
+        storage_dir = resolve_proc_root_links(process_root, self._storage_dir)
         if not os.path.isdir(storage_dir):
             os.makedirs(storage_dir)
             self._temp_dirs.append(storage_dir)
@@ -128,8 +128,8 @@ class JavaProfiler:
         remote_context_libasyncprofiler_path = os.path.join(storage_dir, "libasyncProfiler.so")
         if not os.path.exists(remote_context_libasyncprofiler_path):
             shutil.copy(resource_path("java/libasyncProfiler.so"), remote_context_libasyncprofiler_path)
-        log_path = os.path.join(self._storage_dir, os.path.basename(mktemp()))
-        log_path_host = process_root + log_path
+        log_path_host = os.path.join(storage_dir, os.path.basename(mktemp()))
+        log_path = remove_prefix(log_path_host, process_root)
 
         os.chmod(output_path, 0o666)
 
