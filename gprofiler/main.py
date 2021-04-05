@@ -16,7 +16,6 @@ from pathlib import Path
 from socket import gethostname
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Optional
 
 import configargparse
 from requests import RequestException, Timeout
