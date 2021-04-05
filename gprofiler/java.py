@@ -8,7 +8,7 @@ import os
 import shutil
 from pathlib import Path
 from subprocess import CalledProcessError
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, mktemp
 from threading import Event
 from typing import List
 
@@ -61,6 +61,7 @@ class JavaProfiler:
         output_path: str,
         jattach_path: str,
         async_profiler_lib_path: str,
+        log_path: str,
     ):
         return [
             jattach_path,
@@ -69,18 +70,28 @@ class JavaProfiler:
             async_profiler_lib_path,
             "true",
             f"start,event={event_type},file={output_path},{self.OUTPUT_FORMAT},"
-            f"{self.FORMAT_PARAMS},interval={interval},framebuf=2000000",
+            f"{self.FORMAT_PARAMS},interval={interval},framebuf=2000000,log={log_path}",
         ]
 
-    def get_async_profiler_stop_cmd(self, pid: int, output_path: str, jattach_path: str, async_profiler_lib_path: str):
+    def get_async_profiler_stop_cmd(
+        self, pid: int, output_path: str, jattach_path: str, async_profiler_lib_path: str, log_path: str
+    ):
         return [
             jattach_path,
             str(pid),
             "load",
             async_profiler_lib_path,
             "true",
-            f"stop,file={output_path},{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS}",
+            f"stop,file={output_path},{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS},log={log_path}",
         ]
+
+    def run_async_profiler(self, cmd: str, log_path_host: str):
+        try:
+            run_process(cmd)
+        except CalledProcessError:
+            if os.path.exists(log_path_host):
+                logger.warning(f"async-profiler log: {Path(log_path_host).read_text()}")
+            raise
 
     def profile_process(self, process: Process):
         logger.info(f"Profiling java process {process.pid}...")
@@ -106,7 +117,8 @@ class JavaProfiler:
             logger.warning(f"Process {process.pid} running unsupported Java version, skipping...")
             return
 
-        storage_dir = f"/proc/{process.pid}/root" + self._storage_dir
+        process_root = f"/proc/{process.pid}/root"
+        storage_dir = process_root + self._storage_dir
         if not os.path.isdir(storage_dir):
             os.makedirs(storage_dir)
             self._temp_dirs.append(storage_dir)
@@ -116,6 +128,8 @@ class JavaProfiler:
         remote_context_libasyncprofiler_path = os.path.join(storage_dir, "libasyncProfiler.so")
         if not os.path.exists(remote_context_libasyncprofiler_path):
             shutil.copy(resource_path("java/libasyncProfiler.so"), remote_context_libasyncprofiler_path)
+        log_path = os.path.join(self._storage_dir, os.path.basename(mktemp()))
+        log_path_host = process_root + log_path
 
         os.chmod(output_path, 0o666)
 
@@ -125,7 +139,7 @@ class JavaProfiler:
 
         profiler_event = "itimer" if self._use_itimer else "cpu"
         try:
-            run_process(
+            self.run_async_profiler(
                 self.get_async_profiler_start_cmd(
                     process.pid,
                     profiler_event,
@@ -133,7 +147,9 @@ class JavaProfiler:
                     remote_context_output_path,
                     resource_path("java/jattach"),
                     libasyncprofiler_path,
-                )
+                    log_path,
+                ),
+                log_path_host,
             )
         except CalledProcessError:
             is_loaded = f" {libasyncprofiler_path}\n" in Path(f"/proc/{process.pid}/maps").read_text()
@@ -142,10 +158,15 @@ class JavaProfiler:
 
         self._stop_event.wait(self._duration)
         if process.is_running():
-            run_process(
+            self.run_async_profiler(
                 self.get_async_profiler_stop_cmd(
-                    process.pid, remote_context_output_path, resource_path("java/jattach"), libasyncprofiler_path
-                )
+                    process.pid,
+                    remote_context_output_path,
+                    resource_path("java/jattach"),
+                    libasyncprofiler_path,
+                    log_path,
+                ),
+                log_path_host,
             )
 
         if self._stop_event.is_set():
