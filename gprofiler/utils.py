@@ -154,3 +154,9 @@ def resolve_proc_root_links(proc_root: str, ns_path: str) -> str:
         path = next_path
 
     return path
+
+
+def remove_prefix(s: str, prefix: str) -> str:
+    # like str.removeprefix of Python 3.9, but this also ensures the prefix exists.
+    assert s.startswith(prefix)
+    return s[len(prefix) :]
