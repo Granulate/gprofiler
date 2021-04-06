@@ -10,7 +10,7 @@ from pathlib import Path
 from subprocess import CalledProcessError
 from tempfile import NamedTemporaryFile
 from threading import Event
-from typing import List
+from typing import Mapping, Optional
 
 import psutil
 from psutil import Process
@@ -37,7 +37,6 @@ class JavaProfiler:
         self._stop_event = stop_event
         self._storage_dir = storage_dir
 
-        self._temp_dirs: List[str] = []
         self._self_container_id = get_self_container_id()
 
     def __enter__(self):
@@ -47,8 +46,7 @@ class JavaProfiler:
         self.close()
 
     def close(self):
-        for temp_dir in self._temp_dirs:
-            shutil.rmtree(temp_dir)
+        pass
 
     def is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -93,7 +91,7 @@ class JavaProfiler:
                 logger.warning(f"async-profiler log: {Path(log_path_host).read_text()}")
             raise
 
-    def profile_process(self, process: Process):
+    def profile_process(self, process: Process) -> Optional[Mapping[str, int]]:
         logger.info(f"Profiling java process {process.pid}...")
 
         # Get Java version
@@ -115,14 +113,22 @@ class JavaProfiler:
         # Version is printed to stderr
         if not self.is_jdk_version_supported(java_version_cmd_output.stderr.decode()):
             logger.warning(f"Process {process.pid} running unsupported Java version, skipping...")
-            return
+            return None
 
         process_root = f"/proc/{process.pid}/root"
         storage_dir_host = resolve_proc_root_links(process_root, self._storage_dir)
-        if not os.path.isdir(storage_dir_host):
-            os.makedirs(storage_dir_host)
-            self._temp_dirs.append(storage_dir_host)
 
+        try:
+            os.makedirs(storage_dir_host)
+            return self._profile_process_with_dir(process, storage_dir_host, process_root)
+        finally:
+            # ignore_errors because we are deleting paths via /proc/pid/root - and those processes
+            # might have went down already.
+            shutil.rmtree(storage_dir_host, ignore_errors=True)
+
+    def _profile_process_with_dir(
+        self, process: Process, storage_dir_host: str, process_root: str
+    ) -> Optional[Mapping[str, int]]:
         output_path_host = NamedTemporaryFile(dir=storage_dir_host, delete=False).name
         os.chmod(output_path_host, 0o666)  # make it writable for all, so target process can write
         output_path_process = remove_prefix(output_path_host, process_root)
