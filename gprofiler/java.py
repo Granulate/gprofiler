@@ -16,7 +16,16 @@ from psutil import Process
 
 from .merge import parse_collapsed
 from .exceptions import StopEventSetException
-from .utils import run_process, pgrep_exe, resource_path, resolve_proc_root_links, remove_prefix, touch_path
+from .utils import (
+    run_process,
+    pgrep_exe,
+    resource_path,
+    resolve_proc_root_links,
+    remove_prefix,
+    touch_path,
+    is_same_ns,
+    TEMPORARY_STORAGE_PATH,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -113,9 +122,16 @@ class JavaProfiler:
             return None
 
         process_root = f"/proc/{process.pid}/root"
+        if is_same_ns(process.pid, "mnt"):
+            # processes running in my namespace can use my (temporary) storage dir
+            tmp_dir = self._storage_dir
+        else:
+            # processes running in other namespaces will use the base path
+            tmp_dir = TEMPORARY_STORAGE_PATH
+
         # we'll use separated storage directories per process: since multiple processes may run in the
         # same namespace, one may accidentally delete the storage directory of another.
-        storage_dir_host = resolve_proc_root_links(process_root, os.path.join(self._storage_dir, str(process.pid)))
+        storage_dir_host = resolve_proc_root_links(process_root, os.path.join(tmp_dir, str(process.pid)))
 
         try:
             os.makedirs(storage_dir_host)

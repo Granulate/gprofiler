@@ -21,6 +21,8 @@ from gprofiler.exceptions import CalledProcessError, ProcessStoppedException
 
 logger = logging.getLogger(__name__)
 
+TEMPORARY_STORAGE_PATH = "/tmp/gprofiler"
+
 
 def resource_path(relative_path: str = "") -> str:
     *relative_directory, basename = relative_path.split("/")
