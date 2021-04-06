@@ -166,3 +166,7 @@ def touch_path(path: str, mode: int) -> None:
     Path(path).touch()
     # chmod() afterwards (can't use 'mode' in touch(), because it's affected by umask)
     os.chmod(path, mode)
+
+
+def is_same_ns(pid: int, nstype: str) -> bool:
+    return os.stat(f"/proc/self/ns/{nstype}").st_ino == os.stat(f"/proc/{pid}/ns/{nstype}").st_ino
