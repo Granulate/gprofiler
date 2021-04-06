@@ -113,7 +113,9 @@ class JavaProfiler:
             return None
 
         process_root = f"/proc/{process.pid}/root"
-        storage_dir_host = resolve_proc_root_links(process_root, self._storage_dir)
+        # we'll use separated storage directories per process: since multiple processes may run in the
+        # same namespace, one may accidentally delete the storage directory of another.
+        storage_dir_host = resolve_proc_root_links(process_root, os.path.join(self._storage_dir, str(process.pid)))
 
         try:
             os.makedirs(storage_dir_host)
