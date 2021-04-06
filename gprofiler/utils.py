@@ -160,3 +160,9 @@ def remove_prefix(s: str, prefix: str) -> str:
     # like str.removeprefix of Python 3.9, but this also ensures the prefix exists.
     assert s.startswith(prefix)
     return s[len(prefix) :]
+
+
+def touch_path(path: str, mode: int) -> None:
+    Path(path).touch()
+    # chmod() afterwards (can't use 'mode' in touch(), because it's affected by umask)
+    os.chmod(path, mode)
