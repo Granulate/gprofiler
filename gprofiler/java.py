@@ -8,7 +8,6 @@ import os
 import shutil
 from pathlib import Path
 from subprocess import CalledProcessError
-from tempfile import NamedTemporaryFile
 from threading import Event
 from typing import Mapping, Optional
 
@@ -17,7 +16,7 @@ from psutil import Process
 
 from .merge import parse_collapsed
 from .exceptions import StopEventSetException
-from .utils import run_process, pgrep_exe, resource_path, resolve_proc_root_links, remove_prefix
+from .utils import run_process, pgrep_exe, resource_path, resolve_proc_root_links, remove_prefix, touch_path
 
 logger = logging.getLogger(__name__)
 
@@ -127,8 +126,8 @@ class JavaProfiler:
     def _profile_process_with_dir(
         self, process: Process, storage_dir_host: str, process_root: str
     ) -> Optional[Mapping[str, int]]:
-        output_path_host = NamedTemporaryFile(dir=storage_dir_host, delete=False).name
-        os.chmod(output_path_host, 0o666)  # make it writable for all, so target process can write
+        output_path_host = os.path.join(storage_dir_host, f"async-profiler-{process.pid}.output")
+        touch_path(output_path_host, 0o666)  # make it writable for all, so target process can write
         output_path_process = remove_prefix(output_path_host, process_root)
 
         libasyncprofiler_path_host = os.path.join(storage_dir_host, "libasyncProfiler.so")
@@ -136,8 +135,8 @@ class JavaProfiler:
         if not os.path.exists(libasyncprofiler_path_host):
             shutil.copy(resource_path("java/libasyncProfiler.so"), libasyncprofiler_path_host)
 
-        log_path_host = NamedTemporaryFile(dir=storage_dir_host, delete=False).name
-        os.chmod(log_path_host, 0o666)  # make it writable for all, so target process can write
+        log_path_host = os.path.join(storage_dir_host, f"async-profiler-{process.pid}.log")
+        touch_path(log_path_host, 0o666)  # make it writable for all, so target process can write
         log_path_process = remove_prefix(log_path_host, process_root)
 
         free_disk = psutil.disk_usage(output_path_host).free
