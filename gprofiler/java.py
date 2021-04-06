@@ -17,7 +17,7 @@ from psutil import Process
 
 from .merge import parse_collapsed
 from .exceptions import StopEventSetException
-from .utils import run_process, pgrep_exe, get_self_container_id, resource_path, resolve_proc_root_links, remove_prefix
+from .utils import run_process, pgrep_exe, resource_path, resolve_proc_root_links, remove_prefix
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +36,6 @@ class JavaProfiler:
         self._use_itimer = use_itimer
         self._stop_event = stop_event
         self._storage_dir = storage_dir
-
-        self._self_container_id = get_self_container_id()
 
     def __enter__(self):
         return self
