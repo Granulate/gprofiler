@@ -9,9 +9,9 @@ mkdir -p build
 
 # async-profiler
 mkdir -p gprofiler/resources/java
-curl -fL https://github.com/Granulate/async-profiler/releases/download/v1.8.3g1/async-profiler-1.8.3-linux-x64.tar.gz \
-   -z build/async-profiler-1.8.3-linux-x64.tar.gz -o build/async-profiler-1.8.3-linux-x64.tar.gz
-tar -xzf build/async-profiler-1.8.3-linux-x64.tar.gz -C gprofiler/resources/java --strip-components=2 async-profiler-1.8.3-linux-x64/build
+curl -fL https://github.com/Granulate/async-profiler/releases/download/v2.0g1/async-profiler-2.0-linux-x64.tar.gz \
+   -z build/async-profiler-2.0-linux-x64.tar.gz -o build/async-profiler-2.0-linux-x64.tar.gz
+tar -xzf build/async-profiler-2.0-linux-x64.tar.gz -C gprofiler/resources/java --strip-components=2 async-profiler-2.0-linux-x64/build
 
 # py-spy
 mkdir -p gprofiler/resources/python

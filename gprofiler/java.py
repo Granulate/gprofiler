@@ -8,16 +8,24 @@ import os
 import shutil
 from pathlib import Path
 from subprocess import CalledProcessError
-from tempfile import NamedTemporaryFile
 from threading import Event
-from typing import List
+from typing import Mapping, Optional
 
 import psutil
 from psutil import Process
 
 from .merge import parse_collapsed
 from .exceptions import StopEventSetException
-from .utils import run_process, pgrep_exe, get_self_container_id, resource_path
+from .utils import (
+    run_process,
+    pgrep_exe,
+    resource_path,
+    resolve_proc_root_links,
+    remove_prefix,
+    touch_path,
+    is_same_ns,
+    TEMPORARY_STORAGE_PATH,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +45,6 @@ class JavaProfiler:
         self._stop_event = stop_event
         self._storage_dir = storage_dir
 
-        self._temp_dirs: List[str] = []
-        self._self_container_id = get_self_container_id()
-
     def __enter__(self):
         return self
 
@@ -47,8 +52,7 @@ class JavaProfiler:
         self.close()
 
     def close(self):
-        for temp_dir in self._temp_dirs:
-            shutil.rmtree(temp_dir)
+        pass
 
     def is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -61,6 +65,7 @@ class JavaProfiler:
         output_path: str,
         jattach_path: str,
         async_profiler_lib_path: str,
+        log_path: str,
     ):
         return [
             jattach_path,
@@ -69,20 +74,30 @@ class JavaProfiler:
             async_profiler_lib_path,
             "true",
             f"start,event={event_type},file={output_path},{self.OUTPUT_FORMAT},"
-            f"{self.FORMAT_PARAMS},interval={interval},framebuf=2000000",
+            f"{self.FORMAT_PARAMS},interval={interval},framebuf=2000000,log={log_path}",
         ]
 
-    def get_async_profiler_stop_cmd(self, pid: int, output_path: str, jattach_path: str, async_profiler_lib_path: str):
+    def get_async_profiler_stop_cmd(
+        self, pid: int, output_path: str, jattach_path: str, async_profiler_lib_path: str, log_path: str
+    ):
         return [
             jattach_path,
             str(pid),
             "load",
             async_profiler_lib_path,
             "true",
-            f"stop,file={output_path},{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS}",
+            f"stop,file={output_path},{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS},log={log_path}",
         ]
 
-    def profile_process(self, process: Process):
+    def run_async_profiler(self, cmd: str, log_path_host: str):
+        try:
+            run_process(cmd)
+        except CalledProcessError:
+            if os.path.exists(log_path_host):
+                logger.warning(f"async-profiler log: {Path(log_path_host).read_text()}")
+            raise
+
+    def profile_process(self, process: Process) -> Optional[Mapping[str, int]]:
         logger.info(f"Profiling java process {process.pid}...")
 
         # Get Java version
@@ -104,49 +119,85 @@ class JavaProfiler:
         # Version is printed to stderr
         if not self.is_jdk_version_supported(java_version_cmd_output.stderr.decode()):
             logger.warning(f"Process {process.pid} running unsupported Java version, skipping...")
-            return
+            return None
 
-        storage_dir = f"/proc/{process.pid}/root" + self._storage_dir
-        if not os.path.isdir(storage_dir):
-            os.makedirs(storage_dir)
-            self._temp_dirs.append(storage_dir)
-        output_path = NamedTemporaryFile(dir=storage_dir, delete=False).name
-        remote_context_output_path = os.path.join(self._storage_dir, os.path.basename(output_path))
-        libasyncprofiler_path = os.path.join(self._storage_dir, "libasyncProfiler.so")
-        remote_context_libasyncprofiler_path = os.path.join(storage_dir, "libasyncProfiler.so")
-        if not os.path.exists(remote_context_libasyncprofiler_path):
-            shutil.copy(resource_path("java/libasyncProfiler.so"), remote_context_libasyncprofiler_path)
+        process_root = f"/proc/{process.pid}/root"
+        if is_same_ns(process.pid, "mnt"):
+            # processes running in my namespace can use my (temporary) storage dir
+            tmp_dir = self._storage_dir
+        else:
+            # processes running in other namespaces will use the base path
+            tmp_dir = TEMPORARY_STORAGE_PATH
 
-        os.chmod(output_path, 0o666)
+        # we'll use separated storage directories per process: since multiple processes may run in the
+        # same namespace, one may accidentally delete the storage directory of another.
+        storage_dir_host = resolve_proc_root_links(process_root, os.path.join(tmp_dir, str(process.pid)))
 
-        free_disk = psutil.disk_usage(output_path).free
+        try:
+            os.makedirs(storage_dir_host)
+            return self._profile_process_with_dir(process, storage_dir_host, process_root)
+        finally:
+            # ignore_errors because we are deleting paths via /proc/pid/root - and those processes
+            # might have went down already.
+            shutil.rmtree(storage_dir_host, ignore_errors=True)
+
+    def _profile_process_with_dir(
+        self, process: Process, storage_dir_host: str, process_root: str
+    ) -> Optional[Mapping[str, int]]:
+        output_path_host = os.path.join(storage_dir_host, f"async-profiler-{process.pid}.output")
+        touch_path(output_path_host, 0o666)  # make it writable for all, so target process can write
+        output_path_process = remove_prefix(output_path_host, process_root)
+
+        libasyncprofiler_path_host = os.path.join(storage_dir_host, "libasyncProfiler.so")
+        libasyncprofiler_path_process = remove_prefix(libasyncprofiler_path_host, process_root)
+        if not os.path.exists(libasyncprofiler_path_host):
+            shutil.copy(resource_path("java/libasyncProfiler.so"), libasyncprofiler_path_host)
+
+        log_path_host = os.path.join(storage_dir_host, f"async-profiler-{process.pid}.log")
+        touch_path(log_path_host, 0o666)  # make it writable for all, so target process can write
+        log_path_process = remove_prefix(log_path_host, process_root)
+
+        free_disk = psutil.disk_usage(output_path_host).free
         if free_disk < 250 * 1024:
             raise Exception(f"Not enough free disk space: {free_disk}kb")
 
         profiler_event = "itimer" if self._use_itimer else "cpu"
-        run_process(
-            self.get_async_profiler_start_cmd(
-                process.pid,
-                profiler_event,
-                self._interval,
-                remote_context_output_path,
-                resource_path("java/jattach"),
-                libasyncprofiler_path,
+        try:
+            self.run_async_profiler(
+                self.get_async_profiler_start_cmd(
+                    process.pid,
+                    profiler_event,
+                    self._interval,
+                    output_path_process,
+                    resource_path("java/jattach"),
+                    libasyncprofiler_path_process,
+                    log_path_process,
+                ),
+                log_path_host,
             )
-        )
+        except CalledProcessError:
+            is_loaded = f" {libasyncprofiler_path_process}" in Path(f"/proc/{process.pid}/maps").read_text()
+            logger.warning(f"async-profiler DSO was{'' if is_loaded else ' not'} loaded into {process.pid}")
+            raise
+
         self._stop_event.wait(self._duration)
         if process.is_running():
-            run_process(
+            self.run_async_profiler(
                 self.get_async_profiler_stop_cmd(
-                    process.pid, remote_context_output_path, resource_path("java/jattach"), libasyncprofiler_path
-                )
+                    process.pid,
+                    output_path_process,
+                    resource_path("java/jattach"),
+                    libasyncprofiler_path_process,
+                    log_path_process,
+                ),
+                log_path_host,
             )
 
         if self._stop_event.is_set():
             raise StopEventSetException()
 
         logger.info(f"Finished profiling process {process.pid}")
-        return parse_collapsed(Path(output_path).read_text())
+        return parse_collapsed(Path(output_path_host).read_text())
 
     def profile_processes(self):
         futures = []

@@ -76,7 +76,7 @@ def application_docker_image(docker_client: DockerClient, runtime: str) -> Image
 
 @fixture
 def application_docker_container(docker_client: DockerClient, application_docker_image: Image) -> Container:
-    container: Container = docker_client.containers.run(application_docker_image, detach=True)
+    container: Container = docker_client.containers.run(application_docker_image, detach=True, user="5555:6666")
     while container.status != "running":
         sleep(1)
         container.reload()
