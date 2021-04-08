@@ -24,6 +24,7 @@ from .utils import (
     remove_prefix,
     touch_path,
     is_same_ns,
+    assert_program_installed,
     TEMPORARY_STORAGE_PATH,
 )
 
@@ -99,6 +100,8 @@ class JavaProfiler:
 
     def profile_process(self, process: Process) -> Optional[Mapping[str, int]]:
         logger.info(f"Profiling java process {process.pid}...")
+
+        assert_program_installed("nsenter")
 
         # Get Java version
         try:
