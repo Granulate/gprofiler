@@ -48,8 +48,10 @@ def collapse_stack(stack: str, comm: str) -> str:
         m = FRAME_REGEX.match(line)
         assert m is not None, f"bad line: {line}"
         sym, dso = m.groups()
+        if sym == "[unknown]":
+            sym = dso
         # append kernel annotation
-        if "kernel" in dso or "vmlinux" in dso:
+        elif "kernel" in dso or "vmlinux" in dso:
             sym += "_[k]"
         funcs.append(sym)
     return ";".join(funcs)
