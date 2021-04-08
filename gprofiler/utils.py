@@ -114,11 +114,11 @@ def pgrep_maps(match: str) -> List[Process]:
         f"grep -lP '{match}' /proc/*/maps", stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=True
     )
     # might get 2 (which 'grep' exits with, if some files were unavailable, because processes have exited)
-    assert result.returncode in (0, 2)
+    assert result.returncode in (0, 2), f"unexpected 'grep' exit code: {result.returncode}"
 
     processes: List[Process] = []
     for line in result.stdout.splitlines():
-        assert line.startswith(b"/proc/") and line.endswith(b"/maps")
+        assert line.startswith(b"/proc/") and line.endswith(b"/maps"), f"unexpected 'grep' line: {line!r}"
         pid = int(line[len(b"/proc/") : -len(b"/maps")])
         processes.append(Process(pid))
 
