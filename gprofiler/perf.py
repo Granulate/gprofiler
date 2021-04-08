@@ -10,10 +10,13 @@ from threading import Event
 
 import psutil
 
-from .utils import run_process, resource_path
+from .utils import run_process, resource_path, TEMPORARY_STORAGE_PATH
 from .merge import parse_perf_script
 
 logger = logging.getLogger(__name__)
+
+
+PERF_BUILDID_DIR = os.path.join(TEMPORARY_STORAGE_PATH, "perf-buildids")
 
 
 class SystemProfiler:
@@ -36,16 +39,20 @@ class SystemProfiler:
     def run_perf(self, filename_base: str, dwarf=False):
         parsed_path = os.path.join(self._storage_dir, f"{filename_base}.parsed")
 
+        buildid_args = ["--buildid-dir", PERF_BUILDID_DIR]
+
         with NamedTemporaryFile(dir=self._storage_dir) as record_file:
             args = ["-F", str(self._frequency), "-a", "-g", "-o", record_file.name]
             if dwarf:
                 args += ["--call-graph", "dwarf"]
             run_process(
-                [resource_path("perf"), "record"] + args + ["--", "sleep", str(self._duration)],
+                [resource_path("perf")] + buildid_args + ["record"] + args + ["--", "sleep", str(self._duration)],
                 stop_event=self._stop_event,
             )
             with open(parsed_path, "w") as f:
-                run_process([resource_path("perf"), "script", "-F", "+pid", "-i", record_file.name], stdout=f)
+                run_process(
+                    [resource_path("perf")] + buildid_args + ["script", "-F", "+pid", "-i", record_file.name], stdout=f
+                )
             return parsed_path
 
     def profile(self):
