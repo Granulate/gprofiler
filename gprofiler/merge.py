@@ -15,6 +15,11 @@ SAMPLE_REGEX = re.compile(
     re.MULTILINE | re.DOTALL,
 )
 
+# ffffffff81082227 mmput+0x57 ([kernel.kallsyms])
+# 0 [unknown] ([unknown])
+# 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
+FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*) \((.*)\)$")
+
 
 def parse_collapsed(collapsed: str) -> Mapping[str, int]:
     """
@@ -40,12 +45,11 @@ def collapse_stack(stack: str, comm: str) -> str:
     """
     funcs = [comm]
     for line in reversed(stack.splitlines()):
-        # example line:
-        # ffffffff81082227 mmput+0x57 ([kernel.kallsyms])
-        words = line.split()
-        sym = words[1].split("+")[0]
+        m = FRAME_REGEX.match(line)
+        assert m is not None, f"bad line: {line}"
+        sym, dso = m.groups()
         # append kernel annotation
-        if "kernel" in words[-1] or "vmlinux" in words[-1]:
+        if "kernel" in dso or "vmlinux" in dso:
             sym += "_[k]"
         funcs.append(sym)
     return ";".join(funcs)
