@@ -2,11 +2,10 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import pytest
+import pytest  # type: ignore
 from docker import DockerClient
 from docker.models.images import Image
 from threading import Event
-import pytest  # type: ignore
 
 from gprofiler.python import PythonProfiler
 

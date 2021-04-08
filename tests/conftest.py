@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from subprocess import Popen, run
 from time import sleep
-from typing import Callable, List, Mapping
+from typing import Callable, List, Mapping, Iterable
 
 import docker
 from docker import DockerClient
@@ -51,10 +51,10 @@ def application_process(in_container: bool, command_line: List):
     if in_container:
         yield None
         return
-
-    popen = Popen(command_line)
-    yield popen
-    popen.kill()
+    else:
+        popen = Popen(command_line)
+        yield popen
+        popen.kill()
 
 
 @fixture(scope="session")
@@ -63,14 +63,14 @@ def docker_client() -> DockerClient:
 
 
 @fixture(scope="session")
-def gprofiler_docker_image(docker_client: DockerClient) -> Image:
+def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
     image: Image = docker_client.images.build(path=str(PARENT))[0]
     yield image
     docker_client.images.remove(image.id, force=True)
 
 
 @fixture(scope='session')
-def application_docker_images(docker_client: DockerClient):
+def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[str, Image]]:
     images = {}
     for runtime in os.listdir(str(CONTAINERS_DIRECTORY)):
         images[runtime], _ = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime))
@@ -80,26 +80,24 @@ def application_docker_images(docker_client: DockerClient):
 
 
 @fixture
-def application_docker_image(application_docker_images: Mapping[str, Image], runtime: str) -> Image:
+def application_docker_image(application_docker_images: Mapping[str, Image], runtime: str) -> Iterable[Image]:
     yield application_docker_images[runtime]
 
 
 @fixture
 def application_docker_container(
-    in_container: bool,
-    docker_client: DockerClient,
-    application_docker_image: Image
-):
+    in_container: bool, docker_client: DockerClient, application_docker_image: Image
+) -> Iterable[Container]:
     if not in_container:
         yield None
         return
-
-    container: Container = docker_client.containers.run(application_docker_image, detach=True, user="5555:6666")
-    while container.status != "running":
-        sleep(1)
-        container.reload()
-    yield container
-    container.remove(force=True)
+    else:
+        container: Container = docker_client.containers.run(application_docker_image, detach=True, user="5555:6666")
+        while container.status != "running":
+            sleep(1)
+            container.reload()
+        yield container
+        container.remove(force=True)
 
 
 @fixture
