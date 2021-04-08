@@ -93,7 +93,7 @@ def run_process(
         assert retcode is not None  # only None if child has not terminated
     result: CompletedProcess = CompletedProcess(process.args, retcode, stdout, stderr)
 
-    logger.debug(f"({cmd_text}) returncode: {result.returncode}")
+    logger.debug(f"({cmd_text}) exit code: {result.returncode}")
     if not suppress_log:
         if result.stdout:
             logger.debug(f"({cmd_text}) stdout: {result.stdout}")
