@@ -63,7 +63,8 @@ def get_process_nspid(pid: int) -> int:
 def run_process(
     cmd: Union[str, List[str]], stop_event: Event = None, suppress_log: bool = False, **kwargs
 ) -> CompletedProcess:
-    logger.debug(f'Running command: {" ".join(cmd) if isinstance(cmd, list) else cmd}')
+    cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
+    logger.debug(f'Running command: ({cmd_text})')
     if isinstance(cmd, str):
         cmd = [cmd]
     with Popen(
@@ -92,12 +93,12 @@ def run_process(
         assert retcode is not None  # only None if child has not terminated
     result: CompletedProcess = CompletedProcess(process.args, retcode, stdout, stderr)
 
-    logger.debug(f"returncode: {result.returncode}")
+    logger.debug(f"({cmd_text}) returncode: {result.returncode}")
     if not suppress_log:
         if result.stdout:
-            logger.debug(f"stdout: {result.stdout}")
+            logger.debug(f"({cmd_text}) stdout: {result.stdout}")
         if result.stderr:
-            logger.debug(f"stderr: {result.stderr}")
+            logger.debug(f"({cmd_text}) stderr: {result.stderr}")
     if retcode:
         raise CalledProcessError(retcode, process.args, output=stdout, stderr=stderr)
     return result
