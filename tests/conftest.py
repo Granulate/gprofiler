@@ -69,7 +69,7 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
     docker_client.images.remove(image.id, force=True)
 
 
-@fixture(scope='session')
+@fixture(scope="session")
 def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[str, Image]]:
     images = {}
     for runtime in os.listdir(str(CONTAINERS_DIRECTORY)):

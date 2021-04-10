@@ -2,7 +2,7 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import pytest
+import pytest  # type: ignore
 from glob import glob
 from pathlib import Path
 from threading import Event
@@ -16,7 +16,7 @@ from gprofiler.python import PythonProfiler
 from gprofiler.merge import parse_collapsed
 
 
-@pytest.mark.parametrize('runtime', ['java'])
+@pytest.mark.parametrize("runtime", ["java"])
 def test_java_from_host(
     tmp_path: Path,
     application_pid: int,
@@ -27,7 +27,7 @@ def test_java_from_host(
     assert_collapsed(process_collapsed.get(application_pid))
 
 
-@pytest.mark.parametrize('runtime', ['python'])
+@pytest.mark.parametrize("runtime", ["python"])
 def test_python_from_host(
     tmp_path: Path,
     application_pid: int,
@@ -38,7 +38,7 @@ def test_python_from_host(
     assert_collapsed(process_collapsed.get(application_pid))
 
 
-@pytest.mark.parametrize('runtime', ['java', 'python'])
+@pytest.mark.parametrize("runtime", ["java", "python"])
 def test_from_container(
     docker_client: DockerClient,
     application_pid: int,
