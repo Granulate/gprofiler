@@ -7,6 +7,7 @@ import datetime
 import logging
 import logging.config
 import logging.handlers
+import platform
 import os
 import sys
 import time
@@ -19,6 +20,7 @@ from threading import Event
 
 import configargparse
 from requests import RequestException, Timeout
+import psutil
 
 from . import __version__
 from . import merge
@@ -243,12 +245,21 @@ def verify_preconditions():
     return True
 
 
+def log_system_info():
+    uname = platform.uname()
+    logger.info(f"Kernel uname release: {uname.release}")
+    logger.info(f"Kernel uname version: {uname.version}")
+    logger.info(f"Total CPUs: {os.cpu_count()}")
+    logger.info(f"Total RAM: {psutil.virtual_memory().total / (1 << 30):.2f} GB")
+
+
 def main():
     args = parse_cmd_args()
     setup_logger(logging.DEBUG if args.verbose else logging.INFO, args.log_file)
 
     try:
         logger.info(f"Running gprofiler (version {__version__})...")
+        log_system_info()
 
         if not verify_preconditions():
             sys.exit(1)
