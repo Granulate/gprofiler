@@ -26,3 +26,8 @@ class CalledProcessError(subprocess.CalledProcessError):
                 f"Command '{self.cmd}' returned non-zero exit status {self.returncode}. "
                 f"stderr: {self.stderr}, stdout: {self.stdout}"
             )
+
+
+class ProgramMissingException(Exception):
+    def __init__(self, program: str):
+        super().__init__(f"The program {program!r} is missing! Please install it")

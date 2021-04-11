@@ -6,6 +6,7 @@ import datetime
 import logging
 import os
 import re
+import shutil
 import subprocess
 import platform
 import ctypes
@@ -20,7 +21,7 @@ import psutil
 import distro  # type: ignore
 from psutil import Process
 
-from gprofiler.exceptions import CalledProcessError, ProcessStoppedException
+from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, ProgramMissingException
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,8 @@ def get_process_nspid(pid: int) -> int:
 def run_process(
     cmd: Union[str, List[str]], stop_event: Event = None, suppress_log: bool = False, **kwargs
 ) -> CompletedProcess:
-    logger.debug(f'Running command: {" ".join(cmd) if isinstance(cmd, list) else cmd}')
+    cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
+    logger.debug(f'Running command: ({cmd_text})')
     if isinstance(cmd, str):
         cmd = [cmd]
     with Popen(
@@ -95,12 +97,12 @@ def run_process(
         assert retcode is not None  # only None if child has not terminated
     result: CompletedProcess = CompletedProcess(process.args, retcode, stdout, stderr)
 
-    logger.debug(f"returncode: {result.returncode}")
+    logger.debug(f"({cmd_text}) exit code: {result.returncode}")
     if not suppress_log:
         if result.stdout:
-            logger.debug(f"stdout: {result.stdout}")
+            logger.debug(f"({cmd_text}) stdout: {result.stdout}")
         if result.stderr:
-            logger.debug(f"stderr: {result.stderr}")
+            logger.debug(f"({cmd_text}) stderr: {result.stderr}")
     if retcode:
         raise CalledProcessError(retcode, process.args, output=stdout, stderr=stderr)
     return result
@@ -175,6 +177,19 @@ def touch_path(path: str, mode: int) -> None:
 
 def is_same_ns(pid: int, nstype: str) -> bool:
     return os.stat(f"/proc/self/ns/{nstype}").st_ino == os.stat(f"/proc/{pid}/ns/{nstype}").st_ino
+
+
+_INSTALLED_PROGRAMS_CACHE: List[str] = []
+
+
+def assert_program_installed(program: str):
+    if program in _INSTALLED_PROGRAMS_CACHE:
+        return
+
+    if shutil.which(program) is not None:
+        _INSTALLED_PROGRAMS_CACHE.append(program)
+    else:
+        raise ProgramMissingException(program)
 
 
 def get_libc_version() -> Tuple[str, str]:

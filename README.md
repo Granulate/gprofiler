@@ -8,6 +8,9 @@ To upload results, you will have to register and generate a token on the website
 
 ## Requirements
 gProfiler works on **Linux** and requires **Python 3.6+** to run.
+
+The `nsenter` program needs to be installed for Java profiling. For Debian/Ubuntu, install the `util-linux` package.
+
 It can produce specialized stack traces for the following runtimes:
 * Java runtimes (version 7+) based on the HotSpot JVM,
 including the Oracle JDK and other builds of OpenJDK like AdoptOpenJDK and Azul Zulu.
