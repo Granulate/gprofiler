@@ -152,6 +152,8 @@ class JavaProfiler:
         libasyncprofiler_path_process = remove_prefix(libasyncprofiler_path_host, process_root)
         if not os.path.exists(libasyncprofiler_path_host):
             shutil.copy(resource_path("java/libasyncProfiler.so"), libasyncprofiler_path_host)
+            # explicitly chmod to allow access for non-root users
+            os.chmod(libasyncprofiler_path_host, 0o755)
 
         log_path_host = os.path.join(storage_dir_host, f"async-profiler-{process.pid}.log")
         touch_path(log_path_host, 0o666)  # make it writable for all, so target process can write
