@@ -6,6 +6,7 @@ import datetime
 import logging
 import os
 import re
+import shutil
 import subprocess
 from functools import lru_cache
 from subprocess import CompletedProcess, Popen, TimeoutExpired
@@ -17,7 +18,7 @@ import importlib_resources
 import psutil
 from psutil import Process
 
-from gprofiler.exceptions import CalledProcessError, ProcessStoppedException
+from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, ProgramMissingException
 
 logger = logging.getLogger(__name__)
 
@@ -172,3 +173,16 @@ def touch_path(path: str, mode: int) -> None:
 
 def is_same_ns(pid: int, nstype: str) -> bool:
     return os.stat(f"/proc/self/ns/{nstype}").st_ino == os.stat(f"/proc/{pid}/ns/{nstype}").st_ino
+
+
+_INSTALLED_PROGRAMS_CACHE: List[str] = []
+
+
+def assert_program_installed(program: str):
+    if program in _INSTALLED_PROGRAMS_CACHE:
+        return
+
+    if shutil.which(program) is not None:
+        _INSTALLED_PROGRAMS_CACHE.append(program)
+    else:
+        raise ProgramMissingException(program)
