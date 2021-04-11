@@ -8,14 +8,16 @@ import os
 import re
 import subprocess
 import platform
+import ctypes
 from functools import lru_cache
 from subprocess import CompletedProcess, Popen, TimeoutExpired
-from threading import Event
-from typing import Iterator, Union, List, Optional
+from threading import Event, Thread
+from typing import Iterator, Union, List, Optional, Tuple
 from pathlib import Path
 
 import importlib_resources
 import psutil
+import distro  # type: ignore
 from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError, ProcessStoppedException
@@ -175,9 +177,53 @@ def is_same_ns(pid: int, nstype: str) -> bool:
     return os.stat(f"/proc/self/ns/{nstype}").st_ino == os.stat(f"/proc/{pid}/ns/{nstype}").st_ino
 
 
+def get_libc_version() -> Tuple[str, str]:
+    # platform.libc_ver fails for musl, sadly (produces empty results).
+    # so we'll run "ldd --version" and extract the version string from it.
+    ldd_version = subprocess.run(
+        ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="ascii"
+    ).stdout
+    # catches GLIBC & EGLIBC
+    m = re.search(r"GLIBC (.*?)\)", ldd_version)
+    if m is not None:
+        return ("glibc", m.group(1))
+    # musl
+    m = re.search(r"musl libc.*?\nVersion (.*?)\n", ldd_version, re.M)
+    if m is not None:
+        return ("musl", m.group(1))
+
+    return ("unknown", ldd_version)
+
+
 def log_system_info():
     uname = platform.uname()
     logger.info(f"Kernel uname release: {uname.release}")
     logger.info(f"Kernel uname version: {uname.version}")
     logger.info(f"Total CPUs: {os.cpu_count()}")
     logger.info(f"Total RAM: {psutil.virtual_memory().total / (1 << 30):.2f} GB")
+
+    # we can't setns(CLONE_NEWNS) in a multithreaded program (unless we unshare(CLONE_NEWNS) before)
+    # so, we start a new thread, unshare() & setns() it, get our needed information and then stop this thread
+    # (so we don't keep unshared threads running around)
+    results = []
+
+    def get_distro_and_libc():
+        # move to host mount NS for distro & ldd.
+        if not is_same_ns(1, "mnt"):
+            libc = ctypes.CDLL("libc.so.6")
+
+            CLONE_NEWNS = 0x00020000
+            if libc.unshare(CLONE_NEWNS) != 0 or libc.setns(os.open("/proc/1/ns/mnt", os.O_RDONLY), CLONE_NEWNS) != 0:
+                raise ValueError("Failed to unshare() and setns()")
+
+        # now, distro will read the files on host.
+        results.append(distro.linux_distribution())
+        results.append(get_libc_version())
+
+    t = Thread(target=get_distro_and_libc)
+    t.start()
+    t.join()
+    assert len(results) == 2, f"only {len(results)} results, expected 2"
+
+    logger.info(f"Linux distribution: {results[0]}")
+    logger.info(f"libc version: {results[1]}")
