@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import subprocess
+import platform
 from functools import lru_cache
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from threading import Event
@@ -172,3 +173,11 @@ def touch_path(path: str, mode: int) -> None:
 
 def is_same_ns(pid: int, nstype: str) -> bool:
     return os.stat(f"/proc/self/ns/{nstype}").st_ino == os.stat(f"/proc/{pid}/ns/{nstype}").st_ino
+
+
+def log_system_info():
+    uname = platform.uname()
+    logger.info(f"Kernel uname release: {uname.release}")
+    logger.info(f"Kernel uname version: {uname.version}")
+    logger.info(f"Total CPUs: {os.cpu_count()}")
+    logger.info(f"Total RAM: {psutil.virtual_memory().total / (1 << 30):.2f} GB")

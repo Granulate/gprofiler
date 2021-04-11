@@ -7,7 +7,6 @@ import datetime
 import logging
 import logging.config
 import logging.handlers
-import platform
 import os
 import sys
 import time
@@ -20,7 +19,6 @@ from threading import Event
 
 import configargparse
 from requests import RequestException, Timeout
-import psutil
 
 from . import __version__
 from . import merge
@@ -28,7 +26,7 @@ from .client import APIClient, APIError, GRANULATE_SERVER_HOST, DEFAULT_UPLOAD_T
 from .java import JavaProfiler
 from .perf import SystemProfiler
 from .python import PythonProfiler
-from .utils import is_root, run_process, get_iso8061_format_time, resource_path, TEMPORARY_STORAGE_PATH
+from .utils import is_root, run_process, get_iso8061_format_time, resource_path, log_system_info, TEMPORARY_STORAGE_PATH
 
 logger: Logger
 
@@ -245,21 +243,16 @@ def verify_preconditions():
     return True
 
 
-def log_system_info():
-    uname = platform.uname()
-    logger.info(f"Kernel uname release: {uname.release}")
-    logger.info(f"Kernel uname version: {uname.version}")
-    logger.info(f"Total CPUs: {os.cpu_count()}")
-    logger.info(f"Total RAM: {psutil.virtual_memory().total / (1 << 30):.2f} GB")
-
-
 def main():
     args = parse_cmd_args()
     setup_logger(logging.DEBUG if args.verbose else logging.INFO, args.log_file)
 
     try:
         logger.info(f"Running gprofiler (version {__version__})...")
-        log_system_info()
+        try:
+            log_system_info()
+        except Exception:
+            logger.exception("Encountered an exception while getting basic system info")
 
         if not verify_preconditions():
             sys.exit(1)
