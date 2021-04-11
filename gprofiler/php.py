@@ -13,7 +13,7 @@ from typing import List, Mapping, MutableMapping, Optional, Pattern
 
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.profiler_base import ProfilerBase
-from gprofiler.utils import limit_frequency, resource_path, start_process, wait_event
+from gprofiler.utils import limit_frequency, resource_path, start_process, wait_for_file
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ class PHPSpyProfiler(ProfilerBase):
         # parsing.
         # If an error occurs after this stage it's probably a spied _process specific and not phpspy general error.
         try:
-            wait_event(self.poll_timeout, self._stop_event, lambda: os.path.exists(self._output_path))
+            wait_for_file(self._output_path, self.poll_timeout, self._stop_event)
         except TimeoutError:
             process.kill()
             raise

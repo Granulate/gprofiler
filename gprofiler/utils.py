@@ -6,6 +6,7 @@ import ctypes
 import datetime
 import errno
 import fcntl
+import glob
 import logging
 import os
 import platform
@@ -20,7 +21,7 @@ from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
-from typing import Callable, Iterator, List, Optional, Tuple, Union
+from typing import Callable, Iterator, List, Optional, Tuple, TypeVar, Union
 
 import distro  # type: ignore
 import importlib_resources
@@ -33,6 +34,8 @@ from gprofiler.exceptions import (
     ProgramMissingException,
     StopEventSetException,
 )
+
+T = TypeVar('T')
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +74,7 @@ def get_process_nspid(pid: int) -> Optional[int]:
     return None
 
 
-def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Popen:
+def start_process(cmd: Union[str, List[str]], via_staticx: bool = False, **kwargs) -> Popen:
     cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
     logger.debug(f"Running command: ({cmd_text})")
     if isinstance(cmd, str):
@@ -104,17 +107,26 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Po
     return popen
 
 
-def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool]) -> None:
+def wait_event(timeout: float, stop_event: Event, callable: Callable[[], T]) -> T:
     end_time = time.monotonic() + timeout
     while True:
-        if condition():
-            break
+        v = callable()
+        if v:
+            return v
 
         if stop_event.wait(0.1):
             raise StopEventSetException()
 
         if time.monotonic() > end_time:
             raise TimeoutError()
+
+
+def wait_for_file(pattern: Union[str, Path], timeout: float, stop_event: Event) -> Path:
+    if isinstance(pattern, Path):
+        pattern = str(pattern)
+    files = wait_event(timeout, stop_event, lambda: glob.glob(pattern))
+    assert len(files) == 1, f"expected one file, got {len(files)}"
+    return Path(files[0])
 
 
 def poll_process(process, timeout: float, stop_event: Event):

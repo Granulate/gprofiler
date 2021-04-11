@@ -24,7 +24,7 @@ from gprofiler.utils import (
     resource_path,
     run_process,
     start_process,
-    wait_event,
+    wait_for_file,
 )
 
 logger = logging.getLogger(__name__)
@@ -226,7 +226,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
         # wait until the transient data file appears - because once returning from here, PyPerf may
         # be polled via snapshot() and we need it to finish installing its signal handler.
         try:
-            wait_event(self.poll_timeout, self._stop_event, lambda: os.path.exists(self.output_path))
+            wait_for_file(self.output_path, self.poll_timeout, self._stop_event)
         except TimeoutError:
             process.kill()
             logger.error(f"PyPerf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
@@ -234,24 +234,12 @@ class PythonEbpfProfiler(PythonProfilerBase):
         else:
             self.process = process
 
-    def _glob_output(self) -> List[str]:
-        # important to not grab the transient data file
-        return glob.glob(f"{str(self.output_path)}.*")
-
-    def _wait_for_output_file(self, timeout: float) -> Path:
-        wait_event(timeout, self._stop_event, lambda: len(self._glob_output()) > 0)
-
-        output_files = self._glob_output()
-        # All the snapshot samples should be in one file
-        assert len(output_files) == 1
-        return Path(output_files[0])
-
     def _dump(self) -> Path:
         assert self.process is not None, "profiling not started!"
         self.process.send_signal(self.dump_signal)
 
         try:
-            output = self._wait_for_output_file(self.dump_timeout)
+            output = wait_for_file(f"{str(self.output_path)}.*", self.dump_timeout, self._stop_event)
             # PyPerf outputs sampling & error counters every interval (after writing the output file), print them.
             # also, makes sure its output pipe doesn't fill up.
             # using read1() which performs just a single read() call and doesn't read until EOF
