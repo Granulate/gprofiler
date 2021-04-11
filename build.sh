@@ -23,9 +23,7 @@ curl -fL https://github.com/Granulate/linux/releases/download/v5.6-perf/perf -z 
 chmod +x gprofiler/resources/perf
 
 # burn
-curl -fL https://github.com/Granulate/burn/releases/download/v1.0.1g1/burn-v1.0.1g1.tar.gz \
- -z build/burn-v1.0.1g1.tar.gz -o build/burn-v1.0.1g1.tar.gz
-tar -xzf build/burn-v1.0.1g1.tar.gz -C gprofiler/resources burn
+curl -fL https://github.com/Granulate/burn/releases/download/v1.0.1g2/burn -z gprofiler/resources/burn -o gprofiler/resources/burn
 chmod +x gprofiler/resources/burn
 
 rm -r build

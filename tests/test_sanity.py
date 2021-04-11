@@ -2,9 +2,11 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import pytest
 from glob import glob
 from pathlib import Path
-from typing import Callable, Union, Mapping
+from threading import Event
+from typing import Callable, Mapping
 
 from docker import DockerClient
 from docker.models.images import Image
@@ -14,15 +16,29 @@ from gprofiler.python import PythonProfiler
 from gprofiler.merge import parse_collapsed
 
 
-def test_from_host(
+@pytest.mark.parametrize('runtime', ['java'])
+def test_java_from_host(
+    tmp_path: Path,
     application_pid: int,
-    profiler: Union[JavaProfiler, PythonProfiler],
     assert_collapsed: Callable[[Mapping[str, int]], None],
 ) -> None:
+    profiler = JavaProfiler(1000, 1, True, Event(), str(tmp_path))
     process_collapsed = profiler.profile_processes()
     assert_collapsed(process_collapsed.get(application_pid))
 
 
+@pytest.mark.parametrize('runtime', ['python'])
+def test_python_from_host(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed: Callable[[Mapping[str, int]], None],
+) -> None:
+    profiler = PythonProfiler(1000, 1, Event(), str(tmp_path))
+    process_collapsed = profiler.profile_processes()
+    assert_collapsed(process_collapsed.get(application_pid))
+
+
+@pytest.mark.parametrize('runtime', ['java', 'python'])
 def test_from_container(
     docker_client: DockerClient,
     application_pid: int,
