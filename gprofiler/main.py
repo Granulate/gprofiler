@@ -26,7 +26,7 @@ from .client import APIClient, APIError, GRANULATE_SERVER_HOST, DEFAULT_UPLOAD_T
 from .java import JavaProfiler
 from .perf import SystemProfiler
 from .python import PythonProfiler
-from .utils import is_root, run_process, get_iso8061_format_time, resource_path, TEMPORARY_STORAGE_PATH
+from .utils import is_root, run_process, get_iso8061_format_time, resource_path, log_system_info, TEMPORARY_STORAGE_PATH
 
 logger: Logger
 
@@ -253,6 +253,10 @@ def main():
 
     try:
         logger.info(f"Running gprofiler (version {__version__})...")
+        try:
+            log_system_info()
+        except Exception:
+            logger.exception("Encountered an exception while getting basic system info")
 
         if not verify_preconditions():
             sys.exit(1)
