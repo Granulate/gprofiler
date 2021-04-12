@@ -108,7 +108,11 @@ class GProfiler:
             try:
                 for future in concurrent.futures.as_completed(futures):
                     if futures[future] in ["java", "python"]:
-                        process_perfs.update(future.result())
+                        # if either of these fail - log it, and continue.
+                        try:
+                            process_perfs.update(future.result())
+                        except Exception:
+                            logger.exception(f"{futures[future]} profiling failed")
                     else:
                         system_perf = future.result()
             except KeyboardInterrupt:
