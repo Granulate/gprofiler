@@ -49,7 +49,7 @@ def collapse_stack(stack: str, comm: str) -> str:
         assert m is not None, f"bad line: {line}"
         sym, dso = m.groups()
         sym = sym.split("+")[0]  # strip the offset part.
-        if sym == "[unknown]":
+        if sym == "[unknown]" and dso != "[unknown]":
             sym = f"[{dso}]"
         # append kernel annotation
         elif "kernel" in dso or "vmlinux" in dso:
