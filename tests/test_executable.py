@@ -16,7 +16,7 @@ from gprofiler.merge import parse_collapsed
 from tests.util import run_privileged_container
 
 
-@pytest.mark.parametrize('runtime', ['java', 'python'])
+@pytest.mark.parametrize("runtime", ["java", "python"])
 def test_from_executable(
     gprofiler_exe: Path,
     application_pid: int,
@@ -30,9 +30,11 @@ def test_from_executable(
     if exec_container_image is not None:
         gprofiler_inner_dir = Path("/app")
         inner_output_dir = Path("/app/output")
-        cwd = Path(os.getenv('GITHUB_WORKSPACE', os.getcwd()))
-        volumes = {str(output_directory): {"bind": str(inner_output_dir), "mode": "rw"},
-                   str(cwd): {"bind": str(gprofiler_inner_dir), "mode": "rw"}}
+        cwd = Path(os.getenv("GITHUB_WORKSPACE", os.getcwd()))
+        volumes = {
+            str(output_directory): {"bind": str(inner_output_dir), "mode": "rw"},
+            str(cwd): {"bind": str(gprofiler_inner_dir), "mode": "rw"},
+        }
 
         command = [str(gprofiler_inner_dir / gprofiler_exe), "--output-dir", str(inner_output_dir)]
         run_privileged_container(docker_client, exec_container_image, command=command, volumes=volumes)

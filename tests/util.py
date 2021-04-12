@@ -4,8 +4,13 @@ from docker import DockerClient
 from docker.models.images import Image
 
 
-def run_privileged_container(docker_client: DockerClient, image: Image, command: List[str],
-                             volumes: Dict[str, Dict[str, str]] = None, **extra_kwargs):
+def run_privileged_container(
+    docker_client: DockerClient,
+    image: Image,
+    command: List[str],
+    volumes: Dict[str, Dict[str, str]] = None,
+    **extra_kwargs,
+):
     if volumes is None:
         volumes = {}
     container = docker_client.containers.run(
@@ -18,6 +23,6 @@ def run_privileged_container(docker_client: DockerClient, image: Image, command:
         volumes=volumes,
         auto_remove=True,
         stderr=True,
-        **extra_kwargs
+        **extra_kwargs,
     )
     print(f"Container logs {container}")

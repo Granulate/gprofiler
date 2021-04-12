@@ -65,7 +65,7 @@ def run_process(
     cmd: Union[str, List[str]], stop_event: Event = None, suppress_log: bool = False, **kwargs
 ) -> CompletedProcess:
     cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
-    logger.debug(f'Running command: ({cmd_text})')
+    logger.debug(f"Running command: ({cmd_text})")
     if isinstance(cmd, str):
         cmd = [cmd]
     with Popen(

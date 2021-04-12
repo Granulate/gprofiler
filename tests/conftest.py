@@ -64,12 +64,14 @@ def gprofiler_exe(request, tmp_path: Path) -> Path:
         return Path(precompiled)
 
     with chdir(PARENT):
-        pyi_popen = Popen(['pyinstaller', '--distpath', str(tmp_path), 'pyinstaller.spec'], )
+        pyi_popen = Popen(
+            ["pyinstaller", "--distpath", str(tmp_path), "pyinstaller.spec"],
+        )
         pyi_popen.wait()
 
-    staticx_popen = Popen(['staticx', tmp_path / 'gprofiler', tmp_path / 'gprofiler'])
+    staticx_popen = Popen(["staticx", tmp_path / "gprofiler", tmp_path / "gprofiler"])
     staticx_popen.wait()
-    return tmp_path / 'gprofiler'
+    return tmp_path / "gprofiler"
 
 
 @fixture
@@ -95,7 +97,7 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
     docker_client.images.remove(image.id, force=True)
 
 
-@fixture(scope='session')
+@fixture(scope="session")
 def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[str, Image]]:
     images = {}
     for runtime in os.listdir(str(CONTAINERS_DIRECTORY)):
