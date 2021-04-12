@@ -29,11 +29,32 @@ python3 -m gprofiler [options]
 ```
 
 ## Running as a docker container
-Run the following to have gprofiler running continuously and uploading to Granulate Performance Studio:
+Run the following to have gprofiler running continuously, uploading to Granulate Performance Studio:
 ```bash
 docker pull granulate/gprofiler:latest
 docker run --name gprofiler --restart=always -d --network=host --pid=host --userns=host --privileged granulate/gprofiler:latest -cu --token <token> [options]
 ```
+
+## Running as executable
+Run the following to have gprofiler running continuously, uploading to Granulate Performance Studio:
+```bash
+wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler
+sudo chmod +x gprofiler
+sudo ./gprofiler -cu --token <token> [options]
+```
+gProfiler unpacks executables to `/tmp` by default; if `/tmp` is marked with `noexec`, 
+you can add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current working directory.
+
+```bash
+sudo TMPDIR=~/custom_tmp ./gprofiler -cu --token <token> [options]
+```
+
+#### Executable known issues
+The following platforms are currently not supported:
++ Ubuntu 14.04
++ Alpine
+
+**Remark:** container-based execution still works and can be used.
 
 ### Output options
 gProfiler can produce output in two ways:
