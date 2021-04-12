@@ -18,7 +18,7 @@ SAMPLE_REGEX = re.compile(
 # ffffffff81082227 mmput+0x57 ([kernel.kallsyms])
 # 0 [unknown] ([unknown])
 # 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
-FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*) \((.*)\)$")
+FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \((.*)\)$")
 
 
 def parse_collapsed(collapsed: str) -> Mapping[str, int]:
