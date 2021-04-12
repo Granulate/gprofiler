@@ -112,6 +112,7 @@ class JavaProfiler:
                     str(process.pid),
                     "--mount",
                     "--pid",
+                    "--",
                     os.readlink(f"/proc/{process.pid}/exe"),
                     "-version",
                 ]

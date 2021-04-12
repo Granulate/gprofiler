@@ -3,10 +3,11 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
+from contextlib import contextmanager
 from pathlib import Path
 from subprocess import Popen, run
 from time import sleep
-from typing import Callable, List, Mapping, Iterable
+from typing import Callable, List, Iterable, Mapping, Optional
 
 import docker
 from docker import DockerClient
@@ -23,6 +24,16 @@ def runtime():
     Parametrize this with application runtime name (java, python).
     """
     raise NotImplementedError
+
+
+@contextmanager
+def chdir(path):
+    cwd = os.getcwd()
+    try:
+        os.chdir(path)
+        yield
+    finally:
+        os.chdir(cwd)
 
 
 @fixture(params=[False, True])
@@ -44,6 +55,23 @@ def command_line(tmp_path: Path, runtime: str) -> List:
         # "CMD /path/to/fibonacci.py", to test processes with non-python /proc/pid/comm
         "python": ["python3", CONTAINERS_DIRECTORY / "python/fibonacci.py"],
     }[runtime]
+
+
+@fixture
+def gprofiler_exe(request, tmp_path: Path) -> Path:
+    precompiled = request.config.getoption("--executable")
+    if precompiled is not None:
+        return Path(precompiled)
+
+    with chdir(PARENT):
+        pyi_popen = Popen(
+            ["pyinstaller", "--distpath", str(tmp_path), "pyinstaller.spec"],
+        )
+        pyi_popen.wait()
+
+    staticx_popen = Popen(["staticx", tmp_path / "gprofiler", tmp_path / "gprofiler"])
+    staticx_popen.wait()
+    return tmp_path / "gprofiler"
 
 
 @fixture
@@ -69,7 +97,7 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
     docker_client.images.remove(image.id, force=True)
 
 
-@fixture(scope='session')
+@fixture(scope="session")
 def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[str, Image]]:
     images = {}
     for runtime in os.listdir(str(CONTAINERS_DIRECTORY)):
@@ -118,7 +146,22 @@ def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int]], None]:
     }[runtime]
 
     def assert_collapsed(collapsed: Mapping[str, int]) -> None:
+        print(f"collapsed: {collapsed}")
         assert collapsed is not None
         assert any((function_name in record) for record in collapsed.keys())
 
     return assert_collapsed
+
+
+@fixture
+def exec_container_image(request, docker_client: DockerClient) -> Optional[Image]:
+    image_name = request.config.getoption("--exec-container-image")
+    if image_name is None:
+        return None
+
+    return docker_client.images.pull(image_name)
+
+
+def pytest_addoption(parser):
+    parser.addoption("--exec-container-image", action="store", default=None)
+    parser.addoption("--executable", action="store", default=None)

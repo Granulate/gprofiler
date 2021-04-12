@@ -19,13 +19,13 @@ def runtime() -> str:
 
 @pytest.fixture(scope="session")
 def application_docker_image(docker_client: DockerClient) -> Image:
-    dockerfile = CONTAINERS_DIRECTORY / 'python' / "Dockerfile.libpython"
+    dockerfile = CONTAINERS_DIRECTORY / "python" / "Dockerfile.libpython"
     image: Image = docker_client.images.build(path=str(dockerfile.parent), dockerfile=str(dockerfile))[0]
     yield image
     docker_client.images.remove(image.id, force=True)
 
 
-@pytest.mark.parametrize('in_container', [True])
+@pytest.mark.parametrize("in_container", [True])
 def test_python_select_by_libpython(
     tmp_path,
     application_docker_container,

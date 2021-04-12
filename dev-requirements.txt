@@ -3,3 +3,5 @@ flake8
 black
 mypy
 docker
+pyinstaller==4.0
+staticx
