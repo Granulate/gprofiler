@@ -1,6 +1,10 @@
 name: Build and test gprofiler distributions
 
-on: pull_request
+on:
+  pull_request:
+  push:
+    tags:
+      - '**'
 
 jobs:
   build-docker:
