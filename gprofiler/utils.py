@@ -6,18 +6,22 @@ import datetime
 import logging
 import os
 import re
+import shutil
 import subprocess
+import platform
+import ctypes
 from functools import lru_cache
 from subprocess import CompletedProcess, Popen, TimeoutExpired
-from threading import Event
-from typing import Iterator, Union, List, Optional
+from threading import Event, Thread
+from typing import Iterator, Union, List, Optional, Tuple
 from pathlib import Path
 
 import importlib_resources
 import psutil
+import distro  # type: ignore
 from psutil import Process
 
-from gprofiler.exceptions import CalledProcessError, ProcessStoppedException
+from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, ProgramMissingException
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +67,8 @@ def get_process_nspid(pid: int) -> int:
 def run_process(
     cmd: Union[str, List[str]], stop_event: Event = None, suppress_log: bool = False, **kwargs
 ) -> CompletedProcess:
-    logger.debug(f'Running command: {" ".join(cmd) if isinstance(cmd, list) else cmd}')
+    cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
+    logger.debug(f"Running command: ({cmd_text})")
     if isinstance(cmd, str):
         cmd = [cmd]
     with Popen(
@@ -92,12 +97,12 @@ def run_process(
         assert retcode is not None  # only None if child has not terminated
     result: CompletedProcess = CompletedProcess(process.args, retcode, stdout, stderr)
 
-    logger.debug(f"returncode: {result.returncode}")
+    logger.debug(f"({cmd_text}) exit code: {result.returncode}")
     if not suppress_log:
         if result.stdout:
-            logger.debug(f"stdout: {result.stdout}")
+            logger.debug(f"({cmd_text}) stdout: {result.stdout}")
         if result.stderr:
-            logger.debug(f"stderr: {result.stderr}")
+            logger.debug(f"({cmd_text}) stderr: {result.stderr}")
     if retcode:
         raise CalledProcessError(retcode, process.args, output=stdout, stderr=stderr)
     return result
@@ -114,11 +119,11 @@ def pgrep_maps(match: str) -> List[Process]:
         f"grep -lP '{match}' /proc/*/maps", stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=True
     )
     # might get 2 (which 'grep' exits with, if some files were unavailable, because processes have exited)
-    assert result.returncode in (0, 2)
+    assert result.returncode in (0, 2), f"unexpected 'grep' exit code: {result.returncode}"
 
     processes: List[Process] = []
     for line in result.stdout.splitlines():
-        assert line.startswith(b"/proc/") and line.endswith(b"/maps")
+        assert line.startswith(b"/proc/") and line.endswith(b"/maps"), f"unexpected 'grep' line: {line!r}"
         pid = int(line[len(b"/proc/") : -len(b"/maps")])
         processes.append(Process(pid))
 
@@ -172,3 +177,68 @@ def touch_path(path: str, mode: int) -> None:
 
 def is_same_ns(pid: int, nstype: str) -> bool:
     return os.stat(f"/proc/self/ns/{nstype}").st_ino == os.stat(f"/proc/{pid}/ns/{nstype}").st_ino
+
+
+_INSTALLED_PROGRAMS_CACHE: List[str] = []
+
+
+def assert_program_installed(program: str):
+    if program in _INSTALLED_PROGRAMS_CACHE:
+        return
+
+    if shutil.which(program) is not None:
+        _INSTALLED_PROGRAMS_CACHE.append(program)
+    else:
+        raise ProgramMissingException(program)
+
+
+def get_libc_version() -> Tuple[str, str]:
+    # platform.libc_ver fails for musl, sadly (produces empty results).
+    # so we'll run "ldd --version" and extract the version string from it.
+    ldd_version = subprocess.run(
+        ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="ascii"
+    ).stdout
+    # catches GLIBC & EGLIBC
+    m = re.search(r"GLIBC (.*?)\)", ldd_version)
+    if m is not None:
+        return ("glibc", m.group(1))
+    # musl
+    m = re.search(r"musl libc.*?\nVersion (.*?)\n", ldd_version, re.M)
+    if m is not None:
+        return ("musl", m.group(1))
+
+    return ("unknown", ldd_version)
+
+
+def log_system_info():
+    uname = platform.uname()
+    logger.info(f"Kernel uname release: {uname.release}")
+    logger.info(f"Kernel uname version: {uname.version}")
+    logger.info(f"Total CPUs: {os.cpu_count()}")
+    logger.info(f"Total RAM: {psutil.virtual_memory().total / (1 << 30):.2f} GB")
+
+    # we can't setns(CLONE_NEWNS) in a multithreaded program (unless we unshare(CLONE_NEWNS) before)
+    # so, we start a new thread, unshare() & setns() it, get our needed information and then stop this thread
+    # (so we don't keep unshared threads running around)
+    results = []
+
+    def get_distro_and_libc():
+        # move to host mount NS for distro & ldd.
+        if not is_same_ns(1, "mnt"):
+            libc = ctypes.CDLL("libc.so.6")
+
+            CLONE_NEWNS = 0x00020000
+            if libc.unshare(CLONE_NEWNS) != 0 or libc.setns(os.open("/proc/1/ns/mnt", os.O_RDONLY), CLONE_NEWNS) != 0:
+                raise ValueError("Failed to unshare() and setns()")
+
+        # now, distro will read the files on host.
+        results.append(distro.linux_distribution())
+        results.append(get_libc_version())
+
+    t = Thread(target=get_distro_and_libc)
+    t.start()
+    t.join()
+    assert len(results) == 2, f"only {len(results)} results, expected 2"
+
+    logger.info(f"Linux distribution: {results[0]}")
+    logger.info(f"libc version: {results[1]}")

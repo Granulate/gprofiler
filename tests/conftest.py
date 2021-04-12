@@ -2,11 +2,12 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import os
+from contextlib import contextmanager
 from pathlib import Path
 from subprocess import Popen, run
-from threading import Event
 from time import sleep
-from typing import Callable, List, Union, Dict, Generator, Mapping
+from typing import Callable, List, Iterable, Mapping, Optional
 
 import docker
 from docker import DockerClient
@@ -14,20 +15,28 @@ from docker.models.containers import Container
 from docker.models.images import Image
 from pytest import fixture  # type: ignore
 
-from gprofiler.java import JavaProfiler
-from gprofiler.python import PythonProfiler
-
-HERE = Path(__file__).parent
-PARENT = HERE.parent
-CONTAINERS_DIRECTORY = HERE / "containers"
+from tests import PARENT, CONTAINERS_DIRECTORY
 
 
-@fixture(scope="session", params=["java", "python"])
-def runtime(request) -> str:
-    return request.param
+@fixture
+def runtime():
+    """
+    Parametrize this with application runtime name (java, python).
+    """
+    raise NotImplementedError
 
 
-@fixture(scope="session", params=[False, True])
+@contextmanager
+def chdir(path):
+    cwd = os.getcwd()
+    try:
+        os.chdir(path)
+        yield
+    finally:
+        os.chdir(cwd)
+
+
+@fixture(params=[False, True])
 def in_container(request) -> bool:
     return request.param
 
@@ -49,10 +58,31 @@ def command_line(tmp_path: Path, runtime: str) -> List:
 
 
 @fixture
-def application_process(command_line: List) -> Generator[Popen, None, None]:
-    popen = Popen(command_line)
-    yield popen
-    popen.kill()
+def gprofiler_exe(request, tmp_path: Path) -> Path:
+    precompiled = request.config.getoption("--executable")
+    if precompiled is not None:
+        return Path(precompiled)
+
+    with chdir(PARENT):
+        pyi_popen = Popen(
+            ["pyinstaller", "--distpath", str(tmp_path), "pyinstaller.spec"],
+        )
+        pyi_popen.wait()
+
+    staticx_popen = Popen(["staticx", tmp_path / "gprofiler", tmp_path / "gprofiler"])
+    staticx_popen.wait()
+    return tmp_path / "gprofiler"
+
+
+@fixture
+def application_process(in_container: bool, command_line: List):
+    if in_container:
+        yield None
+        return
+    else:
+        popen = Popen(command_line)
+        yield popen
+        popen.kill()
 
 
 @fixture(scope="session")
@@ -61,27 +91,41 @@ def docker_client() -> DockerClient:
 
 
 @fixture(scope="session")
-def gprofiler_docker_image(docker_client: DockerClient) -> Image:
+def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
     image: Image = docker_client.images.build(path=str(PARENT))[0]
     yield image
     docker_client.images.remove(image.id, force=True)
 
 
 @fixture(scope="session")
-def application_docker_image(docker_client: DockerClient, runtime: str) -> Image:
-    image: Image = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime))[0]
-    yield image
-    docker_client.images.remove(image.id, force=True)
+def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[str, Image]]:
+    images = {}
+    for runtime in os.listdir(str(CONTAINERS_DIRECTORY)):
+        images[runtime], _ = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime))
+    yield images
+    for image in images.values():
+        docker_client.images.remove(image.id, force=True)
 
 
 @fixture
-def application_docker_container(docker_client: DockerClient, application_docker_image: Image) -> Container:
-    container: Container = docker_client.containers.run(application_docker_image, detach=True, user="5555:6666")
-    while container.status != "running":
-        sleep(1)
-        container.reload()
-    yield container
-    container.remove(force=True)
+def application_docker_image(application_docker_images: Mapping[str, Image], runtime: str) -> Iterable[Image]:
+    yield application_docker_images[runtime]
+
+
+@fixture
+def application_docker_container(
+    in_container: bool, docker_client: DockerClient, application_docker_image: Image
+) -> Iterable[Container]:
+    if not in_container:
+        yield None
+        return
+    else:
+        container: Container = docker_client.containers.run(application_docker_image, detach=True, user="5555:6666")
+        while container.status != "running":
+            sleep(1)
+            container.reload()
+        yield container
+        container.remove(force=True)
 
 
 @fixture
@@ -89,22 +133,12 @@ def output_directory(tmp_path: Path) -> Path:
     return tmp_path / "output"
 
 
-# TODO: Avoid running the not chosen application variant.
 @fixture
 def application_pid(in_container: bool, application_process: Popen, application_docker_container: Container):
     return application_docker_container.attrs["State"]["Pid"] if in_container else application_process.pid
 
 
 @fixture
-def profiler(tmp_path: Path, runtime: str) -> Union[JavaProfiler, PythonProfiler]:
-    profilers: Dict[str, Union[JavaProfiler, PythonProfiler]] = {
-        "java": JavaProfiler(1000, 1, True, Event(), str(tmp_path)),
-        "python": PythonProfiler(1000, 1, Event(), str(tmp_path)),
-    }
-    return profilers[runtime]
-
-
-@fixture(scope="session")
 def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int]], None]:
     function_name = {
         "java": "Fibonacci.main",
@@ -112,7 +146,22 @@ def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int]], None]:
     }[runtime]
 
     def assert_collapsed(collapsed: Mapping[str, int]) -> None:
+        print(f"collapsed: {collapsed}")
         assert collapsed is not None
         assert any((function_name in record) for record in collapsed.keys())
 
     return assert_collapsed
+
+
+@fixture
+def exec_container_image(request, docker_client: DockerClient) -> Optional[Image]:
+    image_name = request.config.getoption("--exec-container-image")
+    if image_name is None:
+        return None
+
+    return docker_client.images.pull(image_name)
+
+
+def pytest_addoption(parser):
+    parser.addoption("--exec-container-image", action="store", default=None)
+    parser.addoption("--executable", action="store", default=None)
