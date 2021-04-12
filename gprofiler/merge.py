@@ -48,6 +48,7 @@ def collapse_stack(stack: str, comm: str) -> str:
         m = FRAME_REGEX.match(line)
         assert m is not None, f"bad line: {line}"
         sym, dso = m.groups()
+        sym = sym.split("+")[0]  # strip the offset part.
         if sym == "[unknown]":
             sym = f"[{dso}]"
         # append kernel annotation
