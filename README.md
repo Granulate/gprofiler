@@ -83,6 +83,10 @@ We welcome all feedback and suggestion through Github Issues:
 * [Submit bugs and feature requests](https://github.com/granulate/gprofiler/issues)
 * Upvote [popular feature requests](https://github.com/granulate/gprofiler/issues?q=is%3Aopen+is%3Aissue+label%3Aenhancement+sort%3Areactions-%2B1-desc+)
 
+## Releasing a new version
+1. Update `__version__` in `__init__.py`.
+2. Create a tag with the same version (after merging the `__version__` update) and push it.
+
 We recommend going through our [contribution guide](https://github.com/granulate/gprofiler/blob/master/CONTRIBUTING.md) for more details.
 
 # Credits
