@@ -227,7 +227,7 @@ def parse_cmd_args():
         help="Timeout for upload requests to the server in seconds (default: %(default)s)",
     )
     parser.add_argument("--token", dest="server_token", help="Server token")
-    parser.add_argument("--service-name", default="general", help="Service name")
+    parser.add_argument("--service-name", help="Service name")
 
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
     parser.add_argument("--log-file", action="store", type=str, dest="log_file", default=DEFAULT_LOG_FILE)
@@ -247,12 +247,15 @@ def parse_cmd_args():
 
     args = parser.parse_args()
 
-    if args.upload_results and not args.server_token:
+    if args.upload_results:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
+        if not args.service_name:
+            parser.error("Must provide --service-name when --upload-results is passed")
 
     if not args.upload_results and not args.output_dir:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
+
     return args
 
 
