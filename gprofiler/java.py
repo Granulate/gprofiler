@@ -35,6 +35,7 @@ class JavaProfiler:
     FORMAT_PARAMS = "ann,sig"
     OUTPUT_FORMAT = "collapsed"
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
+    SKIP_VERSION_CHECK_BINARIES = ["jsvc"]
 
     def __init__(self, frequency: int, duration: int, use_itimer: bool, stop_event: Event, storage_dir: str):
         logger.info(f"Initializing Java profiler (frequency: {frequency}hz, duration: {duration}s)")
@@ -104,26 +105,27 @@ class JavaProfiler:
         assert_program_installed("nsenter")
 
         # Get Java version
-        try:
-            java_version_cmd_output = run_process(
-                [
-                    "nsenter",
-                    "-t",
-                    str(process.pid),
-                    "--mount",
-                    "--pid",
-                    "--",
-                    os.readlink(f"/proc/{process.pid}/exe"),
-                    "-version",
-                ]
-            )
-        except CalledProcessError as e:
-            raise Exception("Failed to get java version: {}".format(e))
+        if os.path.basename(process.exe()) not in self.SKIP_VERSION_CHECK_BINARIES:
+            try:
+                java_version_cmd_output = run_process(
+                    [
+                        "nsenter",
+                        "-t",
+                        str(process.pid),
+                        "--mount",
+                        "--pid",
+                        "--",
+                        os.readlink(f"/proc/{process.pid}/exe"),
+                        "-version",
+                    ]
+                )
+            except CalledProcessError as e:
+                raise Exception("Failed to get java version: {}".format(e))
 
-        # Version is printed to stderr
-        if not self.is_jdk_version_supported(java_version_cmd_output.stderr.decode()):
-            logger.warning(f"Process {process.pid} running unsupported Java version, skipping...")
-            return None
+            # Version is printed to stderr
+            if not self.is_jdk_version_supported(java_version_cmd_output.stderr.decode()):
+                logger.warning(f"Process {process.pid} running unsupported Java version, skipping...")
+                return None
 
         process_root = f"/proc/{process.pid}/root"
         if is_same_ns(process.pid, "mnt"):
@@ -208,7 +210,7 @@ class JavaProfiler:
     def profile_processes(self):
         futures = []
         results = {}
-        processes = list(pgrep_exe(r"^.+/java$"))
+        processes = list(pgrep_exe(r"^.+/(java|jsvc)$"))
         if not processes:
             return {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:
