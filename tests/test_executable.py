@@ -8,7 +8,7 @@ from glob import glob
 from pathlib import Path
 from subprocess import Popen
 
-import pytest
+import pytest  # type: ignore
 from docker import DockerClient
 from docker.models.images import Image
 
