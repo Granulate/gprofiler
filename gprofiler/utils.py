@@ -192,18 +192,22 @@ def assert_program_installed(program: str):
         raise ProgramMissingException(program)
 
 
-def get_libc_version() -> Tuple[str, str]:
+def get_libc_version() -> Tuple[str, bytes]:
     # platform.libc_ver fails for musl, sadly (produces empty results).
     # so we'll run "ldd --version" and extract the version string from it.
-    ldd_version = subprocess.run(
-        ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="ascii"
-    ).stdout
+    # not passing "encoding"/"text" - this runs in a different mount namespace, and Python fails to
+    # load the files it needs for those encodings (getting LookupError: unknown encoding: ascii)
+    ldd_version = subprocess.run(["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout
     # catches GLIBC & EGLIBC
-    m = re.search(r"GLIBC (.*?)\)", ldd_version)
+    m = re.search(br"GLIBC (.*?)\)", ldd_version)
+    if m is not None:
+        return ("glibc", m.group(1))
+    # catches GNU libc
+    m = re.search(br"\(GNU libc\) (.*?)\n", ldd_version)
     if m is not None:
         return ("glibc", m.group(1))
     # musl
-    m = re.search(r"musl libc.*?\nVersion (.*?)\n", ldd_version, re.M)
+    m = re.search(br"musl libc.*?\nVersion (.*?)\n", ldd_version, re.M)
     if m is not None:
         return ("musl", m.group(1))
 
