@@ -202,6 +202,10 @@ def get_libc_version() -> Tuple[str, bytes]:
     m = re.search(br"GLIBC (.*?)\)", ldd_version)
     if m is not None:
         return ("glibc", m.group(1))
+    # catches GNU libc
+    m = re.search(br"\(GNU libc\) (.*?)\n", ldd_version)
+    if m is not None:
+        return ("glibc", m.group(1))
     # musl
     m = re.search(br"musl libc.*?\nVersion (.*?)\n", ldd_version, re.M)
     if m is not None:
