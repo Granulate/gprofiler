@@ -32,14 +32,32 @@ Run the following **as root**:
 python3 -m gprofiler [options]
 ```
 
+gProfiler can produce output in two ways:
+
+* Create an aggregated, collapsed stack samples file (`profile_<timestamp>.col`)
+  and a flamegraph file (`profile_<timestamp>.html`).
+
+  Use the `--output-dir`/`-o` option to specify the output directory.
+
+* Send the results to the Granulate Performance Studio for viewing online with
+  filtering, insights, and more.
+
+  Use the `--upload-results`/`-u` flag. Pass the `--token` option to specify the token
+  provided by Granulate Performance Studio, and the `--service-name` option to specify an identifier
+  for the collected profiles, as will be viewed in the Granulate Performance Studio. Profiles sent from numerous
+  gProfilers using the same service name will be aggregated together.
+
+Note: both flags can be used simultaneously, in which case gProfiler will create the local files *and* upload
+the results.
+
 ## Running as a docker container
-Run the following to have gprofiler running continuously, uploading to Granulate Performance Studio:
+Run the following to have gProfiler running continuously, uploading to Granulate Performance Studio:
 ```bash
 docker pull granulate/gprofiler:latest
 docker run --name gprofiler -d --restart=always \
-	--network=host --pid=host --userns=host --privileged \
-	-v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro \
-	granulate/gprofiler:latest -cu --token <token> [options]
+    --network=host --pid=host --userns=host --privileged \
+    -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro \
+    granulate/gprofiler:latest -cu --token <token> [options]
 ```
 
 For eBPF profiling, kernel headers must be accessible from within the container at
@@ -51,41 +69,33 @@ Run the following to have gprofiler running continuously, uploading to Granulate
 ```bash
 wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler
 sudo chmod +x gprofiler
-sudo ./gprofiler -cu --token <token> [options]
+sudo ./gprofiler -cu --token <token> --service-name <service> [options]
 ```
-gProfiler unpacks executables to `/tmp` by default; if `/tmp` is marked with `noexec`, 
+gProfiler unpacks executables to `/tmp` by default; if your `/tmp` is marked with `noexec`,
 you can add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current working directory.
 
 ```bash
-sudo TMPDIR=~/custom_tmp ./gprofiler -cu --token <token> [options]
+sudo TMPDIR=/proc/self/cwd ./gprofiler -cu --token <token> --service-name <service> [options]
 ```
 
 #### Executable known issues
-The following platforms are currently not supported:
+The following platforms are currently not supported with the gProfiler executable:
 + Ubuntu 14.04
 + Alpine
 
-**Remark:** container-based execution still works and can be used.
+**Remark:** container-based execution works and can be used in those cases.
 
 ## Running as a Kubernetes DaemonSet
 See [gprofiler.yaml](deploy/k8s/gprofiler.yaml) for a basic template of a DaemonSet running gProfiler.
 Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in the appropriate location!
 
-## Output options
-gProfiler can produce output in two ways:
-* Create an aggregated, collapsed stack samples file (`profile_<timestamp>.col`)
-  and a flamegraph file (`profile_<timestamp>.html`).
-
-  Use the `--output-dir`/`-o` option to specify the output directory.
-* Send the results to the Granulate Performance Studio for viewing online with
-  filtering, insights, and more.
-
-  Use the `--upload-results`/`-u` flag and the `--token` option to specify the token
-  provided by Granulate Performance Studio.
-
 ## Profiling options
 * `--profiling-frequency`: The sampling frequency of the profiling, in hertz.
-* `--profiling-duration`: The duration of the profiling, in seconds.
+* `--profiling-duration`: The duration of the each profiling session, in seconds.
+* `--profiling-interval`: The interval between each profiling session, in minutes.
+
+By default, the duration is 60 seconds and the interval is 1 minute. So gProfiler runs the profiling
+sessions back-to-back.
 
 ### Continuous mode
 gProfiler can be run in a continuous mode, profiling periodically,
@@ -105,6 +115,5 @@ We welcome all feedback and suggestion through Github Issues:
 We recommend going through our [contribution guide](https://github.com/granulate/gprofiler/blob/master/CONTRIBUTING.md) for more details.
 
 # Credits
-[TODO]: <> (Add links, either to our public forks or to the original repository.)
-* async-profiler by [Andrei Pangin](https://github.com/apangin)
-* py-spy by [Ben Frederickson](https://github.com/benfred)
+* [async-profiler](https://github.com/jvm-profiling-tools/async-profiler) by [Andrei Pangin](https://github.com/apangin)
+* [py-spy](https://github.com/benfred/py-spy) by [Ben Frederickson](https://github.com/benfred)
