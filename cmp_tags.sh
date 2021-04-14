@@ -9,13 +9,12 @@ set -ue
 # Using python package 'cmp_version' to do the compare work
 
 pip install cmp_version
-git fetch origin
-TAGS=$(git describe --tags $(git rev-list --tags --max-count=2)) # gets tags across all branches
+TAGS=$(git tag --sort=creatordate | tail -2)
 
 tags_array=(${TAGS//\n/ })
 
-NEW_TAG=${tags_array[0]}
-LATEST_TAG=${tags_array[1]}
+LATEST_TAG=${tags_array[0]}
+NEW_TAG=${tags_array[1]}
 
 
 if [ "$(cmp-version "$LATEST_TAG" "$NEW_TAG")" == "1" ]; then
