@@ -35,7 +35,7 @@ docker pull granulate/gprofiler:latest
 docker run --name gprofiler --restart=always -d --network=host --pid=host --userns=host --privileged granulate/gprofiler:latest -cu --token <token> [options]
 ```
 
-## Running as executable
+## Running as an executable
 Run the following to have gprofiler running continuously, uploading to Granulate Performance Studio:
 ```bash
 wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler
@@ -56,7 +56,11 @@ The following platforms are currently not supported:
 
 **Remark:** container-based execution still works and can be used.
 
-### Output options
+## Running as a Kubernetes DaemonSet
+See [gprofiler.yaml](deploy/k8s/gprofiler.yaml) for a basic template of a DaemonSet running gProfiler.
+Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in the appropriate location!
+
+## Output options
 gProfiler can produce output in two ways:
 * Create an aggregated, collapsed stack samples file (`profile_<timestamp>.col`)
   and a flamegraph file (`profile_<timestamp>.html`).
@@ -68,7 +72,7 @@ gProfiler can produce output in two ways:
   Use the `--upload-results`/`-u` flag and the `--token` option to specify the token
   provided by Granulate Performance Studio.
 
-### Profiling options
+## Profiling options
 * `--profiling-frequency`: The sampling frequency of the profiling, in hertz.
 * `--profiling-duration`: The duration of the profiling, in seconds.
 
