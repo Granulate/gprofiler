@@ -7,7 +7,7 @@ gProfiler can upload the result to the [Granulate Performance Studio](https://pr
 To upload results, you will have to register and generate a token on the website.
 
 ## Requirements
-gProfiler works on **Linux** and requires **Python 3.6+** to run.
+gProfiler works on **Linux** and requires **Python 3.8+** to run.
 
 The `nsenter` program needs to be installed for Java profiling. For Debian/Ubuntu, install the `util-linux` package.
 
@@ -15,6 +15,10 @@ It can produce specialized stack traces for the following runtimes:
 * Java runtimes (version 7+) based on the HotSpot JVM,
 including the Oracle JDK and other builds of OpenJDK like AdoptOpenJDK and Azul Zulu.
 * The CPython interpreter, versions 2.7 and 3.5-3.9.
+  * eBPF profiling requires Linux 4.14 or higher.
+
+gProfiler can profile Python applications with low overhead using eBPF. This requires kernel
+headers to be installed.
 
 ## Running from source
 ```bash
@@ -32,8 +36,15 @@ python3 -m gprofiler [options]
 Run the following to have gprofiler running continuously, uploading to Granulate Performance Studio:
 ```bash
 docker pull granulate/gprofiler:latest
-docker run --name gprofiler --restart=always -d --network=host --pid=host --userns=host --privileged granulate/gprofiler:latest -cu --token <token> [options]
+docker run --name gprofiler -d --restart=always \
+	--network=host --pid=host --userns=host --privileged \
+	-v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro \
+	granulate/gprofiler:latest -cu --token <token> [options]
 ```
+
+For eBPF profiling, kernel headers must be accessible from within the container at
+`/lib/modules/$(uname -r)/build`. On Ubuntu, this directory is a symlink pointing to `/usr/src`.
+The command above mounts both of these directories.
 
 ## Running as executable
 Run the following to have gprofiler running continuously, uploading to Granulate Performance Studio:

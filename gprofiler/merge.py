@@ -4,7 +4,7 @@
 #
 import logging
 import re
-from collections import Counter
+from collections import defaultdict, Counter
 from typing import Iterable, Mapping, MutableMapping
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ SAMPLE_REGEX = re.compile(
 FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \((.*)\)$")
 
 
-def parse_collapsed(collapsed: str) -> Mapping[str, int]:
+def parse_one_collapsed(collapsed: str) -> Mapping[str, int]:
     """
     Parse a stack-collapsed listing where all stacks are from the same process.
     """
@@ -37,6 +37,30 @@ def parse_collapsed(collapsed: str) -> Mapping[str, int]:
         except Exception:
             logger.exception(f'bad stack - line="{line}"')
     return dict(stacks)
+
+
+def parse_many_collapsed(text: str) -> Mapping[int, Mapping[str, int]]:
+    """
+    Parse a stack-collapsed listing where stacks are prefixed with the command and pid/tid of their
+    origin.
+    """
+    results: MutableMapping[int, MutableMapping[str, int]] = defaultdict(Counter)
+    bad_lines = []
+
+    for line in text.splitlines():
+        try:
+            stack, count = line.rsplit(' ', maxsplit=1)
+            head, tail = stack.split(';', maxsplit=1)
+            _, pid_tid = head.rsplit('-', maxsplit=1)
+            pid = int(pid_tid.split('/')[0])
+            results[pid][tail] += int(count)
+        except ValueError:
+            bad_lines.append(line)
+
+    if bad_lines:
+        logger.warning(f"Got {len(bad_lines)} bad lines when parsing (showing up to 8):\n" + '\n'.join(bad_lines[:8]))
+
+    return results
 
 
 def collapse_stack(stack: str, comm: str) -> str:

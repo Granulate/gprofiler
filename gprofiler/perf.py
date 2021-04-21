@@ -7,8 +7,8 @@ import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import Event
-
 import psutil
+from typing import Mapping, Iterable
 
 from .utils import run_process, resource_path, TEMPORARY_STORAGE_PATH
 from .merge import parse_perf_script
@@ -27,14 +27,18 @@ class SystemProfiler:
         self._stop_event = stop_event
         self._storage_dir = storage_dir
 
+    def start(self):
+        pass
+
+    def stop(self):
+        pass
+
     def __enter__(self):
+        self.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-
-    def close(self):
-        pass
+        self.stop()
 
     def run_perf(self, filename_base: str, dwarf=False):
         parsed_path = os.path.join(self._storage_dir, f"{filename_base}.parsed")
@@ -55,15 +59,15 @@ class SystemProfiler:
                 )
             return parsed_path
 
-    def profile(self):
+    def snapshot(self) -> Iterable[Mapping[str, str]]:
         free_disk = psutil.disk_usage(self._storage_dir).free
         if free_disk < 4 * 1024 * 1024:
             raise Exception(f"Free disk space: {free_disk}kb. Skipping perf!")
 
         logger.info("Running global perf...")
-        result = self.run_perf("global")
+        record_path = self.run_perf("global")
         logger.info("Finished running global perf")
-        return parse_perf_script(Path(result).read_text())
+        return parse_perf_script(Path(record_path).read_text())
 
         # TODO: run dwarf in parallel, after supporting it in merge.py
         # Alternatively: fix golang dwarf problems and the run just dwarf

@@ -6,7 +6,7 @@ jobs:
   lint:
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8]
+        python-version: [3.8, 3.9]
 
     runs-on: ubuntu-latest
 
@@ -31,7 +31,7 @@ jobs:
   test:
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8.8]
+        python-version: [3.8.8, 3.9]
 
     runs-on: ubuntu-latest
 
