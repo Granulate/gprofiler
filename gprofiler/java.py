@@ -212,25 +212,24 @@ class JavaProfiler:
         return parse_one_collapsed(Path(output_path_host).read_text())
 
     def snapshot(self) -> Mapping[int, Mapping[str, int]]:
-        futures = []
-        results = {}
         processes = list(pgrep_exe(r"^.+/(java|jsvc)$"))
         if not processes:
             return {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:
-            for process in processes:
-                future = executor.submit(self.profile_process, process)
-                future.pid = process.pid
-                futures.append(future)
 
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:
+            futures = {}
+            for process in processes:
+                futures[executor.submit(self.profile_process, process)] = process.pid
+
+            results = {}
             for future in concurrent.futures.as_completed(futures):
                 try:
                     result = future.result()
                     if result is not None:
-                        results[future.pid] = result
+                        results[futures[future]] = result
                 except StopEventSetException:
                     raise
                 except Exception:
-                    logger.exception(f"Failed to profile Java process {future.pid}")
+                    logger.exception(f"Failed to profile Java process {futures[future]}")
 
         return results

@@ -102,20 +102,18 @@ class PySpyProfiler(PythonProfilerBase):
         if not processes_to_profile:
             return {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes_to_profile)) as executor:
-            futures = []
+            futures = {}
             for process in processes_to_profile:
-                future = executor.submit(self.profile_process, process)
-                future.pid = process.pid
-                futures.append(future)
+                futures[executor.submit(self.profile_process, process)] = process.pid
 
             results = {}
             for future in concurrent.futures.as_completed(futures):
                 try:
-                    results[future.pid] = future.result()
+                    results[futures[future]] = future.result()
                 except StopEventSetException:
                     raise
                 except Exception:
-                    logger.exception(f"Failed to profile Python process {future.pid}")
+                    logger.exception(f"Failed to profile Python process {futures[future]}")
 
         return results
 
