@@ -21,11 +21,14 @@ WORKDIR /app
 
 RUN yum update -y && yum install -y epel-release
 RUN yum install -y gcc python3 curl python3-pip patchelf python3-devel
+
 COPY requirements.txt requirements.txt
-COPY dev-requirements.txt dev-requirements.txt
-COPY build.sh build.sh
-RUN python3 -m pip install -r dev-requirements.txt
 RUN python3 -m pip install -r requirements.txt
+
+COPY dev-requirements.txt dev-requirements.txt
+RUN python3 -m pip install -r dev-requirements.txt
+
+COPY build.sh build.sh
 RUN ./build.sh
 
 COPY --from=bcc-builder /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
