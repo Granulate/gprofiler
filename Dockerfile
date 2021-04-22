@@ -20,7 +20,7 @@ WORKDIR /app
 # kmod - for modprobe kheaders if it's available
 RUN apt-get update && apt-get install -y curl python3-pip kmod
 
-COPY --from=bcc-builder /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/PyPerf
+COPY --from=bcc-builder /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
 # copy licenses and notice file.
 COPY --from=bcc-builder /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
 COPY --from=bcc-builder /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
