@@ -28,8 +28,8 @@ RUN python3 -m pip install -r requirements.txt
 COPY dev-requirements.txt dev-requirements.txt
 RUN python3 -m pip install -r dev-requirements.txt
 
-COPY build.sh build.sh
-RUN ./build.sh
+COPY scripts/build.sh scripts/build.sh
+RUN ./scripts/build.sh
 
 COPY --from=bcc-builder /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
 # copy licenses and notice file.
