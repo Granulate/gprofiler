@@ -48,7 +48,7 @@ def test_python_ebpf(
     gprofiler_docker_image,
 ):
     # get PyPerf from the built container
-    pyperf_path = resource_path("python/pyperf/PyPerf")
+    pyperf_path = resource_path(PythonEbpfProfiler.PYPERF_RESOURCE)
     copy_file_from_image(gprofiler_docker_image, pyperf_path, pyperf_path)
 
     with PythonEbpfProfiler(1000, 1, Event(), str(tmp_path)) as profiler:

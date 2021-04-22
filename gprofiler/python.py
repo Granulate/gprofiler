@@ -125,6 +125,7 @@ class PySpyProfiler(PythonProfilerBase):
 
 
 class PythonEbpfProfiler(PythonProfilerBase):
+    PYPERF_RESOURCE = "python/pyperf/PyPerf"
     dump_signal = signal.SIGUSR2
     poll_timeout = 10  # seconds
 
@@ -167,7 +168,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
         # Run the process and check if the output file is properly created.
         # Wait up to 10sec for the process to terminate.
         # Allow cancellation via the stop_event.
-        cmd = [resource_path("python/PyPerf"), "--output", str(test_path), "-F", "1", "--duration", "1"]
+        cmd = [resource_path(cls.PYPERF_RESOURCE), "--output", str(test_path), "-F", "1", "--duration", "1"]
         process = start_process(cmd)
         try:
             poll_process(process, cls.poll_timeout, stop_event)
@@ -180,7 +181,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
     def start(self):
         logger.info("Starting profiling of Python processes with PyPerf")
         cmd = [
-            resource_path("python/PyPerf"),
+            resource_path(self.PYPERF_RESOURCE),
             "--output",
             str(self.output_path),
             "-F",
