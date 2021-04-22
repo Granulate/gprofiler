@@ -10,12 +10,12 @@ import logging.handlers
 import os
 import sys
 import time
-from contextlib import ExitStack
 from logging import Logger
 from pathlib import Path
 from socket import gethostname
 from tempfile import TemporaryDirectory
 from threading import Event
+from typing import Dict
 
 import configargparse
 from requests import RequestException, Timeout
@@ -25,7 +25,7 @@ from . import merge
 from .client import APIClient, APIError, GRANULATE_SERVER_HOST, DEFAULT_UPLOAD_TIMEOUT
 from .java import JavaProfiler
 from .perf import SystemProfiler
-from .python import PythonProfiler
+from .python import get_python_profiler
 from .utils import is_root, run_process, get_iso8061_format_time, resource_path, log_system_info, TEMPORARY_STORAGE_PATH
 
 logger: Logger
@@ -45,18 +45,25 @@ class GProfiler:
         self._duration = duration
         self._output_dir = output_dir
         self._client = client
-
         self._stop_event = Event()
-        self._system_modifications_stack = ExitStack()
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
+        self._temp_storage_dir = TemporaryDirectory(dir=TEMPORARY_STORAGE_PATH)
+        self.python_profiler = get_python_profiler(
+            self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name
+        )
+        self.java_profiler = JavaProfiler(
+            self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name
+        )
+        self.system_profiler = SystemProfiler(
+            self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name
+        )
 
     def __enter__(self):
+        self.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-
-    def close(self):
-        self._system_modifications_stack.close()
+        self.stop()
 
     def _generate_output_files(
         self, collapsed_data: str, local_start_time: datetime.datetime, local_end_time: datetime.datetime
@@ -83,67 +90,76 @@ class GProfiler:
         Path(flamegraph_path).write_text(flamegraph)
         logger.info(f"Saved flamegraph to {flamegraph_path}")
 
-    def run_profilers(self):
+    def start(self):
+        self._stop_event.clear()
+
+        for prof in (
+            self.python_profiler,
+            self.java_profiler,
+            self.system_profiler,
+        ):
+            prof.start()
+
+    def stop(self):
+        logger.info("Stopping gprofiler...")
+        self._stop_event.set()
+
+        for prof in (
+            self.python_profiler,
+            self.java_profiler,
+            self.system_profiler,
+        ):
+            prof.stop()
+
+    def _snapshot(self):
         local_start_time = datetime.datetime.utcnow()
         monotonic_start_time = time.monotonic()
-        futures = {}
 
-        with TemporaryDirectory(dir=TEMPORARY_STORAGE_PATH) as tempdir, concurrent.futures.ThreadPoolExecutor(
-            max_workers=10
-        ) as executor, JavaProfiler(
-            self._frequency, self._duration, True, self._stop_event, tempdir
-        ) as java_profiler, PythonProfiler(
-            self._frequency, self._duration, self._stop_event, tempdir
-        ) as python_profiler, SystemProfiler(
-            self._frequency, self._duration, self._stop_event, tempdir
-        ) as system_profiler:
-            os.chmod(tempdir, 0o777)
+        java_future = self._executor.submit(self.java_profiler.snapshot)
+        java_future.name = "java"
+        python_future = self._executor.submit(self.python_profiler.snapshot)
+        python_future.name = "python"
+        system_future = self._executor.submit(self.system_profiler.snapshot)
+        system_future.name = "system"
 
-            futures[executor.submit(java_profiler.profile_processes)] = "java"
-            futures[executor.submit(python_profiler.profile_processes)] = "python"
-            futures[executor.submit(system_profiler.profile)] = "system"
-
-            process_perfs = {}
-            system_perf = None
+        process_perfs: Dict[int, Dict[str, int]] = {}
+        for future in concurrent.futures.as_completed([java_future, python_future]):
+            # if either of these fail - log it, and continue.
             try:
-                for future in concurrent.futures.as_completed(futures):
-                    if futures[future] in ["java", "python"]:
-                        # if either of these fail - log it, and continue.
-                        try:
-                            process_perfs.update(future.result())
-                        except Exception:
-                            logger.exception(f"{futures[future]} profiling failed")
-                    else:
-                        system_perf = future.result()
-            except KeyboardInterrupt:
-                self._stop_event.set()
-                raise
+                process_perfs.update(future.result())
+            except Exception:
+                logger.exception(f"{future.name} profiling failed")
 
-            local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
-            merged_result = merge.merge_perfs(system_perf, process_perfs)
+        local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
+        merged_result = merge.merge_perfs(system_future.result(), process_perfs)
 
-            if self._output_dir:
-                self._generate_output_files(merged_result, local_start_time, local_end_time)
+        if self._output_dir:
+            self._generate_output_files(merged_result, local_start_time, local_end_time)
 
-            if self._client:
-                try:
-                    self._client.submit_profile(local_start_time, local_end_time, gethostname(), merged_result)
-                except Timeout:
-                    logger.error("Upload of profile to server timed out.")
-                except APIError as e:
-                    logger.error(f"Error occurred sending profile to server: {e}")
-                except RequestException:
-                    logger.exception("Error occurred sending profile to server")
+        if self._client:
+            try:
+                self._client.submit_profile(local_start_time, local_end_time, gethostname(), merged_result)
+            except Timeout:
+                logger.error("Upload of profile to server timed out.")
+            except APIError as e:
+                logger.error(f"Error occurred sending profile to server: {e}")
+            except RequestException:
+                logger.exception("Error occurred sending profile to server")
+
+    def run_single(self):
+        with self:
+            self._snapshot()
 
     def run_continuous(self, interval):
-        while not self._stop_event.is_set():
-            start_time = time.monotonic()
-            try:
-                self.run_profilers()
-            except Exception:
-                logger.exception("Profiling run failed!")
-            time_spent = time.monotonic() - start_time
-            self._stop_event.wait(max(interval * 60 - time_spent, 0))
+        with self:
+            while not self._stop_event.is_set():
+                start_time = time.monotonic()
+                try:
+                    self._snapshot()
+                except Exception:
+                    logger.exception("Profiling run failed!")
+                time_spent = time.monotonic() - start_time
+                self._stop_event.wait(max(interval * 60 - time_spent, 0))
 
 
 def setup_logger(stream_level: int = logging.INFO, log_file_path: str = None):
@@ -284,15 +300,18 @@ def main():
         except RequestException as e:
             logger.error(f"Failed to connect to server: {e}")
             return
-        with GProfiler(args.frequency, args.duration, args.output_dir, client) as gprofiler:
-            if args.continuous:
-                gprofiler.run_continuous(args.continuous_profiling_interval)
-            else:
-                gprofiler.run_profilers()
+
+        gprofiler = GProfiler(args.frequency, args.duration, args.output_dir, client)
+
+        if args.continuous:
+            gprofiler.run_continuous(args.continuous_profiling_interval)
+        else:
+            gprofiler.run_single()
+
+    except KeyboardInterrupt:
+        pass
     except Exception:
         logger.exception("Unexpected error occurred")
-    except KeyboardInterrupt:
-        logger.info("Stopping gprofiler...")
 
 
 if __name__ == "__main__":

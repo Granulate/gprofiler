@@ -1,3 +1,4 @@
+import subprocess
 from typing import List, Dict
 
 from docker import DockerClient
@@ -26,3 +27,13 @@ def run_privileged_container(
         **extra_kwargs,
     )
     print(f"Container logs {container}")
+
+
+def copy_file_from_image(image: Image, container_path: str, host_path: str) -> None:
+    # I tried writing it with the docker-py API, but retrieving large files with container.get_archive() just hangs...
+    subprocess.run(
+        f"c=$(docker container create {image.id}) && "
+        f"{{ docker cp $c:{container_path} {host_path}; ret=$?; docker rm $c > /dev/null; exit $ret; }}",
+        shell=True,
+        check=True,
+    )
