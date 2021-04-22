@@ -39,7 +39,7 @@ def test_pyspy(
     assert_collapsed(process_collapsed.get(application_pid))
 
 
-@pytest.mark.parametrize('runtime', ['python'])
+@pytest.mark.parametrize("runtime", ["python"])
 def test_python_ebpf(
     tmp_path,
     application_pid,
@@ -63,7 +63,7 @@ def test_from_container(
     volumes = {
         "/usr/src": {"bind": "/usr/src", "mode": "ro"},
         "/lib/modules": {"bind": "/lib/modules", "mode": "ro"},
-        str(output_directory): {"bind": inner_output_directory, "mode": "rw"}
+        str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
     }
     run_privileged_container(
         docker_client, gprofiler_docker_image, ["-d", "1", "-o", inner_output_directory], volumes=volumes

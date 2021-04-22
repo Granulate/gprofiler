@@ -49,16 +49,16 @@ def parse_many_collapsed(text: str) -> Mapping[int, Mapping[str, int]]:
 
     for line in text.splitlines():
         try:
-            stack, count = line.rsplit(' ', maxsplit=1)
-            head, tail = stack.split(';', maxsplit=1)
-            _, pid_tid = head.rsplit('-', maxsplit=1)
-            pid = int(pid_tid.split('/')[0])
+            stack, count = line.rsplit(" ", maxsplit=1)
+            head, tail = stack.split(";", maxsplit=1)
+            _, pid_tid = head.rsplit("-", maxsplit=1)
+            pid = int(pid_tid.split("/")[0])
             results[pid][tail] += int(count)
         except ValueError:
             bad_lines.append(line)
 
     if bad_lines:
-        logger.warning(f"Got {len(bad_lines)} bad lines when parsing (showing up to 8):\n" + '\n'.join(bad_lines[:8]))
+        logger.warning(f"Got {len(bad_lines)} bad lines when parsing (showing up to 8):\n" + "\n".join(bad_lines[:8]))
 
     return results
 

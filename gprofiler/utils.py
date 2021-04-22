@@ -26,7 +26,7 @@ from gprofiler.exceptions import (
     CalledProcessError,
     ProcessStoppedException,
     ProgramMissingException,
-    StopEventSetException
+    StopEventSetException,
 )
 
 logger = logging.getLogger(__name__)

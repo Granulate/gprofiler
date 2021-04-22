@@ -56,15 +56,21 @@ class PySpyProfiler(PythonProfilerBase):
 
     def _make_command(self, pid: int, output_path: str):
         return [
-            resource_path("python/py-spy"), "record",
-            "-r", str(self._frequency),
-            "-d", str(self._duration),
+            resource_path("python/py-spy"),
+            "record",
+            "-r",
+            str(self._frequency),
+            "-d",
+            str(self._duration),
             "--nonblocking",
-            "--format", "raw",
+            "--format",
+            "raw",
             "-F",
             "--gil",
-            "--output", output_path,
-            "-p", str(pid),
+            "--output",
+            output_path,
+            "-p",
+            str(pid),
             "--full-filenames",
         ]
 
@@ -129,16 +135,16 @@ class PythonEbpfProfiler(PythonProfilerBase):
 
     @classmethod
     def _check_missing_headers(cls, stdout) -> bool:
-        if 'Unable to find kernel headers.' in stdout:
+        if "Unable to find kernel headers." in stdout:
             print()
-            print('Unable to find kernel headers. Make sure the package is installed for your distribution.')
-            print('If you are using Ubuntu, you can install the required package using:')
+            print("Unable to find kernel headers. Make sure the package is installed for your distribution.")
+            print("If you are using Ubuntu, you can install the required package using:")
             print()
-            print('    apt install linux-headers-$(uname -r)')
+            print("    apt install linux-headers-$(uname -r)")
             print()
-            print('If you are still getting this error and you are running gProfiler as a docker container,')
-            print('make sure /lib/modules and /usr/src are mapped into the container.')
-            print('See the README for further details.')
+            print("If you are still getting this error and you are running gProfiler as a docker container,")
+            print("make sure /lib/modules and /usr/src are mapped into the container.")
+            print("See the README for further details.")
             print()
             return True
         else:
@@ -146,7 +152,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
 
     @classmethod
     def _check_output(cls, process, output_path):
-        if not glob.glob(f'{str(output_path)}.*'):
+        if not glob.glob(f"{str(output_path)}.*"):
             stdout = process.stdout.read().decode()
             stderr = process.stderr.read().decode()
             cls._check_missing_headers(stdout)
@@ -155,18 +161,13 @@ class PythonEbpfProfiler(PythonProfilerBase):
     @classmethod
     def test(cls, storage_dir: str, stop_event: Optional[Event]):
         test_path = Path(storage_dir) / ".test"
-        for f in glob.glob(f'{str(test_path)}.*'):
+        for f in glob.glob(f"{str(test_path)}.*"):
             os.unlink(f)
 
         # Run the process and check if the output file is properly created.
         # Wait up to 10sec for the process to terminate.
         # Allow cancellation via the stop_event.
-        cmd = [
-            resource_path("python/PyPerf"),
-            "--output", str(test_path),
-            "-F", "1",
-            "--duration", "1"
-        ]
+        cmd = [resource_path("python/PyPerf"), "--output", str(test_path), "-F", "1", "--duration", "1"]
         process = start_process(cmd)
         try:
             poll_process(process, cls.poll_timeout, stop_event)
@@ -180,8 +181,10 @@ class PythonEbpfProfiler(PythonProfilerBase):
         logger.info("Starting profiling of Python processes with PyPerf")
         cmd = [
             resource_path("python/PyPerf"),
-            "--output", str(self.output_path),
-            "-F", str(self._frequency),
+            "--output",
+            str(self.output_path),
+            "-F",
+            str(self._frequency),
             # Duration is irrelevant here, we want to run continuously.
         ]
         process = start_process(cmd)
@@ -200,13 +203,13 @@ class PythonEbpfProfiler(PythonProfilerBase):
         else:
             # process terminated, must be an error:
             self._check_output(process, self.output_path)
-            raise RuntimeError('_check_output did not raise!')
+            raise RuntimeError("_check_output did not raise!")
 
     def _dump(self) -> Path:
-        assert self.process is not None, 'profiling not started!'
+        assert self.process is not None, "profiling not started!"
         self.process.send_signal(self.dump_signal)
         # important to not grab the transient data file
-        while not (output_files := glob.glob(f'{str(self.output_path)}.*')):
+        while not (output_files := glob.glob(f"{str(self.output_path)}.*")):
             if self._stop_event.wait(0.1):
                 raise StopEventSetException()
 
