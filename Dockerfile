@@ -22,6 +22,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y curl python3-pip kmod
 
 COPY --from=bcc-builder /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/PyPerf
+# copy licenses and notice file.
+COPY --from=bcc-builder /bcc/bcc/LICENSE.txt gprofiler/resources/python/
+COPY --from=bcc-builder /bcc/bcc/licenses gprofiler/resources/python/
+COPY --from=bcc-builder /bcc/bcc/NOTICE gprofiler/resources/python/
 
 COPY build.sh build.sh
 RUN ./build.sh
