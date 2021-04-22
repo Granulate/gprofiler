@@ -23,7 +23,7 @@ headers to be installed.
 ## Running from source
 ```bash
 pip3 install -r requirements.txt
-./build.sh
+./scripts/build.sh
 ```
 
 ### Usage

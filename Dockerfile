@@ -26,8 +26,8 @@ COPY --from=bcc-builder /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
 COPY --from=bcc-builder /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
 COPY --from=bcc-builder /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 
-COPY build.sh build.sh
-RUN ./build.sh
+COPY scripts/build.sh scripts/build.sh
+RUN ./scripts/build.sh
 
 COPY requirements.txt requirements.txt
 RUN pip3 install --no-cache-dir -r requirements.txt

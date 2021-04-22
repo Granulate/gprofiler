@@ -56,7 +56,7 @@ jobs:
         sudo env "PATH=$PATH" python -m pip install --upgrade pip
         sudo env "PATH=$PATH" pip install -r dev-requirements.txt
         sudo env "PATH=$PATH" pip install -r requirements.txt
-        ./build.sh
+        ./scripts/build.sh
 
     - name: Run tests
       run: sudo env "PATH=$PATH" python -m pytest -v tests/ --ignore=tests/test_executable.py

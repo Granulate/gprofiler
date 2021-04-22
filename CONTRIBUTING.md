@@ -32,7 +32,7 @@ This above commands installs all packages required for building, developing and 
 ### Standard build
 The step of building essentialy downloads external dependencies required for the project. You can run those through:
 ```bash
-./build.sh
+./scripts/build.sh
 ```
 
 The above command will download all dependencies to `bin` directory.
