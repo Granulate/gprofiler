@@ -82,7 +82,6 @@ def start_process(cmd: Union[str, List[str]], **kwargs) -> Popen:
         preexec_fn=kwargs.pop("preexec_fn", os.setpgrp),
         **kwargs,
     )
-    popen.cmd_text = cmd_text
     return popen
 
 
@@ -124,12 +123,12 @@ def run_process(
         assert retcode is not None  # only None if child has not terminated
     result: CompletedProcess = CompletedProcess(process.args, retcode, stdout, stderr)
 
-    logger.debug(f"({process.cmd_text}) exit code: {result.returncode}")
+    logger.debug(f"({process.args!r}) exit code: {result.returncode}")
     if not suppress_log:
         if result.stdout:
-            logger.debug(f"({process.cmd_text}) stdout: {result.stdout}")
+            logger.debug(f"({process.args!r}) stdout: {result.stdout}")
         if result.stderr:
-            logger.debug(f"({process.cmd_text}) stderr: {result.stderr}")
+            logger.debug(f"({process.args!r}) stderr: {result.stderr}")
     if retcode:
         raise CalledProcessError(retcode, process.args, output=stdout, stderr=stderr)
     return result
