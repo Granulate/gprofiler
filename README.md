@@ -7,7 +7,7 @@ gProfiler can upload the result to the [Granulate Performance Studio](https://pr
 To upload results, you will have to register and generate a token on the website.
 
 ## Requirements
-gProfiler works on **Linux** and requires **Python 3.8+** to run.
+gProfiler works on **Linux** and requires **Python 3.6+** to run.
 
 The `nsenter` program needs to be installed for Java profiling. For Debian/Ubuntu, install the `util-linux` package.
 

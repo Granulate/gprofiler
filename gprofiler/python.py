@@ -210,7 +210,11 @@ class PythonEbpfProfiler(PythonProfilerBase):
         assert self.process is not None, "profiling not started!"
         self.process.send_signal(self.dump_signal)
         # important to not grab the transient data file
-        while not (output_files := glob.glob(f"{str(self.output_path)}.*")):
+        while True:
+            output_files = glob.glob(f"{str(self.output_path)}.*")
+            if output_files:
+                break
+
             if self._stop_event.wait(0.1):
                 raise StopEventSetException()
 
