@@ -33,7 +33,7 @@ spec:
               cpu: 100m
               memory: 256m
             limits:
-              cpu: 512m
+              cpu: 500m
               memory: 1Gi
           image: index.docker.io/granulate/gprofiler:latest
           imagePullPolicy: Always
