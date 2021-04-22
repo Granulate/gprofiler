@@ -14,7 +14,8 @@ from docker.models.images import Image
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.java import JavaProfiler
 from gprofiler.python import PySpyProfiler, PythonEbpfProfiler
-from tests.util import run_privileged_container
+from gprofiler.utils import resource_path
+from tests.util import run_privileged_container, copy_file_from_image
 
 
 @pytest.mark.parametrize("runtime", ["java"])
@@ -44,7 +45,12 @@ def test_python_ebpf(
     tmp_path,
     application_pid,
     assert_collapsed,
+    gprofiler_docker_image,
 ):
+    # get PyPerf from the built container
+    pyperf_path = resource_path("python/pyperf/PyPerf")
+    copy_file_from_image(gprofiler_docker_image, pyperf_path, pyperf_path)
+
     with PythonEbpfProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
         assert_collapsed(process_collapsed.get(application_pid))
