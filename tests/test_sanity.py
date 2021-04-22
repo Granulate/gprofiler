@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import pytest  # type: ignore
+import os
 from glob import glob
 from pathlib import Path
 from threading import Event
@@ -49,7 +50,11 @@ def test_python_ebpf(
 ):
     # get PyPerf from the built container
     pyperf_path = resource_path(PythonEbpfProfiler.PYPERF_RESOURCE)
-    copy_file_from_image(gprofiler_docker_image, pyperf_path, pyperf_path)
+    copy_file_from_image(
+        gprofiler_docker_image,
+        os.path.join("/app", "gprofiler", "resources", PythonEbpfProfiler.PYPERF_RESOURCE),
+        pyperf_path,
+    )
 
     with PythonEbpfProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
