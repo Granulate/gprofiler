@@ -134,6 +134,7 @@ class GProfiler:
                     logger.error(f"Error occurred sending profile to server: {e}")
                 except RequestException:
                     logger.exception("Error occurred sending profile to server")
+                logger.info("Successfully upload profile to server")
 
     def run_continuous(self, interval):
         while not self._stop_event.is_set():
@@ -284,6 +285,7 @@ def main():
         except RequestException as e:
             logger.error(f"Failed to connect to server: {e}")
             return
+        logger.info("gProfiler initialized and ready to start profiling")
         with GProfiler(args.frequency, args.duration, args.output_dir, client) as gprofiler:
             if args.continuous:
                 gprofiler.run_continuous(args.continuous_profiling_interval)

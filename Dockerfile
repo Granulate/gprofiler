@@ -16,4 +16,4 @@ RUN python3 setup.py install
 
 STOPSIGNAL SIGINT
 
-ENTRYPOINT [ "python3", "-m", "gprofiler", "-v" ]
+ENTRYPOINT [ "python3", "-m", "gprofiler"]

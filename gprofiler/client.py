@@ -46,6 +46,7 @@ class APIClient:
 
         # Raises on failure
         self.get_health()
+        logger.info("Connection to server successfully established")
 
     def get_base_url(self) -> str:
         return "{}/{}/{}".format(self._host.rstrip("/"), self.BASE_PATH, self._version)
