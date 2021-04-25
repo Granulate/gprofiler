@@ -15,11 +15,15 @@ It can produce specialized stack traces for the following runtimes:
 * Java runtimes (version 7+) based on the HotSpot JVM,
 including the Oracle JDK and other builds of OpenJDK like AdoptOpenJDK and Azul Zulu.
 * The CPython interpreter, versions 2.7 and 3.5-3.9.
+  * eBPF profiling requires Linux 4.14 or higher.
+
+gProfiler can profile Python applications with low overhead using eBPF. This requires kernel
+headers to be installed.
 
 ## Running from source
 ```bash
 pip3 install -r requirements.txt
-./build.sh
+./scripts/build.sh
 ```
 
 ### Usage
@@ -32,10 +36,17 @@ python3 -m gprofiler [options]
 Run the following to have gprofiler running continuously, uploading to Granulate Performance Studio:
 ```bash
 docker pull granulate/gprofiler:latest
-docker run --name gprofiler --restart=always -d --network=host --pid=host --userns=host --privileged granulate/gprofiler:latest -cu --token <token> [options]
+docker run --name gprofiler -d --restart=always \
+	--network=host --pid=host --userns=host --privileged \
+	-v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro \
+	granulate/gprofiler:latest -cu --token <token> [options]
 ```
 
-## Running as executable
+For eBPF profiling, kernel headers must be accessible from within the container at
+`/lib/modules/$(uname -r)/build`. On Ubuntu, this directory is a symlink pointing to `/usr/src`.
+The command above mounts both of these directories.
+
+## Running as an executable
 Run the following to have gprofiler running continuously, uploading to Granulate Performance Studio:
 ```bash
 wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler
@@ -56,7 +67,11 @@ The following platforms are currently not supported:
 
 **Remark:** container-based execution still works and can be used.
 
-### Output options
+## Running as a Kubernetes DaemonSet
+See [gprofiler.yaml](deploy/k8s/gprofiler.yaml) for a basic template of a DaemonSet running gProfiler.
+Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in the appropriate location!
+
+## Output options
 gProfiler can produce output in two ways:
 * Create an aggregated, collapsed stack samples file (`profile_<timestamp>.col`)
   and a flamegraph file (`profile_<timestamp>.html`).
@@ -68,7 +83,7 @@ gProfiler can produce output in two ways:
   Use the `--upload-results`/`-u` flag and the `--token` option to specify the token
   provided by Granulate Performance Studio.
 
-### Profiling options
+## Profiling options
 * `--profiling-frequency`: The sampling frequency of the profiling, in hertz.
 * `--profiling-duration`: The duration of the profiling, in seconds.
 

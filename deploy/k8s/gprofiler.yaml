@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: granulate
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: granulate-gprofiler
+  namespace: granulate
+  labels:
+    app: granulate-gprofiler
+spec:
+  selector:
+    matchLabels:
+      app: granulate-gprofiler
+  template:
+    metadata:
+      labels:
+        app: granulate-gprofiler
+    spec:
+      hostPID: true
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+      restartPolicy: Always
+      containers:
+        - name: gprofiler
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256m
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          image: index.docker.io/granulate/gprofiler:latest
+          imagePullPolicy: Always
+          args:
+            - -cu
+            - --token
+            - $(GPROFILER_TOKEN)
+            - --service-name
+            - $(GPROFILER_SERVICE)
+          env:
+            - name: GPROFILER_TOKEN
+              value: @insert your token here@
+            - name: GPROFILER_SERVICE
+              value: @insert service name here@

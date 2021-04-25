@@ -6,6 +6,7 @@ import datetime
 import logging
 import os
 import re
+import time
 import shutil
 import subprocess
 import platform
@@ -21,7 +22,12 @@ import psutil
 import distro  # type: ignore
 from psutil import Process
 
-from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, ProgramMissingException
+from gprofiler.exceptions import (
+    CalledProcessError,
+    ProcessStoppedException,
+    ProgramMissingException,
+    StopEventSetException,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,20 +70,40 @@ def get_process_nspid(pid: int) -> int:
     raise Exception(f"Couldn't find NSpid for pid {pid}")
 
 
-def run_process(
-    cmd: Union[str, List[str]], stop_event: Event = None, suppress_log: bool = False, **kwargs
-) -> CompletedProcess:
+def start_process(cmd: Union[str, List[str]], **kwargs) -> Popen:
     cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
     logger.debug(f"Running command: ({cmd_text})")
     if isinstance(cmd, str):
         cmd = [cmd]
-    with Popen(
+    popen = Popen(
         cmd,
         stdout=kwargs.pop("stdout", subprocess.PIPE),
         stderr=kwargs.pop("stderr", subprocess.PIPE),
         preexec_fn=kwargs.pop("preexec_fn", os.setpgrp),
         **kwargs,
-    ) as process:
+    )
+    return popen
+
+
+def poll_process(process, timeout, stop_event):
+    timefn = time.monotonic
+    endtime = timefn() + timeout
+    while True:
+        try:
+            process.wait(0.1)
+            break
+        except TimeoutExpired:
+            if stop_event.is_set():
+                process.kill()
+                raise StopEventSetException()
+            if timefn() > endtime:
+                raise TimeoutError()
+
+
+def run_process(
+    cmd: Union[str, List[str]], stop_event: Event = None, suppress_log: bool = False, **kwargs
+) -> CompletedProcess:
+    with start_process(cmd, **kwargs) as process:
         try:
             if stop_event is None:
                 stdout, stderr = process.communicate()
@@ -97,12 +123,12 @@ def run_process(
         assert retcode is not None  # only None if child has not terminated
     result: CompletedProcess = CompletedProcess(process.args, retcode, stdout, stderr)
 
-    logger.debug(f"({cmd_text}) exit code: {result.returncode}")
+    logger.debug(f"({process.args!r}) exit code: {result.returncode}")
     if not suppress_log:
         if result.stdout:
-            logger.debug(f"({cmd_text}) stdout: {result.stdout}")
+            logger.debug(f"({process.args!r}) stdout: {result.stdout}")
         if result.stderr:
-            logger.debug(f"({cmd_text}) stderr: {result.stderr}")
+            logger.debug(f"({process.args!r}) stderr: {result.stderr}")
     if retcode:
         raise CalledProcessError(retcode, process.args, output=stdout, stderr=stderr)
     return result

@@ -14,7 +14,7 @@ from typing import Mapping, Optional
 import psutil
 from psutil import Process
 
-from .merge import parse_collapsed
+from .merge import parse_one_collapsed
 from .exceptions import StopEventSetException
 from .utils import (
     run_process,
@@ -47,14 +47,18 @@ class JavaProfiler:
         self._stop_event = stop_event
         self._storage_dir = storage_dir
 
+    def start(self):
+        pass
+
+    def stop(self):
+        pass
+
     def __enter__(self):
+        self.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-
-    def close(self):
-        pass
+        self.stop()
 
     def is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -205,28 +209,27 @@ class JavaProfiler:
             raise StopEventSetException()
 
         logger.info(f"Finished profiling process {process.pid}")
-        return parse_collapsed(Path(output_path_host).read_text())
+        return parse_one_collapsed(Path(output_path_host).read_text())
 
-    def profile_processes(self):
-        futures = []
-        results = {}
+    def snapshot(self) -> Mapping[int, Mapping[str, int]]:
         processes = list(pgrep_exe(r"^.+/(java|jsvc)$"))
         if not processes:
             return {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:
-            for process in processes:
-                future = executor.submit(self.profile_process, process)
-                future.pid = process.pid
-                futures.append(future)
 
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:
+            futures = {}
+            for process in processes:
+                futures[executor.submit(self.profile_process, process)] = process.pid
+
+            results = {}
             for future in concurrent.futures.as_completed(futures):
                 try:
                     result = future.result()
                     if result is not None:
-                        results[future.pid] = result
+                        results[futures[future]] = result
                 except StopEventSetException:
                     raise
                 except Exception:
-                    logger.exception(f"Failed to profile Java process {future.pid}")
+                    logger.exception(f"Failed to profile Java process {futures[future]}")
 
         return results

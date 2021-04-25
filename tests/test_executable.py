@@ -12,7 +12,7 @@ import pytest  # type: ignore
 from docker import DockerClient
 from docker.models.images import Image
 
-from gprofiler.merge import parse_collapsed
+from gprofiler.merge import parse_one_collapsed
 from tests.util import run_privileged_container
 
 
@@ -46,5 +46,5 @@ def test_from_executable(
     output = glob(str(output_directory / "*.col"))
     assert len(output) == 1
     collapsed_path = output[0]
-    collapsed = parse_collapsed(Path(collapsed_path).read_text())
+    collapsed = parse_one_collapsed(Path(collapsed_path).read_text())
     assert_collapsed(collapsed)

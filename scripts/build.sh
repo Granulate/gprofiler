@@ -18,6 +18,9 @@ mkdir -p gprofiler/resources/python
 curl -fL https://github.com/Granulate/py-spy/releases/download/v0.3.5g1/py-spy -o gprofiler/resources/python/py-spy
 chmod +x gprofiler/resources/python/py-spy
 
+# pyperf - just create the directory for it, it will be built/downloaded later
+mkdir -p gprofiler/resources/python/pyperf
+
 # perf
 curl -fL https://github.com/Granulate/linux/releases/download/v5.6-perf/perf -z gprofiler/resources/perf -o gprofiler/resources/perf
 chmod +x gprofiler/resources/perf
