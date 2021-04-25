@@ -8,6 +8,8 @@ To upload results, you will have to register and generate a token on the website
 
 gProfiler runs on Linux.
 
+![Granulate Performance Studio example view](https://github.com/Granulate/gprofiler/blob/master/images/studio.png?raw=true)
+
 # Running
 
 This section describes the possible options to control gProfiler's output, and the various execution modes (as a container, as an executable, etc...)
