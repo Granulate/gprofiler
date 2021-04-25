@@ -1,48 +1,65 @@
 # gProfiler
 gProfiler combines multiple sampling profilers to produce unified visualization of
 what your CPU is spending time on, displaying stack traces of your processes
-across native programs, Java and Python runtimes, and kernel routines.
+across native programs<sup id="a1">[1](#perf-native)</sup> (includes Golang), Java and Python runtimes, and kernel routines.
 
-gProfiler can upload the result to the [Granulate Performance Studio](https://profiler.granulate.io/), which aggregates the results from different instances over different periods of time and can give you a holistic view of what is happening on your entire cluster.
+gProfiler can upload its results to the [Granulate Performance Studio](https://profiler.granulate.io/), which aggregates the results from different instances over different periods of time and can give you a holistic view of what is happening on your entire cluster.
 To upload results, you will have to register and generate a token on the website.
 
-## Requirements
-gProfiler works on **Linux** and requires **Python 3.6+** to run.
+gProfiler runs on Linux.
 
-The `nsenter` program needs to be installed for Java profiling. For Debian/Ubuntu, install the `util-linux` package.
+![Granulate Performance Studio example view](https://github.com/Granulate/gprofiler/blob/master/images/studio.png?raw=true)
 
-It can produce specialized stack traces for the following runtimes:
-* Java runtimes (version 7+) based on the HotSpot JVM,
-including the Oracle JDK and other builds of OpenJDK like AdoptOpenJDK and Azul Zulu.
-* The CPython interpreter, versions 2.7 and 3.5-3.9.
-  * eBPF profiling requires Linux 4.14 or higher.
+# Running
 
-gProfiler can profile Python applications with low overhead using eBPF. This requires kernel
-headers to be installed.
+This section describes the possible options to control gProfiler's output, and the various execution modes (as a container, as an executable, etc...)
 
-## Running from source
-```bash
-pip3 install -r requirements.txt
-./scripts/build.sh
-```
+## Output options
 
-### Usage
-Run the following **as root**:
-```bash
-python3 -m gprofiler [options]
-```
+gProfiler can produce output in two ways:
 
-## Running as a docker container
-Run the following to have gprofiler running continuously, uploading to Granulate Performance Studio:
+* Create an aggregated, collapsed stack samples file (`profile_<timestamp>.col`)
+  and a flamegraph file (`profile_<timestamp>.html`).
+
+  Use the `--output-dir`/`-o` option to specify the output directory.
+
+* Send the results to the Granulate Performance Studio for viewing online with
+  filtering, insights, and more.
+
+  Use the `--upload-results`/`-u` flag. Pass the `--token` option to specify the token
+  provided by Granulate Performance Studio, and the `--service-name` option to specify an identifier
+  for the collected profiles, as will be viewed in the [Granulate Performance Studio](https://profiler.granulate.io/). *Profiles sent from numerous
+  gProfilers using the same service name will be aggregated together.*
+
+Note: both flags can be used simultaneously, in which case gProfiler will create the local files *and* upload
+the results.
+
+## Profiling options
+* `--profiling-frequency`: The sampling frequency of the profiling, in *hertz*.
+* `--profiling-duration`: The duration of the each profiling session, in *seconds*.
+* `--profiling-interval`: The interval between each profiling session, in *minutes*.
+
+The default profiling frequency is *10 hertz*. Using higher frequency will lead to more accurate results, but will create greater overhead on the profiled system & programs.
+
+The default duration is *60 seconds* and the default interval is *1 minute*. So gProfiler runs the profiling
+sessions back-to-back.
+
+### Continuous mode
+gProfiler can be run in a continuous mode, profiling periodically, using the `--continuous`/`-c` flag.
+Note that when using `--continuous` with `--output-dir`, a new file will be created during *each* sampling interval.
+Aggregations are only available when uploading to the Granulate Performance Studio.
+
+## Running as a Docker container
+Run the following to have gProfiler running continuously, uploading to Granulate Performance Studio:
 ```bash
 docker pull granulate/gprofiler:latest
 docker run --name gprofiler -d --restart=always \
-	--network=host --pid=host --userns=host --privileged \
-	-v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro \
-	granulate/gprofiler:latest -cu --token <token> [options]
+    --network=host --pid=host --userns=host --privileged \
+    -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro \
+    granulate/gprofiler:latest -cu --token <token> --service-name <service> [options]
 ```
 
-For eBPF profiling, kernel headers must be accessible from within the container at
+For profiling with eBPF, kernel headers must be accessible from within the container at
 `/lib/modules/$(uname -r)/build`. On Ubuntu, this directory is a symlink pointing to `/usr/src`.
 The command above mounts both of these directories.
 
@@ -51,47 +68,54 @@ Run the following to have gprofiler running continuously, uploading to Granulate
 ```bash
 wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler
 sudo chmod +x gprofiler
-sudo ./gprofiler -cu --token <token> [options]
+sudo ./gprofiler -cu --token <token> --service-name <service> [options]
 ```
-gProfiler unpacks executables to `/tmp` by default; if `/tmp` is marked with `noexec`, 
-you can add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current working directory.
 
+gProfiler unpacks executables to `/tmp` by default; if your `/tmp` is marked with `noexec`,
+you can add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current working directory.
 ```bash
-sudo TMPDIR=~/custom_tmp ./gprofiler -cu --token <token> [options]
+sudo TMPDIR=/proc/self/cwd ./gprofiler -cu --token <token> --service-name <service> [options]
 ```
 
 #### Executable known issues
-The following platforms are currently not supported:
+The following platforms are currently not supported with the gProfiler executable:
 + Ubuntu 14.04
 + Alpine
 
-**Remark:** container-based execution still works and can be used.
+**Remark:** container-based execution works and can be used in those cases.
+
+The `nsenter` program needs to be installed for Java profiling. For Debian/Ubuntu, install the `util-linux` package.
 
 ## Running as a Kubernetes DaemonSet
 See [gprofiler.yaml](deploy/k8s/gprofiler.yaml) for a basic template of a DaemonSet running gProfiler.
 Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in the appropriate location!
 
-## Output options
-gProfiler can produce output in two ways:
-* Create an aggregated, collapsed stack samples file (`profile_<timestamp>.col`)
-  and a flamegraph file (`profile_<timestamp>.html`).
+## Running from source
+gProfiler requires Python 3.6+ to run.
 
-  Use the `--output-dir`/`-o` option to specify the output directory.
-* Send the results to the Granulate Performance Studio for viewing online with
-  filtering, insights, and more.
+As mentioned in the [running-as-an-executable](#executable-known-issues) section, `nsenter` needs to be installed.
 
-  Use the `--upload-results`/`-u` flag and the `--token` option to specify the token
-  provided by Granulate Performance Studio.
+```bash
+pip3 install -r requirements.txt
+./scripts/build.sh
+```
 
-## Profiling options
-* `--profiling-frequency`: The sampling frequency of the profiling, in hertz.
-* `--profiling-duration`: The duration of the profiling, in seconds.
+Then, run the following **as root**:
+```bash
+python3 -m gprofiler [options]
+```
 
-### Continuous mode
-gProfiler can be run in a continuous mode, profiling periodically,
-using the `--continuous`/`-c` flag and specifying the period using the `--profiling-interval` option.
-Note that when using `--continuous` with `--output-dir`, a new file will be created during *each* sampling interval.
-Aggregations are only available when uploading to the [Granulate Performance Studio](https://profiler.granulate.io/)
+# Theory of operation
+Each profiling interval, gProfiler invokes `perf` in system wide mode, collecting profiling data for all running processes.
+Alongside `perf`, gProfiler invokes runtime-specific profilers for processes based on these environments:
+* Java runtimes (version 7+) based on the HotSpot JVM, including the Oracle JDK and other builds of OpenJDK like AdoptOpenJDK and Azul Zulu.
+  * Uses async-profiler.
+* The CPython interpreter, versions 2.7 and 3.5-3.9.
+  * eBPF profiling (based on PyPerf) requires Linux 4.14 or higher. Profiling using eBPF incurs lower overhead. This requires kernel headers to be installed.
+  * If eBPF is not available for whatever reason, py-spy is used.
+
+The runtime-specific profilers produce stack traces that include runtime information (i.e, stacks of Java/Python functions), unlike `perf` which produces native stacks of the JVM / CPython interpreter.
+The runtime stacks are then merged into the data collected by `perf`, substituting the *native* stacks `perf` has collected for those processes.
 
 # Contribute
 We welcome all feedback and suggestion through Github Issues:
@@ -105,6 +129,10 @@ We welcome all feedback and suggestion through Github Issues:
 We recommend going through our [contribution guide](https://github.com/granulate/gprofiler/blob/master/CONTRIBUTING.md) for more details.
 
 # Credits
-[TODO]: <> (Add links, either to our public forks or to the original repository.)
-* async-profiler by [Andrei Pangin](https://github.com/apangin)
-* py-spy by [Ben Frederickson](https://github.com/benfred)
+* [async-profiler](https://github.com/jvm-profiling-tools/async-profiler) by [Andrei Pangin](https://github.com/apangin). See [our fork](https://github.com/Granulate/async-profiler).
+* [py-spy](https://github.com/benfred/py-spy) by [Ben Frederickson](https://github.com/benfred). See [our fork](https://github.com/Granulate/py-spy).
+* [bcc](https://github.com/iovisor/bcc) (for PyPerf) by the IO Visor project. See [our fork](https://github.com/Granulate/bcc).
+
+# Footnotes
+
+<a name="perf-native">1</a>: *Currently* requires profiled native programs to be compiled with frame pointer. [↩](#a1)

@@ -36,6 +36,9 @@ COPY LICENSE.md MANIFEST.in README.md setup.py ./
 COPY gprofiler gprofiler
 RUN python3 setup.py install
 
+# lets gProfiler know it is running in a container
+ENV GPROFILER_IN_CONTAINER=1
+
 STOPSIGNAL SIGINT
 
 ENTRYPOINT [ "python3", "-m", "gprofiler", "-v" ]
