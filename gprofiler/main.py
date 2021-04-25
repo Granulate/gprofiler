@@ -269,6 +269,7 @@ def verify_preconditions():
 def main():
     args = parse_cmd_args()
     setup_logger(logging.DEBUG if args.verbose else logging.INFO, args.log_file)
+    global logger  # silences flake8, who now knows that the "logger" global we refer to was initialized.
 
     try:
         logger.info(f"Running gprofiler (version {__version__})...")
