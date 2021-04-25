@@ -1,9 +1,9 @@
 # gProfiler
 gProfiler combines multiple sampling profilers to produce unified visualization of
 what your CPU is spending time on, displaying stack traces of your processes
-across native programs, Java and Python runtimes, and kernel routines.
+across native programs (includes Golang, Rust & C++), Java and Python runtimes, and kernel routines.
 
-gProfiler can upload the result to the [Granulate Performance Studio](https://profiler.granulate.io/), which aggregates the results from different instances over different periods of time and can give you a holistic view of what is happening on your entire cluster.
+gProfiler can upload its results to the [Granulate Performance Studio](https://profiler.granulate.io/), which aggregates the results from different instances over different periods of time and can give you a holistic view of what is happening on your entire cluster.
 To upload results, you will have to register and generate a token on the website.
 
 ## Requirements
