@@ -25,7 +25,7 @@ from . import merge
 from .client import APIClient, APIError, GRANULATE_SERVER_HOST, DEFAULT_UPLOAD_TIMEOUT
 from .java import JavaProfiler
 from .perf import SystemProfiler
-from .python import PythonProfiler
+from .python import get_python_profiler
 from .utils import is_root, run_process, get_iso8061_format_time, resource_path, log_system_info, TEMPORARY_STORAGE_PATH
 
 logger: Logger
