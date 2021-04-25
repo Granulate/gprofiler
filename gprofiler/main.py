@@ -145,6 +145,7 @@ class GProfiler:
                 logger.error(f"Error occurred sending profile to server: {e}")
             except RequestException:
                 logger.exception("Error occurred sending profile to server")
+            logger.info("Successfully upload profile to server")
 
     def run_single(self):
         with self:
@@ -302,6 +303,7 @@ def main():
             return
 
         gprofiler = GProfiler(args.frequency, args.duration, args.output_dir, client)
+        logger.info("gProfiler initialized and ready to start profiling")
 
         if args.continuous:
             gprofiler.run_continuous(args.continuous_profiling_interval)
