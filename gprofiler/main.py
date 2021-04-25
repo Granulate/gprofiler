@@ -34,9 +34,10 @@ DEFAULT_LOG_FILE = "/var/log/gprofiler/gprofiler.log"
 DEFAULT_LOG_MAX_SIZE = 1024 * 1024 * 5
 DEFAULT_LOG_BACKUP_COUNT = 1
 
-DEFAULT_PROFILING_DURATION = 60
+DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 10
-DEFAULT_CONTINUOUS_MODE_INTERVAL = 1
+# by default - these match
+DEFAULT_CONTINUOUS_MODE_INTERVAL = DEFAULT_PROFILING_DURATION
 
 
 class GProfiler:
@@ -159,7 +160,7 @@ class GProfiler:
                 except Exception:
                     logger.exception("Profiling run failed!")
                 time_spent = time.monotonic() - start_time
-                self._stop_event.wait(max(interval * 60 - time_spent, 0))
+                self._stop_event.wait(max(interval - time_spent, 0))
 
 
 def setup_logger(stream_level: int = logging.INFO, log_file_path: str = None):
@@ -242,7 +243,8 @@ def parse_cmd_args():
         type=int,
         dest="continuous_profiling_interval",
         default=DEFAULT_CONTINUOUS_MODE_INTERVAL,
-        help="Time between each profiling sessions in minutes (default: %(default)s)",
+        help="Time between each profiling sessions in seconds (default: %(default)s). Note: this is the time between"
+        " session starts, not between the end of one session to the beginning of the next one.",
     )
 
     args = parser.parse_args()
@@ -252,6 +254,11 @@ def parse_cmd_args():
             parser.error("Must provide --token when --upload-results is passed")
         if not args.service_name:
             parser.error("Must provide --service-name when --upload-results is passed")
+
+    if args.continuous and args.duration > args.continuous_profiling_interval:
+        parser.error(
+            "--profiling-duration must be lower or equal to --profiling-interval when profiling in continuous mode"
+        )
 
     if not args.upload_results and not args.output_dir:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
