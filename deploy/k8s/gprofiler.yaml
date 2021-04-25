@@ -63,5 +63,5 @@ spec:
             - name: GPROFILER_SERVICE
               value: @insert service name here@
             # let gProfiler know it is run by a DaemonSet
-            - name: GPROFILER_ON_K8S
+            - name: GPROFILER_IN_K8S
               value: 1
