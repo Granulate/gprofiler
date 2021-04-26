@@ -39,7 +39,7 @@ class APIClient:
         self._version: str = version
 
         self._init_session(key, service)
-        logger.info("Connection to server successfully established")
+        logger.info("The connection to the server was successfully established")
 
     def _init_session(self, key: str, service: str):
         self._session: Session = requests.Session()
