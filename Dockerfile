@@ -41,4 +41,4 @@ ENV GPROFILER_IN_CONTAINER=1
 
 STOPSIGNAL SIGINT
 
-ENTRYPOINT [ "python3", "-m", "gprofiler", "-v" ]
+ENTRYPOINT [ "python3", "-m", "gprofiler" ]
