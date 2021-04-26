@@ -188,23 +188,9 @@ class PythonEbpfProfiler(PythonProfilerBase):
             str(self._frequency),
             # Duration is irrelevant here, we want to run continuously.
         ]
-        process = start_process(cmd)
-        try:
-            poll_process(process, self.poll_timeout, self._stop_event)
-        except TimeoutError:
-            # Process is alive. So far, so good...
-            if not self.output_path.exists():
-                process.kill()
-                stdout = process.stdout.read().decode()
-                stderr = process.stderr.read().decode()
-                self._check_missing_headers(stdout)
-                raise CalledProcessError(process.returncode, process.args, stdout, stderr)
-            # happy flow
-            self.process = process
-        else:
-            # process terminated, must be an error:
-            self._check_output(process, self.output_path)
-            raise RuntimeError("_check_output did not raise!")
+        self.process = start_process(cmd)
+        # no need to check for success here - we're already past calling test(), PyPerf has been already proved
+        # working.
 
     def _dump(self) -> Path:
         assert self.process is not None, "profiling not started!"
