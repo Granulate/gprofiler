@@ -19,6 +19,13 @@ spec:
       labels:
         app: granulate-gprofiler
     spec:
+      volumes:
+        - name: lib-modules
+          hostPath:
+            path: /lib/modules
+        - name: usr-src
+          hostPath:
+            path: /usr/src
       hostPID: true
       securityContext:
         runAsUser: 0
@@ -37,6 +44,13 @@ spec:
               memory: 1Gi
           image: index.docker.io/granulate/gprofiler:latest
           imagePullPolicy: Always
+          volumeMounts:
+            - name: lib-modules
+              mountPath: /lib/modules
+              readOnly: true
+            - name: usr-src
+              mountPath: /usr/src
+              readOnly: true
           args:
             - -cu
             - --token
@@ -48,3 +62,6 @@ spec:
               value: @insert your token here@
             - name: GPROFILER_SERVICE
               value: @insert service name here@
+            # let gProfiler know it is run by a DaemonSet
+            - name: GPROFILER_IN_K8S
+              value: "1"
