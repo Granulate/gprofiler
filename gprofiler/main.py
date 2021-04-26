@@ -146,7 +146,8 @@ class GProfiler:
                 logger.error(f"Error occurred sending profile to server: {e}")
             except RequestException:
                 logger.exception("Error occurred sending profile to server")
-            logger.info("Successfully uploaded profiling data to the server")
+            else:
+                logger.info("Successfully uploaded profiling data to the server")
 
     def run_single(self):
         with self:
