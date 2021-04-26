@@ -10,6 +10,7 @@ import glob
 from pathlib import Path
 from threading import Event
 from typing import List, Mapping, Optional, Union
+from subprocess import Popen
 
 from psutil import Process
 
@@ -127,6 +128,8 @@ class PySpyProfiler(PythonProfilerBase):
 class PythonEbpfProfiler(PythonProfilerBase):
     PYPERF_RESOURCE = "python/pyperf/PyPerf"
     dump_signal = signal.SIGUSR2
+    dump_poll_interval = 0.1  # seconds
+    dump_poll_retries = 50  # 50 retries * dump_poll_interval = 5 seconds
     poll_timeout = 10  # seconds
 
     def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str):
@@ -152,12 +155,20 @@ class PythonEbpfProfiler(PythonProfilerBase):
             return False
 
     @classmethod
-    def _check_output(cls, process, output_path):
+    def _pyperf_error(cls, process: Popen):
+        # opened in pipe mode, so these aren't None.
+        assert process.stdout is not None
+        assert process.stderr is not None
+
+        stdout = process.stdout.read().decode()
+        stderr = process.stderr.read().decode()
+        cls._check_missing_headers(stdout)
+        raise CalledProcessError(process.returncode, process.args, stdout, stderr)
+
+    @classmethod
+    def _check_output(cls, process: Popen, output_path: Path):
         if not glob.glob(f"{str(output_path)}.*"):
-            stdout = process.stdout.read().decode()
-            stderr = process.stderr.read().decode()
-            cls._check_missing_headers(stdout)
-            raise CalledProcessError(process.returncode, process.args, stdout, stderr)
+            cls._pyperf_error(process)
 
     @classmethod
     def test(cls, storage_dir: str, stop_event: Optional[Event]):
@@ -196,13 +207,18 @@ class PythonEbpfProfiler(PythonProfilerBase):
         assert self.process is not None, "profiling not started!"
         self.process.send_signal(self.dump_signal)
         # important to not grab the transient data file
-        while True:
+        for _ in range(self.dump_poll_retries):
             output_files = glob.glob(f"{str(self.output_path)}.*")
             if output_files:
                 break
 
-            if self._stop_event.wait(0.1):
+            if self._stop_event.wait(self.dump_poll_interval):
                 raise StopEventSetException()
+        else:
+            if self.process.poll() is not None:
+                self._pyperf_error(self.process)
+            else:
+                raise Exception("PyPerf is not responding!")
 
         # All the snapshot samples should be in one file
         assert len(output_files) == 1
