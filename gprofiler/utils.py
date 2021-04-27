@@ -6,6 +6,7 @@ import datetime
 import logging
 import os
 import re
+import sys
 import time
 import shutil
 import subprocess
@@ -242,6 +243,7 @@ def get_libc_version() -> Tuple[str, bytes]:
 
 def log_system_info():
     uname = platform.uname()
+    logger.info(f"gProfiler Python version: {sys.version}")
     logger.info(f"Kernel uname release: {uname.release}")
     logger.info(f"Kernel uname version: {uname.version}")
     logger.info(f"Total CPUs: {os.cpu_count()}")
