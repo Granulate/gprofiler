@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import platform
 import ctypes
+import signal
 from functools import lru_cache
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from threading import Event, Thread
@@ -18,6 +19,7 @@ from typing import Iterator, Union, List, Optional, Tuple
 from pathlib import Path
 
 import importlib_resources
+import prctl
 import psutil
 import distro  # type: ignore
 from psutil import Process
@@ -70,6 +72,11 @@ def get_process_nspid(pid: int) -> int:
     raise Exception(f"Couldn't find NSpid for pid {pid}")
 
 
+def _preexec_fn():
+    os.setpgrp()
+    prctl.set_pdeathsig(signal.SIGTERM)
+
+
 def start_process(cmd: Union[str, List[str]], **kwargs) -> Popen:
     cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
     logger.debug(f"Running command: ({cmd_text})")
@@ -79,7 +86,7 @@ def start_process(cmd: Union[str, List[str]], **kwargs) -> Popen:
         cmd,
         stdout=kwargs.pop("stdout", subprocess.PIPE),
         stderr=kwargs.pop("stderr", subprocess.PIPE),
-        preexec_fn=kwargs.pop("preexec_fn", os.setpgrp),
+        preexec_fn=kwargs.pop("preexec_fn", _preexec_fn),
         **kwargs,
     )
     return popen
