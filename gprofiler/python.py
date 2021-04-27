@@ -9,7 +9,7 @@ import signal
 import glob
 from pathlib import Path
 from threading import Event
-from typing import List, Mapping, Optional, Union
+from typing import Callable, List, Mapping, Optional, Union
 from subprocess import Popen
 
 from psutil import Process
@@ -24,11 +24,19 @@ logger = logging.getLogger(__name__)
 class PythonProfilerBase:
     MAX_FREQUENCY = 100
 
-    def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str):
+    def __init__(
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Optional[Event],
+        storage_dir: str,
+        reinitialize_profiler: Callable[[], None],
+    ):
         self._frequency = min(frequency, self.MAX_FREQUENCY)
         self._duration = duration
         self._stop_event = stop_event or Event()
         self._storage_dir = storage_dir
+        self._reinitialize_profiler = reinitialize_profiler
         logger.info(f"Initializing Python profiler (frequency: {self._frequency}hz, duration: {duration}s)")
 
     def start(self):
@@ -132,8 +140,15 @@ class PythonEbpfProfiler(PythonProfilerBase):
     dump_poll_retries = 50  # 50 retries * dump_poll_interval = 5 seconds
     poll_timeout = 10  # seconds
 
-    def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str):
-        super().__init__(frequency, duration, stop_event, storage_dir)
+    def __init__(
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Optional[Event],
+        storage_dir: str,
+        reinitialize_profiler: Callable[[], None],
+    ):
+        super().__init__(frequency, duration, stop_event, storage_dir, reinitialize_profiler)
         self.process = None
         self.output_path = Path(self._storage_dir) / "py.col.dat"
 
@@ -218,6 +233,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
             global _profiler_class
             _profiler_class = PySpyProfiler
             logger.warn("PyPerf dead/not responding, killing it and reverting to py-spy")
+            self._reinitialize_profiler()
 
             process = self.process  # save it
             self._terminate()
@@ -265,9 +281,9 @@ def determine_profiler_class(storage_dir: str, stop_event: Event):
 
 
 def get_python_profiler(
-    frequency: int, duration: int, stop_event: Event, storage_dir: str
+    frequency: int, duration: int, stop_event: Event, storage_dir: str, reinitialize_profiler: Callable[[], None]
 ) -> Union[PythonEbpfProfiler, PySpyProfiler]:
     global _profiler_class
     if _profiler_class is None:
         _profiler_class = determine_profiler_class(storage_dir, stop_event)
-    return _profiler_class(frequency, duration, stop_event, storage_dir)
+    return _profiler_class(frequency, duration, stop_event, storage_dir, reinitialize_profiler)

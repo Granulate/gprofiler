@@ -36,7 +36,7 @@ def test_pyspy(
     application_pid: int,
     assert_collapsed: Callable[[Optional[Mapping[str, int]]], None],
 ) -> None:
-    profiler = PySpyProfiler(1000, 1, Event(), str(tmp_path))
+    profiler = PySpyProfiler(1000, 1, Event(), str(tmp_path), lambda: None)
     process_collapsed = profiler.snapshot()
     assert_collapsed(process_collapsed.get(application_pid))
 
