@@ -22,7 +22,7 @@ chmod +x gprofiler/resources/python/py-spy
 mkdir -p gprofiler/resources/python/pyperf
 
 # perf
-curl -fL https://github.com/Granulate/linux/releases/download/v5.6-perf/perf -z gprofiler/resources/perf -o gprofiler/resources/perf
+curl -fL https://github.com/Granulate/linux/releases/download/v5.12g1/perf -z gprofiler/resources/perf -o gprofiler/resources/perf
 chmod +x gprofiler/resources/perf
 
 # burn
