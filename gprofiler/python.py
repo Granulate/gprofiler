@@ -215,10 +215,13 @@ class PythonEbpfProfiler(PythonProfilerBase):
             if self._stop_event.wait(self.dump_poll_interval):
                 raise StopEventSetException()
         else:
-            if self.process.poll() is not None:
-                self._pyperf_error(self.process)
-            else:
-                raise Exception("PyPerf is not responding!")
+            global _profiler_class
+            _profiler_class = PySpyProfiler
+            logger.warn("PyPerf dead/not responding, killing it and reverting to py-spy")
+
+            process = self.process  # save it
+            self._terminate()
+            self._pyperf_error(process)
 
         # All the snapshot samples should be in one file
         assert len(output_files) == 1
@@ -235,7 +238,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
     def _terminate(self) -> Optional[int]:
         code = None
         if self.process is not None:
-            self.process.terminate()
+            self.process.terminate()  # okay to call even if process is already dead
             code = self.process.wait()
             self.process = None
         return code
