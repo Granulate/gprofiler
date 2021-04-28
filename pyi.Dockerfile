@@ -1,22 +1,40 @@
-# TODO: copied from the main Dockerfile... too bad we don't have includes.
-FROM ubuntu:20.04 as bcc-builder
+# Centos 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
+# This will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
+FROM centos:7 AS build-stage
 
-RUN apt-get update
+# bcc part
+# TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
 
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y git build-essential iperf llvm-9-dev libclang-9-dev \
-  cmake python3 flex bison libelf-dev libz-dev
+RUN yum install -y \
+    git \
+    cmake \
+    python3 \
+    flex \
+    bison \
+    zlib-devel.x86_64 \
+    ncurses-devel \
+    elfutils-libelf-devel
 
 WORKDIR /bcc
 
 RUN git clone --depth 1 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 119d71bf9681182759eb76d40660c0ec19f3fc42
+
+RUN yum install -y centos-release-scl-rh
+# mostly taken from https://github.com/iovisor/bcc/blob/master/INSTALL.md#install-and-compile-llvm
+RUN yum install -y devtoolset-8 \
+    llvm-toolset-7 \
+    llvm-toolset-7-llvm-devel \
+    llvm-toolset-7-llvm-static \
+    llvm-toolset-7-clang-devel \
+    devtoolset-8-elfutils-libelf-devel
+
 RUN mkdir bcc/build && cd bcc/build && \
+  source scl_source enable devtoolset-8 llvm-toolset-7 && \
   cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root .. && \
   make -C examples/cpp/pyperf -j -l VERBOSE=1 install
 
+# gProfiler part
 
-# Centos 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
-# This will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
-FROM centos:7 as build-stage
 WORKDIR /app
 
 RUN yum update -y && yum install -y epel-release
@@ -31,11 +49,12 @@ RUN python3 -m pip install -r dev-requirements.txt
 COPY scripts/build.sh scripts/build.sh
 RUN ./scripts/build.sh
 
-COPY --from=bcc-builder /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
+# copy PyPerf and stuff
+RUN cp /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
 # copy licenses and notice file.
-COPY --from=bcc-builder /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
-COPY --from=bcc-builder /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
-COPY --from=bcc-builder /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
+RUN cp /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
+RUN cp -r /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
+RUN cp /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 
 COPY gprofiler gprofiler
 
@@ -53,7 +72,10 @@ COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # staticx packs dynamically linked app with all of their dependencies, it tries to figure out which dynamic libraries are need for its execution
 # in some cases, when the application is lazily loading some DSOs, staticx doesn't handle it.
 # libcgcc_s is such a library, so we pass it manually to staticx.
-RUN libs=$(./scripts/list_needed_libs.sh) && staticx $libs -l /usr/lib/gcc/x86_64-redhat-linux/4.8.2/libgcc_s.so dist/gprofiler dist/gprofiler
+# additionally, we use list_needed_libs.sh to list the dynamic dependencies of *all* of our resources,
+# and make staticx pack them as well.
+# using scl here to get the proper LD_LIBRARY_PATH set
+RUN source scl_source enable devtoolset-8 llvm-toolset-7 && libs=$(./scripts/list_needed_libs.sh) && staticx $libs -l /usr/lib/gcc/x86_64-redhat-linux/4.8.2/libgcc_s.so dist/gprofiler dist/gprofiler
 
 FROM scratch AS export-stage
 
