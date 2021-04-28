@@ -88,7 +88,7 @@ class PySpyProfiler(PythonProfilerBase):
 
     def find_python_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
-        for process in pgrep_maps(r"(?:^.+/(?:lib)?python[^/]*$)|(?:^.+/site-packages/.+?$)"):
+        for process in pgrep_maps(r"(?:^.+/(?:lib)?python[^/]*$)|(?:^.+/site-packages/.+?$)|(?:^.+/dist-packages/.+?$)"):
             try:
                 if process.pid == os.getpid():
                     continue
