@@ -20,7 +20,7 @@ FROM centos:7 as build-stage
 WORKDIR /app
 
 RUN yum update -y && yum install -y epel-release
-RUN yum install -y gcc python3 curl python3-pip patchelf python3-devel
+RUN yum install -y gcc python3 curl python3-pip patchelf python3-devel upx
 
 COPY requirements.txt requirements.txt
 RUN python3 -m pip install -r requirements.txt
