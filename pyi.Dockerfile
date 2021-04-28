@@ -49,10 +49,11 @@ RUN pyinstaller pyinstaller.spec \
     && test -f build/pyinstaller/warn-pyinstaller.txt \
     && if grep 'gprofiler\.' build/pyinstaller/warn-pyinstaller.txt ; then echo 'PyInstaller failed to pack gProfiler code! See lines above. Make sure to check for SyntaxError as this is often the reason.'; exit 1; fi;
 
+COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # staticx packs dynamically linked app with all of their dependencies, it tries to figure out which dynamic libraries are need for its execution
 # in some cases, when the application is lazily loading some DSOs, staticx doesn't handle it.
 # libcgcc_s is such a library, so we pass it manually to staticx.
-RUN staticx -l /usr/lib/gcc/x86_64-redhat-linux/4.8.2/libgcc_s.so dist/gprofiler dist/gprofiler
+RUN libs=$(./scripts/list_needed_libs.sh) && staticx $libs -l /usr/lib/gcc/x86_64-redhat-linux/4.8.2/libgcc_s.so dist/gprofiler dist/gprofiler
 
 FROM scratch AS export-stage
 
