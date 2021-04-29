@@ -38,8 +38,11 @@ TEMPORARY_STORAGE_PATH = "/tmp/gprofiler"
 def resource_path(relative_path: str = "") -> str:
     *relative_directory, basename = relative_path.split("/")
     package = ".".join(["gprofiler", "resources"] + relative_directory)
-    with importlib_resources.path(package, basename) as path:
-        return str(path)
+    try:
+        with importlib_resources.path(package, basename) as path:
+            return str(path)
+    except ImportError as e:
+        raise Exception(f'Resource {relative_path!r} not found!') from e
 
 
 @lru_cache(maxsize=None)
