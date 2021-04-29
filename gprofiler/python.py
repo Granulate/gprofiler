@@ -97,7 +97,9 @@ class PySpyProfiler(PythonProfilerBase):
 
     def find_python_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
-        for process in pgrep_maps(r"^.+/(?:lib)?python[^/]*$"):
+        for process in pgrep_maps(
+            r"(?:^.+/(?:lib)?python[^/]*$)|(?:^.+/site-packages/.+?$)|(?:^.+/dist-packages/.+?$)"
+        ):
             try:
                 if process.pid == os.getpid():
                     continue
@@ -184,6 +186,20 @@ class PythonEbpfProfiler(PythonProfilerBase):
             cls._pyperf_error(process)
 
     @classmethod
+    def get_pyperf_cmd(cls) -> List[str]:
+        pyperf = resource_path(cls.PYPERF_RESOURCE)
+        staticx_dir = os.getenv("STATICX_BUNDLE_DIR")
+        # are we running under staticx?
+        if staticx_dir is not None:
+            # STATICX_BUNDLE_DIR is where staticx has extracted all of the libraries it had collected
+            # earlier.
+            # see https://github.com/JonathonReinhart/staticx#run-time-information
+            # we run PyPerf with the same ld.so whose libc it was compiled against.
+            return [f"{staticx_dir}/.staticx.interp", "--library-path", staticx_dir, pyperf]
+        else:
+            return [pyperf]
+
+    @classmethod
     def test(cls, storage_dir: str, stop_event: Event):
         test_path = Path(storage_dir) / ".test"
         for f in glob.glob(f"{str(test_path)}.*"):
@@ -192,7 +208,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
         # Run the process and check if the output file is properly created.
         # Wait up to 10sec for the process to terminate.
         # Allow cancellation via the stop_event.
-        cmd = [resource_path(cls.PYPERF_RESOURCE), "--output", str(test_path), "-F", "1", "--duration", "1"]
+        cmd = cls.get_pyperf_cmd() + ["--output", str(test_path), "-F", "1", "--duration", "1"]
         process = start_process(cmd)
         try:
             poll_process(process, cls.poll_timeout, stop_event)
@@ -204,8 +220,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
 
     def start(self):
         logger.info("Starting profiling of Python processes with PyPerf")
-        cmd = [
-            resource_path(self.PYPERF_RESOURCE),
+        cmd = self.get_pyperf_cmd() + [
             "--output",
             str(self.output_path),
             "-F",
