@@ -309,7 +309,11 @@ def determine_profiler_class(storage_dir: str, stop_event: Event):
 
 
 def get_python_profiler(
-    frequency: int, duration: int, stop_event: Event, storage_dir: str, reinitialize_profiler: Callable[[], None]
+    frequency: int,
+    duration: int,
+    stop_event: Event,
+    storage_dir: str,
+    reinitialize_profiler: Optional[Callable[[], None]] = None,
 ) -> Union[PythonEbpfProfiler, PySpyProfiler]:
     global _reinitialize_profiler
     _reinitialize_profiler = reinitialize_profiler
