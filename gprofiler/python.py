@@ -237,12 +237,12 @@ class PythonEbpfProfiler(PythonProfilerBase):
 
         # error flow :(
         if _reinitialize_profiler is not None:
-            logger.warn("Reverting to py-spy")
+            logger.warning("Reverting to py-spy")
             global _profiler_class
             _profiler_class = PySpyProfiler
             _reinitialize_profiler()
 
-        logger.warn("PyPerf dead/not responding, killing it")
+        logger.warning("PyPerf dead/not responding, killing it")
         process = self.process  # save it
         self._terminate()
         self._pyperf_error(process)
