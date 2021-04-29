@@ -258,16 +258,18 @@ class PythonEbpfProfiler(PythonProfilerBase):
             return self._wait_for_output_file(self.dump_timeout)
         except TimeoutError:
             # error flow :(
-            if _reinitialize_profiler is not None:
-                logger.warning("Reverting to py-spy")
-                global _profiler_class
-                _profiler_class = PySpyProfiler
-                _reinitialize_profiler()
-
-            logger.warning("PyPerf dead/not responding, killing it")
-            process = self.process  # save it
-            self._terminate()
-            self._pyperf_error(process)
+            try:
+                if _reinitialize_profiler is not None:
+                    logger.warning("Reverting to py-spy")
+                    global _profiler_class
+                    _profiler_class = PySpyProfiler
+                    _reinitialize_profiler()
+            finally:
+                # in any case, we should stop PyPerf.
+                logger.warning("PyPerf dead/not responding, killing it")
+                process = self.process  # save it
+                self._terminate()
+                self._pyperf_error(process)
 
     def snapshot(self) -> Mapping[int, Mapping[str, int]]:
         if self._stop_event.wait(self._duration):
