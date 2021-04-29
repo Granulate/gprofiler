@@ -185,7 +185,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
             cls._pyperf_error(process)
 
     @classmethod
-    def test(cls, storage_dir: str, stop_event: Optional[Event]):
+    def test(cls, storage_dir: str, stop_event: Event):
         test_path = Path(storage_dir) / ".test"
         for f in glob.glob(f"{str(test_path)}.*"):
             os.unlink(f)

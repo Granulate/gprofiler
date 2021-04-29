@@ -98,19 +98,13 @@ def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool])
             return False
 
 
-def poll_process(process, timeout, stop_event):
-    timefn = time.monotonic
-    endtime = timefn() + timeout
-    while True:
-        try:
-            process.wait(0.1)
-            break
-        except TimeoutExpired:
-            if stop_event.is_set():
-                process.kill()
-                raise StopEventSetException()
-            if timefn() > endtime:
-                raise TimeoutError()
+def poll_process(process, timeout: float, stop_event: Event):
+    try:
+        if not wait_event(timeout, stop_event, lambda: process.poll() is not None):
+            raise TimeoutError()
+    except StopEventSetException:
+        process.kill()
+        raise
 
 
 def run_process(
