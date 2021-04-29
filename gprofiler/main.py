@@ -49,15 +49,13 @@ class GProfiler:
         self._stop_event = Event()
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         self._temp_storage_dir = TemporaryDirectory(dir=TEMPORARY_STORAGE_PATH)
-        self.python_profiler = get_python_profiler(
-            self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name
-        )
         self.java_profiler = JavaProfiler(
             self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name
         )
         self.system_profiler = SystemProfiler(
             self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name
         )
+        self.initialize_python_profiler()
 
     def __enter__(self):
         self.start()
@@ -65,6 +63,15 @@ class GProfiler:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
+
+    def initialize_python_profiler(self) -> None:
+        self.python_profiler = get_python_profiler(
+            self._frequency,
+            self._duration,
+            self._stop_event,
+            self._temp_storage_dir.name,
+            self.initialize_python_profiler,
+        )
 
     def _generate_output_files(
         self, collapsed_data: str, local_start_time: datetime.datetime, local_end_time: datetime.datetime
