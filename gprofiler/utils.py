@@ -241,9 +241,21 @@ def get_libc_version() -> Tuple[str, bytes]:
     return ("unknown", ldd_version)
 
 
+def get_run_mode() -> str:
+    if os.getenv("GPROFILER_IN_K8S") is not None:  # set in k8s/gprofiler.yaml
+        return "k8s"
+    elif os.getenv("GPROFILER_IN_CONTAINER") is not None:  # set by our Dockerfile
+        return "container"
+    elif os.getenv("STATICX_BUNDLE_DIR") is not None:  # set by staticx
+        return "standalone_executable"
+    else:
+        return "local_python"
+
+
 def log_system_info():
     uname = platform.uname()
     logger.info(f"gProfiler Python version: {sys.version}")
+    logger.info(f"gProfiler run mode: {get_run_mode()}")
     logger.info(f"Kernel uname release: {uname.release}")
     logger.info(f"Kernel uname version: {uname.version}")
     logger.info(f"Total CPUs: {os.cpu_count()}")
