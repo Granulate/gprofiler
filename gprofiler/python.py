@@ -213,8 +213,10 @@ class PythonEbpfProfiler(PythonProfilerBase):
             # Duration is irrelevant here, we want to run continuously.
         ]
         self.process = start_process(cmd)
-        # no need to check for success here - we're already past calling test(), PyPerf has been already proved
-        # working.
+        # wait until the transient data file appears - because once returning from here, PyPerf may
+        # be polled via snapshot() and we need it to finish installing its signal handler.
+        if not wait_event(self.poll_timeout, self._stop_event, lambda: os.path.exists(self.output_path)):
+            raise TimeoutError("PyPerf didn't boot")
 
     def _glob_output(self) -> List[str]:
         # important to not grab the transient data file
