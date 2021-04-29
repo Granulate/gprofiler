@@ -16,7 +16,7 @@ libs=
 
 for f in $BINS ; do
     set +e
-    ldd_output=$(ldd $f 2>&1)
+    ldd_output="$(ldd $f 2>&1)"
     ret=$?
     set -e
 
