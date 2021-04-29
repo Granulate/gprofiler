@@ -169,7 +169,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
             # earlier.
             # see https://github.com/JonathonReinhart/staticx#run-time-information
             # we run PyPerf with the same ld.so whose libc it was compiled against.
-            return [f"{staticx_dir}/ld-2.17.so", "--library-path", staticx_dir, pyperf]
+            return [f"{staticx_dir}/.staticx.interp", "--library-path", staticx_dir, pyperf]
         else:
             return [pyperf]
 
