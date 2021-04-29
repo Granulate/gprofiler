@@ -36,5 +36,6 @@ def test_python_select_by_libpython(
     (for example, uwsgi). We expect to select these because they have "libpython" in their "/proc/pid/maps".
     """
     profiler = get_python_profiler(1000, 1, Event(), str(tmp_path), lambda: None)
-    process_collapsed = profiler.snapshot()
+    with profiler:
+        process_collapsed = profiler.snapshot()
     assert_collapsed(process_collapsed.get(application_docker_container.attrs["State"]["Pid"]))
