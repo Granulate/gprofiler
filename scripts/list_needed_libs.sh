@@ -23,7 +23,7 @@ for f in $BINS ; do
     if [ $ret -eq 0 ]; then
         if [[ "$ldd_output" == *" not found"* ]]; then
             >&2 echo "missing libs/symbols for binary $f"
-            >&2 cat <<< "$ldd_output"
+            >&2 echo "$ldd_output"
             exit 1
         fi
 
