@@ -230,9 +230,13 @@ class PythonEbpfProfiler(PythonProfilerBase):
         process = start_process(cmd)
         # wait until the transient data file appears - because once returning from here, PyPerf may
         # be polled via snapshot() and we need it to finish installing its signal handler.
-        wait_event(self.poll_timeout, self._stop_event, lambda: os.path.exists(self.output_path))
-
-        self.process = process
+        try:
+            wait_event(self.poll_timeout, self._stop_event, lambda: os.path.exists(self.output_path))
+        except TimeoutError:
+            process.kill()
+            raise
+        else:
+            self.process = process
 
     def _glob_output(self) -> List[str]:
         # important to not grab the transient data file
