@@ -14,7 +14,7 @@ import ctypes
 from functools import lru_cache
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from threading import Event, Thread
-from typing import Iterator, Union, List, Optional, Tuple
+from typing import Callable, Iterator, Union, List, Optional, Tuple
 from pathlib import Path
 
 import importlib_resources
@@ -83,6 +83,19 @@ def start_process(cmd: Union[str, List[str]], **kwargs) -> Popen:
         **kwargs,
     )
     return popen
+
+
+def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool]) -> bool:
+    end_time = time.monotonic() + timeout
+    while True:
+        if condition():
+            return True
+
+        if stop_event.wait(0.1):
+            raise StopEventSetException()
+
+        if time.monotonic() > end_time:
+            return False
 
 
 def poll_process(process, timeout, stop_event):
