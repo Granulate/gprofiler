@@ -23,7 +23,7 @@ class CalledProcessError(subprocess.CalledProcessError):
                 base = f"Command '{self.cmd}' died with unknown signal {-self.returncode}."
         else:
             base = f"Command '{self.cmd}' returned non-zero exit status {self.returncode}. "
-        return base + f"stderr: {self.stderr}, stdout: {self.stdout}"
+        return f"{base}\nstdout: {self.stdout}\nstderr: {self.stderr}"
 
 
 class ProgramMissingException(Exception):
