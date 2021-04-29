@@ -34,9 +34,10 @@ DEFAULT_LOG_FILE = "/var/log/gprofiler/gprofiler.log"
 DEFAULT_LOG_MAX_SIZE = 1024 * 1024 * 5
 DEFAULT_LOG_BACKUP_COUNT = 1
 
-DEFAULT_PROFILING_DURATION = 60
+DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 10
-DEFAULT_CONTINUOUS_MODE_INTERVAL = 1
+# by default - these match
+DEFAULT_CONTINUOUS_MODE_INTERVAL = DEFAULT_PROFILING_DURATION
 
 
 class GProfiler:
@@ -145,6 +146,8 @@ class GProfiler:
                 logger.error(f"Error occurred sending profile to server: {e}")
             except RequestException:
                 logger.exception("Error occurred sending profile to server")
+            else:
+                logger.info("Successfully uploaded profiling data to the server")
 
     def run_single(self):
         with self:
@@ -159,7 +162,7 @@ class GProfiler:
                 except Exception:
                     logger.exception("Profiling run failed!")
                 time_spent = time.monotonic() - start_time
-                self._stop_event.wait(max(interval * 60 - time_spent, 0))
+                self._stop_event.wait(max(interval - time_spent, 0))
 
 
 def setup_logger(stream_level: int = logging.INFO, log_file_path: str = None):
@@ -227,7 +230,7 @@ def parse_cmd_args():
         help="Timeout for upload requests to the server in seconds (default: %(default)s)",
     )
     parser.add_argument("--token", dest="server_token", help="Server token")
-    parser.add_argument("--service-name", default="general", help="Service name")
+    parser.add_argument("--service-name", help="Service name")
 
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
     parser.add_argument("--log-file", action="store", type=str, dest="log_file", default=DEFAULT_LOG_FILE)
@@ -242,17 +245,26 @@ def parse_cmd_args():
         type=int,
         dest="continuous_profiling_interval",
         default=DEFAULT_CONTINUOUS_MODE_INTERVAL,
-        help="Time between each profiling sessions in minutes (default: %(default)s)",
+        help="Time between each profiling sessions in seconds (default: %(default)s). Note: this is the time between"
+        " session starts, not between the end of one session to the beginning of the next one.",
     )
 
     args = parser.parse_args()
 
-    if args.upload_results and not args.server_token:
+    if args.upload_results:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
+        if not args.service_name:
+            parser.error("Must provide --service-name when --upload-results is passed")
+
+    if args.continuous and args.duration > args.continuous_profiling_interval:
+        parser.error(
+            "--profiling-duration must be lower or equal to --profiling-interval when profiling in continuous mode"
+        )
 
     if not args.upload_results and not args.output_dir:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
+
     return args
 
 
@@ -266,6 +278,7 @@ def verify_preconditions():
 def main():
     args = parse_cmd_args()
     setup_logger(logging.DEBUG if args.verbose else logging.INFO, args.log_file)
+    global logger  # silences flake8, who now knows that the "logger" global we refer to was initialized.
 
     try:
         logger.info(f"Running gprofiler (version {__version__})...")
@@ -302,6 +315,7 @@ def main():
             return
 
         gprofiler = GProfiler(args.frequency, args.duration, args.output_dir, client)
+        logger.info("gProfiler initialized and ready to start profiling")
 
         if args.continuous:
             gprofiler.run_continuous(args.continuous_profiling_interval)

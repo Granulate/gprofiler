@@ -204,12 +204,24 @@ class JavaProfiler:
                 ),
                 log_path_host,
             )
+        else:
+            # no output in this case :/
+            return None
 
         if self._stop_event.is_set():
             raise StopEventSetException()
 
         logger.info(f"Finished profiling process {process.pid}")
-        return parse_one_collapsed(Path(output_path_host).read_text())
+
+        try:
+            output = Path(output_path_host).read_text()
+        except FileNotFoundError:
+            # check for existence of process_root as well, because is_running returns True
+            # when the process is a zombie (and /proc/pid/root is not available in that case)
+            if not process.is_running() or not os.path.exists(process_root):
+                return None
+            raise
+        return parse_one_collapsed(output)
 
     def snapshot(self) -> Mapping[int, Mapping[str, int]]:
         processes = list(pgrep_exe(r"^.+/(java|jsvc)$"))
