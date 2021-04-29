@@ -268,7 +268,7 @@ def parse_cmd_args():
     return args
 
 
-def verify_preconditions(args):
+def verify_preconditions():
     if not is_root():
         print("Must run gprofiler as root, please re-run.", file=sys.stderr)
         sys.exit(1)
@@ -276,7 +276,7 @@ def verify_preconditions(args):
 
 def main():
     args = parse_cmd_args()
-    verify_preconditions(args)
+    verify_preconditions()
     setup_logger(logging.DEBUG if args.verbose else logging.INFO, args.log_file)
     global logger  # silences flake8, who now knows that the "logger" global we refer to was initialized.
 
