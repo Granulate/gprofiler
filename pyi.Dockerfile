@@ -71,11 +71,10 @@ RUN pyinstaller pyinstaller.spec \
 COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # staticx packs dynamically linked app with all of their dependencies, it tries to figure out which dynamic libraries are need for its execution
 # in some cases, when the application is lazily loading some DSOs, staticx doesn't handle it.
-# libcgcc_s is such a library, so we pass it manually to staticx.
-# additionally, we use list_needed_libs.sh to list the dynamic dependencies of *all* of our resources,
+# we use list_needed_libs.sh to list the dynamic dependencies of *all* of our resources,
 # and make staticx pack them as well.
 # using scl here to get the proper LD_LIBRARY_PATH set
-RUN source scl_source enable devtoolset-8 llvm-toolset-7 && libs=$(./scripts/list_needed_libs.sh) && staticx $libs -l /usr/lib/gcc/x86_64-redhat-linux/4.8.2/libgcc_s.so dist/gprofiler dist/gprofiler
+RUN source scl_source enable devtoolset-8 llvm-toolset-7 && libs=$(./scripts/list_needed_libs.sh) && staticx $libs dist/gprofiler dist/gprofiler
 
 FROM scratch AS export-stage
 
