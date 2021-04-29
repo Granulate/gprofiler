@@ -7,6 +7,7 @@ import datetime
 import logging
 import logging.config
 import logging.handlers
+import signal
 import os
 import sys
 import time
@@ -15,7 +16,7 @@ from pathlib import Path
 from socket import gethostname
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Dict
+from typing import Dict, Optional
 
 import configargparse
 from requests import RequestException, Timeout
@@ -38,6 +39,21 @@ DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 10
 # by default - these match
 DEFAULT_CONTINUOUS_MODE_INTERVAL = DEFAULT_PROFILING_DURATION
+# 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
+SIGINT_RATELIMIT = 0.5
+
+
+last_signal_ts: Optional[float] = None
+
+
+def sigint_handler(sig, frame):
+    global last_signal_ts
+    ts = time.monotonic()
+    # no need for atomicity here: we can't get another SIGINT before this one returns.
+    # https://www.gnu.org/software/libc/manual/html_node/Signals-in-Handler.html#Signals-in-Handler
+    if last_signal_ts is None or ts > last_signal_ts + SIGINT_RATELIMIT:
+        last_signal_ts = ts
+        raise KeyboardInterrupt
 
 
 class GProfiler:
@@ -281,11 +297,18 @@ def verify_preconditions():
         sys.exit(1)
 
 
+def setup_signals() -> None:
+    # see my commit message for the reason we handle sigint manually.
+    signal.signal(signal.SIGINT, sigint_handler)
+
+
 def main():
     args = parse_cmd_args()
     verify_preconditions()
     setup_logger(logging.DEBUG if args.verbose else logging.INFO, args.log_file)
     global logger  # silences flake8, who now knows that the "logger" global we refer to was initialized.
+
+    setup_signals()
 
     try:
         logger.info(f"Running gprofiler (version {__version__})...")
