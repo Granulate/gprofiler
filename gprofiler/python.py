@@ -5,7 +5,6 @@
 import concurrent.futures
 import logging
 import os
-import time
 import signal
 import glob
 from pathlib import Path
@@ -17,7 +16,7 @@ from psutil import Process
 
 from .merge import parse_one_collapsed, parse_many_collapsed
 from .exceptions import StopEventSetException, ProcessStoppedException, CalledProcessError
-from .utils import pgrep_maps, start_process, poll_process, run_process, resource_path
+from .utils import pgrep_maps, start_process, poll_process, run_process, resource_path, wait_event
 
 logger = logging.getLogger(__name__)
 
@@ -217,23 +216,26 @@ class PythonEbpfProfiler(PythonProfilerBase):
         # no need to check for success here - we're already past calling test(), PyPerf has been already proved
         # working.
 
+    def _glob_output(self) -> List[str]:
+        # important to not grab the transient data file
+        return glob.glob(f"{str(self.output_path)}.*")
+
+    def _wait_for_output_file(self, timeout: float) -> Optional[Path]:
+        if not wait_event(timeout, self._stop_event, lambda: len(self._glob_output()) > 0):
+            return None
+
+        output_files = self._glob_output()
+        # All the snapshot samples should be in one file
+        assert len(output_files) == 1
+        return Path(output_files[0])
+
     def _dump(self) -> Path:
         assert self.process is not None, "profiling not started!"
         self.process.send_signal(self.dump_signal)
-        end_time = time.monotonic() + self.dump_timeout
-        # important to not grab the transient data file
-        while True:
-            output_files = glob.glob(f"{str(self.output_path)}.*")
-            if output_files:
-                # All the snapshot samples should be in one file
-                assert len(output_files) == 1
-                return Path(output_files[0])
 
-            if self._stop_event.wait(0.1):
-                raise StopEventSetException()
-
-            if time.monotonic() > end_time:
-                break
+        path = self._wait_for_output_file(self.dump_timeout)
+        if path is not None:
+            return path
 
         # error flow :(
         if _reinitialize_profiler is not None:
