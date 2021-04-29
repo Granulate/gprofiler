@@ -227,19 +227,19 @@ class PythonEbpfProfiler(PythonProfilerBase):
             str(self._frequency),
             # Duration is irrelevant here, we want to run continuously.
         ]
-        self.process = start_process(cmd)
+        process = start_process(cmd)
         # wait until the transient data file appears - because once returning from here, PyPerf may
         # be polled via snapshot() and we need it to finish installing its signal handler.
-        if not wait_event(self.poll_timeout, self._stop_event, lambda: os.path.exists(self.output_path)):
-            raise TimeoutError("PyPerf didn't boot")
+        wait_event(self.poll_timeout, self._stop_event, lambda: os.path.exists(self.output_path))
+
+        self.process = process
 
     def _glob_output(self) -> List[str]:
         # important to not grab the transient data file
         return glob.glob(f"{str(self.output_path)}.*")
 
-    def _wait_for_output_file(self, timeout: float) -> Optional[Path]:
-        if not wait_event(timeout, self._stop_event, lambda: len(self._glob_output()) > 0):
-            return None
+    def _wait_for_output_file(self, timeout: float) -> Path:
+        wait_event(timeout, self._stop_event, lambda: len(self._glob_output()) > 0)
 
         output_files = self._glob_output()
         # All the snapshot samples should be in one file
@@ -250,21 +250,20 @@ class PythonEbpfProfiler(PythonProfilerBase):
         assert self.process is not None, "profiling not started!"
         self.process.send_signal(self.dump_signal)
 
-        path = self._wait_for_output_file(self.dump_timeout)
-        if path is not None:
-            return path
+        try:
+            return self._wait_for_output_file(self.dump_timeout)
+        except TimeoutError:
+            # error flow :(
+            if _reinitialize_profiler is not None:
+                logger.warning("Reverting to py-spy")
+                global _profiler_class
+                _profiler_class = PySpyProfiler
+                _reinitialize_profiler()
 
-        # error flow :(
-        if _reinitialize_profiler is not None:
-            logger.warning("Reverting to py-spy")
-            global _profiler_class
-            _profiler_class = PySpyProfiler
-            _reinitialize_profiler()
-
-        logger.warning("PyPerf dead/not responding, killing it")
-        process = self.process  # save it
-        self._terminate()
-        self._pyperf_error(process)
+            logger.warning("PyPerf dead/not responding, killing it")
+            process = self.process  # save it
+            self._terminate()
+            self._pyperf_error(process)
 
     def snapshot(self) -> Mapping[int, Mapping[str, int]]:
         if self._stop_event.wait(self._duration):

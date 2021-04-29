@@ -89,23 +89,22 @@ def start_process(cmd: Union[str, List[str]], **kwargs) -> Popen:
     return popen
 
 
-def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool]) -> bool:
+def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool]) -> None:
     end_time = time.monotonic() + timeout
     while True:
         if condition():
-            return True
+            break
 
         if stop_event.wait(0.1):
             raise StopEventSetException()
 
         if time.monotonic() > end_time:
-            return False
+            raise TimeoutError()
 
 
 def poll_process(process, timeout: float, stop_event: Event):
     try:
-        if not wait_event(timeout, stop_event, lambda: process.poll() is not None):
-            raise TimeoutError()
+        wait_event(timeout, stop_event, lambda: process.poll() is not None)
     except StopEventSetException:
         process.kill()
         raise
