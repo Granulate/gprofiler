@@ -40,7 +40,7 @@ class SystemProfiler:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
 
-    def run_perf(self, filename_base: str, dwarf=False):
+    def _run_perf(self, filename_base: str, dwarf=False):
         parsed_path = os.path.join(self._storage_dir, f"{filename_base}.parsed")
 
         buildid_args = ["--buildid-dir", PERF_BUILDID_DIR]
@@ -65,7 +65,7 @@ class SystemProfiler:
             raise Exception(f"Free disk space: {free_disk}kb. Skipping perf!")
 
         logger.info("Running global perf...")
-        record_path = self.run_perf("global")
+        record_path = self._run_perf("global")
         logger.info("Finished running global perf")
         return parse_perf_script(Path(record_path).read_text())
 
