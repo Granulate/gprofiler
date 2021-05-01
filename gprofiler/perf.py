@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 PERF_BUILDID_DIR = os.path.join(TEMPORARY_STORAGE_PATH, "perf-buildids")
 
 
+# TODO: base on ProfilerBase, currently can't because the snapshot() API differs here.
 class SystemProfiler:
     def __init__(self, frequency: int, duration: int, stop_event: Event, storage_dir: str):
         logger.info(f"Initializing system profiler (frequency: {frequency}hz, duration: {duration}s)")

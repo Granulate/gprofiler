@@ -17,13 +17,14 @@ from psutil import Process
 from .merge import parse_one_collapsed, parse_many_collapsed
 from .exceptions import StopEventSetException, ProcessStoppedException, CalledProcessError
 from .utils import pgrep_maps, start_process, poll_process, run_process, resource_path, wait_event
+from .profiler_base import ProfilerBase
 
 logger = logging.getLogger(__name__)
 
 _reinitialize_profiler: Optional[Callable[[], None]] = None
 
 
-class PythonProfilerBase:
+class PythonProfilerBase(ProfilerBase):
     MAX_FREQUENCY = 100
 
     def __init__(
@@ -33,30 +34,12 @@ class PythonProfilerBase:
         stop_event: Optional[Event],
         storage_dir: str,
     ):
+        super().__init__()
         self._frequency = min(frequency, self.MAX_FREQUENCY)
         self._duration = duration
         self._stop_event = stop_event or Event()
         self._storage_dir = storage_dir
         logger.info(f"Initializing Python profiler (frequency: {self._frequency}hz, duration: {duration}s)")
-
-    def start(self):
-        pass
-
-    def snapshot(self) -> Mapping[int, Mapping[str, int]]:
-        """
-        :returns: Mapping from pid to stacks and their counts.
-        """
-        raise NotImplementedError
-
-    def stop(self):
-        pass
-
-    def __enter__(self):
-        self.start()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.stop()
 
 
 class PySpyProfiler(PythonProfilerBase):

@@ -27,17 +27,19 @@ from .utils import (
     assert_program_installed,
     TEMPORARY_STORAGE_PATH,
 )
+from .profiler_base import ProfilerBase
 
 logger = logging.getLogger(__name__)
 
 
-class JavaProfiler:
+class JavaProfiler(ProfilerBase):
     FORMAT_PARAMS = "ann,sig"
     OUTPUT_FORMAT = "collapsed"
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
     SKIP_VERSION_CHECK_BINARIES = ["jsvc"]
 
     def __init__(self, frequency: int, duration: int, use_itimer: bool, stop_event: Event, storage_dir: str):
+        super().__init__()
         logger.info(f"Initializing Java profiler (frequency: {frequency}hz, duration: {duration}s)")
 
         # async-profiler accepts interval between samples (nanoseconds)
@@ -46,19 +48,6 @@ class JavaProfiler:
         self._use_itimer = use_itimer
         self._stop_event = stop_event
         self._storage_dir = storage_dir
-
-    def start(self):
-        pass
-
-    def stop(self):
-        pass
-
-    def __enter__(self):
-        self.start()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.stop()
 
     def _is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
