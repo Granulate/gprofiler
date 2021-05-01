@@ -27,6 +27,7 @@ from .java import JavaProfiler
 from .perf import SystemProfiler
 from .python import get_python_profiler
 from .utils import is_root, run_process, get_iso8061_format_time, resource_path, log_system_info, TEMPORARY_STORAGE_PATH
+from .profiler_base import NoopProfiler
 
 logger: Logger
 
@@ -41,17 +42,28 @@ DEFAULT_CONTINUOUS_MODE_INTERVAL = DEFAULT_PROFILING_DURATION
 
 
 class GProfiler:
-    def __init__(self, frequency: int, duration: int, output_dir: str, flamegraph: bool, client: APIClient):
+    def __init__(
+        self,
+        frequency: int,
+        duration: int,
+        output_dir: str,
+        flamegraph: bool,
+        runtimes: Dict[str, bool],
+        client: APIClient,
+    ):
         self._frequency = frequency
         self._duration = duration
         self._output_dir = output_dir
         self._flamegraph = flamegraph
+        self._runtimes = runtimes
         self._client = client
         self._stop_event = Event()
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         self._temp_storage_dir = TemporaryDirectory(dir=TEMPORARY_STORAGE_PATH)
-        self.java_profiler = JavaProfiler(
-            self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name
+        self.java_profiler = (
+            JavaProfiler(self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name)
+            if self._runtimes["java"]
+            else NoopProfiler()
         )
         self.system_profiler = SystemProfiler(
             self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name
@@ -66,12 +78,16 @@ class GProfiler:
         self.stop()
 
     def initialize_python_profiler(self) -> None:
-        self.python_profiler = get_python_profiler(
-            self._frequency,
-            self._duration,
-            self._stop_event,
-            self._temp_storage_dir.name,
-            self.initialize_python_profiler,
+        self.python_profiler = (
+            get_python_profiler(
+                self._frequency,
+                self._duration,
+                self._stop_event,
+                self._temp_storage_dir.name,
+                self.initialize_python_profiler,
+            )
+            if self._runtimes["python"]
+            else NoopProfiler()
         )
 
     def _generate_output_files(
@@ -235,9 +251,24 @@ def parse_cmd_args():
         "--no-flamegraph",
         dest="flamegraph",
         action="store_false",
+        default=True,
         help="Do not generate local flamegraphs when -o is given (only collapsed stacks files)",
     )
-    parser.set_defaults(flamegraph=True)
+
+    parser.add_argument(
+        "--no-java",
+        dest="java",
+        action="store_false",
+        default=True,
+        help="Do not invoke runtime-specific profilers for Java processes",
+    )
+    parser.add_argument(
+        "--no-python",
+        dest="python",
+        action="store_false",
+        default=True,
+        help="Do not invoke runtime-specific profilers for Python processes",
+    )
 
     parser.add_argument(
         "-u",
@@ -335,7 +366,8 @@ def main():
             logger.error(f"Failed to connect to server: {e}")
             return
 
-        gprofiler = GProfiler(args.frequency, args.duration, args.output_dir, args.flamegraph, client)
+        runtimes = {"java": args.java, "python": args.python}
+        gprofiler = GProfiler(args.frequency, args.duration, args.output_dir, args.flamegraph, runtimes, client)
         logger.info("gProfiler initialized and ready to start profiling")
 
         if args.continuous:
