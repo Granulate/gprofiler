@@ -8,6 +8,9 @@ import os
 import re
 import sys
 import time
+import errno
+import socket
+import fcntl
 import shutil
 import subprocess
 import platform
@@ -33,6 +36,8 @@ from gprofiler.exceptions import (
 logger = logging.getLogger(__name__)
 
 TEMPORARY_STORAGE_PATH = "/tmp/gprofiler"
+
+gprofiler_mutex: Optional[socket.socket]
 
 
 def resource_path(relative_path: str = "") -> str:
@@ -264,6 +269,8 @@ def get_run_mode() -> str:
 # we can't setns(CLONE_NEWNS) in a multithreaded program (unless we unshare(CLONE_NEWNS) before)
 # so, we start a new thread, unshare() & setns() it, get our needed information and then stop this thread
 # (so we don't keep unshared threads running around)
+# for other namespace types, we use this function to execute callbacks without changing the namespaces for the
+# core threads.
 def run_in_init_ns(nstype: str, callaback: Callable[[], None]) -> None:
     def _switch_and_run():
         if not is_same_ns(1, nstype):
@@ -271,6 +278,7 @@ def run_in_init_ns(nstype: str, callaback: Callable[[], None]) -> None:
 
             flag = {
                 "mnt": 0x00020000,  # CLONE_NEWNS
+                "net": 0x40000000,  # CLONE_NEWNET
             }[nstype]
             if libc.unshare(flag) != 0 or libc.setns(os.open(f"/proc/1/ns/{nstype}", os.O_RDONLY), flag) != 0:
                 raise ValueError(f"Failed to unshare({nstype}) and setns({nstype})")
@@ -304,3 +312,35 @@ def log_system_info():
 
     logger.info(f"Linux distribution: {results[0]}")
     logger.info(f"libc version: {results[1]}")
+
+
+def grab_gprofiler_mutex() -> bool:
+    """
+    Implements a basic, system-wide mutex for gProfiler, to make sure we don't run 2 instances simultaneously.
+    The mutex is implemented by a Unix domain socket bound to an address in the abstract namespace of the init
+    network namespace. This provides automatic cleanup when the process goes down, and does not make any assumption
+    on filesystem structure (as happens with file-based locks).
+    In order to see who's holding the lock now, you can run "sudo netstat -xp | grep gprofiler".
+    """
+    GPROFILER_LOCK = "\x00gprofiler_lock"
+
+    def _take_lock():
+        global gprofiler_mutex
+        gprofiler_mutex = None
+
+        s = socket.socket(socket.AF_UNIX)
+        try:
+            s.bind(GPROFILER_LOCK)
+        except OSError as e:
+            if e.errno != errno.EADDRINUSE:
+                raise
+        else:
+            # don't let child programs we execute inherit it.
+            fcntl.fcntl(s, fcntl.F_SETFD, fcntl.fcntl(s, fcntl.F_GETFD) | fcntl.FD_CLOEXEC)
+
+            # hold the reference so lock remains taken
+            gprofiler_mutex = s
+
+    run_in_init_ns("net", _take_lock)
+
+    return gprofiler_mutex is not None
