@@ -261,6 +261,27 @@ def get_run_mode() -> str:
         return "local_python"
 
 
+# we can't setns(CLONE_NEWNS) in a multithreaded program (unless we unshare(CLONE_NEWNS) before)
+# so, we start a new thread, unshare() & setns() it, get our needed information and then stop this thread
+# (so we don't keep unshared threads running around)
+def run_in_init_ns(nstype: str, callaback: Callable[[], None]) -> None:
+    def _switch_and_run():
+        if not is_same_ns(1, nstype):
+            libc = ctypes.CDLL("libc.so.6")
+
+            flag = {
+                "mnt": 0x00020000,  # CLONE_NEWNS
+            }[nstype]
+            if libc.unshare(flag) != 0 or libc.setns(os.open(f"/proc/1/ns/{nstype}", os.O_RDONLY), flag) != 0:
+                raise ValueError(f"Failed to unshare({nstype}) and setns({nstype})")
+
+        callaback()
+
+    t = Thread(target=_switch_and_run)
+    t.start()
+    t.join()
+
+
 def log_system_info():
     uname = platform.uname()
     logger.info(f"gProfiler Python version: {sys.version}")
@@ -270,27 +291,15 @@ def log_system_info():
     logger.info(f"Total CPUs: {os.cpu_count()}")
     logger.info(f"Total RAM: {psutil.virtual_memory().total / (1 << 30):.2f} GB")
 
-    # we can't setns(CLONE_NEWNS) in a multithreaded program (unless we unshare(CLONE_NEWNS) before)
-    # so, we start a new thread, unshare() & setns() it, get our needed information and then stop this thread
-    # (so we don't keep unshared threads running around)
     results = []
 
+    # move to host mount NS for distro & ldd.
+    # now, distro will read the files on host.
     def get_distro_and_libc():
-        # move to host mount NS for distro & ldd.
-        if not is_same_ns(1, "mnt"):
-            libc = ctypes.CDLL("libc.so.6")
-
-            CLONE_NEWNS = 0x00020000
-            if libc.unshare(CLONE_NEWNS) != 0 or libc.setns(os.open("/proc/1/ns/mnt", os.O_RDONLY), CLONE_NEWNS) != 0:
-                raise ValueError("Failed to unshare() and setns()")
-
-        # now, distro will read the files on host.
         results.append(distro.linux_distribution())
         results.append(get_libc_version())
 
-    t = Thread(target=get_distro_and_libc)
-    t.start()
-    t.join()
+    run_in_init_ns("mnt", get_distro_and_libc)
     assert len(results) == 2, f"only {len(results)} results, expected 2"
 
     logger.info(f"Linux distribution: {results[0]}")
