@@ -24,7 +24,7 @@ from .utils import (
     remove_prefix,
     touch_path,
     is_same_ns,
-    assert_program_installed,
+    run_in_ns,
     TEMPORARY_STORAGE_PATH,
 )
 
@@ -103,30 +103,34 @@ class JavaProfiler:
                 logger.warning(f"async-profiler log: {Path(log_path_host).read_text()}")
             raise
 
+    @staticmethod
+    def _get_java_version(process: Process) -> str:
+        java_version_cmd_output = None
+
+        def _run_java_version() -> None:
+            nonlocal java_version_cmd_output
+
+            java_version_cmd_output = run_process(
+                [
+                    f"/proc/{process.pid}/exe",
+                    "-version",
+                ]
+            )
+
+        run_in_ns("mnt", _run_java_version, process.pid)
+
+        if java_version_cmd_output is None:
+            raise Exception("Failed to get java version")
+
+        # Version is printed to stderr
+        return java_version_cmd_output.stderr.decode()
+
     def profile_process(self, process: Process) -> Optional[Mapping[str, int]]:
         logger.info(f"Profiling java process {process.pid}...")
 
-        assert_program_installed("nsenter")
-
         # Get Java version
         if os.path.basename(process.exe()) not in self.SKIP_VERSION_CHECK_BINARIES:
-            try:
-                java_version_cmd_output = run_process(
-                    [
-                        "nsenter",
-                        "-t",
-                        str(process.pid),
-                        "--mount",
-                        "--",
-                        f"/proc/{process.pid}/exe",
-                        "-version",
-                    ]
-                )
-            except CalledProcessError as e:
-                raise Exception("Failed to get java version: {}".format(e))
-
-            # Version is printed to stderr
-            if not self.is_jdk_version_supported(java_version_cmd_output.stderr.decode()):
+            if not self.is_jdk_version_supported(self._get_java_version(process)):
                 logger.warning(f"Process {process.pid} running unsupported Java version, skipping...")
                 return None
 
