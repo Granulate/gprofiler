@@ -105,6 +105,11 @@ class JavaProfiler:
 
     @staticmethod
     def _get_java_version(process: Process) -> str:
+        # TODO avoid the readlink here - this will let us operate with "(deleted)" files,
+        # but it requires to get the innermost PID (because the /proc in the target mount NS
+        # is probably mounted with the innermost PID NS...)
+        java_path = os.readlink(f"/proc/{process.pid}/exe")
+
         java_version_cmd_output = None
 
         def _run_java_version() -> None:
@@ -112,7 +117,7 @@ class JavaProfiler:
 
             java_version_cmd_output = run_process(
                 [
-                    f"/proc/{process.pid}/exe",
+                    java_path,
                     "-version",
                 ]
             )
