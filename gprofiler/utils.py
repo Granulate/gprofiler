@@ -271,16 +271,20 @@ def get_run_mode() -> str:
 # (so we don't keep unshared threads running around)
 # for other namespace types, we use this function to execute callbacks without changing the namespaces for the
 # core threads.
-def run_in_init_ns(nstype: str, callback: Callable[[], None]) -> None:
+# by default, run in init NS. you can pass 'target_pid' to run in the namespace of that process.
+def run_in_ns(nstype: str, callback: Callable[[], None], target_pid: int = 1) -> None:
     def _switch_and_run():
-        if not is_same_ns(1, nstype):
+        if not is_same_ns(target_pid, nstype):
             libc = ctypes.CDLL("libc.so.6")
 
             flag = {
                 "mnt": 0x00020000,  # CLONE_NEWNS
                 "net": 0x40000000,  # CLONE_NEWNET
             }[nstype]
-            if libc.unshare(flag) != 0 or libc.setns(os.open(f"/proc/1/ns/{nstype}", os.O_RDONLY), flag) != 0:
+            if (
+                libc.unshare(flag) != 0
+                or libc.setns(os.open(f"/proc/{target_pid}/ns/{nstype}", os.O_RDONLY), flag) != 0
+            ):
                 raise ValueError(f"Failed to unshare({nstype}) and setns({nstype})")
 
         callback()
@@ -307,7 +311,7 @@ def log_system_info():
         results.append(distro.linux_distribution())
         results.append(get_libc_version())
 
-    run_in_init_ns("mnt", get_distro_and_libc)
+    run_in_ns("mnt", get_distro_and_libc)
     assert len(results) == 2, f"only {len(results)} results, expected 2"
 
     logger.info(f"Linux distribution: {results[0]}")
@@ -341,6 +345,6 @@ def grab_gprofiler_mutex() -> bool:
             # hold the reference so lock remains taken
             gprofiler_mutex = s
 
-    run_in_init_ns("net", _take_lock)
+    run_in_ns("net", _take_lock)
 
     return gprofiler_mutex is not None
