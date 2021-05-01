@@ -122,7 +122,8 @@ class JavaProfiler:
                 ]
             )
 
-        run_in_ns("mnt", _run_java_version, process.pid)
+        # doesn't work without changing PID NS as well (I'm getting ENOENT for libjli.so)
+        run_in_ns(["pid", "mnt"], _run_java_version, process.pid)
 
         if java_version_cmd_output is None:
             raise Exception("Failed to get java version")
