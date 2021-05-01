@@ -26,7 +26,15 @@ from .client import APIClient, APIError, GRANULATE_SERVER_HOST, DEFAULT_UPLOAD_T
 from .java import JavaProfiler
 from .perf import SystemProfiler
 from .python import get_python_profiler
-from .utils import is_root, run_process, get_iso8061_format_time, resource_path, log_system_info, TEMPORARY_STORAGE_PATH
+from .utils import (
+    is_root,
+    run_process,
+    get_iso8061_format_time,
+    resource_path,
+    log_system_info,
+    atomically_symlink,
+    TEMPORARY_STORAGE_PATH,
+)
 
 logger: Logger
 
@@ -86,6 +94,7 @@ class GProfiler:
         base_filename = os.path.join(self._output_dir, "profile_{}".format(end_ts))
         collapsed_path = base_filename + ".col"
         Path(collapsed_path).write_text(collapsed_data)
+        atomically_symlink(os.path.basename(collapsed_path), os.path.join(self._output_dir, "last_profile.col"))
         logger.info(f"Saved collapsed stacks to {collapsed_path}")
 
         if flamegraph:
@@ -103,6 +112,9 @@ class GProfiler:
                 .replace("{{{END_TIME}}}", end_ts)
             )
             Path(flamegraph_path).write_text(flamegraph_data)
+            atomically_symlink(
+                os.path.basename(flamegraph_path), os.path.join(self._output_dir, "last_flamegraph.html")
+            )
             logger.info(f"Saved flamegraph to {flamegraph_path}")
 
     def start(self):
