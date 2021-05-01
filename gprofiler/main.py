@@ -251,9 +251,9 @@ def parse_cmd_args():
         "--no-flamegraph",
         dest="flamegraph",
         action="store_false",
-        default=True,
         help="Do not generate local flamegraphs when -o is given (only collapsed stacks files)",
     )
+    parser.set_defaults(flamegraph=True)
 
     parser.add_argument(
         "--no-java",
