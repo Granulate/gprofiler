@@ -29,3 +29,12 @@ class ProfilerBase:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
+
+
+class NoopProfiler(ProfilerBase):
+    """
+    No-op profiler - used as a drop-in replacement for runtime profilers, when they are disabled.
+    """
+
+    def snapshot(self) -> Mapping[int, Mapping[str, int]]:
+        return {}
