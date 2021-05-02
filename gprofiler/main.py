@@ -320,6 +320,9 @@ def setup_signals() -> None:
     # first INT.
     # See my commit message for more information.
     signal.signal(signal.SIGINT, sigint_handler)
+    # handle SIGTERM in the same manner - gracefully stop gProfiler.
+    # SIGTERM is also forwarded by staticx & PyInstaller, so we need to ratelimit it.
+    signal.signal(signal.SIGTERM, sigint_handler)
 
 
 def main():
