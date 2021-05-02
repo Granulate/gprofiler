@@ -111,6 +111,7 @@ class GProfiler:
         end_ts = get_iso8061_format_time(local_end_time)
         base_filename = os.path.join(self._output_dir, "profile_{}".format(end_ts))
         collapsed_path = base_filename + ".col"
+        collapsed_data = self._strip_container_data(collapsed_data)
         Path(collapsed_path).write_text(collapsed_data)
         logger.info(f"Saved collapsed stacks to {collapsed_path}")
 
@@ -130,6 +131,15 @@ class GProfiler:
             )
             Path(flamegraph_path).write_text(flamegraph_data)
             logger.info(f"Saved flamegraph to {flamegraph_path}")
+
+    @staticmethod
+    def _strip_container_data(collapsed_data):
+        lines = []
+        for line in collapsed_data.splitlines():
+            if line.startswith("#"):
+                continue
+            lines.append(line[line.find(';') + 1:])
+        return '\n'.join(lines)
 
     def start(self):
         self._stop_event.clear()
