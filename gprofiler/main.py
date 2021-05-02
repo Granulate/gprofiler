@@ -24,6 +24,7 @@ from requests import RequestException, Timeout
 from gprofiler import __version__
 from gprofiler import merge
 from gprofiler.client import APIClient, APIError, GRANULATE_SERVER_HOST, DEFAULT_UPLOAD_TIMEOUT
+from gprofiler.docker_client import DockerClient
 from gprofiler.java import JavaProfiler
 from gprofiler.perf import SystemProfiler
 from gprofiler.python import get_python_profiler
