@@ -55,7 +55,8 @@ docker pull granulate/gprofiler:latest
 docker run --name gprofiler -d --restart=always \
     --network=host --pid=host --userns=host --privileged \
     -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro \
-    granulate/gprofiler:latest -cu --token <token> --service-name <service> [options]
+    -v /var/run/docker.sock:/var/run/docker.sock \
+	granulate/gprofiler:latest -cu --token <token> --service-name <service> [options]
 ```
 
 For profiling with eBPF, kernel headers must be accessible from within the container at
