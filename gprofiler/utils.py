@@ -271,7 +271,7 @@ def get_run_mode() -> str:
 # (so we don't keep unshared threads running around)
 # for other namespace types, we use this function to execute callbacks without changing the namespaces for the
 # core threads.
-def run_in_init_ns(nstype: str, callaback: Callable[[], None]) -> None:
+def run_in_init_ns(nstype: str, callback: Callable[[], None]) -> None:
     def _switch_and_run():
         if not is_same_ns(1, nstype):
             libc = ctypes.CDLL("libc.so.6")
@@ -283,7 +283,7 @@ def run_in_init_ns(nstype: str, callaback: Callable[[], None]) -> None:
             if libc.unshare(flag) != 0 or libc.setns(os.open(f"/proc/1/ns/{nstype}", os.O_RDONLY), flag) != 0:
                 raise ValueError(f"Failed to unshare({nstype}) and setns({nstype})")
 
-        callaback()
+        callback()
 
     t = Thread(target=_switch_and_run)
     t.start()
