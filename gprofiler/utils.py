@@ -35,7 +35,7 @@ from gprofiler.exceptions import (
 
 logger = logging.getLogger(__name__)
 
-TEMPORARY_STORAGE_PATH = "/tmp/gprofiler"
+TEMPORARY_STORAGE_PATH = "/tmp/gprofiler_tmp"
 
 gprofiler_mutex: Optional[socket.socket]
 
