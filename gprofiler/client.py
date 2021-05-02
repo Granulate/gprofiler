@@ -12,7 +12,7 @@ from typing import Dict
 import requests
 from requests import Session
 
-from .utils import get_iso8061_format_time
+from gprofiler.utils import get_iso8061_format_time
 
 logger = logging.getLogger(__name__)
 

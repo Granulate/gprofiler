@@ -7,14 +7,14 @@ import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import Event
-import psutil
 from typing import Mapping, Iterable
 
-from .utils import run_process, resource_path, TEMPORARY_STORAGE_PATH
-from .merge import parse_perf_script
+import psutil
+
+from gprofiler.merge import parse_perf_script
+from gprofiler.utils import run_process, resource_path, TEMPORARY_STORAGE_PATH
 
 logger = logging.getLogger(__name__)
-
 
 PERF_BUILDID_DIR = os.path.join(TEMPORARY_STORAGE_PATH, "perf-buildids")
 
