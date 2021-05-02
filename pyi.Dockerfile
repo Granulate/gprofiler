@@ -17,7 +17,7 @@ RUN yum install -y \
 
 WORKDIR /bcc
 
-RUN git clone --depth 1 -b v1.0.0 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 119d71bf9681182759eb76d40660c0ec19f3fc42
+RUN git clone --depth 1 -b v1.0.1 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 92b61ade89f554859950695b067288f60cb1f3e5
 
 RUN yum install -y centos-release-scl-rh
 # mostly taken from https://github.com/iovisor/bcc/blob/master/INSTALL.md#install-and-compile-llvm
