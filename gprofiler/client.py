@@ -48,12 +48,13 @@ class APIClient:
         # Raises on failure
         self.get_health()
 
-    def get_base_url(self) -> str:
-        return "{}/{}/{}".format(self._host.rstrip("/"), self.BASE_PATH, self._version)
+    def get_base_url(self, api_version: str = None) -> str:
+        version = api_version if api_version is not None else self._version
+        return "{}/{}/{}".format(self._host.rstrip("/"), self.BASE_PATH, version)
 
     def _send_request(
-        self, method: str, path: str, data: Dict, files: Dict = None, timeout: float = DEFAULT_REQUEST_TIMEOUT
-    ) -> Dict:
+            self, method: str, path: str, data: Dict, files: Dict = None, timeout: float = DEFAULT_REQUEST_TIMEOUT,
+            api_version: str = None) -> Dict:
         opts: dict = {"headers": {}, "files": files, "timeout": timeout}
 
         if method.upper() == "GET":
@@ -66,7 +67,7 @@ class APIClient:
                 json.dump(data, gzip_file, ensure_ascii=False)  # type: ignore
             opts["data"] = buffer.getvalue()
 
-        resp = self._session.request(method, "{}/{}".format(self.get_base_url(), path), **opts)
+        resp = self._session.request(method, "{}/{}".format(self.get_base_url(api_version), path), **opts)
         if 400 <= resp.status_code < 500:
             try:
                 data = resp.json()
@@ -107,4 +108,5 @@ class APIClient:
                 "profile": profile,
             },
             timeout=self._upload_timeout,
+            api_version="v2"
         )

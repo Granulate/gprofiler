@@ -7,8 +7,8 @@ import datetime
 import logging
 import logging.config
 import logging.handlers
-import signal
 import os
+import signal
 import sys
 import time
 from logging import Logger
@@ -21,13 +21,13 @@ from typing import Dict, Optional
 import configargparse
 from requests import RequestException, Timeout
 
-from . import __version__
-from . import merge
-from .client import APIClient, APIError, GRANULATE_SERVER_HOST, DEFAULT_UPLOAD_TIMEOUT
-from .java import JavaProfiler
-from .perf import SystemProfiler
-from .python import get_python_profiler
-from .utils import (
+from gprofiler import __version__
+from gprofiler import merge
+from gprofiler.client import APIClient, APIError, GRANULATE_SERVER_HOST, DEFAULT_UPLOAD_TIMEOUT
+from gprofiler.java import JavaProfiler
+from gprofiler.perf import SystemProfiler
+from gprofiler.python import get_python_profiler
+from gprofiler.utils import (
     is_root,
     run_process,
     get_iso8061_format_time,
@@ -81,6 +81,7 @@ class GProfiler:
             self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name
         )
         self.initialize_python_profiler()
+        self._docker_client = DockerClient()
 
     def __enter__(self):
         self.start()
@@ -170,7 +171,7 @@ class GProfiler:
                 logger.exception(f"{future.name} profiling failed")
 
         local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
-        merged_result = merge.merge_perfs(system_future.result(), process_perfs)
+        merged_result = merge.merge_perfs(system_future.result(), process_perfs, self._docker_client)
 
         if self._output_dir:
             self._generate_output_files(merged_result, local_start_time, local_end_time, self._flamegraph)
