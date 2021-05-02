@@ -27,7 +27,15 @@ from .client import APIClient, APIError, GRANULATE_SERVER_HOST, DEFAULT_UPLOAD_T
 from .java import JavaProfiler
 from .perf import SystemProfiler
 from .python import get_python_profiler
-from .utils import is_root, run_process, get_iso8061_format_time, resource_path, log_system_info, TEMPORARY_STORAGE_PATH
+from .utils import (
+    is_root,
+    run_process,
+    get_iso8061_format_time,
+    resource_path,
+    log_system_info,
+    grab_gprofiler_mutex,
+    TEMPORARY_STORAGE_PATH,
+)
 
 logger: Logger
 
@@ -311,6 +319,10 @@ def parse_cmd_args():
 def verify_preconditions():
     if not is_root():
         print("Must run gprofiler as root, please re-run.", file=sys.stderr)
+        sys.exit(1)
+
+    if not grab_gprofiler_mutex():
+        print("Could not acquire gProfiler's lock. Is it already running?", file=sys.stderr)
         sys.exit(1)
 
 

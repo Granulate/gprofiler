@@ -8,6 +8,9 @@ import os
 import re
 import sys
 import time
+import errno
+import socket
+import fcntl
 import shutil
 import subprocess
 import platform
@@ -33,6 +36,8 @@ from gprofiler.exceptions import (
 logger = logging.getLogger(__name__)
 
 TEMPORARY_STORAGE_PATH = "/tmp/gprofiler_tmp"
+
+gprofiler_mutex: Optional[socket.socket]
 
 
 def resource_path(relative_path: str = "") -> str:
@@ -261,6 +266,30 @@ def get_run_mode() -> str:
         return "local_python"
 
 
+# we can't setns(CLONE_NEWNS) in a multithreaded program (unless we unshare(CLONE_NEWNS) before)
+# so, we start a new thread, unshare() & setns() it, get our needed information and then stop this thread
+# (so we don't keep unshared threads running around)
+# for other namespace types, we use this function to execute callbacks without changing the namespaces for the
+# core threads.
+def run_in_init_ns(nstype: str, callback: Callable[[], None]) -> None:
+    def _switch_and_run():
+        if not is_same_ns(1, nstype):
+            libc = ctypes.CDLL("libc.so.6")
+
+            flag = {
+                "mnt": 0x00020000,  # CLONE_NEWNS
+                "net": 0x40000000,  # CLONE_NEWNET
+            }[nstype]
+            if libc.unshare(flag) != 0 or libc.setns(os.open(f"/proc/1/ns/{nstype}", os.O_RDONLY), flag) != 0:
+                raise ValueError(f"Failed to unshare({nstype}) and setns({nstype})")
+
+        callback()
+
+    t = Thread(target=_switch_and_run)
+    t.start()
+    t.join()
+
+
 def log_system_info():
     uname = platform.uname()
     logger.info(f"gProfiler Python version: {sys.version}")
@@ -270,28 +299,48 @@ def log_system_info():
     logger.info(f"Total CPUs: {os.cpu_count()}")
     logger.info(f"Total RAM: {psutil.virtual_memory().total / (1 << 30):.2f} GB")
 
-    # we can't setns(CLONE_NEWNS) in a multithreaded program (unless we unshare(CLONE_NEWNS) before)
-    # so, we start a new thread, unshare() & setns() it, get our needed information and then stop this thread
-    # (so we don't keep unshared threads running around)
     results = []
 
+    # move to host mount NS for distro & ldd.
+    # now, distro will read the files on host.
     def get_distro_and_libc():
-        # move to host mount NS for distro & ldd.
-        if not is_same_ns(1, "mnt"):
-            libc = ctypes.CDLL("libc.so.6")
-
-            CLONE_NEWNS = 0x00020000
-            if libc.unshare(CLONE_NEWNS) != 0 or libc.setns(os.open("/proc/1/ns/mnt", os.O_RDONLY), CLONE_NEWNS) != 0:
-                raise ValueError("Failed to unshare() and setns()")
-
-        # now, distro will read the files on host.
         results.append(distro.linux_distribution())
         results.append(get_libc_version())
 
-    t = Thread(target=get_distro_and_libc)
-    t.start()
-    t.join()
+    run_in_init_ns("mnt", get_distro_and_libc)
     assert len(results) == 2, f"only {len(results)} results, expected 2"
 
     logger.info(f"Linux distribution: {results[0]}")
     logger.info(f"libc version: {results[1]}")
+
+
+def grab_gprofiler_mutex() -> bool:
+    """
+    Implements a basic, system-wide mutex for gProfiler, to make sure we don't run 2 instances simultaneously.
+    The mutex is implemented by a Unix domain socket bound to an address in the abstract namespace of the init
+    network namespace. This provides automatic cleanup when the process goes down, and does not make any assumption
+    on filesystem structure (as happens with file-based locks).
+    In order to see who's holding the lock now, you can run "sudo netstat -xp | grep gprofiler".
+    """
+    GPROFILER_LOCK = "\x00gprofiler_lock"
+
+    def _take_lock():
+        global gprofiler_mutex
+        gprofiler_mutex = None
+
+        s = socket.socket(socket.AF_UNIX)
+        try:
+            s.bind(GPROFILER_LOCK)
+        except OSError as e:
+            if e.errno != errno.EADDRINUSE:
+                raise
+        else:
+            # don't let child programs we execute inherit it.
+            fcntl.fcntl(s, fcntl.F_SETFD, fcntl.fcntl(s, fcntl.F_GETFD) | fcntl.FD_CLOEXEC)
+
+            # hold the reference so lock remains taken
+            gprofiler_mutex = s
+
+    run_in_init_ns("net", _take_lock)
+
+    return gprofiler_mutex is not None
