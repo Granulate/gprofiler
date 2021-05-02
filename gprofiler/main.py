@@ -315,7 +315,10 @@ def verify_preconditions():
 
 
 def setup_signals() -> None:
-    # see my commit message for the reason we handle sigint manually.
+    # When we run under staticx & PyInstaller, both of them forward (some of the) signals to gProfiler.
+    # We catch SIGINTs and ratelimit them, to avoid being interrupted again during the handling of the
+    # first INT.
+    # See my commit message for more information.
     signal.signal(signal.SIGINT, sigint_handler)
 
 
