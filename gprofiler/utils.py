@@ -5,7 +5,9 @@
 import datetime
 import logging
 import os
+import random
 import re
+import string
 import sys
 import time
 import shutil
@@ -32,7 +34,7 @@ from gprofiler.exceptions import (
 
 logger = logging.getLogger(__name__)
 
-TEMPORARY_STORAGE_PATH = "/tmp/gprofiler"
+TEMPORARY_STORAGE_PATH = f"/tmp/gprofiler_tmp"
 
 
 def resource_path(relative_path: str = "") -> str:
