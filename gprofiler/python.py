@@ -9,21 +9,30 @@ import signal
 import glob
 from pathlib import Path
 from threading import Event
-from typing import List, Mapping, Optional, Union
+from typing import Callable, List, Mapping, Optional, Union
+from subprocess import Popen
 
 from psutil import Process
 
 from .merge import parse_one_collapsed, parse_many_collapsed
 from .exceptions import StopEventSetException, ProcessStoppedException, CalledProcessError
-from .utils import pgrep_maps, start_process, poll_process, run_process, resource_path
+from .utils import pgrep_maps, start_process, poll_process, run_process, resource_path, wait_event
 
 logger = logging.getLogger(__name__)
+
+_reinitialize_profiler: Optional[Callable[[], None]] = None
 
 
 class PythonProfilerBase:
     MAX_FREQUENCY = 100
 
-    def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str):
+    def __init__(
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Optional[Event],
+        storage_dir: str,
+    ):
         self._frequency = min(frequency, self.MAX_FREQUENCY)
         self._duration = duration
         self._stop_event = stop_event or Event()
@@ -88,7 +97,9 @@ class PySpyProfiler(PythonProfilerBase):
 
     def find_python_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
-        for process in pgrep_maps(r"^.+/(?:lib)?python[^/]*$"):
+        for process in pgrep_maps(
+            r"(?:^.+/(?:lib)?python[^/]*$)|(?:^.+/site-packages/.+?$)|(?:^.+/dist-packages/.+?$)"
+        ):
             try:
                 if process.pid == os.getpid():
                     continue
@@ -127,9 +138,16 @@ class PySpyProfiler(PythonProfilerBase):
 class PythonEbpfProfiler(PythonProfilerBase):
     PYPERF_RESOURCE = "python/pyperf/PyPerf"
     dump_signal = signal.SIGUSR2
+    dump_timeout = 5  # seconds
     poll_timeout = 10  # seconds
 
-    def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str):
+    def __init__(
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Optional[Event],
+        storage_dir: str,
+    ):
         super().__init__(frequency, duration, stop_event, storage_dir)
         self.process = None
         self.output_path = Path(self._storage_dir) / "py.col.dat"
@@ -152,15 +170,37 @@ class PythonEbpfProfiler(PythonProfilerBase):
             return False
 
     @classmethod
-    def _check_output(cls, process, output_path):
-        if not glob.glob(f"{str(output_path)}.*"):
-            stdout = process.stdout.read().decode()
-            stderr = process.stderr.read().decode()
-            cls._check_missing_headers(stdout)
-            raise CalledProcessError(process.returncode, process.args, stdout, stderr)
+    def _pyperf_error(cls, process: Popen):
+        # opened in pipe mode, so these aren't None.
+        assert process.stdout is not None
+        assert process.stderr is not None
+
+        stdout = process.stdout.read().decode()
+        stderr = process.stderr.read().decode()
+        cls._check_missing_headers(stdout)
+        raise CalledProcessError(process.returncode, process.args, stdout, stderr)
 
     @classmethod
-    def test(cls, storage_dir: str, stop_event: Optional[Event]):
+    def _check_output(cls, process: Popen, output_path: Path):
+        if not glob.glob(f"{str(output_path)}.*"):
+            cls._pyperf_error(process)
+
+    @classmethod
+    def get_pyperf_cmd(cls) -> List[str]:
+        pyperf = resource_path(cls.PYPERF_RESOURCE)
+        staticx_dir = os.getenv("STATICX_BUNDLE_DIR")
+        # are we running under staticx?
+        if staticx_dir is not None:
+            # STATICX_BUNDLE_DIR is where staticx has extracted all of the libraries it had collected
+            # earlier.
+            # see https://github.com/JonathonReinhart/staticx#run-time-information
+            # we run PyPerf with the same ld.so whose libc it was compiled against.
+            return [f"{staticx_dir}/.staticx.interp", "--library-path", staticx_dir, pyperf]
+        else:
+            return [pyperf]
+
+    @classmethod
+    def test(cls, storage_dir: str, stop_event: Event):
         test_path = Path(storage_dir) / ".test"
         for f in glob.glob(f"{str(test_path)}.*"):
             os.unlink(f)
@@ -168,7 +208,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
         # Run the process and check if the output file is properly created.
         # Wait up to 10sec for the process to terminate.
         # Allow cancellation via the stop_event.
-        cmd = [resource_path(cls.PYPERF_RESOURCE), "--output", str(test_path), "-F", "1", "--duration", "1"]
+        cmd = cls.get_pyperf_cmd() + ["--output", str(test_path), "-F", "1", "--duration", "1"]
         process = start_process(cmd)
         try:
             poll_process(process, cls.poll_timeout, stop_event)
@@ -180,8 +220,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
 
     def start(self):
         logger.info("Starting profiling of Python processes with PyPerf")
-        cmd = [
-            resource_path(self.PYPERF_RESOURCE),
+        cmd = self.get_pyperf_cmd() + [
             "--output",
             str(self.output_path),
             "-F",
@@ -189,38 +228,48 @@ class PythonEbpfProfiler(PythonProfilerBase):
             # Duration is irrelevant here, we want to run continuously.
         ]
         process = start_process(cmd)
+        # wait until the transient data file appears - because once returning from here, PyPerf may
+        # be polled via snapshot() and we need it to finish installing its signal handler.
         try:
-            poll_process(process, self.poll_timeout, self._stop_event)
+            wait_event(self.poll_timeout, self._stop_event, lambda: os.path.exists(self.output_path))
         except TimeoutError:
-            # Process is alive. So far, so good...
-            if not self.output_path.exists():
-                process.kill()
-                stdout = process.stdout.read().decode()
-                stderr = process.stderr.read().decode()
-                self._check_missing_headers(stdout)
-                raise CalledProcessError(process.returncode, process.args, stdout, stderr)
-            # happy flow
-            self.process = process
+            process.kill()
+            raise
         else:
-            # process terminated, must be an error:
-            self._check_output(process, self.output_path)
-            raise RuntimeError("_check_output did not raise!")
+            self.process = process
+
+    def _glob_output(self) -> List[str]:
+        # important to not grab the transient data file
+        return glob.glob(f"{str(self.output_path)}.*")
+
+    def _wait_for_output_file(self, timeout: float) -> Path:
+        wait_event(timeout, self._stop_event, lambda: len(self._glob_output()) > 0)
+
+        output_files = self._glob_output()
+        # All the snapshot samples should be in one file
+        assert len(output_files) == 1
+        return Path(output_files[0])
 
     def _dump(self) -> Path:
         assert self.process is not None, "profiling not started!"
         self.process.send_signal(self.dump_signal)
-        # important to not grab the transient data file
-        while True:
-            output_files = glob.glob(f"{str(self.output_path)}.*")
-            if output_files:
-                break
 
-            if self._stop_event.wait(0.1):
-                raise StopEventSetException()
-
-        # All the snapshot samples should be in one file
-        assert len(output_files) == 1
-        return Path(output_files[0])
+        try:
+            return self._wait_for_output_file(self.dump_timeout)
+        except TimeoutError:
+            # error flow :(
+            try:
+                if _reinitialize_profiler is not None:
+                    logger.warning("Reverting to py-spy")
+                    global _profiler_class
+                    _profiler_class = PySpyProfiler
+                    _reinitialize_profiler()
+            finally:
+                # in any case, we should stop PyPerf.
+                logger.warning("PyPerf dead/not responding, killing it")
+                process = self.process  # save it
+                self._terminate()
+                self._pyperf_error(process)
 
     def snapshot(self) -> Mapping[int, Mapping[str, int]]:
         if self._stop_event.wait(self._duration):
@@ -233,7 +282,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
     def _terminate(self) -> Optional[int]:
         code = None
         if self.process is not None:
-            self.process.terminate()
+            self.process.terminate()  # okay to call even if process is already dead
             code = self.process.wait()
             self.process = None
         return code
@@ -260,8 +309,15 @@ def determine_profiler_class(storage_dir: str, stop_event: Event):
 
 
 def get_python_profiler(
-    frequency: int, duration: int, stop_event: Event, storage_dir: str
+    frequency: int,
+    duration: int,
+    stop_event: Event,
+    storage_dir: str,
+    reinitialize_profiler: Optional[Callable[[], None]] = None,
 ) -> Union[PythonEbpfProfiler, PySpyProfiler]:
+    global _reinitialize_profiler
+    _reinitialize_profiler = reinitialize_profiler
+
     global _profiler_class
     if _profiler_class is None:
         _profiler_class = determine_profiler_class(storage_dir, stop_event)

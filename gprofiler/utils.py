@@ -15,7 +15,7 @@ import ctypes
 from functools import lru_cache
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from threading import Event, Thread
-from typing import Iterator, Union, List, Optional, Tuple
+from typing import Callable, Iterator, Union, List, Optional, Tuple
 from pathlib import Path
 
 import importlib_resources
@@ -32,14 +32,17 @@ from gprofiler.exceptions import (
 
 logger = logging.getLogger(__name__)
 
-TEMPORARY_STORAGE_PATH = "/tmp/gprofiler"
+TEMPORARY_STORAGE_PATH = "/tmp/gprofiler_tmp"
 
 
 def resource_path(relative_path: str = "") -> str:
     *relative_directory, basename = relative_path.split("/")
     package = ".".join(["gprofiler", "resources"] + relative_directory)
-    with importlib_resources.path(package, basename) as path:
-        return str(path)
+    try:
+        with importlib_resources.path(package, basename) as path:
+            return str(path)
+    except ImportError as e:
+        raise Exception(f'Resource {relative_path!r} not found!') from e
 
 
 @lru_cache(maxsize=None)
@@ -86,19 +89,25 @@ def start_process(cmd: Union[str, List[str]], **kwargs) -> Popen:
     return popen
 
 
-def poll_process(process, timeout, stop_event):
-    timefn = time.monotonic
-    endtime = timefn() + timeout
+def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool]) -> None:
+    end_time = time.monotonic() + timeout
     while True:
-        try:
-            process.wait(0.1)
+        if condition():
             break
-        except TimeoutExpired:
-            if stop_event.is_set():
-                process.kill()
-                raise StopEventSetException()
-            if timefn() > endtime:
-                raise TimeoutError()
+
+        if stop_event.wait(0.1):
+            raise StopEventSetException()
+
+        if time.monotonic() > end_time:
+            raise TimeoutError()
+
+
+def poll_process(process, timeout: float, stop_event: Event):
+    try:
+        wait_event(timeout, stop_event, lambda: process.poll() is not None)
+    except StopEventSetException:
+        process.kill()
+        raise
 
 
 def run_process(
@@ -241,9 +250,21 @@ def get_libc_version() -> Tuple[str, bytes]:
     return ("unknown", ldd_version)
 
 
+def get_run_mode() -> str:
+    if os.getenv("GPROFILER_IN_K8S") is not None:  # set in k8s/gprofiler.yaml
+        return "k8s"
+    elif os.getenv("GPROFILER_IN_CONTAINER") is not None:  # set by our Dockerfile
+        return "container"
+    elif os.getenv("STATICX_BUNDLE_DIR") is not None:  # set by staticx
+        return "standalone_executable"
+    else:
+        return "local_python"
+
+
 def log_system_info():
     uname = platform.uname()
     logger.info(f"gProfiler Python version: {sys.version}")
+    logger.info(f"gProfiler run mode: {get_run_mode()}")
     logger.info(f"Kernel uname release: {uname.release}")
     logger.info(f"Kernel uname version: {uname.version}")
     logger.info(f"Total CPUs: {os.cpu_count()}")

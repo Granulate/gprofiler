@@ -7,6 +7,7 @@ import datetime
 import logging
 import logging.config
 import logging.handlers
+import signal
 import os
 import sys
 import time
@@ -15,7 +16,7 @@ from pathlib import Path
 from socket import gethostname
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Dict
+from typing import Dict, Optional
 
 import configargparse
 from requests import RequestException, Timeout
@@ -38,26 +39,40 @@ DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 10
 # by default - these match
 DEFAULT_CONTINUOUS_MODE_INTERVAL = DEFAULT_PROFILING_DURATION
+# 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
+SIGINT_RATELIMIT = 0.5
+
+
+last_signal_ts: Optional[float] = None
+
+
+def sigint_handler(sig, frame):
+    global last_signal_ts
+    ts = time.monotonic()
+    # no need for atomicity here: we can't get another SIGINT before this one returns.
+    # https://www.gnu.org/software/libc/manual/html_node/Signals-in-Handler.html#Signals-in-Handler
+    if last_signal_ts is None or ts > last_signal_ts + SIGINT_RATELIMIT:
+        last_signal_ts = ts
+        raise KeyboardInterrupt
 
 
 class GProfiler:
-    def __init__(self, frequency: int, duration: int, output_dir: str, client: APIClient):
+    def __init__(self, frequency: int, duration: int, output_dir: str, flamegraph: bool, client: APIClient):
         self._frequency = frequency
         self._duration = duration
         self._output_dir = output_dir
+        self._flamegraph = flamegraph
         self._client = client
         self._stop_event = Event()
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         self._temp_storage_dir = TemporaryDirectory(dir=TEMPORARY_STORAGE_PATH)
-        self.python_profiler = get_python_profiler(
-            self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name
-        )
         self.java_profiler = JavaProfiler(
             self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name
         )
         self.system_profiler = SystemProfiler(
             self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name
         )
+        self.initialize_python_profiler()
 
     def __enter__(self):
         self.start()
@@ -66,30 +81,45 @@ class GProfiler:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
 
+    def initialize_python_profiler(self) -> None:
+        self.python_profiler = get_python_profiler(
+            self._frequency,
+            self._duration,
+            self._stop_event,
+            self._temp_storage_dir.name,
+            self.initialize_python_profiler,
+        )
+
     def _generate_output_files(
-        self, collapsed_data: str, local_start_time: datetime.datetime, local_end_time: datetime.datetime
+        self,
+        collapsed_data: str,
+        local_start_time: datetime.datetime,
+        local_end_time: datetime.datetime,
+        flamegraph: bool,
     ) -> None:
         start_ts = get_iso8061_format_time(local_start_time)
         end_ts = get_iso8061_format_time(local_end_time)
         base_filename = os.path.join(self._output_dir, "profile_{}".format(end_ts))
         collapsed_path = base_filename + ".col"
         Path(collapsed_path).write_text(collapsed_data)
+        logger.info(f"Saved collapsed stacks to {collapsed_path}")
 
-        flamegraph_path = base_filename + ".html"
-        flamegraph = (
-            Path(resource_path("flamegraph/flamegraph_template.html"))
-            .read_text()
-            .replace(
-                "{{{JSON_DATA}}}",
-                run_process(
-                    [resource_path("burn"), "convert", "--type=folded", collapsed_path], suppress_log=True
-                ).stdout.decode(),
+        if flamegraph:
+            flamegraph_path = base_filename + ".html"
+            flamegraph_data = (
+                Path(resource_path("flamegraph/flamegraph_template.html"))
+                .read_text()
+                .replace(
+                    "{{{JSON_DATA}}}",
+                    run_process(
+                        [resource_path("burn"), "convert", "--type=folded", collapsed_path], suppress_log=True
+                    ).stdout.decode(),
+                )
+                .replace("{{{START_TIME}}}", start_ts)
+                .replace("{{{END_TIME}}}", end_ts)
             )
-            .replace("{{{START_TIME}}}", start_ts)
-            .replace("{{{END_TIME}}}", end_ts)
-        )
-        Path(flamegraph_path).write_text(flamegraph)
-        logger.info(f"Saved flamegraph to {flamegraph_path}")
+            Path(flamegraph_path).write_text(flamegraph_data)
+            logger.info(f"Saved flamegraph to {flamegraph_path}")
 
     def start(self):
         self._stop_event.clear()
@@ -135,7 +165,7 @@ class GProfiler:
         merged_result = merge.merge_perfs(system_future.result(), process_perfs)
 
         if self._output_dir:
-            self._generate_output_files(merged_result, local_start_time, local_end_time)
+            self._generate_output_files(merged_result, local_start_time, local_end_time, self._flamegraph)
 
         if self._client:
             try:
@@ -214,6 +244,16 @@ def parse_cmd_args():
         help="Profiler duration per session in seconds (default: %(default)s)",
     )
     parser.add_argument("-o", "--output-dir", type=str, help="Path to output directory")
+    parser.add_argument(
+        "--flamegraph", dest="flamegraph", action="store_true", help="Generate local flamegraphs when -o is given"
+    )
+    parser.add_argument(
+        "--no-flamegraph",
+        dest="flamegraph",
+        action="store_false",
+        help="Do not generate local flamegraphs when -o is given (only collapsed stacks files)",
+    )
+    parser.set_defaults(flamegraph=True)
 
     parser.add_argument(
         "-u",
@@ -270,15 +310,25 @@ def parse_cmd_args():
 
 def verify_preconditions():
     if not is_root():
-        logger.error("Must run gprofiler as root, please re-run.")
-        return False
-    return True
+        print("Must run gprofiler as root, please re-run.", file=sys.stderr)
+        sys.exit(1)
+
+
+def setup_signals() -> None:
+    # When we run under staticx & PyInstaller, both of them forward (some of the) signals to gProfiler.
+    # We catch SIGINTs and ratelimit them, to avoid being interrupted again during the handling of the
+    # first INT.
+    # See my commit message for more information.
+    signal.signal(signal.SIGINT, sigint_handler)
 
 
 def main():
     args = parse_cmd_args()
+    verify_preconditions()
     setup_logger(logging.DEBUG if args.verbose else logging.INFO, args.log_file)
     global logger  # silences flake8, who now knows that the "logger" global we refer to was initialized.
+
+    setup_signals()
 
     try:
         logger.info(f"Running gprofiler (version {__version__})...")
@@ -286,9 +336,6 @@ def main():
             log_system_info()
         except Exception:
             logger.exception("Encountered an exception while getting basic system info")
-
-        if not verify_preconditions():
-            sys.exit(1)
 
         if args.output_dir:
             if not Path(args.output_dir).is_dir():
@@ -314,7 +361,7 @@ def main():
             logger.error(f"Failed to connect to server: {e}")
             return
 
-        gprofiler = GProfiler(args.frequency, args.duration, args.output_dir, client)
+        gprofiler = GProfiler(args.frequency, args.duration, args.output_dir, args.flamegraph, client)
         logger.info("gProfiler initialized and ready to start profiling")
 
         if args.continuous:
