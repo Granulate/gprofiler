@@ -59,8 +59,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # add ubuntu 14.04 and alpine, when they will be ready
+        # add alpine, when it's ready
         containers: [
+                      'ubuntu:14.04',
                       'ubuntu:16.04',
                       'ubuntu:18.04',
                       'ubuntu:20.04',
