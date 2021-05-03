@@ -266,22 +266,37 @@ def get_run_mode() -> str:
         return "local_python"
 
 
-# we can't setns(CLONE_NEWNS) in a multithreaded program (unless we unshare(CLONE_NEWNS) before)
-# so, we start a new thread, unshare() & setns() it, get our needed information and then stop this thread
-# (so we don't keep unshared threads running around)
-# for other namespace types, we use this function to execute callbacks without changing the namespaces for the
-# core threads.
-def run_in_init_ns(nstype: str, callback: Callable[[], None]) -> None:
-    def _switch_and_run():
-        if not is_same_ns(1, nstype):
-            libc = ctypes.CDLL("libc.so.6")
+def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int = 1) -> None:
+    """
+    Runs a callback in a new thread, switching to a set of the namespaces of a target process before
+    doing so.
 
-            flag = {
-                "mnt": 0x00020000,  # CLONE_NEWNS
-                "net": 0x40000000,  # CLONE_NEWNET
-            }[nstype]
-            if libc.unshare(flag) != 0 or libc.setns(os.open(f"/proc/1/ns/{nstype}", os.O_RDONLY), flag) != 0:
-                raise ValueError(f"Failed to unshare({nstype}) and setns({nstype})")
+    Needed initially for swithcing mount namespaces, because we can't setns(CLONE_NEWNS) in a multithreaded
+    program (unless we unshare(CLONE_NEWNS) before). so, we start a new thread, unshare() & setns() it,
+    run our callback and then stop the thread (so we don't keep unshared threads running around).
+    For other namespace types, we use this function to execute callbacks without changing the namespaces
+    for the core threads.
+
+    By default, run stuff in init NS. You can pass 'target_pid' to run in the namespace of that process.
+    """
+
+    # make sure "mnt" is last, once we change it our /proc is gone
+    nstypes = sorted(nstypes, key=lambda ns: 1 if ns == "mnt" else 0)
+
+    def _switch_and_run():
+        libc = ctypes.CDLL("libc.so.6")
+        for nstype in nstypes:
+            if not is_same_ns(target_pid, nstype):
+                flag = {
+                    "mnt": 0x00020000,  # CLONE_NEWNS
+                    "net": 0x40000000,  # CLONE_NEWNET
+                    "pid": 0x20000000,  # CLONE_NEWPID
+                }[nstype]
+                if (
+                    libc.unshare(flag) != 0
+                    or libc.setns(os.open(f"/proc/{target_pid}/ns/{nstype}", os.O_RDONLY), flag) != 0
+                ):
+                    raise ValueError(f"Failed to unshare({nstype}) and setns({nstype})")
 
         callback()
 
@@ -307,7 +322,7 @@ def log_system_info():
         results.append(distro.linux_distribution())
         results.append(get_libc_version())
 
-    run_in_init_ns("mnt", get_distro_and_libc)
+    run_in_ns(["mnt"], get_distro_and_libc)
     assert len(results) == 2, f"only {len(results)} results, expected 2"
 
     logger.info(f"Linux distribution: {results[0]}")
@@ -341,6 +356,6 @@ def grab_gprofiler_mutex() -> bool:
             # hold the reference so lock remains taken
             gprofiler_mutex = s
 
-    run_in_init_ns("net", _take_lock)
+    run_in_ns(["net"], _take_lock)
 
     return gprofiler_mutex is not None
