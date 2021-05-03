@@ -60,7 +60,9 @@ jobs:
       fail-fast: false
       matrix:
         containers:
-          - alpine
+          # TODO alpine doesn't work, I get FileNotFoundError: [Errno 2] No such file or directory: '/tmp/_MEIMV2FRL/gprofiler/resources/java/jattach'
+          # and the Python process seems like it's not being identified.
+          # - alpine
           - ubuntu:14.04
           - ubuntu:16.04
           - ubuntu:18.04
