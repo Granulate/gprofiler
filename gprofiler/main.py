@@ -28,6 +28,7 @@ from .perf import SystemProfiler
 from .python import get_python_profiler
 from .utils import (
     is_root,
+    reset_umask,
     run_process,
     get_iso8061_format_time,
     resource_path,
@@ -349,6 +350,7 @@ def main():
     global logger  # silences flake8, who now knows that the "logger" global we refer to was initialized.
 
     setup_signals()
+    reset_umask()
 
     try:
         logger.info(f"Running gprofiler (version {__version__})...")

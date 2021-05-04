@@ -367,3 +367,10 @@ class TemporaryDirectoryWithMode(TemporaryDirectory):
         super().__init__(*args, **kwargs)
         if mode is not None:
             os.chmod(self.name, mode)
+
+
+def reset_umask() -> None:
+    """
+    Resets our umask back to a sane value.
+    """
+    os.umask(0o022)
