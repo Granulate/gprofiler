@@ -81,7 +81,11 @@ def application_process(in_container: bool, command_line: List):
         return
     else:
         # run as non-root to catch permission errors, etc.
-        popen = Popen(["nsenter", "-S", "1000", "-G", "1000", "--"] + command_line)
+        def lower_privs():
+            os.setuid(1000)
+            os.setgid(1000)
+
+        popen = Popen(command_line, preexec_fn=lower_privs)
         yield popen
         popen.kill()
 
