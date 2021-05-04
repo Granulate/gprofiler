@@ -14,7 +14,6 @@ import time
 from logging import Logger
 from pathlib import Path
 from socket import gethostname
-from tempfile import TemporaryDirectory
 from threading import Event
 from typing import Dict, Optional
 
@@ -34,6 +33,7 @@ from .utils import (
     resource_path,
     log_system_info,
     grab_gprofiler_mutex,
+    TemporaryDirectoryWithMode,
     TEMPORARY_STORAGE_PATH,
 )
 
@@ -73,7 +73,7 @@ class GProfiler:
         self._client = client
         self._stop_event = Event()
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
-        self._temp_storage_dir = TemporaryDirectory(dir=TEMPORARY_STORAGE_PATH)
+        self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=755)
         self.java_profiler = JavaProfiler(
             self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name
         )
