@@ -102,6 +102,17 @@ class GProfiler:
             self.initialize_python_profiler,
         )
 
+    def _update_last_output(self, last_output_name: str, output_path: str) -> None:
+        last_output = os.path.join(self._output_dir, last_output_name)
+        prev_output = Path(last_output).resolve()
+        atomically_symlink(os.path.basename(output_path), last_output)
+        if self._rotating_output:
+            # can't use missing_ok=True, available only from 3.8 :/
+            try:
+                prev_output.unlink()
+            except FileNotFoundError:
+                pass
+
     def _generate_output_files(
         self,
         collapsed_data: str,
@@ -116,16 +127,7 @@ class GProfiler:
         Path(collapsed_path).write_text(collapsed_data)
 
         # point last_profile.col at the new file; and possibly, delete the previous one.
-        last_profile = os.path.join(self._output_dir, "last_profile.col")
-        prev_profile = Path(last_profile).resolve()
-        atomically_symlink(os.path.basename(collapsed_path), last_profile)
-        if self._rotating_output:
-            # can't use missing_ok=True, available only from 3.8 :/
-            try:
-                prev_profile.unlink()
-            except FileNotFoundError:
-                pass
-
+        self._update_last_output("last_profile.col", collapsed_path)
         logger.info(f"Saved collapsed stacks to {collapsed_path}")
 
         if self._flamegraph:
@@ -145,14 +147,7 @@ class GProfiler:
             Path(flamegraph_path).write_text(flamegraph_data)
 
             # point last_flamegraph.html at the new file; and possibly, delete the previous one.
-            last_flamegraph = os.path.join(self._output_dir, "last_flamegraph.html")
-            prev_flamegraph = Path(last_flamegraph).resolve()
-            atomically_symlink(os.path.basename(flamegraph_path), last_flamegraph)
-            if self._rotating_output:
-                try:
-                    prev_flamegraph.unlink()
-                except FileNotFoundError:
-                    pass
+            self._update_last_output("last_flamegraph.html", flamegraph_path)
 
             logger.info(f"Saved flamegraph to {flamegraph_path}")
 
