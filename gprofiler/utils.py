@@ -20,6 +20,7 @@ from subprocess import CompletedProcess, Popen, TimeoutExpired
 from threading import Event, Thread
 from typing import Callable, Iterator, Union, List, Optional, Tuple
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import importlib_resources
 import psutil
@@ -359,3 +360,10 @@ def grab_gprofiler_mutex() -> bool:
     run_in_ns(["net"], _take_lock)
 
     return gprofiler_mutex is not None
+
+
+class TemporaryDirectoryWithMode(TemporaryDirectory):
+    def __init__(self, *args, mode: int = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if mode is not None:
+            os.chmod(self.name, mode)
