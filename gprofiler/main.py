@@ -7,6 +7,7 @@ import datetime
 import logging
 import logging.config
 import logging.handlers
+import signal
 import os
 import sys
 import time
@@ -15,7 +16,7 @@ from pathlib import Path
 from socket import gethostname
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Dict
+from typing import Dict, Optional
 
 import configargparse
 from requests import RequestException, Timeout
@@ -32,6 +33,7 @@ from .utils import (
     get_iso8061_format_time,
     resource_path,
     log_system_info,
+    grab_gprofiler_mutex,
     atomically_symlink,
     TEMPORARY_STORAGE_PATH,
 )
@@ -46,6 +48,21 @@ DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 10
 # by default - these match
 DEFAULT_CONTINUOUS_MODE_INTERVAL = DEFAULT_PROFILING_DURATION
+# 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
+SIGINT_RATELIMIT = 0.5
+
+
+last_signal_ts: Optional[float] = None
+
+
+def sigint_handler(sig, frame):
+    global last_signal_ts
+    ts = time.monotonic()
+    # no need for atomicity here: we can't get another SIGINT before this one returns.
+    # https://www.gnu.org/software/libc/manual/html_node/Signals-in-Handler.html#Signals-in-Handler
+    if last_signal_ts is None or ts > last_signal_ts + SIGINT_RATELIMIT:
+        last_signal_ts = ts
+        raise KeyboardInterrupt
 
 
 class GProfiler:
@@ -335,12 +352,29 @@ def verify_preconditions():
         print("Must run gprofiler as root, please re-run.", file=sys.stderr)
         sys.exit(1)
 
+    if not grab_gprofiler_mutex():
+        print("Could not acquire gProfiler's lock. Is it already running?", file=sys.stderr)
+        sys.exit(1)
+
+
+def setup_signals() -> None:
+    # When we run under staticx & PyInstaller, both of them forward (some of the) signals to gProfiler.
+    # We catch SIGINTs and ratelimit them, to avoid being interrupted again during the handling of the
+    # first INT.
+    # See my commit message for more information.
+    signal.signal(signal.SIGINT, sigint_handler)
+    # handle SIGTERM in the same manner - gracefully stop gProfiler.
+    # SIGTERM is also forwarded by staticx & PyInstaller, so we need to ratelimit it.
+    signal.signal(signal.SIGTERM, sigint_handler)
+
 
 def main():
     args = parse_cmd_args()
     verify_preconditions()
     setup_logger(logging.DEBUG if args.verbose else logging.INFO, args.log_file)
     global logger  # silences flake8, who now knows that the "logger" global we refer to was initialized.
+
+    setup_signals()
 
     try:
         logger.info(f"Running gprofiler (version {__version__})...")

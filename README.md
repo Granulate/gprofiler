@@ -87,16 +87,12 @@ The following platforms are currently not supported with the gProfiler executabl
 
 **Remark:** container-based execution works and can be used in those cases.
 
-The `nsenter` program needs to be installed for Java profiling. For Debian/Ubuntu, install the `util-linux` package.
-
 ## Running as a Kubernetes DaemonSet
 See [gprofiler.yaml](deploy/k8s/gprofiler.yaml) for a basic template of a DaemonSet running gProfiler.
 Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in the appropriate location!
 
 ## Running from source
 gProfiler requires Python 3.6+ to run.
-
-As mentioned in the [running-as-an-executable](#executable-known-issues) section, `nsenter` needs to be installed.
 
 ```bash
 pip3 install -r requirements.txt
