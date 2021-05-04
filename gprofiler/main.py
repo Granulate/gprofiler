@@ -73,6 +73,11 @@ class GProfiler:
         self._client = client
         self._stop_event = Event()
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
+        # TODO: we actually need 2 types of temporary directories.
+        # 1. accessible by everyone - for profilers that run code in target processes, like async-profiler
+        # 2. accessible only by us.
+        # the latter can be root only. the former can not. we should do this separation so we don't expose
+        # files unnecessarily.
         self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=755)
         self.java_profiler = JavaProfiler(
             self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name
