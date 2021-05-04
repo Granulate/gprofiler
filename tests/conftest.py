@@ -80,7 +80,8 @@ def application_process(in_container: bool, command_line: List):
         yield None
         return
     else:
-        popen = Popen(command_line)
+        # run as non-root to catch permission errors, etc.
+        popen = Popen(["nsenter", "-S", "1000", "-G", "1000", "--"] + command_line)
         yield popen
         popen.kill()
 
