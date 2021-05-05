@@ -77,7 +77,7 @@ def test_from_container(
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
     }
     run_privileged_container(
-        docker_client, gprofiler_docker_image, ["-d", "1", "-o", inner_output_directory, "-d", "5"], volumes=volumes
+        docker_client, gprofiler_docker_image, ["-d", "1", "-o", inner_output_directory], volumes=volumes
     )
     output = glob(str(output_directory / "*.col"))
     assert len(output) == 1
