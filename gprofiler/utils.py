@@ -339,9 +339,11 @@ def grab_gprofiler_mutex() -> bool:
     """
     GPROFILER_LOCK = "\x00gprofiler_lock"
 
+    global gprofiler_mutex
+    gprofiler_mutex = None
+
     def _take_lock():
         global gprofiler_mutex
-        gprofiler_mutex = None
 
         s = socket.socket(socket.AF_UNIX)
         try:
