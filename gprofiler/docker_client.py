@@ -64,16 +64,18 @@ class DockerClient:
     def _get_container_name(self, container_id) -> Optional[str]:
         if container_id in self._container_id_to_name_cache:
             container_name = self._container_id_to_name_cache[container_id]
-            # Might happen a few times for the same container name, so we use a set to have unique values
-            self._current_container_names.add(container_name)
-            return self._container_id_to_name_cache[container_id]
+            if container_name is not None:
+                # Might happen a few times for the same container name, so we use a set to have unique values
+                self._current_container_names.add(container_name)
+            return container_name
 
         self._refresh_container_names_cache()
         if container_id not in self._container_id_to_name_cache:
             self._container_id_to_name_cache[container_id] = None
             return None
         container_name = self._container_id_to_name_cache[container_id]
-        self._current_container_names.add(container_name)
+        if container_name is not None:
+            self._current_container_names.add(container_name)
         return container_name
 
     def _refresh_container_names_cache(self):
