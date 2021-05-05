@@ -2,25 +2,29 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import ctypes
 import datetime
+import errno
+import fcntl
 import logging
 import os
+import platform
 import re
+import shutil
+import socket
+import subprocess
 import sys
 import time
-import shutil
-import subprocess
-import platform
-import ctypes
 from functools import lru_cache
-from subprocess import CompletedProcess, Popen, TimeoutExpired
-from threading import Event, Thread
-from typing import Callable, Iterator, Union, List, Optional, Tuple
 from pathlib import Path
+from subprocess import CompletedProcess, Popen, TimeoutExpired
+from tempfile import TemporaryDirectory
+from threading import Event, Thread
+from typing import Callable, Iterator, List, Optional, Tuple, Union
 
+import distro  # type: ignore
 import importlib_resources
 import psutil
-import distro  # type: ignore
 from psutil import Process
 
 from gprofiler.exceptions import (
@@ -32,7 +36,9 @@ from gprofiler.exceptions import (
 
 logger = logging.getLogger(__name__)
 
-TEMPORARY_STORAGE_PATH = "/tmp/gprofiler"
+TEMPORARY_STORAGE_PATH = "/tmp/gprofiler_tmp"
+
+gprofiler_mutex: Optional[socket.socket]
 
 
 def resource_path(relative_path: str = "") -> str:
@@ -261,6 +267,45 @@ def get_run_mode() -> str:
         return "local_python"
 
 
+def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int = 1) -> None:
+    """
+    Runs a callback in a new thread, switching to a set of the namespaces of a target process before
+    doing so.
+
+    Needed initially for swithcing mount namespaces, because we can't setns(CLONE_NEWNS) in a multithreaded
+    program (unless we unshare(CLONE_NEWNS) before). so, we start a new thread, unshare() & setns() it,
+    run our callback and then stop the thread (so we don't keep unshared threads running around).
+    For other namespace types, we use this function to execute callbacks without changing the namespaces
+    for the core threads.
+
+    By default, run stuff in init NS. You can pass 'target_pid' to run in the namespace of that process.
+    """
+
+    # make sure "mnt" is last, once we change it our /proc is gone
+    nstypes = sorted(nstypes, key=lambda ns: 1 if ns == "mnt" else 0)
+
+    def _switch_and_run():
+        libc = ctypes.CDLL("libc.so.6")
+        for nstype in nstypes:
+            if not is_same_ns(target_pid, nstype):
+                flag = {
+                    "mnt": 0x00020000,  # CLONE_NEWNS
+                    "net": 0x40000000,  # CLONE_NEWNET
+                    "pid": 0x20000000,  # CLONE_NEWPID
+                }[nstype]
+                if (
+                    libc.unshare(flag) != 0
+                    or libc.setns(os.open(f"/proc/{target_pid}/ns/{nstype}", os.O_RDONLY), flag) != 0
+                ):
+                    raise ValueError(f"Failed to unshare({nstype}) and setns({nstype})")
+
+        callback()
+
+    t = Thread(target=_switch_and_run)
+    t.start()
+    t.join()
+
+
 def log_system_info():
     uname = platform.uname()
     logger.info(f"gProfiler Python version: {sys.version}")
@@ -270,28 +315,62 @@ def log_system_info():
     logger.info(f"Total CPUs: {os.cpu_count()}")
     logger.info(f"Total RAM: {psutil.virtual_memory().total / (1 << 30):.2f} GB")
 
-    # we can't setns(CLONE_NEWNS) in a multithreaded program (unless we unshare(CLONE_NEWNS) before)
-    # so, we start a new thread, unshare() & setns() it, get our needed information and then stop this thread
-    # (so we don't keep unshared threads running around)
     results = []
 
+    # move to host mount NS for distro & ldd.
+    # now, distro will read the files on host.
     def get_distro_and_libc():
-        # move to host mount NS for distro & ldd.
-        if not is_same_ns(1, "mnt"):
-            libc = ctypes.CDLL("libc.so.6")
-
-            CLONE_NEWNS = 0x00020000
-            if libc.unshare(CLONE_NEWNS) != 0 or libc.setns(os.open("/proc/1/ns/mnt", os.O_RDONLY), CLONE_NEWNS) != 0:
-                raise ValueError("Failed to unshare() and setns()")
-
-        # now, distro will read the files on host.
         results.append(distro.linux_distribution())
         results.append(get_libc_version())
 
-    t = Thread(target=get_distro_and_libc)
-    t.start()
-    t.join()
+    run_in_ns(["mnt"], get_distro_and_libc)
     assert len(results) == 2, f"only {len(results)} results, expected 2"
 
     logger.info(f"Linux distribution: {results[0]}")
     logger.info(f"libc version: {results[1]}")
+
+
+def grab_gprofiler_mutex() -> bool:
+    """
+    Implements a basic, system-wide mutex for gProfiler, to make sure we don't run 2 instances simultaneously.
+    The mutex is implemented by a Unix domain socket bound to an address in the abstract namespace of the init
+    network namespace. This provides automatic cleanup when the process goes down, and does not make any assumption
+    on filesystem structure (as happens with file-based locks).
+    In order to see who's holding the lock now, you can run "sudo netstat -xp | grep gprofiler".
+    """
+    GPROFILER_LOCK = "\x00gprofiler_lock"
+
+    def _take_lock():
+        global gprofiler_mutex
+        gprofiler_mutex = None
+
+        s = socket.socket(socket.AF_UNIX)
+        try:
+            s.bind(GPROFILER_LOCK)
+        except OSError as e:
+            if e.errno != errno.EADDRINUSE:
+                raise
+        else:
+            # don't let child programs we execute inherit it.
+            fcntl.fcntl(s, fcntl.F_SETFD, fcntl.fcntl(s, fcntl.F_GETFD) | fcntl.FD_CLOEXEC)
+
+            # hold the reference so lock remains taken
+            gprofiler_mutex = s
+
+    run_in_ns(["net"], _take_lock)
+
+    return gprofiler_mutex is not None
+
+
+class TemporaryDirectoryWithMode(TemporaryDirectory):
+    def __init__(self, *args, mode: int = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if mode is not None:
+            os.chmod(self.name, mode)
+
+
+def reset_umask() -> None:
+    """
+    Resets our umask back to a sane value.
+    """
+    os.umask(0o022)

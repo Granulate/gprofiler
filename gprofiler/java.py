@@ -14,20 +14,20 @@ from typing import Mapping, Optional
 import psutil
 from psutil import Process
 
-from .merge import parse_one_collapsed
 from .exceptions import StopEventSetException
-from .utils import (
-    run_process,
-    pgrep_exe,
-    resource_path,
-    resolve_proc_root_links,
-    remove_prefix,
-    touch_path,
-    is_same_ns,
-    assert_program_installed,
-    TEMPORARY_STORAGE_PATH,
-)
+from .merge import parse_one_collapsed
 from .profiler_base import ProfilerBase
+from .utils import (
+    TEMPORARY_STORAGE_PATH,
+    is_same_ns,
+    pgrep_exe,
+    remove_prefix,
+    resolve_proc_root_links,
+    resource_path,
+    run_in_ns,
+    run_process,
+    touch_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,31 +92,40 @@ class JavaProfiler(ProfilerBase):
                 logger.warning(f"async-profiler log: {Path(log_path_host).read_text()}")
             raise
 
+    @staticmethod
+    def _get_java_version(process: Process) -> str:
+        # TODO avoid the readlink here - this will let us operate with "(deleted)" files,
+        # but it requires to get the innermost PID (because the /proc in the target mount NS
+        # is probably mounted with the innermost PID NS...)
+        java_path = os.readlink(f"/proc/{process.pid}/exe")
+
+        java_version_cmd_output = None
+
+        def _run_java_version() -> None:
+            nonlocal java_version_cmd_output
+
+            java_version_cmd_output = run_process(
+                [
+                    java_path,
+                    "-version",
+                ]
+            )
+
+        # doesn't work without changing PID NS as well (I'm getting ENOENT for libjli.so)
+        run_in_ns(["pid", "mnt"], _run_java_version, process.pid)
+
+        if java_version_cmd_output is None:
+            raise Exception("Failed to get java version")
+
+        # Version is printed to stderr
+        return java_version_cmd_output.stderr.decode()
+
     def _profile_process(self, process: Process) -> Optional[Mapping[str, int]]:
         logger.info(f"Profiling java process {process.pid}...")
 
-        assert_program_installed("nsenter")
-
         # Get Java version
         if os.path.basename(process.exe()) not in self.SKIP_VERSION_CHECK_BINARIES:
-            try:
-                java_version_cmd_output = run_process(
-                    [
-                        "nsenter",
-                        "-t",
-                        str(process.pid),
-                        "--mount",
-                        "--pid",
-                        "--",
-                        os.readlink(f"/proc/{process.pid}/exe"),
-                        "-version",
-                    ]
-                )
-            except CalledProcessError as e:
-                raise Exception("Failed to get java version: {}".format(e))
-
-            # Version is printed to stderr
-            if not self._is_jdk_version_supported(java_version_cmd_output.stderr.decode()):
+            if not self._is_jdk_version_supported(self._get_java_version(process)):
                 logger.warning(f"Process {process.pid} running unsupported Java version, skipping...")
                 return None
 
@@ -133,7 +142,9 @@ class JavaProfiler(ProfilerBase):
         storage_dir_host = resolve_proc_root_links(process_root, os.path.join(tmp_dir, str(process.pid)))
 
         try:
-            os.makedirs(storage_dir_host)
+            # make it readable & exectuable by all.
+            # see comment on TemporaryDirectoryWithMode in GProfiler.__init__.
+            os.makedirs(storage_dir_host, 0o755)
             return self._profile_process_with_dir(process, storage_dir_host, process_root)
         finally:
             # ignore_errors because we are deleting paths via /proc/pid/root - and those processes

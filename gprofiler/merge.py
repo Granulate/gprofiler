@@ -4,7 +4,7 @@
 #
 import logging
 import re
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from typing import Iterable, Mapping, MutableMapping
 
 logger = logging.getLogger(__name__)

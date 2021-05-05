@@ -8,26 +8,35 @@ import logging
 import logging.config
 import logging.handlers
 import os
+import signal
 import sys
 import time
 from logging import Logger
 from pathlib import Path
 from socket import gethostname
-from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Dict
+from typing import Dict, Optional
 
 import configargparse
 from requests import RequestException, Timeout
 
-from . import __version__
-from . import merge
-from .client import APIClient, APIError, GRANULATE_SERVER_HOST, DEFAULT_UPLOAD_TIMEOUT
+from . import __version__, merge
+from .client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
 from .java import JavaProfiler
 from .perf import SystemProfiler
-from .python import get_python_profiler
-from .utils import is_root, run_process, get_iso8061_format_time, resource_path, log_system_info, TEMPORARY_STORAGE_PATH
 from .profiler_base import NoopProfiler
+from .python import get_python_profiler
+from .utils import (
+    TEMPORARY_STORAGE_PATH,
+    TemporaryDirectoryWithMode,
+    get_iso8061_format_time,
+    grab_gprofiler_mutex,
+    is_root,
+    log_system_info,
+    reset_umask,
+    resource_path,
+    run_process,
+)
 
 logger: Logger
 
@@ -39,6 +48,21 @@ DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 10
 # by default - these match
 DEFAULT_CONTINUOUS_MODE_INTERVAL = DEFAULT_PROFILING_DURATION
+# 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
+SIGINT_RATELIMIT = 0.5
+
+
+last_signal_ts: Optional[float] = None
+
+
+def sigint_handler(sig, frame):
+    global last_signal_ts
+    ts = time.monotonic()
+    # no need for atomicity here: we can't get another SIGINT before this one returns.
+    # https://www.gnu.org/software/libc/manual/html_node/Signals-in-Handler.html#Signals-in-Handler
+    if last_signal_ts is None or ts > last_signal_ts + SIGINT_RATELIMIT:
+        last_signal_ts = ts
+        raise KeyboardInterrupt
 
 
 class GProfiler:
@@ -59,7 +83,12 @@ class GProfiler:
         self._client = client
         self._stop_event = Event()
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
-        self._temp_storage_dir = TemporaryDirectory(dir=TEMPORARY_STORAGE_PATH)
+        # TODO: we actually need 2 types of temporary directories.
+        # 1. accessible by everyone - for profilers that run code in target processes, like async-profiler
+        # 2. accessible only by us.
+        # the latter can be root only. the former can not. we should do this separation so we don't expose
+        # files unnecessarily.
+        self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
         self.java_profiler = (
             JavaProfiler(self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name)
             if self._runtimes["java"]
@@ -328,12 +357,30 @@ def verify_preconditions():
         print("Must run gprofiler as root, please re-run.", file=sys.stderr)
         sys.exit(1)
 
+    if not grab_gprofiler_mutex():
+        print("Could not acquire gProfiler's lock. Is it already running?", file=sys.stderr)
+        sys.exit(1)
+
+
+def setup_signals() -> None:
+    # When we run under staticx & PyInstaller, both of them forward (some of the) signals to gProfiler.
+    # We catch SIGINTs and ratelimit them, to avoid being interrupted again during the handling of the
+    # first INT.
+    # See my commit message for more information.
+    signal.signal(signal.SIGINT, sigint_handler)
+    # handle SIGTERM in the same manner - gracefully stop gProfiler.
+    # SIGTERM is also forwarded by staticx & PyInstaller, so we need to ratelimit it.
+    signal.signal(signal.SIGTERM, sigint_handler)
+
 
 def main():
     args = parse_cmd_args()
     verify_preconditions()
     setup_logger(logging.DEBUG if args.verbose else logging.INFO, args.log_file)
     global logger  # silences flake8, who now knows that the "logger" global we refer to was initialized.
+
+    setup_signals()
+    reset_umask()
 
     try:
         logger.info(f"Running gprofiler (version {__version__})...")

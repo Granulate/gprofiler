@@ -7,7 +7,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y git build-essential iperf 
 
 WORKDIR /bcc
 
-RUN git clone --depth 1 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 119d71bf9681182759eb76d40660c0ec19f3fc42
+RUN git clone --depth 1 -b v1.0.1 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 92b61ade89f554859950695b067288f60cb1f3e5
 RUN mkdir bcc/build && cd bcc/build && \
   cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root .. && \
   make -C examples/cpp/pyperf -j -l VERBOSE=1 install
@@ -38,7 +38,5 @@ RUN python3 setup.py install
 
 # lets gProfiler know it is running in a container
 ENV GPROFILER_IN_CONTAINER=1
-
-STOPSIGNAL SIGINT
 
 ENTRYPOINT [ "python3", "-m", "gprofiler" ]
