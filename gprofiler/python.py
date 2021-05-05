@@ -3,20 +3,20 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import concurrent.futures
+import glob
 import logging
 import os
 import signal
-import glob
 from pathlib import Path
+from subprocess import Popen
 from threading import Event
 from typing import Callable, List, Mapping, Optional, Union
-from subprocess import Popen
 
 from psutil import Process
 
-from .merge import parse_one_collapsed, parse_many_collapsed
-from .exceptions import StopEventSetException, ProcessStoppedException, CalledProcessError
-from .utils import pgrep_maps, start_process, poll_process, run_process, resource_path, wait_event
+from .exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
+from .merge import parse_many_collapsed, parse_one_collapsed
+from .utils import pgrep_maps, poll_process, resource_path, run_process, start_process, wait_event
 
 logger = logging.getLogger(__name__)
 
