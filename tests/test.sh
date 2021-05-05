@@ -4,8 +4,6 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 set -e
-umask
-exit 1
 
 sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io

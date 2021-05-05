@@ -59,4 +59,4 @@ jobs:
         ./scripts/build.sh
 
     - name: Run tests
-      run: sudo env "PATH=$PATH" sh -c umask
+      run: sudo env "PATH=$PATH" python -m pytest -v tests/ --ignore=tests/test_executable.py
