@@ -101,8 +101,12 @@ def parse_perf_script(script: str):
             logger.exception(f"Error processing sample: {sample}")
 
 
-def merge_perfs(perf_all: Iterable[Mapping[str, str]], process_perfs: Mapping[int, Mapping[str, int]],
-                docker_client: DockerClient, should_determine_container_names: bool) -> str:
+def merge_perfs(
+    perf_all: Iterable[Mapping[str, str]],
+    process_perfs: Mapping[int, Mapping[str, int]],
+    docker_client: DockerClient,
+    should_determine_container_names: bool,
+) -> str:
     per_process_samples: MutableMapping[int, int] = Counter()
     new_samples: MutableMapping[str, int] = Counter()
     process_names = {}
@@ -134,7 +138,7 @@ def merge_perfs(perf_all: Iterable[Mapping[str, str]], process_perfs: Mapping[in
     profile_metadata = {
         'containers': container_names,
         'hostname': socket.gethostname(),
-        'container_names_disabled': not should_determine_container_names
+        'container_names_disabled': not should_determine_container_names,
     }
     output = [f"#{json.dumps(profile_metadata)}"]
     output += [f"{stack} {count}" for stack, count in new_samples.items()]

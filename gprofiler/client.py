@@ -53,8 +53,14 @@ class APIClient:
         return "{}/{}/{}".format(self._host.rstrip("/"), self.BASE_PATH, version)
 
     def _send_request(
-            self, method: str, path: str, data: Dict, files: Dict = None, timeout: float = DEFAULT_REQUEST_TIMEOUT,
-            api_version: str = None) -> Dict:
+        self,
+        method: str,
+        path: str,
+        data: Dict,
+        files: Dict = None,
+        timeout: float = DEFAULT_REQUEST_TIMEOUT,
+        api_version: str = None,
+    ) -> Dict:
         opts: dict = {"headers": {}, "files": files, "timeout": timeout}
 
         if method.upper() == "GET":
@@ -108,5 +114,5 @@ class APIClient:
                 "profile": profile,
             },
             timeout=self._upload_timeout,
-            api_version="v2"
+            api_version="v2",
         )

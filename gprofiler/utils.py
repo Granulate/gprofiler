@@ -102,7 +102,7 @@ def poll_process(process, timeout: float, stop_event: Event):
 
 
 def run_process(
-        cmd: Union[str, List[str]], stop_event: Event = None, suppress_log: bool = False, **kwargs
+    cmd: Union[str, List[str]], stop_event: Event = None, suppress_log: bool = False, **kwargs
 ) -> CompletedProcess:
     with start_process(cmd, **kwargs) as process:
         try:
@@ -151,7 +151,7 @@ def pgrep_maps(match: str) -> List[Process]:
     processes: List[Process] = []
     for line in result.stdout.splitlines():
         assert line.startswith(b"/proc/") and line.endswith(b"/maps"), f"unexpected 'grep' line: {line!r}"
-        pid = int(line[len(b"/proc/"): -len(b"/maps")])
+        pid = int(line[len(b"/proc/") : -len(b"/maps")])
         processes.append(Process(pid))
 
     return processes
@@ -193,7 +193,7 @@ def resolve_proc_root_links(proc_root: str, ns_path: str) -> str:
 def remove_prefix(s: str, prefix: str) -> str:
     # like str.removeprefix of Python 3.9, but this also ensures the prefix exists.
     assert s.startswith(prefix)
-    return s[len(prefix):]
+    return s[len(prefix) :]
 
 
 def touch_path(path: str, mode: int) -> None:
