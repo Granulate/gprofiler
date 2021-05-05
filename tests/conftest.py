@@ -5,7 +5,7 @@
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from subprocess import Popen, run
+from subprocess import Popen, run, TimeoutExpired
 from time import sleep
 from typing import Callable, List, Iterable, Mapping, Optional
 
@@ -86,6 +86,14 @@ def application_process(in_container: bool, command_line: List):
             os.setuid(1000)
 
         popen = Popen(command_line, preexec_fn=lower_privs)
+        try:
+            # wait 2 seconds to ensure it starts
+            popen.wait(2)
+        except TimeoutExpired:
+            pass
+        else:
+            raise Exception(f"Command {command_line} exited unexpectedly with {popen.returncode}")
+
         yield popen
         popen.kill()
 
