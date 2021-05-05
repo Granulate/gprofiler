@@ -17,6 +17,7 @@ from docker.models.images import Image
 from pytest import fixture  # type: ignore
 
 from tests import CONTAINERS_DIRECTORY, PARENT
+from tests.util import chmod_path_parts
 
 
 @fixture
@@ -46,9 +47,7 @@ def java_command_line(class_path: Path) -> List:
     class_path.mkdir()
     # make all directories readable & executable by all.
     # Java fails with permissions errors: "Error: Could not find or load main class Fibonacci"
-    for i in range(1, len(class_path.parts)):
-        path = os.path.join(*class_path.parts[:i])
-        os.chmod(path, os.stat(path).st_mode | stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
+    chmod_path_parts(class_path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
     run(["javac", CONTAINERS_DIRECTORY / "java/Fibonacci.java", "-d", class_path])
     return ["java", "-cp", class_path, "Fibonacci"]
 
