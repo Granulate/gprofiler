@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired, run
 from time import sleep
-from typing import Callable, Iterable, List, Mapping, Optional, Tuple
+from typing import Callable, Iterable, List, Mapping, Optional
 
 import docker
 from docker import DockerClient
@@ -79,23 +79,15 @@ def gprofiler_exe(request, tmp_path: Path) -> Path:
 
 
 @fixture
-def application_uid_gid() -> Tuple[int, int]:
-    """
-    Allows controlling which UID & GID the application will use.
-    """
-    return 0, 0
-
-
-@fixture
-def application_process(in_container: bool, command_line: List, application_uid_gid: Tuple[int, int]):
+def application_process(in_container: bool, command_line: List):
     if in_container:
         yield None
         return
     else:
         # run as non-root to catch permission errors, etc.
         def lower_privs():
-            os.setgid(application_uid_gid[1])
-            os.setuid(application_uid_gid[0])
+            os.setgid(1000)
+            os.setuid(1000)
 
         popen = Popen(command_line, preexec_fn=lower_privs)
         try:
