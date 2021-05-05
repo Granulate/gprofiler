@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
+import stat
 from contextlib import contextmanager
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired, run
@@ -46,7 +47,8 @@ def java_command_line(class_path: Path) -> List:
     # make all directories readable & executable by all.
     # Java fails with permissions errors: "Error: Could not find or load main class Fibonacci"
     for i in range(1, len(class_path.parts)):
-        os.chmod(os.path.join(*class_path.parts[:i]), 0o755)
+        path = os.path.join(*class_path.parts[:i])
+        os.chmod(path, os.stat(path).st_mode | stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
     run(["javac", CONTAINERS_DIRECTORY / "java/Fibonacci.java", "-d", class_path])
     return ["java", "-cp", class_path, "Fibonacci"]
 
