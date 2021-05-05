@@ -113,7 +113,9 @@ def merge_perfs(perf_all: Iterable[Mapping[str, str]], process_perfs: Mapping[in
                 per_process_samples[pid] += 1
                 process_names[pid] = parsed["comm"]
             elif parsed["stack"] is not None:
-                stack_line = f'{docker_client.get_container_name(pid)};{collapse_stack(parsed["comm"], parsed["stack"])}'
+                container_name = docker_client.get_container_name(pid)
+                collapsed_stack = collapse_stack(parsed["comm"], parsed["stack"])
+                stack_line = f'{container_name};{collapsed_stack}'
                 new_samples[stack_line] += 1
         except Exception:
             logger.exception(f"Error processing sample: {parsed}")
