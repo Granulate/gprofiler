@@ -6,7 +6,7 @@ import json
 import logging
 import re
 import socket
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from typing import Iterable, Mapping, MutableMapping
 
 from gprofiler.docker_client import DockerClient

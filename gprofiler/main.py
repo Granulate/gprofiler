@@ -21,21 +21,20 @@ from typing import Dict, Optional
 import configargparse
 from requests import RequestException, Timeout
 
-from gprofiler import __version__
-from gprofiler import merge
-from gprofiler.client import APIClient, APIError, GRANULATE_SERVER_HOST, DEFAULT_UPLOAD_TIMEOUT
+from gprofiler import __version__, merge
+from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
 from gprofiler.docker_client import DockerClient
 from gprofiler.java import JavaProfiler
 from gprofiler.perf import SystemProfiler
 from gprofiler.python import get_python_profiler
 from gprofiler.utils import (
-    is_root,
-    run_process,
-    get_iso8061_format_time,
-    resource_path,
-    log_system_info,
-    grab_gprofiler_mutex,
     TEMPORARY_STORAGE_PATH,
+    get_iso8061_format_time,
+    grab_gprofiler_mutex,
+    is_root,
+    log_system_info,
+    resource_path,
+    run_process,
 )
 
 logger: Logger

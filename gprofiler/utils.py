@@ -19,7 +19,7 @@ from functools import lru_cache
 from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from threading import Event, Thread
-from typing import Callable, Iterator, Union, List, Optional, Tuple
+from typing import Callable, Iterator, List, Optional, Tuple, Union
 
 import distro  # type: ignore
 import importlib_resources

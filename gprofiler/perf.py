@@ -7,12 +7,12 @@ import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import Event
-from typing import Mapping, Iterable
+from typing import Iterable, Mapping
 
 import psutil
 
 from gprofiler.merge import parse_perf_script
-from gprofiler.utils import run_process, resource_path, TEMPORARY_STORAGE_PATH
+from gprofiler.utils import TEMPORARY_STORAGE_PATH, resource_path, run_process
 
 logger = logging.getLogger(__name__)
 

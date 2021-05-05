@@ -17,15 +17,15 @@ from psutil import Process
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.utils import (
-    run_process,
-    pgrep_exe,
-    resource_path,
-    resolve_proc_root_links,
-    remove_prefix,
-    touch_path,
-    is_same_ns,
-    run_in_ns,
     TEMPORARY_STORAGE_PATH,
+    is_same_ns,
+    pgrep_exe,
+    remove_prefix,
+    resolve_proc_root_links,
+    resource_path,
+    run_in_ns,
+    run_process,
+    touch_path,
 )
 
 logger = logging.getLogger(__name__)

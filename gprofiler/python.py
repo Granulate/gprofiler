@@ -8,15 +8,15 @@ import logging
 import os
 import signal
 from pathlib import Path
+from subprocess import Popen
 from threading import Event
 from typing import Callable, List, Mapping, Optional, Union
-from subprocess import Popen
 
 from psutil import Process
 
-from gprofiler.exceptions import StopEventSetException, ProcessStoppedException, CalledProcessError
-from gprofiler.merge import parse_one_collapsed, parse_many_collapsed
-from gprofiler.utils import pgrep_maps, start_process, poll_process, run_process, resource_path, wait_event
+from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
+from gprofiler.merge import parse_many_collapsed, parse_one_collapsed
+from gprofiler.utils import pgrep_maps, poll_process, resource_path, run_process, start_process, wait_event
 
 logger = logging.getLogger(__name__)
 
