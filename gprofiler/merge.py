@@ -102,7 +102,7 @@ def parse_perf_script(script: str):
 
 
 def merge_perfs(perf_all: Iterable[Mapping[str, str]], process_perfs: Mapping[int, Mapping[str, int]],
-                docker_client: DockerClient) -> str:
+                docker_client: DockerClient, should_determine_container_names: bool) -> str:
     per_process_samples: MutableMapping[int, int] = Counter()
     new_samples: MutableMapping[str, int] = Counter()
     process_names = {}
@@ -113,7 +113,7 @@ def merge_perfs(perf_all: Iterable[Mapping[str, str]], process_perfs: Mapping[in
                 per_process_samples[pid] += 1
                 process_names[pid] = parsed["comm"]
             elif parsed["stack"] is not None:
-                container_name = docker_client.get_container_name(pid)
+                container_name = _get_container_name(pid, docker_client, should_determine_container_names)
                 collapsed_stack = collapse_stack(parsed["comm"], parsed["stack"])
                 stack_line = f'{container_name};{collapsed_stack}'
                 new_samples[stack_line] += 1
@@ -126,10 +126,20 @@ def merge_perfs(perf_all: Iterable[Mapping[str, str]], process_perfs: Mapping[in
         if process_perf_count > 0:
             ratio = perf_all_count / process_perf_count
             for stack, count in process_stacks.items():
-                stack_line = ";".join([docker_client.get_container_name(pid), process_names[pid], stack])
+                container_name = _get_container_name(pid, docker_client, should_determine_container_names)
+                stack_line = ";".join([container_name, process_names[pid], stack])
                 new_samples[stack_line] += round(count * ratio)
     container_names = docker_client.container_names
     docker_client.reset_cache()
-    output = [f"#{json.dumps({'containers': container_names, 'hostname': socket.gethostname()})}"]
+    profile_metadata = {
+        'containers': container_names,
+        'hostname': socket.gethostname(),
+        'container_names_disabled': not should_determine_container_names
+    }
+    output = [f"#{json.dumps(profile_metadata)}"]
     output += [f"{stack} {count}" for stack, count in new_samples.items()]
     return "\n".join(output)
+
+
+def _get_container_name(pid: int, docker_client: DockerClient, should_determine_container_names: bool):
+    return docker_client.get_container_name(pid) if should_determine_container_names else ""

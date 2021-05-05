@@ -66,7 +66,7 @@ def sigint_handler(sig, frame):
 
 
 class GProfiler:
-    def __init__(self, frequency: int, duration: int, output_dir: str, flamegraph: bool, client: APIClient):
+    def __init__(self, frequency: int, duration: int, output_dir: str, flamegraph: bool, client: APIClient, should_determine_container_names=True):
         self._frequency = frequency
         self._duration = duration
         self._output_dir = output_dir
@@ -83,6 +83,7 @@ class GProfiler:
         )
         self.initialize_python_profiler()
         self._docker_client = DockerClient()
+        self._should_determine_container_names = should_determine_container_names
 
     def __enter__(self):
         self.start()
@@ -182,7 +183,8 @@ class GProfiler:
                 logger.exception(f"{future.name} profiling failed")
 
         local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
-        merged_result = merge.merge_perfs(system_future.result(), process_perfs, self._docker_client)
+        merged_result = merge.merge_perfs(system_future.result(), process_perfs, self._docker_client,
+                                          self._should_determine_container_names)
 
         if self._output_dir:
             self._generate_output_files(merged_result, local_start_time, local_end_time, self._flamegraph)
@@ -294,6 +296,9 @@ def parse_cmd_args():
 
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
     parser.add_argument("--log-file", action="store", type=str, dest="log_file", default=DEFAULT_LOG_FILE)
+    parser.add_argument("--disable-container-names", action="store_true", dest="disable_container_names",
+                        default=False, help="The gProfiler won't gather the container names of processes that run in "
+                                            "containers")
 
     continuous_command_parser = parser.add_argument_group("continuous")
     continuous_command_parser.add_argument(
@@ -388,7 +393,8 @@ def main():
             logger.error(f"Failed to connect to server: {e}")
             return
 
-        gprofiler = GProfiler(args.frequency, args.duration, args.output_dir, args.flamegraph, client)
+        gprofiler = GProfiler(args.frequency, args.duration, args.output_dir, args.flamegraph, client,
+                              not args.disable_container_names)
         logger.info("gProfiler initialized and ready to start profiling")
 
         if args.continuous:
