@@ -7,8 +7,8 @@ import datetime
 import logging
 import logging.config
 import logging.handlers
-import signal
 import os
+import signal
 import sys
 import time
 from logging import Logger
@@ -20,22 +20,21 @@ from typing import Dict, Optional
 import configargparse
 from requests import RequestException, Timeout
 
-from . import __version__
-from . import merge
-from .client import APIClient, APIError, GRANULATE_SERVER_HOST, DEFAULT_UPLOAD_TIMEOUT
+from . import __version__, merge
+from .client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
 from .java import JavaProfiler
 from .perf import SystemProfiler
 from .python import get_python_profiler
 from .utils import (
-    is_root,
-    reset_umask,
-    run_process,
-    get_iso8061_format_time,
-    resource_path,
-    log_system_info,
-    grab_gprofiler_mutex,
-    TemporaryDirectoryWithMode,
     TEMPORARY_STORAGE_PATH,
+    TemporaryDirectoryWithMode,
+    get_iso8061_format_time,
+    grab_gprofiler_mutex,
+    is_root,
+    log_system_info,
+    reset_umask,
+    resource_path,
+    run_process,
 )
 
 logger: Logger

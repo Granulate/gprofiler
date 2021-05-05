@@ -5,9 +5,9 @@
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from subprocess import Popen, run, TimeoutExpired
+from subprocess import Popen, TimeoutExpired, run
 from time import sleep
-from typing import Callable, List, Iterable, Mapping, Optional
+from typing import Callable, Iterable, List, Mapping, Optional
 
 import docker
 from docker import DockerClient
@@ -15,7 +15,7 @@ from docker.models.containers import Container
 from docker.models.images import Image
 from pytest import fixture  # type: ignore
 
-from tests import PARENT, CONTAINERS_DIRECTORY
+from tests import CONTAINERS_DIRECTORY, PARENT
 
 
 @fixture
