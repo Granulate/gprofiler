@@ -6,7 +6,7 @@ import os
 from glob import glob
 from pathlib import Path
 from subprocess import Popen
-from typing import Callable, Mapping
+from typing import Callable, Mapping, Tuple
 
 import pytest  # type: ignore
 from docker import DockerClient
@@ -15,13 +15,13 @@ from docker.models.images import Image
 from gprofiler.merge import parse_one_collapsed
 from tests.util import run_privileged_container
 
-# TODO: fix tests to run on non-root.
-# @pytest.fixture
-# def application_uid_gid() -> Tuple[int, int]:
-#     """
-#     Override application_uid_gid() from conftest. Test Java and Python run as unprivileged.
-#     """
-#     return 1000, 1000
+
+@pytest.fixture
+def application_uid_gid() -> Tuple[int, int]:
+    """
+    Override application_uid_gid() from conftest. Test Java and Python run as unprivileged.
+    """
+    return 1000, 1000
 
 
 @pytest.mark.parametrize("runtime", ["java", "python"])
