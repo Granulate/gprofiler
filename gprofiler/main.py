@@ -66,7 +66,8 @@ def sigint_handler(sig, frame):
 
 
 class GProfiler:
-    def __init__(self, frequency: int, duration: int, output_dir: str, flamegraph: bool, client: APIClient, should_determine_container_names=True):
+    def __init__(self, frequency: int, duration: int, output_dir: str, flamegraph: bool, client: APIClient,
+                 should_determine_container_names=True):
         self._frequency = frequency
         self._duration = duration
         self._output_dir = output_dir
