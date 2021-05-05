@@ -3,8 +3,8 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import re
-from typing import List
 from pathlib import Path
+from typing import List
 
 import setuptools
 

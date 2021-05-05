@@ -2,28 +2,28 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import ctypes
 import datetime
+import errno
+import fcntl
 import logging
 import os
+import platform
 import re
+import shutil
+import socket
+import subprocess
 import sys
 import time
-import errno
-import socket
-import fcntl
-import shutil
-import subprocess
-import platform
-import ctypes
 from functools import lru_cache
+from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from threading import Event, Thread
-from typing import Callable, Iterator, Union, List, Optional, Tuple
-from pathlib import Path
+from typing import Callable, Iterator, List, Optional, Tuple, Union
 
+import distro  # type: ignore
 import importlib_resources
 import psutil
-import distro  # type: ignore
 from psutil import Process
 
 from gprofiler.exceptions import (

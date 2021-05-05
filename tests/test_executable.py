@@ -3,10 +3,10 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
-from typing import Callable, Mapping
 from glob import glob
 from pathlib import Path
 from subprocess import Popen
+from typing import Callable, Mapping
 
 import pytest  # type: ignore
 from docker import DockerClient

@@ -2,21 +2,21 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import pytest  # type: ignore
 import os
 from glob import glob
 from pathlib import Path
 from threading import Event
-from typing import Optional, Callable, Mapping
+from typing import Callable, Mapping, Optional
 
+import pytest  # type: ignore
 from docker import DockerClient
 from docker.models.images import Image
 
-from gprofiler.merge import parse_one_collapsed
 from gprofiler.java import JavaProfiler
+from gprofiler.merge import parse_one_collapsed
 from gprofiler.python import PySpyProfiler, PythonEbpfProfiler
 from gprofiler.utils import resource_path
-from tests.util import run_privileged_container, copy_file_from_image
+from tests.util import copy_file_from_image, run_privileged_container
 
 
 @pytest.mark.parametrize("runtime", ["java"])
