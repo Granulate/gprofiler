@@ -40,7 +40,7 @@ def test_from_executable(
         run_privileged_container(docker_client, exec_container_image, command=command, volumes=volumes)
     else:
         os.mkdir(output_directory)
-        popen = Popen(["sudo", gprofiler_exe, "--output-dir", output_directory])
+        popen = Popen(["sudo", gprofiler_exe, "--output-dir", output_directory, "-d", "5"])
         popen.wait()
 
     output = glob(str(output_directory / "*.col"))
