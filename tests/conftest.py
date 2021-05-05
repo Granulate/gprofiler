@@ -3,9 +3,10 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
+import stat
 from contextlib import contextmanager
 from pathlib import Path
-from subprocess import Popen, run
+from subprocess import Popen, TimeoutExpired, run
 from time import sleep
 from typing import Callable, Iterable, List, Mapping, Optional
 
@@ -16,6 +17,7 @@ from docker.models.images import Image
 from pytest import fixture  # type: ignore
 
 from tests import CONTAINERS_DIRECTORY, PARENT
+from tests.utils import chmod_path_parts
 
 
 @fixture
@@ -43,6 +45,9 @@ def in_container(request) -> bool:
 
 def java_command_line(class_path: Path) -> List:
     class_path.mkdir()
+    # make all directories readable & executable by all.
+    # Java fails with permissions errors: "Error: Could not find or load main class Fibonacci"
+    chmod_path_parts(class_path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
     run(["javac", CONTAINERS_DIRECTORY / "java/Fibonacci.java", "-d", class_path])
     return ["java", "-cp", class_path, "Fibonacci"]
 
@@ -80,7 +85,20 @@ def application_process(in_container: bool, command_line: List):
         yield None
         return
     else:
-        popen = Popen(command_line)
+        # run as non-root to catch permission errors, etc.
+        def lower_privs():
+            os.setgid(1000)
+            os.setuid(1000)
+
+        popen = Popen(command_line, preexec_fn=lower_privs)
+        try:
+            # wait 2 seconds to ensure it starts
+            popen.wait(2)
+        except TimeoutExpired:
+            pass
+        else:
+            raise Exception(f"Command {command_line} exited unexpectedly with {popen.returncode}")
+
         yield popen
         popen.kill()
 

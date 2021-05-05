@@ -1,4 +1,6 @@
+import os
 import subprocess
+from pathlib import Path
 from typing import Dict, List
 
 from docker import DockerClient
@@ -37,3 +39,12 @@ def copy_file_from_image(image: Image, container_path: str, host_path: str) -> N
         shell=True,
         check=True,
     )
+
+
+def chmod_path_parts(path: Path, add_mode: int) -> None:
+    """
+    Adds 'add_mode' to all parts in 'path'.
+    """
+    for i in range(1, len(path.parts)):
+        subpath = os.path.join(*path.parts[:i])
+        os.chmod(subpath, os.stat(subpath).st_mode | add_mode)
