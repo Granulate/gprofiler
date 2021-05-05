@@ -7,11 +7,12 @@ import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import Event
-import psutil
-from typing import Mapping, Iterable
+from typing import Iterable, Mapping
 
-from .utils import run_process, resource_path, TEMPORARY_STORAGE_PATH
+import psutil
+
 from .merge import parse_perf_script
+from .utils import TEMPORARY_STORAGE_PATH, resource_path, run_process
 
 logger = logging.getLogger(__name__)
 

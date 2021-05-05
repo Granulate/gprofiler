@@ -1,5 +1,5 @@
 import subprocess
-from typing import List, Dict
+from typing import Dict, List
 
 from docker import DockerClient
 from docker.models.images import Image
