@@ -106,7 +106,8 @@ class GProfiler:
         last_output = os.path.join(self._output_dir, last_output_name)
         prev_output = Path(last_output).resolve()
         atomically_symlink(os.path.basename(output_path), last_output)
-        if self._rotating_output:
+        # delete if rotating & there was a link target before.
+        if self._rotating_output and str(prev_output) != last_output:
             # can't use missing_ok=True, available only from 3.8 :/
             try:
                 prev_output.unlink()
