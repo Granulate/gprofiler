@@ -13,7 +13,7 @@ from docker import DockerClient
 from docker.models.images import Image
 
 from gprofiler.merge import parse_one_collapsed
-from tests.util import run_privileged_container
+from tests.utils import run_privileged_container
 
 
 @pytest.mark.parametrize("runtime", ["java", "python"])

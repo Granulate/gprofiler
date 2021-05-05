@@ -17,7 +17,7 @@ from docker.models.images import Image
 from pytest import fixture  # type: ignore
 
 from tests import CONTAINERS_DIRECTORY, PARENT
-from tests.util import chmod_path_parts
+from tests.utils import chmod_path_parts
 
 
 @fixture
