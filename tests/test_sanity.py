@@ -15,7 +15,7 @@ from gprofiler.java import JavaProfiler
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.python import PySpyProfiler, PythonEbpfProfiler
 from gprofiler.utils import resource_path
-from tests.util import copy_file_from_image, run_privileged_container
+from tests.utils import copy_file_from_image, run_privileged_container
 
 
 @pytest.mark.parametrize("runtime", ["java"])

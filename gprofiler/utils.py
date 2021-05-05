@@ -18,6 +18,7 @@ import time
 from functools import lru_cache
 from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
+from tempfile import TemporaryDirectory
 from threading import Event, Thread
 from typing import Callable, Iterator, List, Optional, Tuple, Union
 
@@ -370,3 +371,17 @@ def atomically_symlink(target: str, link_node: str) -> None:
     tmp_path = link_node + ".tmp"
     os.symlink(target, tmp_path)
     os.rename(tmp_path, link_node)
+
+
+class TemporaryDirectoryWithMode(TemporaryDirectory):
+    def __init__(self, *args, mode: int = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if mode is not None:
+            os.chmod(self.name, mode)
+
+
+def reset_umask() -> None:
+    """
+    Resets our umask back to a sane value.
+    """
+    os.umask(0o022)
