@@ -43,10 +43,6 @@ def in_container(request) -> bool:
 
 def java_command_line(class_path: Path) -> List:
     class_path.mkdir()
-    # make all directories readable & executable by all.
-    # Java fails with permissions errors: "Error: Could not find or load main class Fibonacci"
-    for i in range(1, len(class_path.parts)):
-        os.chmod(os.path.join(*class_path.parts[:i]), 0o755)
     run(["javac", CONTAINERS_DIRECTORY / "java/Fibonacci.java", "-d", class_path])
     return ["java", "-cp", class_path, "Fibonacci"]
 
