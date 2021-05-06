@@ -9,13 +9,14 @@ import shutil
 from pathlib import Path
 from subprocess import CalledProcessError
 from threading import Event
-from typing import Mapping, Optional
+from typing import List, Mapping, Optional
 
 import psutil
 from psutil import Process
 
 from .exceptions import StopEventSetException
 from .merge import parse_one_collapsed
+from .profiler_base import ProfilerBase
 from .utils import (
     TEMPORARY_STORAGE_PATH,
     is_same_ns,
@@ -31,13 +32,14 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
-class JavaProfiler:
+class JavaProfiler(ProfilerBase):
     FORMAT_PARAMS = "ann,sig"
     OUTPUT_FORMAT = "collapsed"
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
     SKIP_VERSION_CHECK_BINARIES = ["jsvc"]
 
     def __init__(self, frequency: int, duration: int, use_itimer: bool, stop_event: Event, storage_dir: str):
+        super().__init__()
         logger.info(f"Initializing Java profiler (frequency: {frequency}hz, duration: {duration}s)")
 
         # async-profiler accepts interval between samples (nanoseconds)
@@ -47,23 +49,10 @@ class JavaProfiler:
         self._stop_event = stop_event
         self._storage_dir = storage_dir
 
-    def start(self):
-        pass
-
-    def stop(self):
-        pass
-
-    def __enter__(self):
-        self.start()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.stop()
-
-    def is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
+    def _is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
 
-    def get_async_profiler_start_cmd(
+    def _get_async_profiler_start_cmd(
         self,
         pid: int,
         event_type: str,
@@ -72,7 +61,7 @@ class JavaProfiler:
         jattach_path: str,
         async_profiler_lib_path: str,
         log_path: str,
-    ):
+    ) -> List[str]:
         return [
             jattach_path,
             str(pid),
@@ -83,7 +72,7 @@ class JavaProfiler:
             f"{self.FORMAT_PARAMS},interval={interval},framebuf=2000000,log={log_path}",
         ]
 
-    def get_async_profiler_stop_cmd(
+    def _get_async_profiler_stop_cmd(
         self, pid: int, output_path: str, jattach_path: str, async_profiler_lib_path: str, log_path: str
     ):
         return [
@@ -95,7 +84,7 @@ class JavaProfiler:
             f"stop,file={output_path},{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS},log={log_path}",
         ]
 
-    def run_async_profiler(self, cmd: str, log_path_host: str):
+    def _run_async_profiler(self, cmd: List[str], log_path_host: str):
         try:
             run_process(cmd)
         except CalledProcessError:
@@ -131,12 +120,12 @@ class JavaProfiler:
         # Version is printed to stderr
         return java_version_cmd_output.stderr.decode()
 
-    def profile_process(self, process: Process) -> Optional[Mapping[str, int]]:
+    def _profile_process(self, process: Process) -> Optional[Mapping[str, int]]:
         logger.info(f"Profiling java process {process.pid}...")
 
         # Get Java version
         if os.path.basename(process.exe()) not in self.SKIP_VERSION_CHECK_BINARIES:
-            if not self.is_jdk_version_supported(self._get_java_version(process)):
+            if not self._is_jdk_version_supported(self._get_java_version(process)):
                 logger.warning(f"Process {process.pid} running unsupported Java version, skipping...")
                 return None
 
@@ -186,8 +175,8 @@ class JavaProfiler:
 
         profiler_event = "itimer" if self._use_itimer else "cpu"
         try:
-            self.run_async_profiler(
-                self.get_async_profiler_start_cmd(
+            self._run_async_profiler(
+                self._get_async_profiler_start_cmd(
                     process.pid,
                     profiler_event,
                     self._interval,
@@ -205,8 +194,8 @@ class JavaProfiler:
 
         self._stop_event.wait(self._duration)
         if process.is_running():
-            self.run_async_profiler(
-                self.get_async_profiler_stop_cmd(
+            self._run_async_profiler(
+                self._get_async_profiler_stop_cmd(
                     process.pid,
                     output_path_process,
                     resource_path("java/jattach"),
@@ -242,7 +231,7 @@ class JavaProfiler:
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:
             futures = {}
             for process in processes:
-                futures[executor.submit(self.profile_process, process)] = process.pid
+                futures[executor.submit(self._profile_process, process)] = process.pid
 
             results = {}
             for future in concurrent.futures.as_completed(futures):

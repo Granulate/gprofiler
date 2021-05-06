@@ -24,6 +24,7 @@ from . import __version__, merge
 from .client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
 from .java import JavaProfiler
 from .perf import SystemProfiler
+from .profiler_base import NoopProfiler
 from .python import get_python_profiler
 from .utils import (
     TEMPORARY_STORAGE_PATH,
@@ -67,12 +68,20 @@ def sigint_handler(sig, frame):
 
 class GProfiler:
     def __init__(
-        self, frequency: int, duration: int, output_dir: str, flamegraph: bool, rotating_output: bool, client: APIClient
+        self,
+        frequency: int,
+        duration: int,
+        output_dir: str,
+        flamegraph: bool,
+        rotating_output: bool,
+        runtimes: Dict[str, bool],
+        client: APIClient,
     ):
         self._frequency = frequency
         self._duration = duration
         self._output_dir = output_dir
         self._flamegraph = flamegraph
+        self._runtimes = runtimes
         self._rotating_output = rotating_output
         self._client = client
         self._stop_event = Event()
@@ -83,8 +92,10 @@ class GProfiler:
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
         self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
-        self.java_profiler = JavaProfiler(
-            self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name
+        self.java_profiler = (
+            JavaProfiler(self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name)
+            if self._runtimes["java"]
+            else NoopProfiler()
         )
         self.system_profiler = SystemProfiler(
             self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name
@@ -99,12 +110,16 @@ class GProfiler:
         self.stop()
 
     def initialize_python_profiler(self) -> None:
-        self.python_profiler = get_python_profiler(
-            self._frequency,
-            self._duration,
-            self._stop_event,
-            self._temp_storage_dir.name,
-            self.initialize_python_profiler,
+        self.python_profiler = (
+            get_python_profiler(
+                self._frequency,
+                self._duration,
+                self._stop_event,
+                self._temp_storage_dir.name,
+                self.initialize_python_profiler,
+            )
+            if self._runtimes["python"]
+            else NoopProfiler()
         )
 
     def _update_last_output(self, last_output_name: str, output_path: str) -> None:
@@ -297,6 +312,21 @@ def parse_cmd_args():
     )
 
     parser.add_argument(
+        "--no-java",
+        dest="java",
+        action="store_false",
+        default=True,
+        help="Do not invoke runtime-specific profilers for Java processes",
+    )
+    parser.add_argument(
+        "--no-python",
+        dest="python",
+        action="store_false",
+        default=True,
+        help="Do not invoke runtime-specific profilers for Python processes",
+    )
+
+    parser.add_argument(
         "-u",
         "--upload-results",
         action="store_true",
@@ -427,8 +457,9 @@ def main():
             logger.error(f"Failed to connect to server: {e}")
             return
 
+        runtimes = {"java": args.java, "python": args.python}
         gprofiler = GProfiler(
-            args.frequency, args.duration, args.output_dir, args.flamegraph, args.rotating_output, client
+            args.frequency, args.duration, args.output_dir, args.flamegraph, args.rotating_output, runtimes, client
         )
         logger.info("gProfiler initialized and ready to start profiling")
 

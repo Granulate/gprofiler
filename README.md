@@ -47,6 +47,8 @@ The default profiling frequency is *10 hertz*. Using higher frequency will lead 
 
 The default duration is *60 seconds*, and the default interval matches it. So gProfiler runs the profiling sessions back-to-back - the next session starts as soon as the previous session is done.
 
+* `--no-java`, `--no-python`: Disable the runtime-specific profilers of Java and/or Python, accordingly.
+
 ### Continuous mode
 gProfiler can be run in a continuous mode, profiling periodically, using the `--continuous`/`-c` flag.
 Note that when using `--continuous` with `--output-dir`, a new file will be created during *each* sampling interval.
