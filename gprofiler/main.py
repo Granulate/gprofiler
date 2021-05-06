@@ -349,7 +349,6 @@ def parse_cmd_args():
         dest="log_rotate_backup_count",
         default=DEFAULT_LOG_BACKUP_COUNT,
     )
-    parser.add_argument("--log-file", action="store", type=str, dest="log_file", default=DEFAULT_LOG_FILE)
     parser.add_argument(
         "--disable-container-names",
         action="store_true",
