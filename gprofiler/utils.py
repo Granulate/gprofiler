@@ -350,6 +350,17 @@ def grab_gprofiler_mutex() -> bool:
     return gprofiler_mutex is not None
 
 
+def atomically_symlink(target: str, link_node: str) -> None:
+    """
+    Create a symlink file at 'link_node' pointing to 'target'.
+    If a file already exists at 'link_node', it is replaced atomically.
+    Would be obsoloted by https://bugs.python.org/issue36656, which covers this as well.
+    """
+    tmp_path = link_node + ".tmp"
+    os.symlink(target, tmp_path)
+    os.rename(tmp_path, link_node)
+
+
 class TemporaryDirectoryWithMode(TemporaryDirectory):
     def __init__(self, *args, mode: int = None, **kwargs):
         super().__init__(*args, **kwargs)

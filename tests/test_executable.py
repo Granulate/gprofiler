@@ -3,7 +3,6 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
-from glob import glob
 from pathlib import Path
 from subprocess import Popen
 from typing import Callable, Mapping
@@ -43,8 +42,5 @@ def test_from_executable(
         popen = Popen(["sudo", gprofiler_exe, "--output-dir", output_directory, "-d", "5"])
         popen.wait()
 
-    output = glob(str(output_directory / "*.col"))
-    assert len(output) == 1
-    collapsed_path = output[0]
-    collapsed = parse_one_collapsed(Path(collapsed_path).read_text())
+    collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
     assert_collapsed(collapsed)

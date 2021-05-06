@@ -19,9 +19,13 @@ This section describes the possible options to control gProfiler's output, and t
 gProfiler can produce output in two ways:
 
 * Create an aggregated, collapsed stack samples file (`profile_<timestamp>.col`)
-  and a flamegraph file (`profile_<timestamp>.html`).
+  and a flamegraph file (`profile_<timestamp>.html`). Two symbolic links (`last_profile.col` and `last_flamegraph.html`) always point to the last output files.
 
   Use the `--output-dir`/`-o` option to specify the output directory.
+
+  If `--rotating-output` is given, only the last results are kept (available via `last_profle.col` and `last_flamegraph.html`). This can be used to avoid increasing gProfiler's disk usage over time. Useful in conjunction with `--upload-results` (explained ahead) - historical results are available in the Granulate Performance Studio, and the very latest results are available locally.
+
+  `--no-flamegraph` can be given to avoid generation of the `profile_<timestamp>.html` file - only the collapsed stack samples file will be created.
 
 * Send the results to the Granulate Performance Studio for viewing online with
   filtering, insights, and more.
