@@ -355,7 +355,7 @@ def parse_cmd_args():
         action="store_true",
         dest="disable_container_names",
         default=False,
-        help="gProfiler won't gather the container names of processes that run in " "containers",
+        help="gProfiler won't gather the container names of processes that run in containers",
     )
 
     continuous_command_parser = parser.add_argument_group("continuous")
