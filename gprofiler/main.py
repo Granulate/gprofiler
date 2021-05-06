@@ -72,7 +72,7 @@ class GProfiler:
         output_dir: str,
         flamegraph: bool,
         client: APIClient,
-        should_determine_container_names=True,
+        include_container_names=True,
     ):
         self._frequency = frequency
         self._duration = duration
@@ -191,7 +191,7 @@ class GProfiler:
 
         local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
         merged_result = merge.merge_perfs(
-            system_future.result(), process_perfs, self._docker_client, self._should_determine_container_names
+            system_future.result(), process_perfs, self._docker_client, self._include_container_names
         )
 
         if self._output_dir:
