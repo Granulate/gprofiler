@@ -13,7 +13,7 @@ from docker import DockerClient
 from docker.models.images import Image
 
 from gprofiler.merge import parse_one_collapsed
-from tests.util import run_privileged_container
+from tests.utils import run_privileged_container
 
 
 @pytest.mark.parametrize("runtime", ["java", "python"])
@@ -40,7 +40,7 @@ def test_from_executable(
         run_privileged_container(docker_client, exec_container_image, command=command, volumes=volumes)
     else:
         os.mkdir(output_directory)
-        popen = Popen(["sudo", gprofiler_exe, "--output-dir", output_directory])
+        popen = Popen(["sudo", gprofiler_exe, "--output-dir", output_directory, "-d", "5"])
         popen.wait()
 
     output = glob(str(output_directory / "*.col"))

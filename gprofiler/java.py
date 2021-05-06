@@ -153,7 +153,9 @@ class JavaProfiler:
         storage_dir_host = resolve_proc_root_links(process_root, os.path.join(tmp_dir, str(process.pid)))
 
         try:
-            os.makedirs(storage_dir_host)
+            # make it readable & exectuable by all.
+            # see comment on TemporaryDirectoryWithMode in GProfiler.__init__.
+            os.makedirs(storage_dir_host, 0o755)
             return self._profile_process_with_dir(process, storage_dir_host, process_root)
         finally:
             # ignore_errors because we are deleting paths via /proc/pid/root - and those processes

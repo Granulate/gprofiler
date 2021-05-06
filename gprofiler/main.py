@@ -14,7 +14,6 @@ import time
 from logging import Logger
 from pathlib import Path
 from socket import gethostname
-from tempfile import TemporaryDirectory
 from threading import Event
 from typing import Dict, Optional
 
@@ -29,10 +28,12 @@ from gprofiler.perf import SystemProfiler
 from gprofiler.python import get_python_profiler
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
+    TemporaryDirectoryWithMode,
     get_iso8061_format_time,
     grab_gprofiler_mutex,
     is_root,
     log_system_info,
+    reset_umask,
     resource_path,
     run_process,
 )
@@ -81,7 +82,12 @@ class GProfiler:
         self._client = client
         self._stop_event = Event()
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
-        self._temp_storage_dir = TemporaryDirectory(dir=TEMPORARY_STORAGE_PATH)
+        # TODO: we actually need 2 types of temporary directories.
+        # 1. accessible by everyone - for profilers that run code in target processes, like async-profiler
+        # 2. accessible only by us.
+        # the latter can be root only. the former can not. we should do this separation so we don't expose
+        # files unnecessarily.
+        self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
         self.java_profiler = JavaProfiler(
             self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name
         )
@@ -373,6 +379,7 @@ def main():
     global logger  # silences flake8, who now knows that the "logger" global we refer to was initialized.
 
     setup_signals()
+    reset_umask()
 
     try:
         logger.info(f"Running gprofiler (version {__version__})...")
