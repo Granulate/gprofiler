@@ -9,7 +9,7 @@ import shutil
 from pathlib import Path
 from subprocess import CalledProcessError
 from threading import Event
-from typing import Mapping, Optional
+from typing import List, Mapping, Optional
 
 import psutil
 from psutil import Process
@@ -61,7 +61,7 @@ class JavaProfiler(ProfilerBase):
         jattach_path: str,
         async_profiler_lib_path: str,
         log_path: str,
-    ):
+    ) -> List[str]:
         return [
             jattach_path,
             str(pid),
@@ -84,7 +84,7 @@ class JavaProfiler(ProfilerBase):
             f"stop,file={output_path},{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS},log={log_path}",
         ]
 
-    def _run_async_profiler(self, cmd: str, log_path_host: str):
+    def _run_async_profiler(self, cmd: List[str], log_path_host: str):
         try:
             run_process(cmd)
         except CalledProcessError:
