@@ -14,9 +14,9 @@ from typing import Mapping, Optional
 import psutil
 from psutil import Process
 
-from .exceptions import StopEventSetException
-from .merge import parse_one_collapsed
-from .utils import (
+from gprofiler.exceptions import StopEventSetException
+from gprofiler.merge import parse_one_collapsed
+from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     is_same_ns,
     pgrep_exe,

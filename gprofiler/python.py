@@ -14,9 +14,9 @@ from typing import Callable, List, Mapping, Optional, Union
 
 from psutil import Process
 
-from .exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
-from .merge import parse_many_collapsed, parse_one_collapsed
-from .utils import pgrep_maps, poll_process, resource_path, run_process, start_process, wait_event
+from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
+from gprofiler.merge import parse_many_collapsed, parse_one_collapsed
+from gprofiler.utils import pgrep_maps, poll_process, resource_path, run_process, start_process, wait_event
 
 logger = logging.getLogger(__name__)
 
