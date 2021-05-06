@@ -97,7 +97,7 @@ class DockerClient:
             # The process died before we got to this point
             return None
         for line in cgroup.split():
-            if any(s in line for s in (':/docker/', ':/ecs/', ':/kubepods', ':/lxc/')):
+            if any(s in line for s in (':/docker/', ':/ecs/', ':/kubepods')):
                 return line.split("/")[-1]
             for p in DOCKER_SYSTEMD_CGROUPS:
                 m = p.match(line)
