@@ -138,7 +138,7 @@ def merge_perfs(
     profile_metadata = {
         'containers': container_names,
         'hostname': socket.gethostname(),
-        'container_names_disabled': not should_determine_container_names,
+        'container_names_enabled': should_determine_container_names,
     }
     output = [f"#{json.dumps(profile_metadata)}"]
     output += [f"{stack} {count}" for stack, count in new_samples.items()]
