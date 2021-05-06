@@ -29,6 +29,7 @@ from .python import get_python_profiler
 from .utils import (
     TEMPORARY_STORAGE_PATH,
     TemporaryDirectoryWithMode,
+    atomically_symlink,
     get_iso8061_format_time,
     grab_gprofiler_mutex,
     is_root,
@@ -72,6 +73,7 @@ class GProfiler:
         duration: int,
         output_dir: str,
         flamegraph: bool,
+        rotating_output: bool,
         runtimes: Dict[str, bool],
         client: APIClient,
     ):
@@ -80,6 +82,7 @@ class GProfiler:
         self._output_dir = output_dir
         self._flamegraph = flamegraph
         self._runtimes = runtimes
+        self._rotating_output = rotating_output
         self._client = client
         self._stop_event = Event()
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
@@ -119,21 +122,36 @@ class GProfiler:
             else NoopProfiler()
         )
 
+    def _update_last_output(self, last_output_name: str, output_path: str) -> None:
+        last_output = os.path.join(self._output_dir, last_output_name)
+        prev_output = Path(last_output).resolve()
+        atomically_symlink(os.path.basename(output_path), last_output)
+        # delete if rotating & there was a link target before.
+        if self._rotating_output and os.path.basename(prev_output) != last_output_name:
+            # can't use missing_ok=True, available only from 3.8 :/
+            try:
+                prev_output.unlink()
+            except FileNotFoundError:
+                pass
+
     def _generate_output_files(
         self,
         collapsed_data: str,
         local_start_time: datetime.datetime,
         local_end_time: datetime.datetime,
-        flamegraph: bool,
     ) -> None:
         start_ts = get_iso8061_format_time(local_start_time)
         end_ts = get_iso8061_format_time(local_end_time)
         base_filename = os.path.join(self._output_dir, "profile_{}".format(end_ts))
+
         collapsed_path = base_filename + ".col"
         Path(collapsed_path).write_text(collapsed_data)
+
+        # point last_profile.col at the new file; and possibly, delete the previous one.
+        self._update_last_output("last_profile.col", collapsed_path)
         logger.info(f"Saved collapsed stacks to {collapsed_path}")
 
-        if flamegraph:
+        if self._flamegraph:
             flamegraph_path = base_filename + ".html"
             flamegraph_data = (
                 Path(resource_path("flamegraph/flamegraph_template.html"))
@@ -148,6 +166,10 @@ class GProfiler:
                 .replace("{{{END_TIME}}}", end_ts)
             )
             Path(flamegraph_path).write_text(flamegraph_data)
+
+            # point last_flamegraph.html at the new file; and possibly, delete the previous one.
+            self._update_last_output("last_flamegraph.html", flamegraph_path)
+
             logger.info(f"Saved flamegraph to {flamegraph_path}")
 
     def start(self):
@@ -194,7 +216,7 @@ class GProfiler:
         merged_result = merge.merge_perfs(system_future.result(), process_perfs)
 
         if self._output_dir:
-            self._generate_output_files(merged_result, local_start_time, local_end_time, self._flamegraph)
+            self._generate_output_files(merged_result, local_start_time, local_end_time)
 
         if self._client:
             try:
@@ -224,7 +246,7 @@ class GProfiler:
                 self._stop_event.wait(max(interval - time_spent, 0))
 
 
-def setup_logger(stream_level: int = logging.INFO, log_file_path: str = None):
+def setup_logger(stream_level: int, log_file_path: str, rotate_max_bytes: int, rotate_backup_count: int):
     global logger
     logger = logging.getLogger("gprofiler")
     logger.setLevel(logging.DEBUG)
@@ -237,14 +259,15 @@ def setup_logger(stream_level: int = logging.INFO, log_file_path: str = None):
         stream_handler.setFormatter(logging.Formatter("[%(asctime)s] %(message)s", "%H:%M:%S"))
     logger.addHandler(stream_handler)
 
-    if log_file_path:
-        os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
-        file_handler = logging.handlers.RotatingFileHandler(
-            log_file_path, maxBytes=DEFAULT_LOG_MAX_SIZE, backupCount=DEFAULT_LOG_BACKUP_COUNT
-        )
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s"))
-        logger.addHandler(file_handler)
+    os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file_path,
+        maxBytes=rotate_max_bytes,
+        backupCount=rotate_backup_count,
+    )
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s"))
+    logger.addHandler(file_handler)
 
 
 def parse_cmd_args():
@@ -285,6 +308,10 @@ def parse_cmd_args():
     parser.set_defaults(flamegraph=True)
 
     parser.add_argument(
+        "--rotating-output", action="store_true", default=False, help="Keep only the last profile result"
+    )
+
+    parser.add_argument(
         "--no-java",
         dest="java",
         action="store_false",
@@ -317,7 +344,19 @@ def parse_cmd_args():
     parser.add_argument("--service-name", help="Service name")
 
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
-    parser.add_argument("--log-file", action="store", type=str, dest="log_file", default=DEFAULT_LOG_FILE)
+
+    logging_options = parser.add_argument_group("logging")
+    logging_options.add_argument("--log-file", action="store", type=str, dest="log_file", default=DEFAULT_LOG_FILE)
+    logging_options.add_argument(
+        "--log-rotate-max-size", action="store", type=int, dest="log_rotate_max_size", default=DEFAULT_LOG_MAX_SIZE
+    )
+    logging_options.add_argument(
+        "--log-rotate-backup-count",
+        action="store",
+        type=int,
+        dest="log_rotate_backup_count",
+        default=DEFAULT_LOG_BACKUP_COUNT,
+    )
 
     continuous_command_parser = parser.add_argument_group("continuous")
     continuous_command_parser.add_argument(
@@ -376,7 +415,12 @@ def setup_signals() -> None:
 def main():
     args = parse_cmd_args()
     verify_preconditions()
-    setup_logger(logging.DEBUG if args.verbose else logging.INFO, args.log_file)
+    setup_logger(
+        logging.DEBUG if args.verbose else logging.INFO,
+        args.log_file,
+        args.log_rotate_max_size,
+        args.log_rotate_backup_count,
+    )
     global logger  # silences flake8, who now knows that the "logger" global we refer to was initialized.
 
     setup_signals()
@@ -414,7 +458,9 @@ def main():
             return
 
         runtimes = {"java": args.java, "python": args.python}
-        gprofiler = GProfiler(args.frequency, args.duration, args.output_dir, args.flamegraph, runtimes, client)
+        gprofiler = GProfiler(
+            args.frequency, args.duration, args.output_dir, args.flamegraph, args.rotating_output, runtimes, client
+        )
         logger.info("gProfiler initialized and ready to start profiling")
 
         if args.continuous:

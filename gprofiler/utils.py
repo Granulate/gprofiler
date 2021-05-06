@@ -340,9 +340,11 @@ def grab_gprofiler_mutex() -> bool:
     """
     GPROFILER_LOCK = "\x00gprofiler_lock"
 
+    global gprofiler_mutex
+    gprofiler_mutex = None
+
     def _take_lock():
         global gprofiler_mutex
-        gprofiler_mutex = None
 
         s = socket.socket(socket.AF_UNIX)
         try:
@@ -360,6 +362,17 @@ def grab_gprofiler_mutex() -> bool:
     run_in_ns(["net"], _take_lock)
 
     return gprofiler_mutex is not None
+
+
+def atomically_symlink(target: str, link_node: str) -> None:
+    """
+    Create a symlink file at 'link_node' pointing to 'target'.
+    If a file already exists at 'link_node', it is replaced atomically.
+    Would be obsoloted by https://bugs.python.org/issue36656, which covers this as well.
+    """
+    tmp_path = link_node + ".tmp"
+    os.symlink(target, tmp_path)
+    os.rename(tmp_path, link_node)
 
 
 class TemporaryDirectoryWithMode(TemporaryDirectory):
