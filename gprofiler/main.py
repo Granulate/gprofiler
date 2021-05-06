@@ -90,7 +90,7 @@ class GProfiler:
         )
         self.initialize_python_profiler()
         self._docker_client = DockerClient()
-        self._should_determine_container_names = should_determine_container_names
+        self._include_container_names = include_container_names
 
     def __enter__(self):
         self.start()
