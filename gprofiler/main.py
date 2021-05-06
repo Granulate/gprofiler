@@ -28,6 +28,7 @@ from .python import get_python_profiler
 from .utils import (
     TEMPORARY_STORAGE_PATH,
     TemporaryDirectoryWithMode,
+    atomically_symlink,
     get_iso8061_format_time,
     grab_gprofiler_mutex,
     is_root,
@@ -65,11 +66,14 @@ def sigint_handler(sig, frame):
 
 
 class GProfiler:
-    def __init__(self, frequency: int, duration: int, output_dir: str, flamegraph: bool, client: APIClient):
+    def __init__(
+        self, frequency: int, duration: int, output_dir: str, flamegraph: bool, rotating_output: bool, client: APIClient
+    ):
         self._frequency = frequency
         self._duration = duration
         self._output_dir = output_dir
         self._flamegraph = flamegraph
+        self._rotating_output = rotating_output
         self._client = client
         self._stop_event = Event()
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
@@ -103,21 +107,36 @@ class GProfiler:
             self.initialize_python_profiler,
         )
 
+    def _update_last_output(self, last_output_name: str, output_path: str) -> None:
+        last_output = os.path.join(self._output_dir, last_output_name)
+        prev_output = Path(last_output).resolve()
+        atomically_symlink(os.path.basename(output_path), last_output)
+        # delete if rotating & there was a link target before.
+        if self._rotating_output and os.path.basename(prev_output) != last_output_name:
+            # can't use missing_ok=True, available only from 3.8 :/
+            try:
+                prev_output.unlink()
+            except FileNotFoundError:
+                pass
+
     def _generate_output_files(
         self,
         collapsed_data: str,
         local_start_time: datetime.datetime,
         local_end_time: datetime.datetime,
-        flamegraph: bool,
     ) -> None:
         start_ts = get_iso8061_format_time(local_start_time)
         end_ts = get_iso8061_format_time(local_end_time)
         base_filename = os.path.join(self._output_dir, "profile_{}".format(end_ts))
+
         collapsed_path = base_filename + ".col"
         Path(collapsed_path).write_text(collapsed_data)
+
+        # point last_profile.col at the new file; and possibly, delete the previous one.
+        self._update_last_output("last_profile.col", collapsed_path)
         logger.info(f"Saved collapsed stacks to {collapsed_path}")
 
-        if flamegraph:
+        if self._flamegraph:
             flamegraph_path = base_filename + ".html"
             flamegraph_data = (
                 Path(resource_path("flamegraph/flamegraph_template.html"))
@@ -132,6 +151,10 @@ class GProfiler:
                 .replace("{{{END_TIME}}}", end_ts)
             )
             Path(flamegraph_path).write_text(flamegraph_data)
+
+            # point last_flamegraph.html at the new file; and possibly, delete the previous one.
+            self._update_last_output("last_flamegraph.html", flamegraph_path)
+
             logger.info(f"Saved flamegraph to {flamegraph_path}")
 
     def start(self):
@@ -178,7 +201,7 @@ class GProfiler:
         merged_result = merge.merge_perfs(system_future.result(), process_perfs)
 
         if self._output_dir:
-            self._generate_output_files(merged_result, local_start_time, local_end_time, self._flamegraph)
+            self._generate_output_files(merged_result, local_start_time, local_end_time)
 
         if self._client:
             try:
@@ -267,6 +290,10 @@ def parse_cmd_args():
         help="Do not generate local flamegraphs when -o is given (only collapsed stacks files)",
     )
     parser.set_defaults(flamegraph=True)
+
+    parser.add_argument(
+        "--rotating-output", action="store_true", default=False, help="Keep only the last profile result"
+    )
 
     parser.add_argument(
         "-u",
@@ -382,7 +409,9 @@ def main():
             logger.error(f"Failed to connect to server: {e}")
             return
 
-        gprofiler = GProfiler(args.frequency, args.duration, args.output_dir, args.flamegraph, client)
+        gprofiler = GProfiler(
+            args.frequency, args.duration, args.output_dir, args.flamegraph, args.rotating_output, client
+        )
         logger.info("gProfiler initialized and ready to start profiling")
 
         if args.continuous:
