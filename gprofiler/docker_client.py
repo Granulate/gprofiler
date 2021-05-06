@@ -4,7 +4,7 @@
 #
 import logging
 import re
-from typing import Dict, Optional, List, Set
+from typing import Dict, List, Optional, Set
 
 import docker
 
