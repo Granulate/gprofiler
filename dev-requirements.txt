@@ -4,5 +4,3 @@ black
 mypy
 isort
 docker
-pyinstaller==4.0
-staticx
