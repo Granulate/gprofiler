@@ -1,3 +1,3 @@
 # requirements for the standalone executable
 pyinstaller==4.0
-staticx
+staticx==0.12.1
