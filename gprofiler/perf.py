@@ -11,11 +11,10 @@ from typing import Iterable, Mapping
 
 import psutil
 
-from .merge import parse_perf_script
-from .utils import TEMPORARY_STORAGE_PATH, resource_path, run_process
+from gprofiler.merge import parse_perf_script
+from gprofiler.utils import TEMPORARY_STORAGE_PATH, resource_path, run_process
 
 logger = logging.getLogger(__name__)
-
 
 PERF_BUILDID_DIR = os.path.join(TEMPORARY_STORAGE_PATH, "perf-buildids")
 
