@@ -158,10 +158,13 @@ def pgrep_exe(match: str) -> Iterator[Process]:
 def pgrep_maps(match: str) -> List[Process]:
     # this is much faster than iterating over processes' maps with psutil.
     result = subprocess.run(
-        f"grep -lP '{match}' /proc/*/maps", stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=True
+        f"grep -lP '{match}' /proc/*/maps", stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
     )
     # might get 2 (which 'grep' exits with, if some files were unavailable, because processes have exited)
-    assert result.returncode in (0, 2), f"unexpected 'grep' exit code: {result.returncode}"
+    assert result.returncode in (
+        0,
+        2,
+    ), f"unexpected 'grep' exit code: {result.returncode}, stdout {result.stdout!r} stderr {result.stderr!r}"
 
     processes: List[Process] = []
     for line in result.stdout.splitlines():
