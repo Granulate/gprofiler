@@ -18,7 +18,7 @@ from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, St
 from gprofiler.merge import parse_many_collapsed, parse_one_collapsed
 from gprofiler.profiler_base import ProfilerBase
 
-from .utils import pgrep_maps, poll_process, resource_path, run_process, start_process, wait_event
+from gprofiler.utils import pgrep_maps, poll_process, resource_path, run_process, start_process, wait_event
 
 logger = logging.getLogger(__name__)
 

@@ -39,7 +39,7 @@ from gprofiler.utils import (
     run_process,
 )
 
-from .python import get_python_profiler
+from gprofiler.python import get_python_profiler
 
 logger: Logger
 
