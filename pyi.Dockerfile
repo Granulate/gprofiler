@@ -52,8 +52,8 @@ RUN yum install -y gcc python3 curl python3-pip patchelf python3-devel upx
 COPY requirements.txt requirements.txt
 RUN python3 -m pip install -r requirements.txt
 
-COPY dev-requirements.txt dev-requirements.txt
-RUN python3 -m pip install -r dev-requirements.txt
+COPY exe-requirements.txt exe-requirements.txt
+RUN python3 -m pip install -r exe-requirements.txt
 
 COPY scripts/build.sh scripts/build.sh
 RUN ./scripts/build.sh
