@@ -20,14 +20,13 @@ from typing import Dict, Optional
 import configargparse
 from requests import RequestException, Timeout
 
-from gprofiler import __version__, merge
-from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
-from gprofiler.docker_client import DockerClient
-from gprofiler.java import JavaProfiler
-from gprofiler.perf import SystemProfiler
-from gprofiler.profiler_base import NoopProfiler
-from gprofiler.python import get_python_profiler
-from gprofiler.utils import (
+from . import __version__, merge
+from .client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
+from .java import JavaProfiler
+from .perf import SystemProfiler
+from .profiler_base import NoopProfiler
+from .python import get_python_profiler
+from .utils import (
     TEMPORARY_STORAGE_PATH,
     TemporaryDirectoryWithMode,
     atomically_symlink,
@@ -77,7 +76,6 @@ class GProfiler:
         rotating_output: bool,
         runtimes: Dict[str, bool],
         client: APIClient,
-        include_container_names=True,
     ):
         self._frequency = frequency
         self._duration = duration
@@ -103,8 +101,6 @@ class GProfiler:
             self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name
         )
         self.initialize_python_profiler()
-        self._docker_client = DockerClient()
-        self._include_container_names = include_container_names
 
     def __enter__(self):
         self.start()
@@ -149,7 +145,6 @@ class GProfiler:
         base_filename = os.path.join(self._output_dir, "profile_{}".format(end_ts))
 
         collapsed_path = base_filename + ".col"
-        collapsed_data = self._strip_container_data(collapsed_data)
         Path(collapsed_path).write_text(collapsed_data)
 
         # point last_profile.col at the new file; and possibly, delete the previous one.
@@ -176,15 +171,6 @@ class GProfiler:
             self._update_last_output("last_flamegraph.html", flamegraph_path)
 
             logger.info(f"Saved flamegraph to {flamegraph_path}")
-
-    @staticmethod
-    def _strip_container_data(collapsed_data):
-        lines = []
-        for line in collapsed_data.splitlines():
-            if line.startswith("#"):
-                continue
-            lines.append(line[line.find(';') + 1 :])
-        return '\n'.join(lines)
 
     def start(self):
         self._stop_event.clear()
@@ -227,9 +213,7 @@ class GProfiler:
                 logger.exception(f"{future.name} profiling failed")
 
         local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
-        merged_result = merge.merge_perfs(
-            system_future.result(), process_perfs, self._docker_client, self._include_container_names
-        )
+        merged_result = merge.merge_perfs(system_future.result(), process_perfs)
 
         if self._output_dir:
             self._generate_output_files(merged_result, local_start_time, local_end_time)
@@ -373,13 +357,6 @@ def parse_cmd_args():
         dest="log_rotate_backup_count",
         default=DEFAULT_LOG_BACKUP_COUNT,
     )
-    parser.add_argument(
-        "--disable-container-names",
-        action="store_true",
-        dest="disable_container_names",
-        default=False,
-        help="gProfiler won't gather the container names of processes that run in containers",
-    )
 
     continuous_command_parser = parser.add_argument_group("continuous")
     continuous_command_parser.add_argument(
@@ -482,14 +459,7 @@ def main():
 
         runtimes = {"java": args.java, "python": args.python}
         gprofiler = GProfiler(
-            args.frequency,
-            args.duration,
-            args.output_dir,
-            args.flamegraph,
-            args.rotating_output,
-            runtimes,
-            client,
-            not args.disable_container_names,
+            args.frequency, args.duration, args.output_dir, args.flamegraph, args.rotating_output, runtimes, client
         )
         logger.info("gProfiler initialized and ready to start profiling")
 
