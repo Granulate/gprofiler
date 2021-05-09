@@ -12,7 +12,7 @@ from typing import Dict
 import requests
 from requests import Session
 
-from gprofiler.utils import get_iso8061_format_time
+from .utils import get_iso8061_format_time
 
 logger = logging.getLogger(__name__)
 
@@ -48,18 +48,11 @@ class APIClient:
         # Raises on failure
         self.get_health()
 
-    def get_base_url(self, api_version: str = None) -> str:
-        version = api_version if api_version is not None else self._version
-        return "{}/{}/{}".format(self._host.rstrip("/"), self.BASE_PATH, version)
+    def get_base_url(self) -> str:
+        return "{}/{}/{}".format(self._host.rstrip("/"), self.BASE_PATH, self._version)
 
     def _send_request(
-        self,
-        method: str,
-        path: str,
-        data: Dict,
-        files: Dict = None,
-        timeout: float = DEFAULT_REQUEST_TIMEOUT,
-        api_version: str = None,
+        self, method: str, path: str, data: Dict, files: Dict = None, timeout: float = DEFAULT_REQUEST_TIMEOUT
     ) -> Dict:
         opts: dict = {"headers": {}, "files": files, "timeout": timeout}
 
@@ -73,7 +66,7 @@ class APIClient:
                 json.dump(data, gzip_file, ensure_ascii=False)  # type: ignore
             opts["data"] = buffer.getvalue()
 
-        resp = self._session.request(method, "{}/{}".format(self.get_base_url(api_version), path), **opts)
+        resp = self._session.request(method, "{}/{}".format(self.get_base_url(), path), **opts)
         if 400 <= resp.status_code < 500:
             try:
                 data = resp.json()
@@ -114,5 +107,4 @@ class APIClient:
                 "profile": profile,
             },
             timeout=self._upload_timeout,
-            api_version="v2",
         )
