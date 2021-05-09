@@ -1,3 +1,12 @@
+# copied from Dockerfile
+FROM rust:latest AS pyspy-builder
+
+COPY scripts/pyspy_env.sh .
+RUN ./pyspy_env.sh
+
+COPY scripts/pyspy_build.sh .
+RUN ./pyspy_build.sh
+
 # Centos 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
 # This will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
 FROM centos:7 AS build-stage
@@ -55,6 +64,8 @@ RUN cp /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf
 RUN cp /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
 RUN cp -r /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
 RUN cp /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
+
+COPY --from=pyspy-builder /py-spy/target/x86_64-unknown-linux-musl/release/py-spy gprofiler/resources/python/py-spy
 
 COPY gprofiler gprofiler
 
