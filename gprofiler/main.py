@@ -26,6 +26,7 @@ from gprofiler.docker_client import DockerClient
 from gprofiler.java import JavaProfiler
 from gprofiler.perf import SystemProfiler
 from gprofiler.profiler_base import NoopProfiler
+from gprofiler.python import get_python_profiler
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     TemporaryDirectoryWithMode,
@@ -38,8 +39,6 @@ from gprofiler.utils import (
     resource_path,
     run_process,
 )
-
-from gprofiler.python import get_python_profiler
 
 logger: Logger
 
