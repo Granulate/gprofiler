@@ -16,14 +16,16 @@ from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
 from gprofiler.merge import parse_many_collapsed, parse_one_collapsed
-from gprofiler.utils import pgrep_maps, poll_process, resource_path, run_process, start_process, wait_event
+from gprofiler.profiler_base import ProfilerBase
+
+from .utils import pgrep_maps, poll_process, resource_path, run_process, start_process, wait_event
 
 logger = logging.getLogger(__name__)
 
 _reinitialize_profiler: Optional[Callable[[], None]] = None
 
 
-class PythonProfilerBase:
+class PythonProfilerBase(ProfilerBase):
     MAX_FREQUENCY = 100
 
     def __init__(
@@ -33,30 +35,12 @@ class PythonProfilerBase:
         stop_event: Optional[Event],
         storage_dir: str,
     ):
+        super().__init__()
         self._frequency = min(frequency, self.MAX_FREQUENCY)
         self._duration = duration
         self._stop_event = stop_event or Event()
         self._storage_dir = storage_dir
         logger.info(f"Initializing Python profiler (frequency: {self._frequency}hz, duration: {duration}s)")
-
-    def start(self):
-        pass
-
-    def snapshot(self) -> Mapping[int, Mapping[str, int]]:
-        """
-        :returns: Mapping from pid to stacks and their counts.
-        """
-        raise NotImplementedError
-
-    def stop(self):
-        pass
-
-    def __enter__(self):
-        self.start()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.stop()
 
 
 class PySpyProfiler(PythonProfilerBase):
@@ -83,7 +67,7 @@ class PySpyProfiler(PythonProfilerBase):
             "--full-filenames",
         ]
 
-    def profile_process(self, process: Process):
+    def _profile_process(self, process: Process):
         logger.info(f"Profiling process {process.pid} ({process.cmdline()})")
 
         local_output_path = os.path.join(self._storage_dir, f"{process.pid}.py.col.dat")
@@ -95,7 +79,7 @@ class PySpyProfiler(PythonProfilerBase):
         logger.info(f"Finished profiling process {process.pid} with py-spy")
         return parse_one_collapsed(Path(local_output_path).read_text())
 
-    def find_python_processes_to_profile(self) -> List[Process]:
+    def _find_python_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
         for process in pgrep_maps(
             r"(?:^.+/(?:lib)?python[^/]*$)|(?:^.+/site-packages/.+?$)|(?:^.+/dist-packages/.+?$)"
@@ -115,13 +99,13 @@ class PySpyProfiler(PythonProfilerBase):
         return filtered_procs
 
     def snapshot(self) -> Mapping[int, Mapping[str, int]]:
-        processes_to_profile = self.find_python_processes_to_profile()
+        processes_to_profile = self._find_python_processes_to_profile()
         if not processes_to_profile:
             return {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes_to_profile)) as executor:
             futures = {}
             for process in processes_to_profile:
-                futures[executor.submit(self.profile_process, process)] = process.pid
+                futures[executor.submit(self._profile_process, process)] = process.pid
 
             results = {}
             for future in concurrent.futures.as_completed(futures):
@@ -186,7 +170,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
             cls._pyperf_error(process)
 
     @classmethod
-    def get_pyperf_cmd(cls) -> List[str]:
+    def _get_pyperf_cmd(cls) -> List[str]:
         pyperf = resource_path(cls.PYPERF_RESOURCE)
         staticx_dir = os.getenv("STATICX_BUNDLE_DIR")
         # are we running under staticx?
@@ -208,7 +192,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
         # Run the process and check if the output file is properly created.
         # Wait up to 10sec for the process to terminate.
         # Allow cancellation via the stop_event.
-        cmd = cls.get_pyperf_cmd() + ["--output", str(test_path), "-F", "1", "--duration", "1"]
+        cmd = cls._get_pyperf_cmd() + ["--output", str(test_path), "-F", "1", "--duration", "1"]
         process = start_process(cmd)
         try:
             poll_process(process, cls.poll_timeout, stop_event)
@@ -220,7 +204,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
 
     def start(self):
         logger.info("Starting profiling of Python processes with PyPerf")
-        cmd = self.get_pyperf_cmd() + [
+        cmd = self._get_pyperf_cmd() + [
             "--output",
             str(self.output_path),
             "-F",
