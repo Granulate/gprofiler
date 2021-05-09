@@ -34,7 +34,15 @@ def test_pyspy(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: Callable[[Optional[Mapping[str, int]]], None],
+    gprofiler_docker_image,
 ) -> None:
+    # get py-spy from the built container
+    copy_file_from_image(
+        gprofiler_docker_image,
+        os.path.join("/app", "gprofiler", "resources", "python", "py-spy"),
+        resource_path("python/py-spy"),
+    )
+
     profiler = PySpyProfiler(1000, 1, Event(), str(tmp_path))
     process_collapsed = profiler.snapshot()
     assert_collapsed(process_collapsed.get(application_pid))
