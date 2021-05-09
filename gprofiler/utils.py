@@ -85,11 +85,14 @@ def start_process(cmd: Union[str, List[str]], **kwargs) -> Popen:
     logger.debug(f"Running command: ({cmd_text})")
     if isinstance(cmd, str):
         cmd = [cmd]
+    env = kwargs.pop("env", {})
+    env.update({"LD_LIBRARY_PATH": ""})
     popen = Popen(
         cmd,
         stdout=kwargs.pop("stdout", subprocess.PIPE),
         stderr=kwargs.pop("stderr", subprocess.PIPE),
         preexec_fn=kwargs.pop("preexec_fn", os.setpgrp),
+        env=env,
         **kwargs,
     )
     return popen
