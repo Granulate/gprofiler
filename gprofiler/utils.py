@@ -80,13 +80,31 @@ def get_process_nspid(pid: int) -> int:
     raise Exception(f"Couldn't find NSpid for pid {pid}")
 
 
-def start_process(cmd: Union[str, List[str]], **kwargs) -> Popen:
+def start_process(cmd: Union[str, List[str]], static_bin: bool, **kwargs) -> Popen:
     cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
     logger.debug(f"Running command: ({cmd_text})")
     if isinstance(cmd, str):
         cmd = [cmd]
-    env = kwargs.pop("env", {})
-    env.update({"LD_LIBRARY_PATH": ""})
+
+    staticx_dir = os.getenv("STATICX_BUNDLE_DIR")
+    # are we running under staticx?
+    if staticx_dir is not None:
+        # if so, if "static_bin" was requested, then run the binary with the staticx ld.so
+        # because it's supposed to be run with it.
+        if static_bin:
+            # we shouldn't try to run any program that's not our resource with "static_bin".
+            assert cmd[0].startswith(resource_path("/"))
+            # STATICX_BUNDLE_DIR is where staticx has extracted all of the libraries it had collected
+            # earlier.
+            # see https://github.com/JonathonReinhart/staticx#run-time-information
+            cmd = [f"{staticx_dir}/.staticx.interp", "--library-path", staticx_dir] + cmd
+            env = kwargs.pop("env", None)
+        else:
+            # explicitly remove our directory from LD_LIBRARY_PATH
+            env = os.environ.copy()
+            env.update(kwargs.pop("env", {}))
+            env.update({"LD_LIBRARY_PATH": ""})
+
     popen = Popen(
         cmd,
         stdout=kwargs.pop("stdout", subprocess.PIPE),
@@ -120,9 +138,9 @@ def poll_process(process, timeout: float, stop_event: Event):
 
 
 def run_process(
-    cmd: Union[str, List[str]], stop_event: Event = None, suppress_log: bool = False, **kwargs
+    cmd: Union[str, List[str]], stop_event: Event = None, suppress_log: bool = False, static_bin: bool = False, **kwargs
 ) -> CompletedProcess:
-    with start_process(cmd, **kwargs) as process:
+    with start_process(cmd, static_bin, **kwargs) as process:
         try:
             if stop_event is None:
                 stdout, stderr = process.communicate()
