@@ -56,20 +56,6 @@ def is_root() -> bool:
     return os.geteuid() == 0
 
 
-def get_process_container_id(pid: int) -> Optional[str]:
-    with open(f"/proc/{pid}/cgroup") as f:
-        for line in f:
-            line = line.strip()
-            if any(s in line for s in (":/docker/", ":/ecs/", ":/kubepods", ":/lxc/")):
-                return line.split("/")[-1]
-        return None
-
-
-@lru_cache(maxsize=None)
-def get_self_container_id() -> Optional[str]:
-    return get_process_container_id(os.getpid())
-
-
 def get_process_nspid(pid: int) -> int:
     with open(f"/proc/{pid}/status") as f:
         for line in f:
