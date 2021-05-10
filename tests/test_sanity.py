@@ -24,9 +24,9 @@ def test_java_from_host(
     application_pid: int,
     assert_collapsed: Callable[[Optional[Mapping[str, int]]], None],
 ) -> None:
-    profiler = JavaProfiler(1000, 1, True, Event(), str(tmp_path))
-    process_collapsed = profiler.snapshot()
-    assert_collapsed(process_collapsed.get(application_pid))
+    with JavaProfiler(1000, 1, True, Event(), str(tmp_path)) as profiler:
+        process_collapsed = profiler.snapshot()
+        assert_collapsed(process_collapsed.get(application_pid))
 
 
 @pytest.mark.parametrize("runtime", ["python"])
@@ -37,9 +37,9 @@ def test_pyspy(
     gprofiler_docker_image: Image,
 ) -> None:
     copy_pyspy_from_image(gprofiler_docker_image)
-    profiler = PySpyProfiler(1000, 1, Event(), str(tmp_path))
-    process_collapsed = profiler.snapshot()
-    assert_collapsed(process_collapsed.get(application_pid))
+    with PySpyProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
+        process_collapsed = profiler.snapshot()
+        assert_collapsed(process_collapsed.get(application_pid))
 
 
 @pytest.mark.parametrize("runtime", ["python"])
