@@ -184,8 +184,12 @@ def pgrep_exe(match: str) -> Iterator[Process]:
 
 def pgrep_maps(match: str) -> List[Process]:
     # this is much faster than iterating over processes' maps with psutil.
-    result = subprocess.run(
-        f"grep -lP '{match}' /proc/*/maps", stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
+    result = run_process(
+        f"grep -lP '{match}' /proc/*/maps",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=True,
+        suppress_log=True,
     )
     # might get 2 (which 'grep' exits with, if some files were unavailable, because processes have exited)
     assert result.returncode in (
@@ -269,7 +273,7 @@ def get_libc_version() -> Tuple[str, bytes]:
     # so we'll run "ldd --version" and extract the version string from it.
     # not passing "encoding"/"text" - this runs in a different mount namespace, and Python fails to
     # load the files it needs for those encodings (getting LookupError: unknown encoding: ascii)
-    ldd_version = subprocess.run(["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout
+    ldd_version = run_process(["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout
     # catches GLIBC & EGLIBC
     m = re.search(br"GLIBC (.*?)\)", ldd_version)
     if m is not None:
