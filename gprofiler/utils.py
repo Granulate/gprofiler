@@ -80,7 +80,7 @@ def get_process_nspid(pid: int) -> int:
     raise Exception(f"Couldn't find NSpid for pid {pid}")
 
 
-def start_process(cmd: Union[str, List[str]], static_bin: bool, **kwargs) -> Popen:
+def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Popen:
     cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
     logger.debug(f"Running command: ({cmd_text})")
     if isinstance(cmd, str):
@@ -89,10 +89,10 @@ def start_process(cmd: Union[str, List[str]], static_bin: bool, **kwargs) -> Pop
     staticx_dir = os.getenv("STATICX_BUNDLE_DIR")
     # are we running under staticx?
     if staticx_dir is not None:
-        # if so, if "static_bin" was requested, then run the binary with the staticx ld.so
+        # if so, if "via_staticx" was requested, then run the binary with the staticx ld.so
         # because it's supposed to be run with it.
-        if static_bin:
-            # we shouldn't try to run any program that's not our resource with "static_bin".
+        if via_staticx:
+            # we shouldn't try to run any program that's not our resource with "via_staticx".
             assert cmd[0].startswith(resource_path("/"))
             # STATICX_BUNDLE_DIR is where staticx has extracted all of the libraries it had collected
             # earlier.
@@ -104,6 +104,8 @@ def start_process(cmd: Union[str, List[str]], static_bin: bool, **kwargs) -> Pop
             env = os.environ.copy()
             env.update(kwargs.pop("env", {}))
             env.update({"LD_LIBRARY_PATH": ""})
+    else:
+        env = None
 
     popen = Popen(
         cmd,
@@ -138,9 +140,13 @@ def poll_process(process, timeout: float, stop_event: Event):
 
 
 def run_process(
-    cmd: Union[str, List[str]], stop_event: Event = None, suppress_log: bool = False, static_bin: bool = False, **kwargs
+    cmd: Union[str, List[str]],
+    stop_event: Event = None,
+    suppress_log: bool = False,
+    via_staticx: bool = False,
+    **kwargs,
 ) -> CompletedProcess:
-    with start_process(cmd, static_bin, **kwargs) as process:
+    with start_process(cmd, via_staticx, **kwargs) as process:
         try:
             if stop_event is None:
                 stdout, stderr = process.communicate()

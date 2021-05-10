@@ -178,7 +178,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
         # Wait up to 10sec for the process to terminate.
         # Allow cancellation via the stop_event.
         cmd = [resource_path(cls.PYPERF_RESOURCE), "--output", str(test_path), "-F", "1", "--duration", "1"]
-        process = start_process(cmd, static_bin=True)
+        process = start_process(cmd, via_staticx=True)
         try:
             poll_process(process, cls.poll_timeout, stop_event)
         except TimeoutError:
@@ -197,7 +197,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
             str(self._frequency),
             # Duration is irrelevant here, we want to run continuously.
         ]
-        process = start_process(cmd, static_bin=True)
+        process = start_process(cmd, via_staticx=True)
         # wait until the transient data file appears - because once returning from here, PyPerf may
         # be polled via snapshot() and we need it to finish installing its signal handler.
         try:
