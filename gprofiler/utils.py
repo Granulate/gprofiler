@@ -92,8 +92,6 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Po
         # if so, if "via_staticx" was requested, then run the binary with the staticx ld.so
         # because it's supposed to be run with it.
         if via_staticx:
-            # we shouldn't try to run any program that's not our resource with "via_staticx".
-            assert cmd[0].startswith(resource_path("/"))
             # STATICX_BUNDLE_DIR is where staticx has extracted all of the libraries it had collected
             # earlier.
             # see https://github.com/JonathonReinhart/staticx#run-time-information
