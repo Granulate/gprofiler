@@ -99,8 +99,7 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Po
             cmd = [f"{staticx_dir}/.staticx.interp", "--library-path", staticx_dir] + cmd
         else:
             # explicitly remove our directory from LD_LIBRARY_PATH
-            env = os.environ.copy()
-            env.update(env or {})
+            env = env if env is not None else os.environ.copy()
             env.update({"LD_LIBRARY_PATH": ""})
 
     popen = Popen(
