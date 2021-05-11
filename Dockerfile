@@ -43,7 +43,7 @@ COPY --from=bcc-builder /bcc/bcc/licenses gprofiler/resources/python/pyperf/lice
 COPY --from=bcc-builder /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 
 COPY --from=pyspy-builder /py-spy/target/x86_64-unknown-linux-musl/release/py-spy gprofiler/resources/python/py-spy
-COPY --from=perf-builder /linux/tools/perf/perf gprofiler/resources/perf
+COPY --from=perf-builder /perf gprofiler/resources/perf
 
 COPY scripts/build.sh scripts/build.sh
 RUN ./scripts/build.sh

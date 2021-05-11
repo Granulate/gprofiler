@@ -74,7 +74,7 @@ RUN cp -r /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
 RUN cp /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 
 COPY --from=pyspy-builder /py-spy/target/x86_64-unknown-linux-musl/release/py-spy gprofiler/resources/python/py-spy
-COPY --from=perf-builder /linux/tools/perf/perf gprofiler/resources/perf
+COPY --from=perf-builder /perf gprofiler/resources/perf
 
 COPY gprofiler gprofiler
 
