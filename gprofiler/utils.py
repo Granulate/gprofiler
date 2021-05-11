@@ -86,6 +86,7 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Po
     if isinstance(cmd, str):
         cmd = [cmd]
 
+    env = kwargs.pop("env", None)
     staticx_dir = os.getenv("STATICX_BUNDLE_DIR")
     # are we running under staticx?
     if staticx_dir is not None:
@@ -96,14 +97,11 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Po
             # earlier.
             # see https://github.com/JonathonReinhart/staticx#run-time-information
             cmd = [f"{staticx_dir}/.staticx.interp", "--library-path", staticx_dir] + cmd
-            env = kwargs.pop("env", None)
         else:
             # explicitly remove our directory from LD_LIBRARY_PATH
             env = os.environ.copy()
-            env.update(kwargs.pop("env", {}))
+            env.update(env or {})
             env.update({"LD_LIBRARY_PATH": ""})
-    else:
-        env = None
 
     popen = Popen(
         cmd,
