@@ -169,20 +169,6 @@ class PythonEbpfProfiler(PythonProfilerBase):
             cls._pyperf_error(process)
 
     @classmethod
-    def _get_pyperf_cmd(cls) -> List[str]:
-        pyperf = resource_path(cls.PYPERF_RESOURCE)
-        staticx_dir = os.getenv("STATICX_BUNDLE_DIR")
-        # are we running under staticx?
-        if staticx_dir is not None:
-            # STATICX_BUNDLE_DIR is where staticx has extracted all of the libraries it had collected
-            # earlier.
-            # see https://github.com/JonathonReinhart/staticx#run-time-information
-            # we run PyPerf with the same ld.so whose libc it was compiled against.
-            return [f"{staticx_dir}/.staticx.interp", "--library-path", staticx_dir, pyperf]
-        else:
-            return [pyperf]
-
-    @classmethod
     def test(cls, storage_dir: str, stop_event: Event):
         test_path = Path(storage_dir) / ".test"
         for f in glob.glob(f"{str(test_path)}.*"):
@@ -191,8 +177,8 @@ class PythonEbpfProfiler(PythonProfilerBase):
         # Run the process and check if the output file is properly created.
         # Wait up to 10sec for the process to terminate.
         # Allow cancellation via the stop_event.
-        cmd = cls._get_pyperf_cmd() + ["--output", str(test_path), "-F", "1", "--duration", "1"]
-        process = start_process(cmd)
+        cmd = [resource_path(cls.PYPERF_RESOURCE), "--output", str(test_path), "-F", "1", "--duration", "1"]
+        process = start_process(cmd, via_staticx=True)
         try:
             poll_process(process, cls.poll_timeout, stop_event)
         except TimeoutError:
@@ -203,14 +189,15 @@ class PythonEbpfProfiler(PythonProfilerBase):
 
     def start(self):
         logger.info("Starting profiling of Python processes with PyPerf")
-        cmd = self._get_pyperf_cmd() + [
+        cmd = [
+            resource_path(self.PYPERF_RESOURCE),
             "--output",
             str(self.output_path),
             "-F",
             str(self._frequency),
             # Duration is irrelevant here, we want to run continuously.
         ]
-        process = start_process(cmd)
+        process = start_process(cmd, via_staticx=True)
         # wait until the transient data file appears - because once returning from here, PyPerf may
         # be polled via snapshot() and we need it to finish installing its signal handler.
         try:
