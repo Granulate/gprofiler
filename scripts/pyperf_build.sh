@@ -5,7 +5,7 @@
 #
 set -e
 
-git clone --depth 1 -b v1.0.2 https://github.com/Granulate/bcc.git && git -C bcc reset --hard fb32bc891f23485d8e9ec06ac0add39cdf34b7d5
+git clone --depth 1 -b v1.0.2 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard fb32bc891f23485d8e9ec06ac0add39cdf34b7d5
 mkdir bcc/build
 cd bcc/build
 cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root ..
