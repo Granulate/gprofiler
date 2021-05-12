@@ -161,7 +161,7 @@ def application_pid(in_container: bool, application_process: Popen, application_
 def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int]], None]:
     function_name = {
         "java": "Fibonacci.main",
-        "python": "lister",
+        "python": "burner",
     }[runtime]
 
     return partial(assert_function_in_collapsed, function_name)
