@@ -57,9 +57,9 @@ def java_command_line(class_path: Path) -> List:
 def command_line(tmp_path: Path, runtime: str) -> List:
     return {
         "java": java_command_line(tmp_path / "java"),
-        # note: here we run "python /path/to/fibonacci.py" while in the container test we have
-        # "CMD /path/to/fibonacci.py", to test processes with non-python /proc/pid/comm
-        "python": ["python3", CONTAINERS_DIRECTORY / "python/fibonacci.py"],
+        # note: here we run "python /path/to/lister.py" while in the container test we have
+        # "CMD /path/to/lister.py", to test processes with non-python /proc/pid/comm
+        "python": ["python3", CONTAINERS_DIRECTORY / "python/lister.py"],
     }[runtime]
 
 
