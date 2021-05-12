@@ -5,6 +5,7 @@
 import os
 import stat
 from contextlib import contextmanager
+from functools import partial
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired, run
 from time import sleep
@@ -17,7 +18,7 @@ from docker.models.images import Image
 from pytest import fixture  # type: ignore
 
 from tests import CONTAINERS_DIRECTORY, PARENT
-from tests.utils import chmod_path_parts
+from tests.utils import assert_function_in_collapsed, chmod_path_parts
 
 
 @fixture
@@ -163,12 +164,7 @@ def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int]], None]:
         "python": "fibonacci",
     }[runtime]
 
-    def assert_collapsed(collapsed: Mapping[str, int]) -> None:
-        print(f"collapsed: {collapsed}")
-        assert collapsed is not None
-        assert any((function_name in record) for record in collapsed.keys())
-
-    return assert_collapsed
+    return partial(assert_function_in_collapsed, function_name)
 
 
 @fixture
