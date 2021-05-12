@@ -120,6 +120,9 @@ class PySpyProfiler(PythonProfilerBase):
 
 class PythonEbpfProfiler(PythonProfilerBase):
     PYPERF_RESOURCE = "python/pyperf/PyPerf"
+    PYPERF_EVENTS_BUFFER_PAGES = 256  # 1mb and needs to be physically contiguous
+    # 28mb (each symbol is 224 bytes), but needn't be physicall contiguous so don't care
+    PYPERF_SYMBOLS_MAP_SIZE = 131072
     dump_signal = signal.SIGUSR2
     dump_timeout = 5  # seconds
     poll_timeout = 10  # seconds
@@ -195,6 +198,10 @@ class PythonEbpfProfiler(PythonProfilerBase):
             str(self.output_path),
             "-F",
             str(self._frequency),
+            "--events-buffer-pages",
+            str(self.PYPERF_EVENTS_BUFFER_PAGES),
+            "--symbols-map-size",
+            str(self.PYPERF_SYMBOLS_MAP_SIZE),
             # Duration is irrelevant here, we want to run continuously.
         ]
         process = start_process(cmd, via_staticx=True)
