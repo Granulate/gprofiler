@@ -27,7 +27,7 @@ RUN yum install -y devtoolset-8 \
     devtoolset-8-elfutils-libelf-devel
 
 COPY ./scripts/pyperf_build.sh .
-RUN source scl_source enable devtoolset-8 llvm-toolset-7 && source ./scripts/pyperf_build.sh
+RUN source scl_source enable devtoolset-8 llvm-toolset-7 && source ./pyperf_build.sh
 
 # gProfiler part
 
