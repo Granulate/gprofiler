@@ -62,7 +62,7 @@ def test_python_ebpf(
         pyperf_path,
     )
 
-    with PythonEbpfProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
+    with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
         collapsed = process_collapsed.get(application_pid)
         assert_collapsed(collapsed)
