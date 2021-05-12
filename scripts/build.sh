@@ -13,7 +13,7 @@ curl -fL https://github.com/Granulate/async-profiler/releases/download/v2.0g1/as
    -z build/async-profiler-2.0-linux-x64.tar.gz -o build/async-profiler-2.0-linux-x64.tar.gz
 tar -xzf build/async-profiler-2.0-linux-x64.tar.gz -C gprofiler/resources/java --strip-components=2 async-profiler-2.0-linux-x64/build
 
-# pyperf - just create the directory for it, it will be built/downloaded later
+# pyperf - just create the directory for it, it will be built later
 mkdir -p gprofiler/resources/python/pyperf
 
 # perf
