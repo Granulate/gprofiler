@@ -13,4 +13,4 @@ def fibonacci(n: int) -> int:
 if __name__ == "__main__":
     while True:
         os.listdir("/")  # have some kernel stacks
-        fibonacci(20)
+        fibonacci(15)
