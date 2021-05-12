@@ -25,7 +25,7 @@ _reinitialize_profiler: Optional[Callable[[], None]] = None
 
 
 class PythonProfilerBase(ProfilerBase):
-    MAX_FREQUENCY = 100
+    MAX_FREQUENCY: Optional[int] = None  # set by base classes
 
     def __init__(
         self,
@@ -35,6 +35,7 @@ class PythonProfilerBase(ProfilerBase):
         storage_dir: str,
     ):
         super().__init__()
+        assert isinstance(self.MAX_FREQUENCY, int)
         self._frequency = min(frequency, self.MAX_FREQUENCY)
         self._duration = duration
         self._stop_event = stop_event or Event()
@@ -119,6 +120,7 @@ class PySpyProfiler(PythonProfilerBase):
 
 
 class PythonEbpfProfiler(PythonProfilerBase):
+    MAX_FREQUENCY = 1000
     PYPERF_RESOURCE = "python/pyperf/PyPerf"
     events_buffer_pages = 256  # 1mb and needs to be physically contiguous
     # 28mb (each symbol is 224 bytes), but needn't be physicall contiguous so don't care
