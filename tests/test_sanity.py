@@ -57,8 +57,9 @@ def test_python_ebpf(
 
     with PythonEbpfProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
-        assert_collapsed(process_collapsed.get(application_pid))
-        assert_function_in_collapsed("sys_getdents64")  # ensure kernels stacks exist
+        collapsed = process_collapsed.get(application_pid)
+        assert_collapsed(collapsed)
+        assert_function_in_collapsed("sys_getdents64", collapsed)  # ensure kernels stacks exist
 
 
 @pytest.mark.parametrize("runtime", ["java", "python"])
