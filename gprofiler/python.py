@@ -259,7 +259,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
         # PyPerf outputs sampling & error counters every interval, print them.
         # also, makes sure its output pipe doesn't fill up.
         # using read1() which performs just a single read() call and doesn't read until EOF
-        # (unliked Popen.communicate())
+        # (unlike Popen.communicate())
         assert self.process is not None
         logger.debug(f"PyPerf output: {self.process.stderr.read1()}")
         return parse_many_collapsed(collapsed_text)
