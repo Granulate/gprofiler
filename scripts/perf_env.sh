@@ -21,11 +21,12 @@ apt-get update && apt-get install -y \
     liblzma-dev \
     libnuma-dev \
     libbabeltrace-ctf-dev \
+    systemtap-sdt-dev \
     libslang2-dev \
     libzstd-dev \
     libbz2-dev \
     flex \
-    bison ;
+    bison
 
 # install newer versions of elfutils
 curl -L ftp://sourceware.org/pub/elfutils/0.183/elfutils-0.183.tar.bz2 -o /tmp/elfutils-0.183.tar.bz2
