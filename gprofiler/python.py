@@ -213,6 +213,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
             wait_event(self.poll_timeout, self._stop_event, lambda: os.path.exists(self.output_path))
         except TimeoutError:
             process.kill()
+            logger.error(f"PyPerf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
             raise
         else:
             self.process = process
