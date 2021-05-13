@@ -26,8 +26,6 @@ RUN yum install -y \
 
 WORKDIR /bcc
 
-RUN git clone --depth 1 -b v1.0.1 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 92b61ade89f554859950695b067288f60cb1f3e5
-
 RUN yum install -y centos-release-scl-rh
 # mostly taken from https://github.com/iovisor/bcc/blob/master/INSTALL.md#install-and-compile-llvm
 RUN yum install -y devtoolset-8 \
@@ -37,10 +35,8 @@ RUN yum install -y devtoolset-8 \
     llvm-toolset-7-clang-devel \
     devtoolset-8-elfutils-libelf-devel
 
-RUN mkdir bcc/build && cd bcc/build && \
-  source scl_source enable devtoolset-8 llvm-toolset-7 && \
-  cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root .. && \
-  make -C examples/cpp/pyperf -j -l VERBOSE=1 install
+COPY ./scripts/pyperf_build.sh .
+RUN source scl_source enable devtoolset-8 llvm-toolset-7 && source ./pyperf_build.sh
 
 # gProfiler part
 
