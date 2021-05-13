@@ -434,8 +434,13 @@ def main():
             logger.exception("Encountered an exception while getting basic system info")
 
         if args.output_dir:
-            if not Path(args.output_dir).is_dir():
-                logger.error("Output directory does not exist")
+            try:
+                os.makedirs(args.output_dir, exist_ok=True)
+            except (FileExistsError, NotADirectoryError):
+                logger.error(
+                    "Output directory / a component in its path already exists as a non-directory!"
+                    f"Please check the path {args.output_dir!r}"
+                )
                 sys.exit(1)
 
         if not os.path.exists(TEMPORARY_STORAGE_PATH):
