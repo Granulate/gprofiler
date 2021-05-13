@@ -261,7 +261,8 @@ class PythonEbpfProfiler(PythonProfilerBase):
         # using read1() which performs just a single read() call and doesn't read until EOF
         # (unlike Popen.communicate())
         assert self.process is not None
-        logger.debug(f"PyPerf output: {self.process.stderr.read1()}")
+        # Python 3.6 doesn't have read1() without size argument :/
+        logger.debug(f"PyPerf output: {self.process.stderr.read1(4096)}")
         return parse_many_collapsed(collapsed_text)
 
     def _terminate(self) -> Optional[int]:
