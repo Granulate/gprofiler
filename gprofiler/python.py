@@ -25,7 +25,7 @@ _reinitialize_profiler: Optional[Callable[[], None]] = None
 
 
 class PythonProfilerBase(ProfilerBase):
-    MAX_FREQUENCY = 100
+    MAX_FREQUENCY: Optional[int] = None  # set by base classes
 
     def __init__(
         self,
@@ -35,6 +35,7 @@ class PythonProfilerBase(ProfilerBase):
         storage_dir: str,
     ):
         super().__init__()
+        assert isinstance(self.MAX_FREQUENCY, int)
         self._frequency = min(frequency, self.MAX_FREQUENCY)
         self._duration = duration
         self._stop_event = stop_event or Event()
@@ -119,7 +120,11 @@ class PySpyProfiler(PythonProfilerBase):
 
 
 class PythonEbpfProfiler(PythonProfilerBase):
+    MAX_FREQUENCY = 1000
     PYPERF_RESOURCE = "python/pyperf/PyPerf"
+    events_buffer_pages = 256  # 1mb and needs to be physically contiguous
+    # 28mb (each symbol is 224 bytes), but needn't be physicall contiguous so don't care
+    symbols_map_size = 131072
     dump_signal = signal.SIGUSR2
     dump_timeout = 5  # seconds
     poll_timeout = 10  # seconds
@@ -195,6 +200,10 @@ class PythonEbpfProfiler(PythonProfilerBase):
             str(self.output_path),
             "-F",
             str(self._frequency),
+            "--events-buffer-pages",
+            str(self.events_buffer_pages),
+            "--symbols-map-size",
+            str(self.symbols_map_size),
             # Duration is irrelevant here, we want to run continuously.
         ]
         process = start_process(cmd, via_staticx=True)
@@ -204,6 +213,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
             wait_event(self.poll_timeout, self._stop_event, lambda: os.path.exists(self.output_path))
         except TimeoutError:
             process.kill()
+            logger.error(f"PyPerf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
             raise
         else:
             self.process = process
@@ -225,7 +235,15 @@ class PythonEbpfProfiler(PythonProfilerBase):
         self.process.send_signal(self.dump_signal)
 
         try:
-            return self._wait_for_output_file(self.dump_timeout)
+            output = self._wait_for_output_file(self.dump_timeout)
+            # PyPerf outputs sampling & error counters every interval (after writing the output file), print them.
+            # also, makes sure its output pipe doesn't fill up.
+            # using read1() which performs just a single read() call and doesn't read until EOF
+            # (unlike Popen.communicate())
+            assert self.process is not None
+            # Python 3.6 doesn't have read1() without size argument :/
+            logger.debug(f"PyPerf output: {self.process.stderr.read1(4096)}")
+            return output
         except TimeoutError:
             # error flow :(
             try:

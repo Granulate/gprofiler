@@ -1,7 +1,7 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Mapping
 
 from docker import DockerClient
 from docker.models.images import Image
@@ -59,3 +59,10 @@ def copy_pyspy_from_image(gprofiler_docker_image: Image):
         os.path.join("/app", "gprofiler", "resources", "python", "py-spy"),
         resource_path("python/py-spy"),
     )
+
+
+def assert_function_in_collapsed(function_name: str, collapsed: Mapping[str, int]) -> None:
+    print(f"collapsed: {collapsed}")
+    assert any(
+        (function_name in record) for record in collapsed.keys()
+    ), f"function {function_name!r} missing in collapsed data!"

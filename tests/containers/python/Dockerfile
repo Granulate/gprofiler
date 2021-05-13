@@ -1,6 +1,6 @@
 FROM python:3.6-alpine
 
 WORKDIR /app
-ADD fibonacci.py /app
+ADD lister.py /app
 
-CMD ["/app/fibonacci.py"]
+CMD ["/app/lister.py"]
