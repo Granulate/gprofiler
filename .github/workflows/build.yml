@@ -59,7 +59,8 @@ jobs:
        # decided not to use buildkit here to get nice caches.
        run: |
         docker build -t gprofiler-executable-builder -f - . < pyi.Dockerfile
-        docker container create --name gprofiler-executable-builder gprofiler-executable-builder
+        # No command specified in "scratch" image so just pass /bin/echo
+        docker container create --name gprofiler-executable-builder gprofiler-executable-builder /bin/echo
         mkdir -p dist/
         docker cp gprofiler-executable-builder:/gprofiler dist/gprofiler
         docker rm gprofiler-executable-builder
