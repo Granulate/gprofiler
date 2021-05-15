@@ -69,7 +69,7 @@ COPY gprofiler gprofiler
 # see https://pyinstaller.readthedocs.io/en/stable/when-things-go-wrong.html
 # from a quick look I didn't see how to tell PyInstaller to exit with an error on this, hence
 # this check in the shell.
-COPY pyi_build.py pyinstaller.spec .
+COPY pyi_build.py pyinstaller.spec ./
 RUN pyinstaller pyinstaller.spec \
     && echo \
     && test -f build/pyinstaller/warn-pyinstaller.txt \
