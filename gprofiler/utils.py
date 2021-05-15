@@ -271,7 +271,7 @@ def get_libc_version() -> Tuple[str, bytes]:
     # not passing "encoding"/"text" - this runs in a different mount namespace, and Python fails to
     # load the files it needs for those encodings (getting LookupError: unknown encoding: ascii)
     ldd_version = run_process(
-        ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, suppress_log=True
+        ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, suppress_log=True, check=False
     ).stdout
     # catches GLIBC & EGLIBC
     m = re.search(br"GLIBC (.*?)\)", ldd_version)
