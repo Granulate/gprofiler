@@ -15,7 +15,12 @@ from gprofiler.java import JavaProfiler
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.python import PySpyProfiler, PythonEbpfProfiler
 from gprofiler.utils import resource_path
-from tests.utils import copy_file_from_image, copy_pyspy_from_image, run_privileged_container
+from tests.utils import (
+    assert_function_in_collapsed,
+    copy_file_from_image,
+    copy_pyspy_from_image,
+    run_privileged_container,
+)
 
 
 @pytest.mark.parametrize("runtime", ["java"])
@@ -57,9 +62,11 @@ def test_python_ebpf(
         pyperf_path,
     )
 
-    with PythonEbpfProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
+    with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
-        assert_collapsed(process_collapsed.get(application_pid))
+        collapsed = process_collapsed.get(application_pid)
+        assert_collapsed(collapsed)
+        assert_function_in_collapsed("sys_getdents64", collapsed)  # ensure kernels stacks exist
 
 
 @pytest.mark.parametrize("runtime", ["java", "python"])
