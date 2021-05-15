@@ -139,6 +139,7 @@ def run_process(
     stop_event: Event = None,
     suppress_log: bool = False,
     via_staticx: bool = False,
+    check: bool = True,
     **kwargs,
 ) -> CompletedProcess:
     with start_process(cmd, via_staticx, **kwargs) as process:
@@ -167,7 +168,7 @@ def run_process(
             logger.debug(f"({process.args!r}) stdout: {result.stdout}")
         if result.stderr:
             logger.debug(f"({process.args!r}) stderr: {result.stderr}")
-    if retcode:
+    if check and retcode != 0:
         raise CalledProcessError(retcode, process.args, output=stdout, stderr=stderr)
     return result
 
@@ -185,6 +186,7 @@ def pgrep_maps(match: str) -> List[Process]:
         stderr=subprocess.PIPE,
         shell=True,
         suppress_log=True,
+        check=False,
     )
     # might get 2 (which 'grep' exits with, if some files were unavailable, because processes have exited)
     assert result.returncode in (
@@ -269,7 +271,7 @@ def get_libc_version() -> Tuple[str, bytes]:
     # not passing "encoding"/"text" - this runs in a different mount namespace, and Python fails to
     # load the files it needs for those encodings (getting LookupError: unknown encoding: ascii)
     ldd_version = run_process(
-        ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, suppress_log=True
+        ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, suppress_log=True, check=False
     ).stdout
     # catches GLIBC & EGLIBC
     m = re.search(br"GLIBC (.*?)\)", ldd_version)
