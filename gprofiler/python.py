@@ -92,6 +92,14 @@ class PySpyProfiler(PythonProfilerBase):
                 if any(item in cmdline for item in self.BLACKLISTED_PYTHON_PROCS):
                     continue
 
+                # PyPy is called pypy3 or pypy (for 2)
+                # py-spy is, of course, only for CPython, and will report a possibly not-so-nice error
+                # when invoked on pypy.
+                # I'm checking for "pypy" in the basename here. I'm not aware of libpypy being directly loaded
+                # into non-pypy processes, if we ever encounter that - we can check the maps instead
+                if os.path.basename(process.exe()).startswith("pypy"):
+                    continue
+
                 filtered_procs.append(process)
             except Exception:
                 logger.exception(f"Couldn't add pid {process.pid} to list")
