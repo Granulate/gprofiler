@@ -3,9 +3,10 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import logging
+import os
 import re
 from collections import Counter, defaultdict
-from typing import Iterable, Mapping, MutableMapping
+from typing import DefaultDict, Dict, List, Mapping, MutableMapping, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,34 @@ def collapse_stack(stack: str, comm: str) -> str:
     return ";".join(funcs)
 
 
-def parse_perf_script(script: str):
+def merge_global_perfs(raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str]) -> Dict[int, List[Dict[str, str]]]:
+    merged_perf: Dict[int, List[Dict[str, str]]] = {}
+    fp_perf = parse_perf_script(raw_fp_perf)
+    dwarf_perf = parse_perf_script(raw_dwarf_perf)
+    for pid, fp_samples in fp_perf.items():
+        if pid not in dwarf_perf:
+            merged_perf[pid] = fp_samples
+            continue
+        fp_frame_count_average = get_average_frame_count(fp_samples)
+        dwarf_samples = dwarf_perf[pid]
+        dwarf_frame_count_average = get_average_frame_count(dwarf_samples)
+        merged_perf[pid] = fp_samples if fp_frame_count_average > dwarf_frame_count_average else dwarf_samples
+    for pid, dwarf_samples in dwarf_perf.items():
+        if pid in merged_perf:
+            continue
+        merged_perf[pid] = dwarf_samples
+    return merged_perf
+
+
+def get_average_frame_count(samples: List[Dict[str, str]]) -> float:
+    frame_count_per_samples = [sample["stack"].count(os.linesep) for sample in samples if sample["stack"] is not None]
+    return sum(frame_count_per_samples) / len(frame_count_per_samples)
+
+
+def parse_perf_script(script: Optional[str]) -> DefaultDict[int, List[Dict[str, str]]]:
+    pid_to_sample_info: DefaultDict[int, List[Dict[str, str]]] = defaultdict(list)
+    if script is None:
+        return pid_to_sample_info
     for sample in script.split("\n\n"):
         try:
             if sample.strip() == "":
@@ -92,25 +120,29 @@ def parse_perf_script(script: str):
             match = SAMPLE_REGEX.match(sample)
             if match is None:
                 raise Exception("Failed to match sample")
-            yield match.groupdict()
+            sample_dict = match.groupdict()
+            pid_to_sample_info[int(sample_dict["pid"])].append(
+                {"comm": sample_dict["comm"], "stack": sample_dict["stack"]}
+            )
         except Exception:
             logger.exception(f"Error processing sample: {sample}")
+    return pid_to_sample_info
 
 
-def merge_perfs(perf_all: Iterable[Mapping[str, str]], process_perfs: Mapping[int, Mapping[str, int]]) -> str:
+def merge_perfs(perf_all: Dict[int, List[Dict[str, str]]], process_perfs: Mapping[int, Mapping[str, int]]) -> str:
     per_process_samples: MutableMapping[int, int] = Counter()
     new_samples: MutableMapping[str, int] = Counter()
     process_names = {}
-    for parsed in perf_all:
-        try:
-            pid = int(parsed["pid"])
-            if pid in process_perfs:
-                per_process_samples[pid] += 1
-                process_names[pid] = parsed["comm"]
-            elif parsed["stack"] is not None:
-                new_samples[collapse_stack(parsed["stack"], parsed["comm"])] += 1
-        except Exception:
-            logger.exception(f"Error processing sample: {parsed}")
+    for pid, samples in perf_all.items():
+        for sample in samples:
+            try:
+                if pid in process_perfs:
+                    per_process_samples[pid] += 1
+                    process_names[pid] = sample["comm"]
+                elif sample["stack"] is not None:
+                    new_samples[collapse_stack(sample["stack"], sample["comm"])] += 1
+            except Exception:
+                logger.exception(f"Error processing sample: {sample}")
 
     for pid, perf_all_count in per_process_samples.items():
         process_stacks = process_perfs[pid]

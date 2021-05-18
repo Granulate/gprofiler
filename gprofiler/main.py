@@ -74,6 +74,7 @@ class GProfiler:
         output_dir: str,
         flamegraph: bool,
         rotating_output: bool,
+        perf_mode: str,
         runtimes: Dict[str, bool],
         client: APIClient,
     ):
@@ -98,7 +99,7 @@ class GProfiler:
             else NoopProfiler()
         )
         self.system_profiler = SystemProfiler(
-            self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name
+            self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name, perf_mode
         )
         self.initialize_python_profiler()
 
@@ -327,6 +328,15 @@ def parse_cmd_args():
     )
 
     parser.add_argument(
+        "--perf-mode",
+        dest="perf_mode",
+        default="smart",
+        choices=["fp", "dwarf", "smart"],
+        help="Run perf with either FP (Frame Pointers), Dwarf, or run both and intelligently merge them "
+        "by choosing the best result per process",
+    )
+
+    parser.add_argument(
         "-u",
         "--upload-results",
         action="store_true",
@@ -464,7 +474,14 @@ def main():
 
         runtimes = {"java": args.java, "python": args.python}
         gprofiler = GProfiler(
-            args.frequency, args.duration, args.output_dir, args.flamegraph, args.rotating_output, runtimes, client
+            args.frequency,
+            args.duration,
+            args.output_dir,
+            args.flamegraph,
+            args.rotating_output,
+            args.perf_mode,
+            runtimes,
+            client,
         )
         logger.info("gProfiler initialized and ready to start profiling")
 
