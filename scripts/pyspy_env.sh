@@ -23,17 +23,23 @@ mkdir builds && cd builds
 
 wget https://github.com/libunwind/libunwind/releases/download/v1.5/libunwind-1.5.0.tar.gz
 tar -xf libunwind-1.5.0.tar.gz
-cd libunwind-1.5.0
+pushd libunwind-1.5.0
 CC=musl-gcc ./configure --disable-minidebuginfo --enable-ptrace --disable-tests --disable-documentation
 make
 make install
+popd
+rm -r libunwind-1.5.0
+rm libunwind-1.5.0.tar.gz
 
 wget https://zlib.net/zlib-1.2.11.tar.xz
 tar -xf zlib-1.2.11.tar.xz
-cd zlib-1.2.11
+pushd zlib-1.2.11
 # note the use of --prefix here. it matches the directory https://github.com/benfred/remoteprocess/blob/master/build.rs expects to find libs for musl.
 # the libunwind configure may install it in /usr/local/lib for all I care, but if we override /usr/local/lib/libz... with the musl ones,
 # it won't do any good...
 CC=musl-gcc ./configure --prefix=/usr/local/musl/x86_64-unknown-linux-musl
 make
 make install
+popd
+rm -r zlib-1.2.11
+rm zlib-1.2.11.tar.xz
