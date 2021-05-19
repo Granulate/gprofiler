@@ -343,6 +343,7 @@ def parse_cmd_args():
     parser.add_argument("--token", dest="server_token", help="Server token")
     parser.add_argument("--service-name", help="Service name")
 
+    parser.add_argument('--version', action='version', version=__version__)
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
 
     logging_options = parser.add_argument_group("logging")
