@@ -1,3 +1,12 @@
+FROM rust:latest AS pyspy-builder
+
+COPY scripts/pyspy_env.sh .
+RUN ./pyspy_env.sh
+
+COPY scripts/pyspy_build.sh .
+RUN ./pyspy_build.sh
+
+
 FROM ubuntu:20.04 as bcc-builder
 
 RUN apt-get update
@@ -7,10 +16,8 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y git build-essential iperf 
 
 WORKDIR /bcc
 
-RUN git clone --depth 1 -b v1.0.1 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 92b61ade89f554859950695b067288f60cb1f3e5
-RUN mkdir bcc/build && cd bcc/build && \
-  cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root .. && \
-  make -C examples/cpp/pyperf -j -l VERBOSE=1 install
+COPY ./scripts/pyperf_build.sh .
+RUN ./pyperf_build.sh
 
 
 FROM ubuntu:20.04
@@ -25,6 +32,8 @@ COPY --from=bcc-builder /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resour
 COPY --from=bcc-builder /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
 COPY --from=bcc-builder /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
 COPY --from=bcc-builder /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
+
+COPY --from=pyspy-builder /py-spy/target/x86_64-unknown-linux-musl/release/py-spy gprofiler/resources/python/py-spy
 
 COPY scripts/build.sh scripts/build.sh
 RUN ./scripts/build.sh

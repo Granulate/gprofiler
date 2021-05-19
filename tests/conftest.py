@@ -5,6 +5,7 @@
 import os
 import stat
 from contextlib import contextmanager
+from functools import partial
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired, run
 from time import sleep
@@ -17,7 +18,7 @@ from docker.models.images import Image
 from pytest import fixture  # type: ignore
 
 from tests import CONTAINERS_DIRECTORY, PARENT
-from tests.utils import chmod_path_parts
+from tests.utils import assert_function_in_collapsed, chmod_path_parts
 
 
 @fixture
@@ -56,9 +57,9 @@ def java_command_line(class_path: Path) -> List:
 def command_line(tmp_path: Path, runtime: str) -> List:
     return {
         "java": java_command_line(tmp_path / "java"),
-        # note: here we run "python /path/to/fibonacci.py" while in the container test we have
-        # "CMD /path/to/fibonacci.py", to test processes with non-python /proc/pid/comm
-        "python": ["python3", CONTAINERS_DIRECTORY / "python/fibonacci.py"],
+        # note: here we run "python /path/to/lister.py" while in the container test we have
+        # "CMD /path/to/lister.py", to test processes with non-python /proc/pid/comm
+        "python": ["python3", CONTAINERS_DIRECTORY / "python/lister.py"],
     }[runtime]
 
 
@@ -160,15 +161,10 @@ def application_pid(in_container: bool, application_process: Popen, application_
 def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int]], None]:
     function_name = {
         "java": "Fibonacci.main",
-        "python": "fibonacci",
+        "python": "burner",
     }[runtime]
 
-    def assert_collapsed(collapsed: Mapping[str, int]) -> None:
-        print(f"collapsed: {collapsed}")
-        assert collapsed is not None
-        assert any((function_name in record) for record in collapsed.keys())
-
-    return assert_collapsed
+    return partial(assert_function_in_collapsed, function_name)
 
 
 @fixture

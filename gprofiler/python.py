@@ -25,7 +25,7 @@ _reinitialize_profiler: Optional[Callable[[], None]] = None
 
 
 class PythonProfilerBase(ProfilerBase):
-    MAX_FREQUENCY = 100
+    MAX_FREQUENCY: Optional[int] = None  # set by base classes
 
     def __init__(
         self,
@@ -35,6 +35,7 @@ class PythonProfilerBase(ProfilerBase):
         storage_dir: str,
     ):
         super().__init__()
+        assert isinstance(self.MAX_FREQUENCY, int)
         self._frequency = min(frequency, self.MAX_FREQUENCY)
         self._duration = duration
         self._stop_event = stop_event or Event()
@@ -91,6 +92,14 @@ class PySpyProfiler(PythonProfilerBase):
                 if any(item in cmdline for item in self.BLACKLISTED_PYTHON_PROCS):
                     continue
 
+                # PyPy is called pypy3 or pypy (for 2)
+                # py-spy is, of course, only for CPython, and will report a possibly not-so-nice error
+                # when invoked on pypy.
+                # I'm checking for "pypy" in the basename here. I'm not aware of libpypy being directly loaded
+                # into non-pypy processes, if we ever encounter that - we can check the maps instead
+                if os.path.basename(process.exe()).startswith("pypy"):
+                    continue
+
                 filtered_procs.append(process)
             except Exception:
                 logger.exception(f"Couldn't add pid {process.pid} to list")
@@ -119,7 +128,11 @@ class PySpyProfiler(PythonProfilerBase):
 
 
 class PythonEbpfProfiler(PythonProfilerBase):
+    MAX_FREQUENCY = 1000
     PYPERF_RESOURCE = "python/pyperf/PyPerf"
+    events_buffer_pages = 256  # 1mb and needs to be physically contiguous
+    # 28mb (each symbol is 224 bytes), but needn't be physicall contiguous so don't care
+    symbols_map_size = 131072
     dump_signal = signal.SIGUSR2
     dump_timeout = 5  # seconds
     poll_timeout = 10  # seconds
@@ -169,20 +182,6 @@ class PythonEbpfProfiler(PythonProfilerBase):
             cls._pyperf_error(process)
 
     @classmethod
-    def _get_pyperf_cmd(cls) -> List[str]:
-        pyperf = resource_path(cls.PYPERF_RESOURCE)
-        staticx_dir = os.getenv("STATICX_BUNDLE_DIR")
-        # are we running under staticx?
-        if staticx_dir is not None:
-            # STATICX_BUNDLE_DIR is where staticx has extracted all of the libraries it had collected
-            # earlier.
-            # see https://github.com/JonathonReinhart/staticx#run-time-information
-            # we run PyPerf with the same ld.so whose libc it was compiled against.
-            return [f"{staticx_dir}/.staticx.interp", "--library-path", staticx_dir, pyperf]
-        else:
-            return [pyperf]
-
-    @classmethod
     def test(cls, storage_dir: str, stop_event: Event):
         test_path = Path(storage_dir) / ".test"
         for f in glob.glob(f"{str(test_path)}.*"):
@@ -191,8 +190,8 @@ class PythonEbpfProfiler(PythonProfilerBase):
         # Run the process and check if the output file is properly created.
         # Wait up to 10sec for the process to terminate.
         # Allow cancellation via the stop_event.
-        cmd = cls._get_pyperf_cmd() + ["--output", str(test_path), "-F", "1", "--duration", "1"]
-        process = start_process(cmd)
+        cmd = [resource_path(cls.PYPERF_RESOURCE), "--output", str(test_path), "-F", "1", "--duration", "1"]
+        process = start_process(cmd, via_staticx=True)
         try:
             poll_process(process, cls.poll_timeout, stop_event)
         except TimeoutError:
@@ -203,20 +202,26 @@ class PythonEbpfProfiler(PythonProfilerBase):
 
     def start(self):
         logger.info("Starting profiling of Python processes with PyPerf")
-        cmd = self._get_pyperf_cmd() + [
+        cmd = [
+            resource_path(self.PYPERF_RESOURCE),
             "--output",
             str(self.output_path),
             "-F",
             str(self._frequency),
+            "--events-buffer-pages",
+            str(self.events_buffer_pages),
+            "--symbols-map-size",
+            str(self.symbols_map_size),
             # Duration is irrelevant here, we want to run continuously.
         ]
-        process = start_process(cmd)
+        process = start_process(cmd, via_staticx=True)
         # wait until the transient data file appears - because once returning from here, PyPerf may
         # be polled via snapshot() and we need it to finish installing its signal handler.
         try:
             wait_event(self.poll_timeout, self._stop_event, lambda: os.path.exists(self.output_path))
         except TimeoutError:
             process.kill()
+            logger.error(f"PyPerf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
             raise
         else:
             self.process = process
@@ -238,7 +243,15 @@ class PythonEbpfProfiler(PythonProfilerBase):
         self.process.send_signal(self.dump_signal)
 
         try:
-            return self._wait_for_output_file(self.dump_timeout)
+            output = self._wait_for_output_file(self.dump_timeout)
+            # PyPerf outputs sampling & error counters every interval (after writing the output file), print them.
+            # also, makes sure its output pipe doesn't fill up.
+            # using read1() which performs just a single read() call and doesn't read until EOF
+            # (unlike Popen.communicate())
+            assert self.process is not None
+            # Python 3.6 doesn't have read1() without size argument :/
+            logger.debug(f"PyPerf output: {self.process.stderr.read1(4096)}")
+            return output
         except TimeoutError:
             # error flow :(
             try:
