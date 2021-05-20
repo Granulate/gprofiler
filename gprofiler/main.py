@@ -412,6 +412,8 @@ def parse_cmd_args():
     if args.dwarf_stack_size > 65528:
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
 
+    if args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
+        parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode smart|dwarf")
     return args
 
 
