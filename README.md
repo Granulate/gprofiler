@@ -1,7 +1,7 @@
 # gProfiler
 gProfiler combines multiple sampling profilers to produce unified visualization of
 what your CPU is spending time on, displaying stack traces of your processes
-across native programs<sup id="a1">[1](#perf-native)</sup> (includes Golang), Java and Python runtimes, and kernel routines.
+across native programs (includes Golang), Java and Python runtimes, and kernel routines.
 
 gProfiler can upload its results to the [Granulate Performance Studio](https://profiler.granulate.io/), which aggregates the results from different instances over different periods of time and can give you a holistic view of what is happening on your entire cluster.
 To upload results, you will have to register and generate a token on the website.
@@ -140,6 +140,3 @@ We recommend going through our [contribution guide](https://github.com/granulate
 * [py-spy](https://github.com/benfred/py-spy) by [Ben Frederickson](https://github.com/benfred). See [our fork](https://github.com/Granulate/py-spy).
 * [bcc](https://github.com/iovisor/bcc) (for PyPerf) by the IO Visor project. See [our fork](https://github.com/Granulate/bcc).
 
-# Footnotes
-
-<a name="perf-native">1</a>: *Currently* requires profiled native programs to be compiled with frame pointer. [↩](#a1)
