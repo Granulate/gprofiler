@@ -67,9 +67,9 @@ class SystemProfiler:
 
         logger.info("Running global perf...")
         if not self._fp_perf:
-            return merge_global_perfs(None, self._run_perf(True))
+            return merge_global_perfs(None, self._run_perf(dwarf=True))
         if not self._dwarf_perf:
-            return merge_global_perfs(self._run_perf(False), None)
+            return merge_global_perfs(self._run_perf(dwarf=False), None)
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
             fp_future = executor.submit(self._run_perf, False)
             dwarf_future = executor.submit(self._run_perf, True)
