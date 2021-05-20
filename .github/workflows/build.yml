@@ -25,9 +25,9 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-#      - name: Cache Docker Layers
-#        uses: satackey/action-docker-layer-caching@v0.0.11
-#        continue-on-error: true
+      - name: Cache Docker Layers
+        uses: satackey/action-docker-layer-caching@v0.0.11
+        continue-on-error: true
       - name: Build and push
         id: docker_build
         uses: docker/build-push-action@v2
@@ -49,9 +49,9 @@ jobs:
          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
          ./cmp_tags.sh
 
-#     - name: Cache Docker Layers
-#       uses: satackey/action-docker-layer-caching@v0.0.11
-#       continue-on-error: true
+     - name: Cache Docker Layers
+       uses: satackey/action-docker-layer-caching@v0.0.11
+       continue-on-error: true
 
      - name: Run Pyinstaller
        # Not using DOCKER_BUILDKIT=1 since it has another cache mechanism which is not supported by satackey/action-docker-layer-caching@v0.0.11
