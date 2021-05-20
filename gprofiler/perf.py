@@ -21,7 +21,8 @@ PERF_BUILDID_DIR = os.path.join(TEMPORARY_STORAGE_PATH, "perf-buildids")
 
 # TODO: base on ProfilerBase, currently can't because the snapshot() API differs here.
 class SystemProfiler:
-    def __init__(self, frequency: int, duration: int, stop_event: Event, storage_dir: str, perf_mode: str):
+    def __init__(self, frequency: int, duration: int, stop_event: Event, storage_dir: str, perf_mode: str,
+                 dwarf_stack_size):
         logger.info(f"Initializing system profiler (frequency: {frequency}hz, duration: {duration}s)")
         self._frequency = frequency
         self._duration = duration
@@ -29,6 +30,7 @@ class SystemProfiler:
         self._storage_dir = storage_dir
         self._fp_perf = perf_mode in ("fp", "smart")
         self._dwarf_perf = perf_mode in ("dwarf", "smart")
+        self._dwarf_stack_size = dwarf_stack_size
 
     def start(self):
         pass
@@ -50,7 +52,7 @@ class SystemProfiler:
         with NamedTemporaryFile(dir=self._storage_dir) as record_file:
             args = ["-F", str(self._frequency), "-a", "-g", "-o", record_file.name]
             if dwarf:
-                args += ["--call-graph", "dwarf"]
+                args += ["--call-graph", f"dwarf,{self._dwarf_stack_size}"]
             run_process(
                 [resource_path("perf")] + buildid_args + ["record"] + args + ["--", "sleep", str(self._duration)],
                 stop_event=self._stop_event,

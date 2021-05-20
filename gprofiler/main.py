@@ -67,17 +67,8 @@ def sigint_handler(sig, frame):
 
 
 class GProfiler:
-    def __init__(
-        self,
-        frequency: int,
-        duration: int,
-        output_dir: str,
-        flamegraph: bool,
-        rotating_output: bool,
-        perf_mode: str,
-        runtimes: Dict[str, bool],
-        client: APIClient,
-    ):
+    def __init__(self, frequency: int, duration: int, output_dir: str, flamegraph: bool, rotating_output: bool,
+                 perf_mode: str, dwarf_stack_size: int, runtimes: Dict[str, bool], client: APIClient):
         self._frequency = frequency
         self._duration = duration
         self._output_dir = output_dir
@@ -98,9 +89,8 @@ class GProfiler:
             if self._runtimes["java"]
             else NoopProfiler()
         )
-        self.system_profiler = SystemProfiler(
-            self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name, perf_mode
-        )
+        self.system_profiler = SystemProfiler(self._frequency, self._duration, self._stop_event,
+                                              self._temp_storage_dir.name, perf_mode, dwarf_stack_size)
         self.initialize_python_profiler()
 
     def __enter__(self):
@@ -338,6 +328,15 @@ def parse_cmd_args():
     )
 
     parser.add_argument(
+        "--perf-dwarf-stack-size",
+        dest="dwarf_stack_size",
+        default=8192,
+        type=int,
+        help="The max stack size for the Dwarf perf, in bytes. Must be <65528."
+             " Relevant for --perf-mode dwarf|smart. Default: %(default)s",
+    )
+
+    parser.add_argument(
         "-u",
         "--upload-results",
         action="store_true",
@@ -398,6 +397,9 @@ def parse_cmd_args():
 
     if not args.upload_results and not args.output_dir:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
+
+    if args.dwarf_stack_size > 65528:
+        parser.error("--perf-dwarf-stack-size maximum size is 65528")
 
     return args
 
@@ -474,16 +476,8 @@ def main():
             return
 
         runtimes = {"java": args.java, "python": args.python}
-        gprofiler = GProfiler(
-            args.frequency,
-            args.duration,
-            args.output_dir,
-            args.flamegraph,
-            args.rotating_output,
-            args.perf_mode,
-            runtimes,
-            client,
-        )
+        gprofiler = GProfiler(args.frequency, args.duration, args.output_dir, args.flamegraph, args.rotating_output,
+                              args.perf_mode, args.dwarf_stack_size, runtimes, client)
         logger.info("gProfiler initialized and ready to start profiling")
 
         if args.continuous:
