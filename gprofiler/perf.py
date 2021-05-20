@@ -66,11 +66,15 @@ class SystemProfiler:
             raise Exception(f"Free disk space: {free_disk}kb. Skipping perf!")
 
         logger.info("Running global perf...")
+        if not self._fp_perf:
+            return merge_global_perfs(None, self._run_perf(True))
+        if not self._dwarf_perf:
+            return merge_global_perfs(self._run_perf(False), None)
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            fp_future = executor.submit(self._run_perf, False) if self._fp_perf else None
-            dwarf_future = executor.submit(self._run_perf, True) if self._dwarf_perf else None
-        fp_perf = fp_future.result() if fp_future is not None else None
-        dwarf_perf = dwarf_future.result() if dwarf_future is not None else None
+            fp_future = executor.submit(self._run_perf, False)
+            dwarf_future = executor.submit(self._run_perf, True)
+        fp_perf = fp_future.result()
+        dwarf_perf = dwarf_future.result()
 
         logger.info("Finished running global perf")
 
