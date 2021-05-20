@@ -43,7 +43,7 @@ class SystemProfiler:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
 
-    def _run_perf(self, dwarf=False):
+    def _run_perf(self, dwarf: bool = False) -> str:
 
         buildid_args = ["--buildid-dir", PERF_BUILDID_DIR]
 
