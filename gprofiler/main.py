@@ -214,7 +214,8 @@ class GProfiler:
                 logger.exception(f"{future.name} profiling failed")
 
         local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
-        merged_result = merge.merge_perfs(system_future.result(), process_perfs)
+        system_perf_pid_to_stacks_counter, pid_to_name = system_future.result()
+        merged_result = merge.merge_perfs(system_perf_pid_to_stacks_counter, pid_to_name, process_perfs)
 
         if self._output_dir:
             self._generate_output_files(merged_result, local_start_time, local_end_time)

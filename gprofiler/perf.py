@@ -7,7 +7,7 @@ import logging
 import os
 from tempfile import NamedTemporaryFile
 from threading import Event
-from typing import Dict, List
+from typing import DefaultDict, Dict, MutableMapping, Tuple
 
 import psutil
 
@@ -60,7 +60,7 @@ class SystemProfiler:
             )
             return perf_script_result.stdout.decode('utf8')
 
-    def snapshot(self) -> Dict[int, List[Dict[str, str]]]:
+    def snapshot(self) -> Tuple[DefaultDict[int, MutableMapping[str, int]], Dict[int, str]]:
         free_disk = psutil.disk_usage(self._storage_dir).free
         if free_disk < 4 * 1024 * 1024:
             raise Exception(f"Free disk space: {free_disk}kb. Skipping perf!")

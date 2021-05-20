@@ -3,10 +3,9 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import logging
-import os
 import re
 from collections import Counter, defaultdict
-from typing import DefaultDict, Dict, List, Mapping, MutableMapping, Optional
+from typing import DefaultDict, Dict, Iterable, Mapping, MutableMapping, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -83,34 +82,85 @@ def collapse_stack(stack: str, comm: str) -> str:
     return ";".join(funcs)
 
 
-def merge_global_perfs(raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str]) -> Dict[int, List[Dict[str, str]]]:
-    merged_perf: Dict[int, List[Dict[str, str]]] = {}
-    fp_perf = parse_perf_script(raw_fp_perf)
-    dwarf_perf = parse_perf_script(raw_dwarf_perf)
-    for pid, fp_samples in fp_perf.items():
+def merge_global_perfs(
+    raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str]
+) -> Tuple[DefaultDict[int, MutableMapping[str, int]], Dict[int, str]]:
+    # The FP perf is used here as the "main" perf, to which the Dwarf perf is scaled.
+    merged_pid_to_stacks_counters: DefaultDict[int, MutableMapping[str, int]] = defaultdict(Counter)
+    fp_perf, fp_pid_to_name = parse_perf_script(raw_fp_perf)
+    dwarf_perf, dwarf_pid_to_name = parse_perf_script(raw_dwarf_perf)
+    dwarf_pid_to_name.update(fp_pid_to_name)
+    merged_pid_to_name = dwarf_pid_to_name
+
+    if raw_fp_perf is None:
+        return dwarf_perf, merged_pid_to_name
+    elif raw_dwarf_perf is None:
+        return fp_perf, merged_pid_to_name
+
+    total_fp_samples = sum([sum(stacks.values()) for stacks in fp_perf.values()])
+    total_dwarf_samples = sum([sum(stacks.values()) for stacks in dwarf_perf.values()])
+    fp_to_dwarf_total_sample_count_ratio = total_fp_samples / total_dwarf_samples
+
+    add_highest_avg_depth_stacks_per_process(
+        dwarf_perf, fp_perf, fp_to_dwarf_total_sample_count_ratio, merged_pid_to_stacks_counters
+    )
+    add_missing_dwarf_stacks(dwarf_perf, fp_to_dwarf_total_sample_count_ratio, merged_pid_to_stacks_counters)
+
+    return merged_pid_to_stacks_counters, merged_pid_to_name
+
+
+def add_highest_avg_depth_stacks_per_process(
+    dwarf_perf, fp_perf, fp_to_dwarf_total_sample_count_ratio, merged_pid_to_stacks_counters
+):
+    for pid, fp_collapsed_stacks_counters in fp_perf.items():
         if pid not in dwarf_perf:
-            merged_perf[pid] = fp_samples
+            merged_pid_to_stacks_counters[pid] = fp_collapsed_stacks_counters
             continue
-        fp_frame_count_average = get_average_frame_count(fp_samples)
-        dwarf_samples = dwarf_perf[pid]
-        dwarf_frame_count_average = get_average_frame_count(dwarf_samples)
-        merged_perf[pid] = fp_samples if fp_frame_count_average > dwarf_frame_count_average else dwarf_samples
-    for pid, dwarf_samples in dwarf_perf.items():
-        if pid in merged_perf:
-            continue
-        merged_perf[pid] = dwarf_samples
-    return merged_perf
+
+        fp_frame_count_average = get_average_frame_count(fp_collapsed_stacks_counters.keys())
+        dwarf_collapsed_stacks_counters = dwarf_perf[pid]
+        dwarf_frame_count_average = get_average_frame_count(dwarf_collapsed_stacks_counters.keys())
+        if fp_frame_count_average > dwarf_frame_count_average:
+            merged_pid_to_stacks_counters[pid] = fp_collapsed_stacks_counters
+        else:
+            dwarf_collapsed_stacks_counters = scale_dwarf_samples_count(
+                dwarf_collapsed_stacks_counters, fp_to_dwarf_total_sample_count_ratio
+            )
+            merged_pid_to_stacks_counters[pid] = dwarf_collapsed_stacks_counters
 
 
-def get_average_frame_count(samples: List[Dict[str, str]]) -> float:
-    frame_count_per_samples = [sample["stack"].count(os.linesep) for sample in samples if sample["stack"] is not None]
+def scale_dwarf_samples_count(
+    dwarf_collapsed_stacks_counters: MutableMapping[str, int], fp_to_dwarf_total_sample_count_ratio: float
+) -> MutableMapping[str, int]:
+    if fp_to_dwarf_total_sample_count_ratio == 1:
+        return dwarf_collapsed_stacks_counters
+    # scale the dwarf stacks to the FP stacks to avoid skewing the results
+    for stack, sample_count in dwarf_collapsed_stacks_counters.items():
+        dwarf_collapsed_stacks_counters[stack] = max(1, round(sample_count * fp_to_dwarf_total_sample_count_ratio))
+    # Note - returning the value is not necessary, but is done for readability
+    return dwarf_collapsed_stacks_counters
+
+
+def get_average_frame_count(stacks: Iterable[str]) -> float:
+    frame_count_per_samples = [sample.count(";") for sample in stacks]
     return sum(frame_count_per_samples) / len(frame_count_per_samples)
 
 
-def parse_perf_script(script: Optional[str]) -> DefaultDict[int, List[Dict[str, str]]]:
-    pid_to_sample_info: DefaultDict[int, List[Dict[str, str]]] = defaultdict(list)
+def add_missing_dwarf_stacks(dwarf_perf, fp_to_dwarf_total_sample_count_ratio, merged_pid_to_stacks_counters):
+    for pid, dwarf_collapsed_stacks_counters in dwarf_perf.items():
+        if pid in merged_pid_to_stacks_counters:
+            continue
+        dwarf_collapsed_stacks_counters = scale_dwarf_samples_count(
+            dwarf_collapsed_stacks_counters, fp_to_dwarf_total_sample_count_ratio
+        )
+        merged_pid_to_stacks_counters[pid] = dwarf_collapsed_stacks_counters
+
+
+def parse_perf_script(script: Optional[str]) -> Tuple[DefaultDict[int, MutableMapping[str, int]], Dict[int, str]]:
+    pid_to_collapsed_stacks_counters: DefaultDict[int, MutableMapping[str, int]] = defaultdict(Counter)
+    pid_to_name: Dict[int, str] = {}
     if script is None:
-        return pid_to_sample_info
+        return pid_to_collapsed_stacks_counters, pid_to_name
     for sample in script.split("\n\n"):
         try:
             if sample.strip() == "":
@@ -121,28 +171,28 @@ def parse_perf_script(script: Optional[str]) -> DefaultDict[int, List[Dict[str, 
             if match is None:
                 raise Exception("Failed to match sample")
             sample_dict = match.groupdict()
-            pid_to_sample_info[int(sample_dict["pid"])].append(
-                {"comm": sample_dict["comm"], "stack": sample_dict["stack"]}
-            )
+
+            pid = int(sample_dict["pid"])
+            process_name = sample_dict["comm"]
+            pid_to_collapsed_stacks_counters[pid][collapse_stack(sample_dict["stack"], process_name)] += 1
+            pid_to_name.setdefault(pid, process_name)
         except Exception:
             logger.exception(f"Error processing sample: {sample}")
-    return pid_to_sample_info
+    return pid_to_collapsed_stacks_counters, pid_to_name
 
 
-def merge_perfs(perf_all: Dict[int, List[Dict[str, str]]], process_perfs: Mapping[int, Mapping[str, int]]) -> str:
+def merge_perfs(
+    system_perf_pid_to_stacks_counter: DefaultDict[int, MutableMapping[str, int]],
+    pid_to_name: Dict[int, str],
+    process_perfs: Mapping[int, Mapping[str, int]],
+) -> str:
     per_process_samples: MutableMapping[int, int] = Counter()
     new_samples: MutableMapping[str, int] = Counter()
-    process_names = {}
-    for pid, samples in perf_all.items():
-        for sample in samples:
-            try:
-                if pid in process_perfs:
-                    per_process_samples[pid] += 1
-                    process_names[pid] = sample["comm"]
-                elif sample["stack"] is not None:
-                    new_samples[collapse_stack(sample["stack"], sample["comm"])] += 1
-            except Exception:
-                logger.exception(f"Error processing sample: {sample}")
+    for pid, stacks_counters in system_perf_pid_to_stacks_counter.items():
+        if pid in process_perfs:
+            per_process_samples[pid] += sum(stacks_counters.values())
+            continue
+        new_samples += stacks_counters  # type: ignore
 
     for pid, perf_all_count in per_process_samples.items():
         process_stacks = process_perfs[pid]
@@ -150,7 +200,7 @@ def merge_perfs(perf_all: Dict[int, List[Dict[str, str]]], process_perfs: Mappin
         if process_perf_count > 0:
             ratio = perf_all_count / process_perf_count
             for stack, count in process_stacks.items():
-                full_stack = ";".join([process_names[pid], stack])
+                full_stack = ";".join([pid_to_name[pid], stack])
                 new_samples[full_stack] += round(count * ratio)
 
     return "\n".join((f"{stack} {count}" for stack, count in new_samples.items()))
