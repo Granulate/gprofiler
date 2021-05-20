@@ -46,7 +46,7 @@ DEFAULT_LOG_MAX_SIZE = 1024 * 1024 * 5
 DEFAULT_LOG_BACKUP_COUNT = 1
 
 DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
-DEFAULT_SAMPLING_FREQUENCY = 10
+DEFAULT_SAMPLING_FREQUENCY = 11
 # by default - these match
 DEFAULT_CONTINUOUS_MODE_INTERVAL = DEFAULT_PROFILING_DURATION
 # 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
