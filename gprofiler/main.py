@@ -67,8 +67,18 @@ def sigint_handler(sig, frame):
 
 
 class GProfiler:
-    def __init__(self, frequency: int, duration: int, output_dir: str, flamegraph: bool, rotating_output: bool,
-                 perf_mode: str, dwarf_stack_size: int, runtimes: Dict[str, bool], client: APIClient):
+    def __init__(
+        self,
+        frequency: int,
+        duration: int,
+        output_dir: str,
+        flamegraph: bool,
+        rotating_output: bool,
+        perf_mode: str,
+        dwarf_stack_size: int,
+        runtimes: Dict[str, bool],
+        client: APIClient,
+    ):
         self._frequency = frequency
         self._duration = duration
         self._output_dir = output_dir
@@ -89,8 +99,9 @@ class GProfiler:
             if self._runtimes["java"]
             else NoopProfiler()
         )
-        self.system_profiler = SystemProfiler(self._frequency, self._duration, self._stop_event,
-                                              self._temp_storage_dir.name, perf_mode, dwarf_stack_size)
+        self.system_profiler = SystemProfiler(
+            self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name, perf_mode, dwarf_stack_size
+        )
         self.initialize_python_profiler()
 
     def __enter__(self):
@@ -333,7 +344,7 @@ def parse_cmd_args():
         default=8192,
         type=int,
         help="The max stack size for the Dwarf perf, in bytes. Must be <65528."
-             " Relevant for --perf-mode dwarf|smart. Default: %(default)s",
+        " Relevant for --perf-mode dwarf|smart. Default: %(default)s",
     )
 
     parser.add_argument(
@@ -476,8 +487,17 @@ def main():
             return
 
         runtimes = {"java": args.java, "python": args.python}
-        gprofiler = GProfiler(args.frequency, args.duration, args.output_dir, args.flamegraph, args.rotating_output,
-                              args.perf_mode, args.dwarf_stack_size, runtimes, client)
+        gprofiler = GProfiler(
+            args.frequency,
+            args.duration,
+            args.output_dir,
+            args.flamegraph,
+            args.rotating_output,
+            args.perf_mode,
+            args.dwarf_stack_size,
+            runtimes,
+            client,
+        )
         logger.info("gProfiler initialized and ready to start profiling")
 
         if args.continuous:
