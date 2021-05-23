@@ -98,13 +98,13 @@ def merge_global_perfs(
 
     total_fp_samples = sum([sum(stacks.values()) for stacks in fp_perf.values()])
     total_dwarf_samples = sum([sum(stacks.values()) for stacks in dwarf_perf.values()])
-    fp_to_dwarf_total_sample_count_ratio = total_fp_samples / total_dwarf_samples
+    fp_to_dwarf_sample_ratio = total_fp_samples / total_dwarf_samples
 
     # The FP perf is used here as the "main" perf, to which the DWARF perf is scaled.
     add_highest_avg_depth_stacks_per_process(
-        dwarf_perf, fp_perf, fp_to_dwarf_total_sample_count_ratio, merged_pid_to_stacks_counters
+        dwarf_perf, fp_perf, fp_to_dwarf_sample_ratio, merged_pid_to_stacks_counters
     )
-    add_missing_dwarf_stacks(dwarf_perf, fp_to_dwarf_total_sample_count_ratio, merged_pid_to_stacks_counters)
+    add_missing_dwarf_stacks(dwarf_perf, fp_to_dwarf_sample_ratio, merged_pid_to_stacks_counters)
 
     return merged_pid_to_stacks_counters, merged_pid_to_name
 
