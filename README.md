@@ -43,7 +43,7 @@ the results.
 * `--profiling-duration`: The duration of the each profiling session, in *seconds*.
 * `--profiling-interval`: The interval between each profiling session, in *seconds*.
 
-The default profiling frequency is *10 hertz*. Using higher frequency will lead to more accurate results, but will create greater overhead on the profiled system & programs.
+The default profiling frequency is *11 hertz*. Using higher frequency will lead to more accurate results, but will create greater overhead on the profiled system & programs.
 
 The default duration is *60 seconds*, and the default interval matches it. So gProfiler runs the profiling sessions back-to-back - the next session starts as soon as the previous session is done.
 
