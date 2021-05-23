@@ -3,4 +3,4 @@ flake8
 black
 mypy
 isort
-docker
+docker==5.0.0
