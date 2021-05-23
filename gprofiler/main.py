@@ -343,7 +343,7 @@ def parse_cmd_args():
         dest="dwarf_stack_size",
         default=8192,
         type=int,
-        help="The max stack size for the Dwarf perf, in bytes. Must be <65528."
+        help="The max stack size for the Dwarf perf, in bytes. Must be <=65528."
         " Relevant for --perf-mode dwarf|smart. Default: %(default)s",
     )
 
