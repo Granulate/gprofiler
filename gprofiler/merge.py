@@ -7,7 +7,7 @@ import re
 from collections import Counter, defaultdict
 from typing import Dict, Iterable, Mapping, MutableMapping, Optional, Tuple
 
-StackToSampleCount = MutableMapping[str, int]
+StackToSampleCount = Counter
 ProcessToStackSampleCounters = MutableMapping[int, StackToSampleCount]
 ProcessIdToNameMapping = Dict[int, str]
 
@@ -209,7 +209,7 @@ def merge_perfs(
         if pid in process_perfs:
             per_process_samples[pid] += sum(stacks_counters.values())
             continue
-        new_samples += stacks_counters  # type: ignore
+        new_samples += stacks_counters
 
     for pid, perf_all_count in per_process_samples.items():
         process_stacks = process_perfs[pid]
