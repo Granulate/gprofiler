@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import logging
+import random
 import re
 from collections import Counter, defaultdict
 from typing import Dict, Iterable, Mapping, MutableMapping, Optional, Tuple
@@ -146,7 +147,12 @@ def scale_dwarf_samples_count(
         return dwarf_collapsed_stacks_counters
     # scale the dwarf stacks to the FP stacks to avoid skewing the results
     for stack, sample_count in dwarf_collapsed_stacks_counters.items():
-        dwarf_collapsed_stacks_counters[stack] = max(1, round(sample_count * fp_to_dwarf_sample_ratio))
+        new_count = sample_count * fp_to_dwarf_sample_ratio
+        if new_count < 1 and random.random() > new_count:
+            # TODO: For more accurate truncation, check if there's a common frame for the truncated stacks and combine
+            #  them
+            continue
+        dwarf_collapsed_stacks_counters[stack] = round(new_count)
     # Note - returning the value is not necessary, but is done for readability
     return dwarf_collapsed_stacks_counters
 
