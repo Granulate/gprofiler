@@ -110,8 +110,10 @@ def merge_global_perfs(
     )
     add_missing_dwarf_stacks(dwarf_perf, fp_to_dwarf_sample_ratio, merged_pid_to_stacks_counters)
     total_merged_samples = sum([sum(stacks.values()) for stacks in merged_pid_to_stacks_counters.values()])
-    logger.debug(f"Total FP samples: {total_fp_samples}; Total DWARF samples: {total_dwarf_samples}; "
-                 f"FP to DWARF ratio: {fp_to_dwarf_sample_ratio}; Total merged samples: {total_merged_samples}")
+    logger.debug(
+        f"Total FP samples: {total_fp_samples}; Total DWARF samples: {total_dwarf_samples}; "
+        f"FP to DWARF ratio: {fp_to_dwarf_sample_ratio}; Total merged samples: {total_merged_samples}"
+    )
     return merged_pid_to_stacks_counters, merged_pid_to_name
 
 
