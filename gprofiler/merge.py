@@ -85,7 +85,7 @@ def collapse_stack(stack: str, comm: str) -> str:
 def merge_global_perfs(
     raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str]
 ) -> Tuple[DefaultDict[int, MutableMapping[str, int]], Dict[int, str]]:
-    # The FP perf is used here as the "main" perf, to which the Dwarf perf is scaled.
+    # The FP perf is used here as the "main" perf, to which the DWARF perf is scaled.
     merged_pid_to_stacks_counters: DefaultDict[int, MutableMapping[str, int]] = defaultdict(Counter)
     fp_perf, fp_pid_to_name = parse_perf_script(raw_fp_perf)
     dwarf_perf, dwarf_pid_to_name = parse_perf_script(raw_dwarf_perf)
