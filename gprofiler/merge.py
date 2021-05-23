@@ -5,7 +5,11 @@
 import logging
 import re
 from collections import Counter, defaultdict
-from typing import DefaultDict, Dict, Iterable, Mapping, MutableMapping, Optional, Tuple
+from typing import Dict, Iterable, Mapping, MutableMapping, Optional, Tuple
+
+StackToSampleCount = MutableMapping[str, int]
+ProcessToStackSampleCounters = MutableMapping[int, StackToSampleCount]
+ProcessIdToNameMapping = Dict[int, str]
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +29,7 @@ def parse_one_collapsed(collapsed: str) -> Mapping[str, int]:
     """
     Parse a stack-collapsed listing where all stacks are from the same process.
     """
-    stacks: MutableMapping[str, int] = Counter()
+    stacks: StackToSampleCount = Counter()
     for line in collapsed.splitlines():
         if line.strip() == "":
             continue
@@ -39,12 +43,12 @@ def parse_one_collapsed(collapsed: str) -> Mapping[str, int]:
     return dict(stacks)
 
 
-def parse_many_collapsed(text: str) -> Mapping[int, Mapping[str, int]]:
+def parse_many_collapsed(text: str) -> ProcessToStackSampleCounters:
     """
     Parse a stack-collapsed listing where stacks are prefixed with the command and pid/tid of their
     origin.
     """
-    results: MutableMapping[int, MutableMapping[str, int]] = defaultdict(Counter)
+    results: ProcessToStackSampleCounters = defaultdict(Counter)
     bad_lines = []
 
     for line in text.splitlines():
@@ -84,8 +88,8 @@ def collapse_stack(stack: str, comm: str) -> str:
 
 def merge_global_perfs(
     raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str]
-) -> Tuple[DefaultDict[int, MutableMapping[str, int]], Dict[int, str]]:
-    merged_pid_to_stacks_counters: DefaultDict[int, MutableMapping[str, int]] = defaultdict(Counter)
+) -> Tuple[ProcessToStackSampleCounters, ProcessIdToNameMapping]:
+    merged_pid_to_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
     fp_perf, fp_pid_to_name = parse_perf_script(raw_fp_perf)
     dwarf_perf, dwarf_pid_to_name = parse_perf_script(raw_dwarf_perf)
     dwarf_pid_to_name.update(fp_pid_to_name)
@@ -130,8 +134,8 @@ def add_highest_avg_depth_stacks_per_process(
 
 
 def scale_dwarf_samples_count(
-    dwarf_collapsed_stacks_counters: MutableMapping[str, int], fp_to_dwarf_total_sample_count_ratio: float
-) -> MutableMapping[str, int]:
+    dwarf_collapsed_stacks_counters: StackToSampleCount, fp_to_dwarf_total_sample_count_ratio: float
+) -> StackToSampleCount:
     if fp_to_dwarf_total_sample_count_ratio == 1:
         return dwarf_collapsed_stacks_counters
     # scale the dwarf stacks to the FP stacks to avoid skewing the results
@@ -156,9 +160,9 @@ def add_missing_dwarf_stacks(dwarf_perf, fp_to_dwarf_total_sample_count_ratio, m
         merged_pid_to_stacks_counters[pid] = dwarf_collapsed_stacks_counters
 
 
-def parse_perf_script(script: Optional[str]) -> Tuple[DefaultDict[int, MutableMapping[str, int]], Dict[int, str]]:
-    pid_to_collapsed_stacks_counters: DefaultDict[int, MutableMapping[str, int]] = defaultdict(Counter)
-    pid_to_name: Dict[int, str] = {}
+def parse_perf_script(script: Optional[str]) -> Tuple[ProcessToStackSampleCounters, ProcessIdToNameMapping]:
+    pid_to_collapsed_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
+    pid_to_name: ProcessIdToNameMapping = {}
     if script is None:
         return pid_to_collapsed_stacks_counters, pid_to_name
     for sample in script.split("\n\n"):
@@ -184,12 +188,12 @@ def parse_perf_script(script: Optional[str]) -> Tuple[DefaultDict[int, MutableMa
 
 
 def merge_perfs(
-    system_perf_pid_to_stacks_counter: DefaultDict[int, MutableMapping[str, int]],
-    pid_to_name: Dict[int, str],
-    process_perfs: Mapping[int, Mapping[str, int]],
+    system_perf_pid_to_stacks_counter: ProcessToStackSampleCounters,
+    pid_to_name: ProcessIdToNameMapping,
+    process_perfs: ProcessToStackSampleCounters,
 ) -> str:
     per_process_samples: MutableMapping[int, int] = Counter()
-    new_samples: MutableMapping[str, int] = Counter()
+    new_samples: StackToSampleCount = Counter()
     for pid, stacks_counters in system_perf_pid_to_stacks_counter.items():
         if pid in process_perfs:
             per_process_samples[pid] += sum(stacks_counters.values())
