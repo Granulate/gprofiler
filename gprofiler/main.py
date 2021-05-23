@@ -334,7 +334,7 @@ def parse_cmd_args():
         dest="perf_mode",
         default="smart",
         choices=["fp", "dwarf", "smart"],
-        help="Run perf with either FP (Frame Pointers), Dwarf, or run both and intelligently merge them "
+        help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge them "
         "by choosing the best result per process",
     )
 
