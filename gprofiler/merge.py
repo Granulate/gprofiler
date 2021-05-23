@@ -114,7 +114,8 @@ def merge_global_perfs(
 
 
 def add_highest_avg_depth_stacks_per_process(
-    dwarf_perf, fp_perf, fp_to_dwarf_total_sample_count_ratio, merged_pid_to_stacks_counters
+    dwarf_perf: ProcessToStackSampleCounters, fp_perf: ProcessToStackSampleCounters,
+        fp_to_dwarf_total_sample_count_ratio: float, merged_pid_to_stacks_counters: ProcessToStackSampleCounters
 ):
     for pid, fp_collapsed_stacks_counters in fp_perf.items():
         if pid not in dwarf_perf:
@@ -150,7 +151,8 @@ def get_average_frame_count(stacks: Iterable[str]) -> float:
     return sum(frame_count_per_samples) / len(frame_count_per_samples)
 
 
-def add_missing_dwarf_stacks(dwarf_perf, fp_to_dwarf_total_sample_count_ratio, merged_pid_to_stacks_counters):
+def add_missing_dwarf_stacks(dwarf_perf: ProcessToStackSampleCounters, fp_to_dwarf_total_sample_count_ratio: float,
+                             merged_pid_to_stacks_counters: ProcessToStackSampleCounters):
     for pid, dwarf_collapsed_stacks_counters in dwarf_perf.items():
         if pid in merged_pid_to_stacks_counters:
             continue
