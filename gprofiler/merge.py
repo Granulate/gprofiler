@@ -116,7 +116,7 @@ def merge_global_perfs(
 def add_highest_avg_depth_stacks_per_process(
     dwarf_perf: ProcessToStackSampleCounters,
     fp_perf: ProcessToStackSampleCounters,
-    fp_to_dwarf_total_sample_count_ratio: float,
+    fp_to_dwarf_sample_ratio: float,
     merged_pid_to_stacks_counters: ProcessToStackSampleCounters,
 ):
     for pid, fp_collapsed_stacks_counters in fp_perf.items():
@@ -131,19 +131,19 @@ def add_highest_avg_depth_stacks_per_process(
             merged_pid_to_stacks_counters[pid] = fp_collapsed_stacks_counters
         else:
             dwarf_collapsed_stacks_counters = scale_dwarf_samples_count(
-                dwarf_collapsed_stacks_counters, fp_to_dwarf_total_sample_count_ratio
+                dwarf_collapsed_stacks_counters, fp_to_dwarf_sample_ratio
             )
             merged_pid_to_stacks_counters[pid] = dwarf_collapsed_stacks_counters
 
 
 def scale_dwarf_samples_count(
-    dwarf_collapsed_stacks_counters: StackToSampleCount, fp_to_dwarf_total_sample_count_ratio: float
+    dwarf_collapsed_stacks_counters: StackToSampleCount, fp_to_dwarf_sample_ratio: float
 ) -> StackToSampleCount:
-    if fp_to_dwarf_total_sample_count_ratio == 1:
+    if fp_to_dwarf_sample_ratio == 1:
         return dwarf_collapsed_stacks_counters
     # scale the dwarf stacks to the FP stacks to avoid skewing the results
     for stack, sample_count in dwarf_collapsed_stacks_counters.items():
-        dwarf_collapsed_stacks_counters[stack] = max(1, round(sample_count * fp_to_dwarf_total_sample_count_ratio))
+        dwarf_collapsed_stacks_counters[stack] = max(1, round(sample_count * fp_to_dwarf_sample_ratio))
     # Note - returning the value is not necessary, but is done for readability
     return dwarf_collapsed_stacks_counters
 
@@ -155,14 +155,14 @@ def get_average_frame_count(stacks: Iterable[str]) -> float:
 
 def add_missing_dwarf_stacks(
     dwarf_perf: ProcessToStackSampleCounters,
-    fp_to_dwarf_total_sample_count_ratio: float,
+    fp_to_dwarf_sample_ratio: float,
     merged_pid_to_stacks_counters: ProcessToStackSampleCounters,
 ):
     for pid, dwarf_collapsed_stacks_counters in dwarf_perf.items():
         if pid in merged_pid_to_stacks_counters:
             continue
         dwarf_collapsed_stacks_counters = scale_dwarf_samples_count(
-            dwarf_collapsed_stacks_counters, fp_to_dwarf_total_sample_count_ratio
+            dwarf_collapsed_stacks_counters, fp_to_dwarf_sample_ratio
         )
         merged_pid_to_stacks_counters[pid] = dwarf_collapsed_stacks_counters
 
