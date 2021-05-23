@@ -108,7 +108,6 @@ def merge_global_perfs(
     add_highest_avg_depth_stacks_per_process(
         dwarf_perf, fp_perf, fp_to_dwarf_sample_ratio, merged_pid_to_stacks_counters
     )
-    add_missing_dwarf_stacks(dwarf_perf, fp_to_dwarf_sample_ratio, merged_pid_to_stacks_counters)
     total_merged_samples = sum([sum(stacks.values()) for stacks in merged_pid_to_stacks_counters.values()])
     logger.debug(
         f"Total FP samples: {total_fp_samples}; Total DWARF samples: {total_dwarf_samples}; "
@@ -155,20 +154,6 @@ def scale_dwarf_samples_count(
 def get_average_frame_count(stacks: Iterable[str]) -> float:
     frame_count_per_samples = [sample.count(";") for sample in stacks]
     return sum(frame_count_per_samples) / len(frame_count_per_samples)
-
-
-def add_missing_dwarf_stacks(
-    dwarf_perf: ProcessToStackSampleCounters,
-    fp_to_dwarf_sample_ratio: float,
-    merged_pid_to_stacks_counters: ProcessToStackSampleCounters,
-):
-    for pid, dwarf_collapsed_stacks_counters in dwarf_perf.items():
-        if pid in merged_pid_to_stacks_counters:
-            continue
-        dwarf_collapsed_stacks_counters = scale_dwarf_samples_count(
-            dwarf_collapsed_stacks_counters, fp_to_dwarf_sample_ratio
-        )
-        merged_pid_to_stacks_counters[pid] = dwarf_collapsed_stacks_counters
 
 
 def parse_perf_script(script: Optional[str]) -> Tuple[ProcessToStackSampleCounters, ProcessIdToNameMapping]:
