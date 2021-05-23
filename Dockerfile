@@ -6,7 +6,8 @@ RUN ./pyspy_env.sh
 COPY scripts/pyspy_build.sh .
 RUN ./pyspy_build.sh
 
-FROM ubuntu:16.04 AS perf-builder
+# ubuntu:16.04
+FROM ubuntu@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c AS perf-builder
 
 COPY scripts/perf_env.sh .
 RUN ./perf_env.sh
