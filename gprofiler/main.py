@@ -46,7 +46,7 @@ DEFAULT_LOG_MAX_SIZE = 1024 * 1024 * 5
 DEFAULT_LOG_BACKUP_COUNT = 1
 
 DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
-DEFAULT_SAMPLING_FREQUENCY = 10
+DEFAULT_SAMPLING_FREQUENCY = 11
 # by default - these match
 DEFAULT_CONTINUOUS_MODE_INTERVAL = DEFAULT_PROFILING_DURATION
 # 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
@@ -343,6 +343,7 @@ def parse_cmd_args():
     parser.add_argument("--token", dest="server_token", help="Server token")
     parser.add_argument("--service-name", help="Service name")
 
+    parser.add_argument('--version', action='version', version=__version__)
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
 
     logging_options = parser.add_argument_group("logging")
