@@ -174,7 +174,9 @@ def parse_perf_script(script: Optional[str]) -> Tuple[DefaultDict[int, MutableMa
 
             pid = int(sample_dict["pid"])
             process_name = sample_dict["comm"]
-            pid_to_collapsed_stacks_counters[pid][collapse_stack(sample_dict["stack"], process_name)] += 1
+            stack = sample_dict["stack"]
+            if stack is not None:
+                pid_to_collapsed_stacks_counters[pid][collapse_stack(stack, process_name)] += 1
             pid_to_name.setdefault(pid, process_name)
         except Exception:
             logger.exception(f"Error processing sample: {sample}")
