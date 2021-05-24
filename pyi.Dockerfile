@@ -8,6 +8,15 @@ RUN ./pyspy_env.sh
 COPY scripts/pyspy_build.sh .
 RUN ./pyspy_build.sh
 
+# ubuntu:16.04
+FROM ubuntu@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c AS perf-builder
+
+COPY scripts/perf_env.sh .
+RUN ./perf_env.sh
+
+COPY scripts/perf_build.sh .
+RUN ./perf_build.sh
+
 # Centos 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
 # This will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
 # centos:7
@@ -64,6 +73,7 @@ RUN cp -r /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
 RUN cp /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 
 COPY --from=pyspy-builder /py-spy/target/x86_64-unknown-linux-musl/release/py-spy gprofiler/resources/python/py-spy
+COPY --from=perf-builder /perf gprofiler/resources/perf
 
 COPY gprofiler gprofiler
 

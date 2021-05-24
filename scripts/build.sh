@@ -27,10 +27,6 @@ tar -xzf build/async-profiler-2.0-linux-x64.tar.gz -C gprofiler/resources/java -
 # pyperf - just create the directory for it, it will be built later
 mkdir -p gprofiler/resources/python/pyperf
 
-# perf
-curl_with_timecond https://github.com/Granulate/linux/releases/download/v5.12g1/perf gprofiler/resources/perf
-chmod +x gprofiler/resources/perf
-
 # burn
 curl_with_timecond https://github.com/Granulate/burn/releases/download/v1.0.1g2/burn gprofiler/resources/burn
 chmod +x gprofiler/resources/burn
