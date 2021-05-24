@@ -1,4 +1,5 @@
-FROM rust:latest AS pyspy-builder
+# rust:latest 1.52.1
+FROM rust@sha256:5f3bbf6200c057c4934deac814224e0038baa018c76aa54dfb84dd734315dad4 AS pyspy-builder
 
 COPY scripts/pyspy_env.sh .
 RUN ./pyspy_env.sh
@@ -15,7 +16,8 @@ RUN ./perf_env.sh
 COPY scripts/perf_build.sh .
 RUN ./perf_build.sh
 
-FROM ubuntu:20.04 as bcc-builder
+# ubuntu 20.04
+FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93 AS bcc-builder
 
 RUN apt-get update
 
@@ -28,7 +30,8 @@ COPY ./scripts/pyperf_build.sh .
 RUN ./pyperf_build.sh
 
 
-FROM ubuntu:20.04
+# ubuntu 20.04
+FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
 
 WORKDIR /app
 
