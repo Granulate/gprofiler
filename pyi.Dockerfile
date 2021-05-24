@@ -1,5 +1,6 @@
 # copied from Dockerfile
-FROM rust:latest AS pyspy-builder
+# rust:latest 1.52.1
+FROM rust@sha256:5f3bbf6200c057c4934deac814224e0038baa018c76aa54dfb84dd734315dad4 AS pyspy-builder
 
 COPY scripts/pyspy_env.sh .
 RUN ./pyspy_env.sh
@@ -9,7 +10,8 @@ RUN ./pyspy_build.sh
 
 # Centos 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
 # This will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
-FROM centos:7 AS build-stage
+# centos:7
+FROM centos@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e AS build-stage
 
 # bcc part
 # TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
