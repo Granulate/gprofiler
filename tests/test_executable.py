@@ -5,7 +5,7 @@
 import os
 from pathlib import Path
 from subprocess import Popen
-from typing import Callable, Mapping
+from typing import Callable, List, Mapping
 
 import pytest  # type: ignore
 from docker import DockerClient
@@ -15,10 +15,11 @@ from gprofiler.merge import parse_one_collapsed
 from tests.utils import run_privileged_container
 
 
-@pytest.mark.parametrize("runtime", ["java", "python"])
+@pytest.mark.parametrize("runtime", ["java", "python", "php"])
 def test_from_executable(
     gprofiler_exe: Path,
     application_pid: int,
+    runtime_specific_args: List[str],
     assert_collapsed: Callable[[Mapping[str, int]], None],
     exec_container_image: Image,
     docker_client: DockerClient,
@@ -35,11 +36,16 @@ def test_from_executable(
             str(cwd): {"bind": str(gprofiler_inner_dir), "mode": "rw"},
         }
 
-        command = [str(gprofiler_inner_dir / gprofiler_exe), "--output-dir", str(inner_output_dir)]
+        command = [
+            str(gprofiler_inner_dir / gprofiler_exe),
+            "--output-dir",
+            str(inner_output_dir),
+        ] + runtime_specific_args
         run_privileged_container(docker_client, exec_container_image, command=command, volumes=volumes)
     else:
         os.mkdir(output_directory)
-        popen = Popen(["sudo", gprofiler_exe, "--output-dir", output_directory, "-d", "5"])
+        command = ["sudo", str(gprofiler_exe), "--output-dir", str(output_directory), "-d", "5"] + runtime_specific_args
+        popen = Popen(command)
         popen.wait()
 
     collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
