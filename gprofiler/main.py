@@ -15,7 +15,7 @@ from logging import Logger
 from pathlib import Path
 from socket import gethostname
 from threading import Event
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
 import configargparse
 from requests import RequestException, Timeout
@@ -67,6 +67,14 @@ def sigint_handler(sig, frame):
         raise KeyboardInterrupt
 
 
+def create_profiler_or_noop(profiler_constructor_callback: Callable, runtime_name: str):
+    try:
+        return profiler_constructor_callback()
+    except Exception:
+        logger.exception(f"Couldn't create {runtime_name} profiler, continuing without this runtime profiler")
+        return NoopProfiler()
+
+
 class GProfiler:
     def __init__(
         self,
@@ -95,7 +103,12 @@ class GProfiler:
         # files unnecessarily.
         self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
         self.java_profiler = (
-            JavaProfiler(self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name)
+            create_profiler_or_noop(
+                lambda: JavaProfiler(
+                    self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name
+                ),
+                "java",
+            )
             if self._runtimes["java"]
             else NoopProfiler()
         )
@@ -104,8 +117,11 @@ class GProfiler:
         )
         self.initialize_python_profiler()
         self.php_profiler = (
-            PHPSpyProfiler(
-                self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name, php_process_filter
+            create_profiler_or_noop(
+                lambda: PHPSpyProfiler(
+                    self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name, php_process_filter
+                ),
+                "php",
             )
             if self._runtimes["php"]
             else NoopProfiler()
@@ -120,12 +136,15 @@ class GProfiler:
 
     def initialize_python_profiler(self) -> None:
         self.python_profiler = (
-            get_python_profiler(
-                self._frequency,
-                self._duration,
-                self._stop_event,
-                self._temp_storage_dir.name,
-                self.initialize_python_profiler,
+            create_profiler_or_noop(
+                lambda: get_python_profiler(
+                    self._frequency,
+                    self._duration,
+                    self._stop_event,
+                    self._temp_storage_dir.name,
+                    self.initialize_python_profiler,
+                ),
+                "python",
             )
             if self._runtimes["python"]
             else NoopProfiler()

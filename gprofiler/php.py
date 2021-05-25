@@ -45,11 +45,10 @@ class PHPSpyProfiler(ProfilerBase):
         self._frequency = limit_frequency(self.MAX_FREQUENCY, frequency, "phpspy", logger)
 
         if duration < self.MIN_DURATION:
-            logger.warning(
+            raise ValueError(
                 f"Minimum duration for phpspy is {self.MIN_DURATION} (given {duration}), "
                 "raise duration in order to profile php processes"
             )
-            self._enabled = False
 
         self._duration = max(duration, self.MIN_DURATION)
         self._stop_event = stop_event or Event()
@@ -58,12 +57,8 @@ class PHPSpyProfiler(ProfilerBase):
         self._process: Optional[Popen] = None
         self._output_path = Path(self._storage_dir) / "php.col"
         self._process_filter = php_process_filter
-        self._enabled = True
 
     def start(self):
-        if not self._enabled:
-            return
-
         logger.info("Starting profiling of PHP processes with phpspy")
         phpspy_path = resource_path(self.PHPSPY_RESOURCE)
         cmd = [
@@ -183,9 +178,6 @@ class PHPSpyProfiler(ProfilerBase):
         return dict(results)
 
     def snapshot(self) -> Mapping[int, Mapping[str, int]]:
-        if not self._enabled:
-            return {}
-
         if self._stop_event.wait(self._duration):
             raise StopEventSetException()
         stderr = self._process.stderr.read1(1024).decode()  # type: ignore
