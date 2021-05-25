@@ -17,7 +17,7 @@ from psutil import Process
 from .exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
 from .merge import parse_many_collapsed, parse_one_collapsed
 from .profiler_base import ProfilerBase
-from .utils import pgrep_maps, poll_process, resource_path, run_process, start_process, wait_event
+from .utils import limit_frequency, pgrep_maps, poll_process, resource_path, run_process, start_process, wait_event
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class PythonProfilerBase(ProfilerBase):
     ):
         super().__init__()
         assert isinstance(self.MAX_FREQUENCY, int)
-        self._frequency = min(frequency, self.MAX_FREQUENCY)
+        self._frequency = limit_frequency(self.MAX_FREQUENCY, frequency, self.__class__.__name__, logger)
         self._duration = duration
         self._stop_event = stop_event or Event()
         self._storage_dir = storage_dir
@@ -287,7 +287,6 @@ class PythonEbpfProfiler(PythonProfilerBase):
         code = self._terminate()
         if code is not None:
             logger.info("Finished profiling Python processes with PyPerf")
-        return code
 
 
 _profiler_class = None
