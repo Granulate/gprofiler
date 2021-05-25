@@ -111,8 +111,10 @@ class GProfiler:
             lambda: JavaProfiler(self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name),
             "java",
         )
-        self.system_profiler = SystemProfiler(
-            self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name
+        self.system_profiler = create_profiler_or_noop(
+            self._runtimes,
+            lambda: SystemProfiler(self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name),
+            "system",
         )
         self.initialize_python_profiler()
         self.php_profiler = create_profiler_or_noop(
@@ -238,7 +240,13 @@ class GProfiler:
                 logger.exception(f"{future.name} profiling failed")
 
         local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
-        merged_result = merge.merge_perfs(system_future.result(), process_perfs)
+
+        system_result = system_future.result()
+        if self._runtimes["system"]:
+            merged_result = merge.merge_perfs(system_result, process_perfs)
+        else:
+            assert system_result == {}  # should be empty!
+            merged_result = merge.concatenate_perfs(process_perfs)
 
         if self._output_dir:
             self._generate_output_files(merged_result, local_start_time, local_end_time)
@@ -336,6 +344,14 @@ def parse_cmd_args():
         "--rotating-output", action="store_true", default=False, help="Keep only the last profile result"
     )
 
+    parser.add_argument(
+        "--no-perf",
+        dest="perf",
+        action="store_false",
+        default=True,
+        help="Do not invoke the global, system-wide 'perf'. The output, in that case, is the concatenation"
+        " of the results from all of the runtime profilers.",
+    )
     parser.add_argument(
         "--no-java",
         dest="java",
@@ -501,7 +517,7 @@ def main():
             logger.error(f"Failed to connect to server: {e}")
             return
 
-        runtimes = {"java": args.java, "python": args.python, "php": args.php}
+        runtimes = {"system": args.perf, "java": args.java, "python": args.python, "php": args.php}
         gprofiler = GProfiler(
             args.frequency,
             args.duration,
