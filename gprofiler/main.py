@@ -67,7 +67,11 @@ def sigint_handler(sig, frame):
         raise KeyboardInterrupt
 
 
-def create_profiler_or_noop(profiler_constructor_callback: Callable, runtime_name: str):
+def create_profiler_or_noop(runtimes: Dict[str, bool], profiler_constructor_callback: Callable, runtime_name: str):
+    # disabled?
+    if not runtimes[runtime_name]:
+        return NoopProfiler()
+
     try:
         return profiler_constructor_callback()
     except Exception:
@@ -102,29 +106,21 @@ class GProfiler:
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
         self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
-        self.java_profiler = (
-            create_profiler_or_noop(
-                lambda: JavaProfiler(
-                    self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name
-                ),
-                "java",
-            )
-            if self._runtimes["java"]
-            else NoopProfiler()
+        self.java_profiler = create_profiler_or_noop(
+            self._runtimes,
+            lambda: JavaProfiler(self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name),
+            "java",
         )
         self.system_profiler = SystemProfiler(
             self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name
         )
         self.initialize_python_profiler()
-        self.php_profiler = (
-            create_profiler_or_noop(
-                lambda: PHPSpyProfiler(
-                    self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name, php_process_filter
-                ),
-                "php",
-            )
-            if self._runtimes["php"]
-            else NoopProfiler()
+        self.php_profiler = create_profiler_or_noop(
+            self._runtimes,
+            lambda: PHPSpyProfiler(
+                self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name, php_process_filter
+            ),
+            "php",
         )
 
     def __enter__(self):
@@ -135,19 +131,16 @@ class GProfiler:
         self.stop()
 
     def initialize_python_profiler(self) -> None:
-        self.python_profiler = (
-            create_profiler_or_noop(
-                lambda: get_python_profiler(
-                    self._frequency,
-                    self._duration,
-                    self._stop_event,
-                    self._temp_storage_dir.name,
-                    self.initialize_python_profiler,
-                ),
-                "python",
-            )
-            if self._runtimes["python"]
-            else NoopProfiler()
+        self.python_profiler = create_profiler_or_noop(
+            self._runtimes,
+            lambda: get_python_profiler(
+                self._frequency,
+                self._duration,
+                self._stop_event,
+                self._temp_storage_dir.name,
+                self.initialize_python_profiler,
+            ),
+            "python",
         )
 
     def _update_last_output(self, last_output_name: str, output_path: str) -> None:
