@@ -97,6 +97,10 @@ def parse_perf_script(script: str):
             logger.exception(f"Error processing sample: {sample}")
 
 
+def _concatenate_stacks(stacks: Mapping[str, int]):
+    return "\n".join((f"{stack} {count}" for stack, count in stacks.items()))
+
+
 def merge_perfs(perf_all: Iterable[Mapping[str, str]], process_perfs: Mapping[int, Mapping[str, int]]) -> str:
     per_process_samples: MutableMapping[int, int] = Counter()
     new_samples: MutableMapping[str, int] = Counter()
@@ -121,4 +125,4 @@ def merge_perfs(perf_all: Iterable[Mapping[str, str]], process_perfs: Mapping[in
                 full_stack = ";".join([process_names[pid], stack])
                 new_samples[full_stack] += round(count * ratio)
 
-    return "\n".join((f"{stack} {count}" for stack, count in new_samples.items()))
+    return _concatenate_stacks(new_samples)
