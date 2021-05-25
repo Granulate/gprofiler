@@ -63,7 +63,7 @@ def parse_many_collapsed(text: str) -> Mapping[int, Mapping[str, int]]:
     return results
 
 
-def collapse_stack(stack: str, comm: str) -> str:
+def _collapse_stack(stack: str, comm: str) -> str:
     """
     Collapse a single stack from "perf".
     """
@@ -115,7 +115,7 @@ def merge_perfs(perf_all: Iterable[Mapping[str, str]], process_perfs: Mapping[in
                 per_process_samples[pid] += 1
                 process_names[pid] = parsed["comm"]
             elif parsed["stack"] is not None:
-                new_samples[collapse_stack(parsed["stack"], parsed["comm"])] += 1
+                new_samples[_collapse_stack(parsed["stack"], parsed["comm"])] += 1
         except Exception:
             logger.exception(f"Error processing sample: {parsed}")
 
