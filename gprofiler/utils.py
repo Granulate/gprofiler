@@ -420,3 +420,14 @@ def reset_umask() -> None:
     Resets our umask back to a sane value.
     """
     os.umask(0o022)
+
+
+def limit_frequency(limit: int, requested: int, msg_header: str, runtime_logger: logging.Logger):
+    if requested > limit:
+        runtime_logger.warning(
+            f"{msg_header}: Requested frequency ({requested}) is higher than the limit {limit}, "
+            f"limiting frequency to the limit ({limit})"
+        )
+        return limit
+
+    return requested
