@@ -17,7 +17,7 @@ from docker.models.containers import Container
 from docker.models.images import Image
 from pytest import fixture  # type: ignore
 
-from tests import CONTAINERS_DIRECTORY, PARENT
+from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
 from tests.utils import assert_function_in_collapsed, chmod_path_parts
 
 
@@ -60,6 +60,7 @@ def command_line(tmp_path: Path, runtime: str) -> List:
         # note: here we run "python /path/to/lister.py" while in the container test we have
         # "CMD /path/to/lister.py", to test processes with non-python /proc/pid/comm
         "python": ["python3", CONTAINERS_DIRECTORY / "python/lister.py"],
+        "php": ["php", CONTAINERS_DIRECTORY / "php/fibonacci.php"],
     }[runtime]
 
 
@@ -158,10 +159,19 @@ def application_pid(in_container: bool, application_process: Popen, application_
 
 
 @fixture
+def runtime_specific_args(runtime: str) -> List[str]:
+    return {
+        "php": ["--php-proc-filter", "php", "-d", str(PHPSPY_DURATION)],  # phpspy needs a little more time to warm-up
+        "python": ["-d", "3"],  # Burner python tests make syscalls and we want to record python + kernel stacks
+    }.get(runtime, [])
+
+
+@fixture
 def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int]], None]:
     function_name = {
         "java": "Fibonacci.main",
         "python": "burner",
+        "php": "fibonacci",
     }[runtime]
 
     return partial(assert_function_in_collapsed, function_name)

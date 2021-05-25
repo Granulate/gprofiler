@@ -439,3 +439,14 @@ def is_running_in_init_pid() -> bool:
         # technically, funny processes can name themselves "kthreadd", causing this check to pass in a non-init NS.
         # but we don't need to handle such extreme cases, I think.
         return p.name() == "kthreadd"
+
+
+def limit_frequency(limit: int, requested: int, msg_header: str, runtime_logger: logging.Logger):
+    if requested > limit:
+        runtime_logger.warning(
+            f"{msg_header}: Requested frequency ({requested}) is higher than the limit {limit}, "
+            f"limiting frequency to the limit ({limit})"
+        )
+        return limit
+
+    return requested

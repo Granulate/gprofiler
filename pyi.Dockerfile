@@ -17,6 +17,13 @@ RUN ./perf_env.sh
 COPY scripts/perf_build.sh .
 RUN ./perf_build.sh
 
+# ubuntu:20.04
+FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93 as phpspy-builder
+RUN apt update && apt install -y git wget make gcc
+COPY scripts/phpspy_build.sh .
+RUN ./phpspy_build.sh
+
+
 # Centos 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
 # This will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
 # centos:7
@@ -74,6 +81,14 @@ RUN cp /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 
 COPY --from=pyspy-builder /py-spy/target/x86_64-unknown-linux-musl/release/py-spy gprofiler/resources/python/py-spy
 COPY --from=perf-builder /perf gprofiler/resources/perf
+
+RUN mkdir -p gprofiler/resources/python/phpspy
+COPY --from=phpspy-builder /phpspy/phpspy gprofiler/resources/php/phpspy
+COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
+COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/strings gprofiler/resources/php/strings
+COPY --from=centos:6 /usr/bin/awk gprofiler/resources/php/awk
+COPY --from=centos:6 /usr/bin/xargs gprofiler/resources/php/xargs
+
 
 COPY gprofiler gprofiler
 

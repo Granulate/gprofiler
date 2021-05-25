@@ -7,3 +7,6 @@ from pathlib import Path
 HERE = Path(__file__).parent
 PARENT = HERE.parent
 CONTAINERS_DIRECTORY = HERE / "containers"
+RESOURCES_DIRECTORY = PARENT / "gprofiler" / "resources"
+
+PHPSPY_DURATION = 3  # seconds
