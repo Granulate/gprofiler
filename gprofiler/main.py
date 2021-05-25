@@ -15,7 +15,7 @@ from logging import Logger
 from pathlib import Path
 from socket import gethostname
 from threading import Event
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
 import configargparse
 from requests import RequestException, Timeout
@@ -24,6 +24,7 @@ from . import __version__, merge
 from .client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
 from .java import JavaProfiler
 from .perf import SystemProfiler
+from .php import PHPSpyProfiler
 from .profiler_base import NoopProfiler
 from .python import get_python_profiler
 from .utils import (
@@ -66,6 +67,14 @@ def sigint_handler(sig, frame):
         raise KeyboardInterrupt
 
 
+def create_profiler_or_noop(profiler_constructor_callback: Callable, runtime_name: str):
+    try:
+        return profiler_constructor_callback()
+    except Exception:
+        logger.exception(f"Couldn't create {runtime_name} profiler, continuing without this runtime profiler")
+        return NoopProfiler()
+
+
 class GProfiler:
     def __init__(
         self,
@@ -76,6 +85,7 @@ class GProfiler:
         rotating_output: bool,
         runtimes: Dict[str, bool],
         client: APIClient,
+        php_process_filter: str = PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
     ):
         self._frequency = frequency
         self._duration = duration
@@ -93,7 +103,12 @@ class GProfiler:
         # files unnecessarily.
         self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
         self.java_profiler = (
-            JavaProfiler(self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name)
+            create_profiler_or_noop(
+                lambda: JavaProfiler(
+                    self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name
+                ),
+                "java",
+            )
             if self._runtimes["java"]
             else NoopProfiler()
         )
@@ -101,6 +116,16 @@ class GProfiler:
             self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name
         )
         self.initialize_python_profiler()
+        self.php_profiler = (
+            create_profiler_or_noop(
+                lambda: PHPSpyProfiler(
+                    self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name, php_process_filter
+                ),
+                "php",
+            )
+            if self._runtimes["php"]
+            else NoopProfiler()
+        )
 
     def __enter__(self):
         self.start()
@@ -111,12 +136,15 @@ class GProfiler:
 
     def initialize_python_profiler(self) -> None:
         self.python_profiler = (
-            get_python_profiler(
-                self._frequency,
-                self._duration,
-                self._stop_event,
-                self._temp_storage_dir.name,
-                self.initialize_python_profiler,
+            create_profiler_or_noop(
+                lambda: get_python_profiler(
+                    self._frequency,
+                    self._duration,
+                    self._stop_event,
+                    self._temp_storage_dir.name,
+                    self.initialize_python_profiler,
+                ),
+                "python",
             )
             if self._runtimes["python"]
             else NoopProfiler()
@@ -179,6 +207,7 @@ class GProfiler:
             self.python_profiler,
             self.java_profiler,
             self.system_profiler,
+            self.php_profiler,
         ):
             prof.start()
 
@@ -190,6 +219,7 @@ class GProfiler:
             self.python_profiler,
             self.java_profiler,
             self.system_profiler,
+            self.php_profiler,
         ):
             prof.stop()
 
@@ -201,11 +231,13 @@ class GProfiler:
         java_future.name = "java"
         python_future = self._executor.submit(self.python_profiler.snapshot)
         python_future.name = "python"
+        php_future = self._executor.submit(self.php_profiler.snapshot)
+        php_future.name = "php"
         system_future = self._executor.submit(self.system_profiler.snapshot)
         system_future.name = "system"
 
         process_perfs: Dict[int, Dict[str, int]] = {}
-        for future in concurrent.futures.as_completed([java_future, python_future]):
+        for future in concurrent.futures.as_completed([java_future, python_future, php_future]):
             # if either of these fail - log it, and continue.
             try:
                 process_perfs.update(future.result())
@@ -324,6 +356,19 @@ def parse_cmd_args():
         action="store_false",
         default=True,
         help="Do not invoke runtime-specific profilers for Python processes",
+    )
+    parser.add_argument(
+        "--no-php",
+        dest="php",
+        action="store_false",
+        default=True,
+        help="Do not invoke runtime-specific profilers for PHP processes",
+    )
+    parser.add_argument(
+        "--php-proc-filter",
+        dest="php_process_filter",
+        default=PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
+        help="Process filter for php processes (default: %(default)s)",
     )
 
     parser.add_argument(
@@ -463,9 +508,16 @@ def main():
             logger.error(f"Failed to connect to server: {e}")
             return
 
-        runtimes = {"java": args.java, "python": args.python}
+        runtimes = {"java": args.java, "python": args.python, "php": args.php}
         gprofiler = GProfiler(
-            args.frequency, args.duration, args.output_dir, args.flamegraph, args.rotating_output, runtimes, client
+            args.frequency,
+            args.duration,
+            args.output_dir,
+            args.flamegraph,
+            args.rotating_output,
+            runtimes,
+            client,
+            args.php_process_filter,
         )
         logger.info("gProfiler initialized and ready to start profiling")
 

@@ -29,6 +29,12 @@ WORKDIR /bcc
 COPY ./scripts/pyperf_build.sh .
 RUN ./pyperf_build.sh
 
+# ubuntu:20.04
+FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93 as phpspy-builder
+RUN apt update && apt install -y git wget make gcc
+COPY scripts/phpspy_build.sh .
+RUN ./phpspy_build.sh
+
 
 # ubuntu 20.04
 FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
@@ -46,6 +52,10 @@ COPY --from=bcc-builder /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 
 COPY --from=pyspy-builder /py-spy/target/x86_64-unknown-linux-musl/release/py-spy gprofiler/resources/python/py-spy
 COPY --from=perf-builder /perf gprofiler/resources/perf
+
+RUN mkdir -p gprofiler/resources/python/phpspy
+COPY --from=phpspy-builder /phpspy/phpspy gprofiler/resources/php/phpspy
+COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
 
 COPY scripts/build.sh scripts/build.sh
 RUN ./scripts/build.sh
