@@ -59,7 +59,7 @@ class SystemProfiler:
             )
             perf_script_result = run_process(
                 [resource_path("perf")] + buildid_args + ["script", "-F", "+pid", "-i", record_file.name],
-                suppress_log=True
+                suppress_log=True,
             )
             return perf_script_result.stdout.decode('utf8')
 
@@ -74,6 +74,8 @@ class SystemProfiler:
         if not self._dwarf_perf:
             return merge_global_perfs(self._run_perf(dwarf=False), None)
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            # We are running 2 perfs in parallel - one with DWARF and one with FP, and then we merge their results.
+            # This improves the results from software that is compiled without frame pointers, like some Go software.
             fp_future = executor.submit(self._run_perf, False)
             dwarf_future = executor.submit(self._run_perf, True)
         fp_perf = fp_future.result()
