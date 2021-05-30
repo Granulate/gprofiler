@@ -62,6 +62,7 @@ def command_line(tmp_path: Path, runtime: str) -> List:
         # "CMD /path/to/lister.py", to test processes with non-python /proc/pid/comm
         "python": ["python3", CONTAINERS_DIRECTORY / "python/lister.py"],
         "php": ["php", CONTAINERS_DIRECTORY / "php/fibonacci.php"],
+        "ruby": ["ruby", CONTAINERS_DIRECTORY / "ruby/fibonacci.rb"],
     }[runtime]
 
 
@@ -187,6 +188,7 @@ def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int]], None]:
         "java": "Fibonacci.main",
         "python": "burner",
         "php": "fibonacci",
+        "ruby": "fibonacci",
     }[runtime]
 
     return partial(assert_function_in_collapsed, function_name)

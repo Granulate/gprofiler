@@ -1,17 +1,23 @@
-# py-spy
-# rust:slim 1.52.1
-FROM rust@sha256:9c106c1222abe1450f45774273f36246ebf257623ed51280dbc458632d14c9fc AS pyspy-builder
+# rust:latest 1.52.1
+# using the same builder for both pyspy and rbspy since they share build dependencies
+FROM rust@sha256:9c106c1222abe1450f45774273f36246ebf257623ed51280dbc458632d14c9fc AS pyspy-rbspy-builder-common
 
-COPY scripts/pyspy_env.sh .
-RUN ./pyspy_env.sh
+COPY scripts/prepare_x86_64-unknown-linux-musl.sh .
+RUN ./prepare_x86_64-unknown-linux-musl.sh
 
+FROM pyspy-rbspy-builder-common AS pyspy-builder
 COPY scripts/pyspy_build.sh .
 RUN ./pyspy_build.sh
 
-# perf
+# rbspy
+FROM pyspy-rbspy-builder-common AS rbspy-builder
+COPY scripts/rbspy_build.sh .
+RUN ./rbspy_build.sh
+
 # ubuntu:16.04
 FROM ubuntu@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c AS perf-builder
 
+# perf
 COPY scripts/perf_env.sh .
 RUN ./perf_env.sh
 
@@ -72,6 +78,9 @@ COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/objdump gprofiler/res
 RUN mkdir -p gprofiler/resources/java
 COPY --from=async-profiler-builder /async-profiler/async-profiler-2.0-linux-x64.tar.gz /tmp
 RUN tar -xzf /tmp/async-profiler-2.0-linux-x64.tar.gz -C gprofiler/resources/java --strip-components=2 async-profiler-2.0-linux-x64/build && rm /tmp/async-profiler-2.0-linux-x64.tar.gz
+
+RUN mkdir -p gprofiler/resources/ruby
+COPY --from=rbspy-builder /rbspy/target/x86_64-unknown-linux-musl/release/rbspy gprofiler/resources/ruby/rbspy
 
 COPY scripts/build.sh scripts/build.sh
 RUN ./scripts/build.sh
