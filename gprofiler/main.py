@@ -415,6 +415,7 @@ def parse_cmd_args():
 
     if args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
         parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode smart|dwarf")
+
     return args
 
 

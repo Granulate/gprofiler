@@ -47,7 +47,6 @@ class SystemProfiler:
         self.stop()
 
     def _run_perf(self, dwarf: bool = False) -> str:
-
         buildid_args = ["--buildid-dir", PERF_BUILDID_DIR]
 
         with NamedTemporaryFile(dir=self._storage_dir) as record_file:

@@ -90,7 +90,6 @@ def collapse_stack(stack: str, comm: str) -> str:
 def merge_global_perfs(
     raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str]
 ) -> Tuple[ProcessToStackSampleCounters, ProcessIdToNameMapping]:
-    merged_pid_to_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
     fp_perf, fp_pid_to_name = parse_perf_script(raw_fp_perf)
     dwarf_perf, dwarf_pid_to_name = parse_perf_script(raw_dwarf_perf)
     dwarf_pid_to_name.update(fp_pid_to_name)
@@ -106,6 +105,7 @@ def merge_global_perfs(
     fp_to_dwarf_sample_ratio = total_fp_samples / total_dwarf_samples
 
     # The FP perf is used here as the "main" perf, to which the DWARF perf is scaled.
+    merged_pid_to_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
     add_highest_avg_depth_stacks_per_process(
         dwarf_perf, fp_perf, fp_to_dwarf_sample_ratio, merged_pid_to_stacks_counters
     )
