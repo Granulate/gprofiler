@@ -1,4 +1,5 @@
-FROM rust:latest AS pyspy-builder
+# rust:latest 1.52.1
+FROM rust@sha256:5f3bbf6200c057c4934deac814224e0038baa018c76aa54dfb84dd734315dad4 AS pyspy-builder
 
 COPY scripts/pyspy_env.sh .
 RUN ./pyspy_env.sh
@@ -6,8 +7,17 @@ RUN ./pyspy_env.sh
 COPY scripts/pyspy_build.sh .
 RUN ./pyspy_build.sh
 
+# ubuntu:16.04
+FROM ubuntu@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c AS perf-builder
 
-FROM ubuntu:20.04 as bcc-builder
+COPY scripts/perf_env.sh .
+RUN ./perf_env.sh
+
+COPY scripts/perf_build.sh .
+RUN ./perf_build.sh
+
+# ubuntu 20.04
+FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93 AS bcc-builder
 
 RUN apt-get update
 
@@ -19,8 +29,15 @@ WORKDIR /bcc
 COPY ./scripts/pyperf_build.sh .
 RUN ./pyperf_build.sh
 
+# ubuntu:20.04
+FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93 as phpspy-builder
+RUN apt update && apt install -y git wget make gcc
+COPY scripts/phpspy_build.sh .
+RUN ./phpspy_build.sh
 
-FROM ubuntu:20.04
+
+# ubuntu 20.04
+FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
 
 WORKDIR /app
 
@@ -34,6 +51,11 @@ COPY --from=bcc-builder /bcc/bcc/licenses gprofiler/resources/python/pyperf/lice
 COPY --from=bcc-builder /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 
 COPY --from=pyspy-builder /py-spy/target/x86_64-unknown-linux-musl/release/py-spy gprofiler/resources/python/py-spy
+COPY --from=perf-builder /perf gprofiler/resources/perf
+
+RUN mkdir -p gprofiler/resources/python/phpspy
+COPY --from=phpspy-builder /phpspy/phpspy gprofiler/resources/php/phpspy
+COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
 
 COPY scripts/build.sh scripts/build.sh
 RUN ./scripts/build.sh
