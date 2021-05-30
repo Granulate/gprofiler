@@ -58,7 +58,8 @@ class SystemProfiler:
                 stop_event=self._stop_event,
             )
             perf_script_result = run_process(
-                [resource_path("perf")] + buildid_args + ["script", "-F", "+pid", "-i", record_file.name]
+                [resource_path("perf")] + buildid_args + ["script", "-F", "+pid", "-i", record_file.name],
+                suppress_log=True
             )
             return perf_script_result.stdout.decode('utf8')
 
