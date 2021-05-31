@@ -422,6 +422,25 @@ def reset_umask() -> None:
     os.umask(0o022)
 
 
+def is_running_in_init_pid() -> bool:
+    """
+    Check if we're running in the init PID namespace.
+
+    This check is implemented by checking if PID 2 is running, and if it's named "kthreadd"
+    which is the kernel thread from which kernel threads are forked. It's always PID 2 and
+    we should always see it in the init NS. If we don't have a PID 2 running, or if it's not named
+    kthreadd, then we're not in the init PID NS.
+    """
+    try:
+        p = psutil.Process(2)
+    except psutil.NoSuchProcess:
+        return False
+    else:
+        # technically, funny processes can name themselves "kthreadd", causing this check to pass in a non-init NS.
+        # but we don't need to handle such extreme cases, I think.
+        return p.name() == "kthreadd"
+
+
 def limit_frequency(limit: int, requested: int, msg_header: str, runtime_logger: logging.Logger):
     if requested > limit:
         runtime_logger.warning(
