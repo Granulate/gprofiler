@@ -95,7 +95,6 @@ RUN cp /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 COPY --from=pyspy-builder /py-spy/target/x86_64-unknown-linux-musl/release/py-spy gprofiler/resources/python/py-spy
 COPY --from=perf-builder /perf gprofiler/resources/perf
 
-RUN mkdir -p gprofiler/resources/python/phpspy
 COPY --from=phpspy-builder /phpspy/phpspy gprofiler/resources/php/phpspy
 COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
 COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/strings gprofiler/resources/php/strings
