@@ -34,6 +34,7 @@ from .utils import (
     get_iso8061_format_time,
     grab_gprofiler_mutex,
     is_root,
+    is_running_in_init_pid,
     log_system_info,
     reset_umask,
     resource_path,
@@ -440,6 +441,14 @@ def parse_cmd_args():
 def verify_preconditions():
     if not is_root():
         print("Must run gprofiler as root, please re-run.", file=sys.stderr)
+        sys.exit(1)
+
+    if not is_running_in_init_pid():
+        print(
+            "Please run me in the init PID namespace! In Docker, make sure you pass '--pid=host'."
+            " In Kubernetes, add 'hostPID: true' in the Pod spec.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     if not grab_gprofiler_mutex():
