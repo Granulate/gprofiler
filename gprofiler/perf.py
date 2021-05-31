@@ -75,7 +75,8 @@ class SystemProfiler:
             return merge_global_perfs(self._run_perf(dwarf=False), None)
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
             # We are running 2 perfs in parallel - one with DWARF and one with FP, and then we merge their results.
-            # This improves the results from software that is compiled without frame pointers, like some Go software.
+            # This improves the results from software that is compiled without frame pointers,
+            # like some native software.
             fp_future = executor.submit(self._run_perf, False)
             dwarf_future = executor.submit(self._run_perf, True)
         fp_perf = fp_future.result()
