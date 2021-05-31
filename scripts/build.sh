@@ -5,7 +5,7 @@
 #
 set -e
 
-mkdir -p build
+mkdir -p gprofiler/resources
 
 function curl_with_timecond() {
     url="$1"
@@ -21,5 +21,3 @@ function curl_with_timecond() {
 # burn
 curl_with_timecond https://github.com/Granulate/burn/releases/download/v1.0.1g2/burn gprofiler/resources/burn
 chmod +x gprofiler/resources/burn
-
-rm -r build
