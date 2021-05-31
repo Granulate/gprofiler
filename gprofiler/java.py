@@ -100,7 +100,14 @@ class JavaProfiler(ProfilerBase):
             # this has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
             # in that case, the libraries would have been replaced as well, and therefore we're actually checking
             # the version of the now installed Java, and not the running one.
-            # but since this is used for the JDK check, it's good enough - we don't expect that to change.
+            # but since this is used for the "JDK type" check, it's good enough - we don't expect that to change.
+            # this whole check, however, is growing to be too complex, and we should consider other approaches
+            # for it:
+            # 1. purely in async-profiler - before calling any APIs that might harm blacklisted JDKs, we can
+            #    check the JDK type in async-profiler itself.
+            # 2. assume JDK type by the path, e.g the "java" Docker image has
+            #    "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java" which means "OpenJDK". needs to be checked for
+            #    other JDK types.
             java_path = f"/proc/{nspid}/exe"
         else:
             # TODO fix get_process_nspid() for all cases.
