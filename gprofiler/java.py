@@ -85,12 +85,12 @@ class JavaProfiler(ProfilerBase):
             f"stop,file={output_path},{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS},log={log_path}",
         ]
 
-    def _run_async_profiler(self, cmd: List[str], log_path_host: str) -> None:
+    def _run_async_profiler(self, cmd: List[str], log_path_host: str, pid: int) -> None:
         try:
             run_process(cmd)
         except CalledProcessError:
             if os.path.exists(log_path_host):
-                logger.warning(f"async-profiler log: {Path(log_path_host).read_text()}")
+                logger.warning(f"async-profiler (on {pid}) log: {Path(log_path_host).read_text()}")
             raise
 
     def _start_async_profiler(
@@ -115,6 +115,7 @@ class JavaProfiler(ProfilerBase):
                     log_path_process,
                 ),
                 log_path_host,
+                process.pid,
             )
         except CalledProcessError:
             is_loaded = f" {libasyncprofiler_path_process}" in Path(f"/proc/{process.pid}/maps").read_text()
@@ -230,6 +231,7 @@ class JavaProfiler(ProfilerBase):
                     log_path_process,
                 ),
                 log_path_host,
+                process.pid,
             )
         else:
             # no output in this case :/
