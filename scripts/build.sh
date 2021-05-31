@@ -18,9 +18,6 @@ function curl_with_timecond() {
     curl -fL "$url" $time_cond -o "$output"
 }
 
-# pyperf - just create the directory for it, it will be built later
-mkdir -p gprofiler/resources/python/pyperf
-
 # burn
 curl_with_timecond https://github.com/Granulate/burn/releases/download/v1.0.1g2/burn gprofiler/resources/burn
 chmod +x gprofiler/resources/burn

@@ -86,6 +86,7 @@ COPY scripts/build.sh scripts/build.sh
 RUN ./scripts/build.sh
 
 # copy PyPerf and stuff
+RUN mkdir -p gprofiler/resources/python/pyperf
 RUN cp /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
 # copy licenses and notice file.
 RUN cp /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
