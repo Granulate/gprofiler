@@ -27,6 +27,13 @@ RUN apt update && apt install -y git wget make gcc
 COPY scripts/phpspy_build.sh .
 RUN ./phpspy_build.sh
 
+# async-profiler
+FROM centos@sha256:dec8f471302de43f4cfcf82f56d99a5227b5ea1aa6d02fa56344986e1f4610e7 AS async-profiler-builder
+COPY scripts/async_profiler_env.sh .
+RUN ./async_profiler_env.sh
+COPY scripts/async_profiler_build.sh .
+RUN ./async_profiler_build.sh
+
 
 # Centos 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
 # This will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
@@ -59,14 +66,6 @@ RUN yum install -y devtoolset-8 \
 
 COPY ./scripts/pyperf_build.sh .
 RUN source scl_source enable devtoolset-8 llvm-toolset-7 && source ./pyperf_build.sh
-
-WORKDIR /async-profiler
-
-# async-profiler
-COPY ./scripts/async_profiler_env.sh .
-RUN ./async_profiler_env.sh
-COPY ./scripts/async_profiler_build.sh .
-RUN ./async_profiler_build.sh
 
 
 # gProfiler part
@@ -103,7 +102,8 @@ COPY --from=centos:6 /usr/bin/awk gprofiler/resources/php/awk
 COPY --from=centos:6 /usr/bin/xargs gprofiler/resources/php/xargs
 
 RUN mkdir -p gprofiler/resources/java
-RUN tar -xzf /async-profiler/async-profiler/async-profiler-2.0-linux-x64.tar.gz -C gprofiler/resources/java --strip-components=2 async-profiler-2.0-linux-x64/build
+COPY --from=async-profiler-builder /async-profiler/async-profiler-2.0-linux-x64.tar.gz /tmp
+RUN tar -xzf /tmp/async-profiler-2.0-linux-x64.tar.gz -C gprofiler/resources/java --strip-components=2 async-profiler-2.0-linux-x64/build && rm /tmp/async-profiler-2.0-linux-x64.tar.gz
 
 
 COPY gprofiler gprofiler
