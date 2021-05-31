@@ -184,11 +184,11 @@ def parse_perf_script(script: Optional[str]) -> Tuple[ProcessToStackSampleCounte
             sample_dict = match.groupdict()
 
             pid = int(sample_dict["pid"])
-            process_name = sample_dict["comm"]
+            comm = sample_dict["comm"]
             stack = sample_dict["stack"]
             if stack is not None:
-                pid_to_collapsed_stacks_counters[pid][collapse_stack(stack, process_name)] += 1
-            pid_to_name.setdefault(pid, process_name)
+                pid_to_collapsed_stacks_counters[pid][collapse_stack(stack, comm)] += 1
+            pid_to_name.setdefault(pid, comm)
         except Exception:
             logger.exception(f"Error processing sample: {sample}")
     return pid_to_collapsed_stacks_counters, pid_to_name
