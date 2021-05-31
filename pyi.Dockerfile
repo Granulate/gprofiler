@@ -60,6 +60,15 @@ RUN yum install -y devtoolset-8 \
 COPY ./scripts/pyperf_build.sh .
 RUN source scl_source enable devtoolset-8 llvm-toolset-7 && source ./pyperf_build.sh
 
+WORKDIR /async-profiler
+
+# async-profiler
+COPY ./scripts/async_profiler_env.sh .
+RUN ./async_profiler_env.sh
+COPY ./scripts/async_profiler_build.sh .
+RUN ./async_profiler_build.sh
+
+
 # gProfiler part
 
 WORKDIR /app
@@ -92,6 +101,9 @@ COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/objdump gprofiler/res
 COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/strings gprofiler/resources/php/strings
 COPY --from=centos:6 /usr/bin/awk gprofiler/resources/php/awk
 COPY --from=centos:6 /usr/bin/xargs gprofiler/resources/php/xargs
+
+RUN mkdir -p gprofiler/resources/java
+RUN tar -xzf /async-profiler/async-profiler/async-profiler-2.0-linux-x64.tar.gz -C gprofiler/resources/java --strip-components=2 async-profiler-2.0-linux-x64/build
 
 
 COPY gprofiler gprofiler

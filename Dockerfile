@@ -39,6 +39,14 @@ RUN apt update && apt install -y git wget make gcc
 COPY scripts/phpspy_build.sh .
 RUN ./phpspy_build.sh
 
+# async-profiler
+# centos:7
+FROM centos@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e AS async-profiler-builder
+COPY scripts/async_profiler_env.sh .
+RUN ./async_profiler_env.sh
+COPY scripts/async_profiler_build.sh .
+RUN ./async_profiler_build.sh
+
 
 # the gProfiler image itself, at last.
 # ubuntu 20.04
@@ -61,6 +69,10 @@ COPY --from=perf-builder /perf gprofiler/resources/perf
 RUN mkdir -p gprofiler/resources/python/phpspy
 COPY --from=phpspy-builder /phpspy/phpspy gprofiler/resources/php/phpspy
 COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
+
+RUN mkdir -p gprofiler/resources/java
+COPY --from=async-profiler-builder /async-profiler/async-profiler-2.0-linux-x64.tar.gz /tmp
+RUN tar -xzf /tmp/async-profiler-2.0-linux-x64.tar.gz -C gprofiler/resources/java --strip-components=2 async-profiler-2.0-linux-x64/build && rm /tmp/async-profiler-2.0-linux-x64.tar.gz
 
 COPY scripts/build.sh scripts/build.sh
 RUN ./scripts/build.sh
