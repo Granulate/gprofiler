@@ -204,8 +204,8 @@ def merge_perfs(
     for pid, stacks_counters in system_perf_pid_to_stacks_counter.items():
         if pid in process_perfs:
             per_process_samples[pid] += sum(stacks_counters.values())
-            continue
-        new_samples += stacks_counters
+        else:
+            new_samples += stacks_counters
 
     for pid, perf_all_count in per_process_samples.items():
         process_stacks = process_perfs[pid]
