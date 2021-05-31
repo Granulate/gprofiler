@@ -11,7 +11,7 @@ from typing import Dict, Iterable, Mapping, MutableMapping, Optional, Tuple
 
 StackToSampleCount = Counter
 ProcessToStackSampleCounters = MutableMapping[int, StackToSampleCount]
-ProcessIdToNameMapping = Dict[int, str]
+ProcessIdToCommMapping = Dict[int, str]
 
 logger = logging.getLogger(__name__)
 
@@ -90,16 +90,16 @@ def collapse_stack(stack: str, comm: str) -> str:
 
 def merge_global_perfs(
     raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str]
-) -> Tuple[ProcessToStackSampleCounters, ProcessIdToNameMapping]:
-    fp_perf, fp_pid_to_name = parse_perf_script(raw_fp_perf)
-    dwarf_perf, dwarf_pid_to_name = parse_perf_script(raw_dwarf_perf)
-    dwarf_pid_to_name.update(fp_pid_to_name)
-    merged_pid_to_name = dwarf_pid_to_name
+) -> Tuple[ProcessToStackSampleCounters, ProcessIdToCommMapping]:
+    fp_perf, fp_pid_to_comm = parse_perf_script(raw_fp_perf)
+    dwarf_perf, dwarf_pid_to_comm = parse_perf_script(raw_dwarf_perf)
+    dwarf_pid_to_comm.update(fp_pid_to_comm)
+    merged_pid_to_comm = dwarf_pid_to_comm
 
     if raw_fp_perf is None:
-        return dwarf_perf, merged_pid_to_name
+        return dwarf_perf, merged_pid_to_comm
     elif raw_dwarf_perf is None:
-        return fp_perf, merged_pid_to_name
+        return fp_perf, merged_pid_to_comm
 
     total_fp_samples = sum([sum(stacks.values()) for stacks in fp_perf.values()])
     total_dwarf_samples = sum([sum(stacks.values()) for stacks in dwarf_perf.values()])
@@ -115,7 +115,7 @@ def merge_global_perfs(
         f"Total FP samples: {total_fp_samples}; Total DWARF samples: {total_dwarf_samples}; "
         f"FP to DWARF ratio: {fp_to_dwarf_sample_ratio}; Total merged samples: {total_merged_samples}"
     )
-    return merged_pid_to_stacks_counters, merged_pid_to_name
+    return merged_pid_to_stacks_counters, merged_pid_to_comm
 
 
 def add_highest_avg_depth_stacks_per_process(
@@ -167,11 +167,11 @@ def get_average_frame_count(stacks: Iterable[str]) -> float:
     return sum(frame_count_per_samples) / len(frame_count_per_samples)
 
 
-def parse_perf_script(script: Optional[str]) -> Tuple[ProcessToStackSampleCounters, ProcessIdToNameMapping]:
+def parse_perf_script(script: Optional[str]) -> Tuple[ProcessToStackSampleCounters, ProcessIdToCommMapping]:
     pid_to_collapsed_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
-    pid_to_name: ProcessIdToNameMapping = {}
+    pid_to_comm: ProcessIdToCommMapping = {}
     if script is None:
-        return pid_to_collapsed_stacks_counters, pid_to_name
+        return pid_to_collapsed_stacks_counters, pid_to_comm
     for sample in script.split("\n\n"):
         try:
             if sample.strip() == "":
@@ -188,15 +188,15 @@ def parse_perf_script(script: Optional[str]) -> Tuple[ProcessToStackSampleCounte
             stack = sample_dict["stack"]
             if stack is not None:
                 pid_to_collapsed_stacks_counters[pid][collapse_stack(stack, comm)] += 1
-            pid_to_name.setdefault(pid, comm)
+            pid_to_comm.setdefault(pid, comm)
         except Exception:
             logger.exception(f"Error processing sample: {sample}")
-    return pid_to_collapsed_stacks_counters, pid_to_name
+    return pid_to_collapsed_stacks_counters, pid_to_comm
 
 
 def merge_perfs(
     system_perf_pid_to_stacks_counter: ProcessToStackSampleCounters,
-    pid_to_name: ProcessIdToNameMapping,
+    pid_to_comm: ProcessIdToCommMapping,
     process_perfs: ProcessToStackSampleCounters,
 ) -> str:
     per_process_samples: MutableMapping[int, int] = Counter()
@@ -213,7 +213,7 @@ def merge_perfs(
         if process_perf_count > 0:
             ratio = perf_all_count / process_perf_count
             for stack, count in process_stacks.items():
-                full_stack = ";".join([pid_to_name[pid], stack])
+                full_stack = ";".join([pid_to_comm[pid], stack])
                 new_samples[full_stack] += round(count * ratio)
 
     return "\n".join((f"{stack} {count}" for stack, count in new_samples.items()))

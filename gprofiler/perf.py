@@ -11,7 +11,7 @@ from typing import Tuple
 
 import psutil
 
-from .merge import ProcessIdToNameMapping, ProcessToStackSampleCounters, merge_global_perfs
+from .merge import ProcessIdToCommMapping, ProcessToStackSampleCounters, merge_global_perfs
 from .utils import TEMPORARY_STORAGE_PATH, resource_path, run_process
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ class SystemProfiler:
             )
             return perf_script_result.stdout.decode('utf8')
 
-    def snapshot(self) -> Tuple[ProcessToStackSampleCounters, ProcessIdToNameMapping]:
+    def snapshot(self) -> Tuple[ProcessToStackSampleCounters, ProcessIdToCommMapping]:
         free_disk = psutil.disk_usage(self._storage_dir).free
         if free_disk < 4 * 1024 * 1024:
             raise Exception(f"Free disk space: {free_disk}kb. Skipping perf!")
