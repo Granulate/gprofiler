@@ -14,10 +14,10 @@ from typing import List, Mapping, Optional
 import psutil
 from psutil import Process
 
-from .exceptions import StopEventSetException
-from .merge import parse_one_collapsed
-from .profiler_base import ProfilerBase
-from .utils import (
+from gprofiler.exceptions import StopEventSetException
+from gprofiler.merge import parse_one_collapsed
+from gprofiler.profiler_base import ProfilerBase
+from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     get_process_nspid,
     is_same_ns,
