@@ -2,10 +2,14 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import json
 import logging
 import re
+import socket
 from collections import Counter, defaultdict
-from typing import Iterable, Mapping, MutableMapping
+from typing import Dict, Iterable, Mapping, MutableMapping
+
+from gprofiler.docker_client import DockerClient
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +67,7 @@ def parse_many_collapsed(text: str) -> Mapping[int, Mapping[str, int]]:
     return results
 
 
-def _collapse_stack(stack: str, comm: str) -> str:
+def _collapse_stack(comm: str, stack: str) -> str:
     """
     Collapse a single stack from "perf".
     """
@@ -97,14 +101,21 @@ def parse_perf_script(script: str):
             logger.exception(f"Error processing sample: {sample}")
 
 
-def _concatenate_stacks(stacks_iter: Iterable[Mapping[str, int]]) -> str:
+def _concatenate_stacks(profile_metadata: Dict, stacks_iter: Iterable[Mapping[str, int]]) -> str:
     """
     Concatenate all stacks from all stack mappings in stack_iter.
     """
-    return "\n".join((f"{stack} {count}" for stacks in stacks_iter for stack, count in stacks.items()))
+    lines = [f"#{json.dumps(profile_metadata)}"]
+    lines.extend([f"{stack} {count}" for stacks in stacks_iter for stack, count in stacks.items()])
+    return "\n".join(lines)
 
 
-def merge_perfs(perf_all: Iterable[Mapping[str, str]], process_perfs: Mapping[int, Mapping[str, int]]) -> str:
+def merge_perfs(
+    perf_all: Iterable[Mapping[str, str]],
+    process_perfs: Mapping[int, Mapping[str, int]],
+    docker_client: DockerClient,
+    should_determine_container_names: bool,
+) -> str:
     per_process_samples: MutableMapping[int, int] = Counter()
     new_samples: MutableMapping[str, int] = Counter()
     process_names = {}
@@ -115,7 +126,10 @@ def merge_perfs(perf_all: Iterable[Mapping[str, str]], process_perfs: Mapping[in
                 per_process_samples[pid] += 1
                 process_names[pid] = parsed["comm"]
             elif parsed["stack"] is not None:
-                new_samples[_collapse_stack(parsed["stack"], parsed["comm"])] += 1
+                container_name = _get_container_name(pid, docker_client, should_determine_container_names)
+                collapsed_stack = _collapse_stack(parsed["comm"], parsed["stack"])
+                stack_line = f'{container_name};{collapsed_stack}'
+                new_samples[stack_line] += 1
         except Exception:
             logger.exception(f"Error processing sample: {parsed}")
 
@@ -125,11 +139,22 @@ def merge_perfs(perf_all: Iterable[Mapping[str, str]], process_perfs: Mapping[in
         if process_perf_count > 0:
             ratio = perf_all_count / process_perf_count
             for stack, count in process_stacks.items():
-                full_stack = ";".join([process_names[pid], stack])
-                new_samples[full_stack] += round(count * ratio)
-
-    return _concatenate_stacks((new_samples,))
+                container_name = _get_container_name(pid, docker_client, should_determine_container_names)
+                stack_line = ";".join([container_name, process_names[pid], stack])
+                new_samples[stack_line] += round(count * ratio)
+    container_names = docker_client.container_names
+    docker_client.reset_cache()
+    profile_metadata = {
+        'containers': container_names,
+        'hostname': socket.gethostname(),
+        'container_names_enabled': should_determine_container_names,
+    }
+    return _concatenate_stacks(profile_metadata, (new_samples,))
 
 
 def concatenate_perfs(process_perfs: Mapping[int, Mapping[str, int]]) -> str:
-    return _concatenate_stacks(process_perfs.values())
+    return _concatenate_stacks({}, process_perfs.values())
+
+
+def _get_container_name(pid: int, docker_client: DockerClient, should_determine_container_names: bool):
+    return docker_client.get_container_name(pid) if should_determine_container_names else ""
