@@ -56,28 +56,18 @@ def is_root() -> bool:
     return os.geteuid() == 0
 
 
-def get_process_container_id(pid: int) -> Optional[str]:
-    with open(f"/proc/{pid}/cgroup") as f:
-        for line in f:
-            line = line.strip()
-            if any(s in line for s in (":/docker/", ":/ecs/", ":/kubepods", ":/lxc/")):
-                return line.split("/")[-1]
-        return None
-
-
-@lru_cache(maxsize=None)
-def get_self_container_id() -> Optional[str]:
-    return get_process_container_id(os.getpid())
-
-
-def get_process_nspid(pid: int) -> int:
+def get_process_nspid(pid: int) -> Optional[int]:
     with open(f"/proc/{pid}/status") as f:
         for line in f:
             fields = line.split()
             if fields[0] == "NSpid:":
                 return int(fields[-1])
 
-    raise Exception(f"Couldn't find NSpid for pid {pid}")
+    # old kernel (pre 4.1) with no NSpid.
+    # TODO if needed, this can be implemented for pre 4.1, by reading all /proc/pid/sched files as
+    # seen by the PID NS; they expose the init NS PID (due to a bug fixed in 4.14~), and we can get the NS PID
+    # from the listing of those files itself.
+    return None
 
 
 def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Popen:

@@ -26,6 +26,9 @@ spec:
         - name: usr-src
           hostPath:
             path: /usr/src
+        - name: docker-sock # Allow containers to fetch the names
+            hostPath:
+              path: /var/run/docker.sock
       hostPID: true
       securityContext:
         runAsUser: 0
@@ -51,6 +54,8 @@ spec:
             - name: usr-src
               mountPath: /usr/src
               readOnly: true
+            - name: docker-sock
+                mountPath: /var/run/docker.sock
           args:
             - -cu
             - --token
