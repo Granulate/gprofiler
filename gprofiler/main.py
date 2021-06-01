@@ -211,7 +211,7 @@ class GProfiler:
         for line in collapsed_data.splitlines():
             if line.startswith("#"):
                 continue
-            lines.append(line[line.find(';') + 1:])
+            lines.append(line[line.find(';') + 1 :])
         return '\n'.join(lines)
 
     def start(self):
