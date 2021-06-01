@@ -25,6 +25,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
       - name: Build and push
         id: docker_build
         uses: docker/build-push-action@v2
@@ -45,8 +46,20 @@ jobs:
        run: |
          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
          ./cmp_tags.sh
+
+     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
      - name: Run Pyinstaller
-       run: DOCKER_BUILDKIT=1 docker build -f - --output type=local,dest=dist/ . < pyi.Dockerfile
+       # Not using DOCKER_BUILDKIT=1 since it has another cache mechanism which is not supported by satackey/action-docker-layer-caching@v0.0.11
+       # We tried to cache using buildx cache (cache-from, cache-to flags) and got strange behavior when caching,
+       # decided not to use buildkit here to get nice caches.
+       run: |
+        docker build -t gprofiler-executable-builder -f - . < pyi.Dockerfile
+        # No command specified in "scratch" image so just pass /bin/echo
+        docker container create --name gprofiler-executable-builder gprofiler-executable-builder /bin/echo
+        mkdir -p dist/
+        docker cp gprofiler-executable-builder:/gprofiler dist/gprofiler
+        docker rm gprofiler-executable-builder
+
      - name: Upload the executable as job artifact
        uses: actions/upload-artifact@v2
        with:
@@ -99,15 +112,10 @@ jobs:
           name: gprofiler
           path: dist/
 
-      - name: Install dependencies
+      - name: Run gProfiler tests
         run: |
-          sudo env "PATH=$PATH" python -m pip install --upgrade pip
-          sudo env "PATH=$PATH" pip install -r dev-requirements.txt
-          sudo env "PATH=$PATH" pip install -r requirements.txt
-          sudo chmod +x dist/gprofiler
-
-      - name: run gprofiler tests on compiled executable
-        run: sudo env "PATH=$PATH" python -m pytest --exec-container-image ${{ matrix.containers }} --executable dist/gprofiler -v tests/test_executable.py
+          chmod +x dist/gprofiler
+          NO_APT_INSTALL=1 ./tests/test.sh --exec-container-image ${{ matrix.containers }} --executable dist/gprofiler -k test_executable
 
 
   deploy-executable:

@@ -1,6 +1,33 @@
+# copied from Dockerfile
+# rust:latest 1.52.1
+FROM rust@sha256:5f3bbf6200c057c4934deac814224e0038baa018c76aa54dfb84dd734315dad4 AS pyspy-builder
+
+COPY scripts/pyspy_env.sh .
+RUN ./pyspy_env.sh
+
+COPY scripts/pyspy_build.sh .
+RUN ./pyspy_build.sh
+
+# ubuntu:16.04
+FROM ubuntu@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c AS perf-builder
+
+COPY scripts/perf_env.sh .
+RUN ./perf_env.sh
+
+COPY scripts/perf_build.sh .
+RUN ./perf_build.sh
+
+# ubuntu:20.04
+FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93 as phpspy-builder
+RUN apt update && apt install -y git wget make gcc
+COPY scripts/phpspy_build.sh .
+RUN ./phpspy_build.sh
+
+
 # Centos 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
 # This will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
-FROM centos:7 AS build-stage
+# centos:7
+FROM centos@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e AS build-stage
 
 # bcc part
 # TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
@@ -17,8 +44,6 @@ RUN yum install -y \
 
 WORKDIR /bcc
 
-RUN git clone --depth 1 -b v1.0.1 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 92b61ade89f554859950695b067288f60cb1f3e5
-
 RUN yum install -y centos-release-scl-rh
 # mostly taken from https://github.com/iovisor/bcc/blob/master/INSTALL.md#install-and-compile-llvm
 RUN yum install -y devtoolset-8 \
@@ -28,10 +53,8 @@ RUN yum install -y devtoolset-8 \
     llvm-toolset-7-clang-devel \
     devtoolset-8-elfutils-libelf-devel
 
-RUN mkdir bcc/build && cd bcc/build && \
-  source scl_source enable devtoolset-8 llvm-toolset-7 && \
-  cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root .. && \
-  make -C examples/cpp/pyperf -j -l VERBOSE=1 install
+COPY ./scripts/pyperf_build.sh .
+RUN source scl_source enable devtoolset-8 llvm-toolset-7 && source ./pyperf_build.sh
 
 # gProfiler part
 
@@ -43,8 +66,8 @@ RUN yum install -y gcc python3 curl python3-pip patchelf python3-devel upx
 COPY requirements.txt requirements.txt
 RUN python3 -m pip install -r requirements.txt
 
-COPY dev-requirements.txt dev-requirements.txt
-RUN python3 -m pip install -r dev-requirements.txt
+COPY exe-requirements.txt exe-requirements.txt
+RUN python3 -m pip install -r exe-requirements.txt
 
 COPY scripts/build.sh scripts/build.sh
 RUN ./scripts/build.sh
@@ -56,13 +79,24 @@ RUN cp /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
 RUN cp -r /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
 RUN cp /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 
+COPY --from=pyspy-builder /py-spy/target/x86_64-unknown-linux-musl/release/py-spy gprofiler/resources/python/py-spy
+COPY --from=perf-builder /perf gprofiler/resources/perf
+
+RUN mkdir -p gprofiler/resources/python/phpspy
+COPY --from=phpspy-builder /phpspy/phpspy gprofiler/resources/php/phpspy
+COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
+COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/strings gprofiler/resources/php/strings
+COPY --from=centos:6 /usr/bin/awk gprofiler/resources/php/awk
+COPY --from=centos:6 /usr/bin/xargs gprofiler/resources/php/xargs
+
+
 COPY gprofiler gprofiler
 
 # run PyInstaller and make sure no 'gprofiler.*' modules are missing.
 # see https://pyinstaller.readthedocs.io/en/stable/when-things-go-wrong.html
 # from a quick look I didn't see how to tell PyInstaller to exit with an error on this, hence
 # this check in the shell.
-COPY pyi_build.py pyinstaller.spec .
+COPY pyi_build.py pyinstaller.spec ./
 RUN pyinstaller pyinstaller.spec \
     && echo \
     && test -f build/pyinstaller/warn-pyinstaller.txt \

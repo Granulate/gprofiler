@@ -43,7 +43,7 @@ the results.
 * `--profiling-duration`: The duration of the each profiling session, in *seconds*.
 * `--profiling-interval`: The interval between each profiling session, in *seconds*.
 
-The default profiling frequency is *10 hertz*. Using higher frequency will lead to more accurate results, but will create greater overhead on the profiled system & programs.
+The default profiling frequency is *11 hertz*. Using higher frequency will lead to more accurate results, but will create greater overhead on the profiled system & programs.
 
 The default duration is *60 seconds*, and the default interval matches it. So gProfiler runs the profiling sessions back-to-back - the next session starts as soon as the previous session is done.
 
@@ -115,6 +115,8 @@ Alongside `perf`, gProfiler invokes runtime-specific profilers for processes bas
 * The CPython interpreter, versions 2.7 and 3.5-3.9.
   * eBPF profiling (based on PyPerf) requires Linux 4.14 or higher. Profiling using eBPF incurs lower overhead. This requires kernel headers to be installed.
   * If eBPF is not available for whatever reason, py-spy is used.
+* PHP (Zend Engine), versions 7.0-8.0.
+  * Uses [Granulate's fork](https://github.com/Granulate/phpspy/) of the phpspy project.
 
 The runtime-specific profilers produce stack traces that include runtime information (i.e, stacks of Java/Python functions), unlike `perf` which produces native stacks of the JVM / CPython interpreter.
 The runtime stacks are then merged into the data collected by `perf`, substituting the *native* stacks `perf` has collected for those processes.
@@ -134,6 +136,7 @@ We recommend going through our [contribution guide](https://github.com/granulate
 * [async-profiler](https://github.com/jvm-profiling-tools/async-profiler) by [Andrei Pangin](https://github.com/apangin). See [our fork](https://github.com/Granulate/async-profiler).
 * [py-spy](https://github.com/benfred/py-spy) by [Ben Frederickson](https://github.com/benfred). See [our fork](https://github.com/Granulate/py-spy).
 * [bcc](https://github.com/iovisor/bcc) (for PyPerf) by the IO Visor project. See [our fork](https://github.com/Granulate/bcc).
+* [phpspy](https://github.com/adsr/phpspy) by [Adam Saponara](https://github.com/adsr). See [our fork](https://github.com/Granulate/phpspy).
 
 # Footnotes
 

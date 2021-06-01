@@ -56,26 +56,48 @@ def is_root() -> bool:
     return os.geteuid() == 0
 
 
-def get_process_nspid(pid: int) -> int:
+def get_process_nspid(pid: int) -> Optional[int]:
     with open(f"/proc/{pid}/status") as f:
         for line in f:
             fields = line.split()
             if fields[0] == "NSpid:":
                 return int(fields[-1])
 
-    raise Exception(f"Couldn't find NSpid for pid {pid}")
+    # old kernel (pre 4.1) with no NSpid.
+    # TODO if needed, this can be implemented for pre 4.1, by reading all /proc/pid/sched files as
+    # seen by the PID NS; they expose the init NS PID (due to a bug fixed in 4.14~), and we can get the NS PID
+    # from the listing of those files itself.
+    return None
 
 
-def start_process(cmd: Union[str, List[str]], **kwargs) -> Popen:
+def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Popen:
     cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
     logger.debug(f"Running command: ({cmd_text})")
     if isinstance(cmd, str):
         cmd = [cmd]
+
+    env = kwargs.pop("env", None)
+    staticx_dir = os.getenv("STATICX_BUNDLE_DIR")
+    # are we running under staticx?
+    if staticx_dir is not None:
+        # if so, if "via_staticx" was requested, then run the binary with the staticx ld.so
+        # because it's supposed to be run with it.
+        if via_staticx:
+            # STATICX_BUNDLE_DIR is where staticx has extracted all of the libraries it had collected
+            # earlier.
+            # see https://github.com/JonathonReinhart/staticx#run-time-information
+            cmd = [f"{staticx_dir}/.staticx.interp", "--library-path", staticx_dir] + cmd
+        else:
+            # explicitly remove our directory from LD_LIBRARY_PATH
+            env = env if env is not None else os.environ.copy()
+            env.update({"LD_LIBRARY_PATH": ""})
+
     popen = Popen(
         cmd,
         stdout=kwargs.pop("stdout", subprocess.PIPE),
         stderr=kwargs.pop("stderr", subprocess.PIPE),
         preexec_fn=kwargs.pop("preexec_fn", os.setpgrp),
+        env=env,
         **kwargs,
     )
     return popen
@@ -103,9 +125,14 @@ def poll_process(process, timeout: float, stop_event: Event):
 
 
 def run_process(
-    cmd: Union[str, List[str]], stop_event: Event = None, suppress_log: bool = False, **kwargs
+    cmd: Union[str, List[str]],
+    stop_event: Event = None,
+    suppress_log: bool = False,
+    via_staticx: bool = False,
+    check: bool = True,
+    **kwargs,
 ) -> CompletedProcess:
-    with start_process(cmd, **kwargs) as process:
+    with start_process(cmd, via_staticx, **kwargs) as process:
         try:
             if stop_event is None:
                 stdout, stderr = process.communicate()
@@ -131,7 +158,7 @@ def run_process(
             logger.debug(f"({process.args!r}) stdout: {result.stdout}")
         if result.stderr:
             logger.debug(f"({process.args!r}) stderr: {result.stderr}")
-    if retcode:
+    if check and retcode != 0:
         raise CalledProcessError(retcode, process.args, output=stdout, stderr=stderr)
     return result
 
@@ -143,11 +170,19 @@ def pgrep_exe(match: str) -> Iterator[Process]:
 
 def pgrep_maps(match: str) -> List[Process]:
     # this is much faster than iterating over processes' maps with psutil.
-    result = subprocess.run(
-        f"grep -lP '{match}' /proc/*/maps", stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=True
+    result = run_process(
+        f"grep -lP '{match}' /proc/*/maps",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=True,
+        suppress_log=True,
+        check=False,
     )
     # might get 2 (which 'grep' exits with, if some files were unavailable, because processes have exited)
-    assert result.returncode in (0, 2), f"unexpected 'grep' exit code: {result.returncode}"
+    assert result.returncode in (
+        0,
+        2,
+    ), f"unexpected 'grep' exit code: {result.returncode}, stdout {result.stdout!r} stderr {result.stderr!r}"
 
     processes: List[Process] = []
     for line in result.stdout.splitlines():
@@ -225,7 +260,9 @@ def get_libc_version() -> Tuple[str, bytes]:
     # so we'll run "ldd --version" and extract the version string from it.
     # not passing "encoding"/"text" - this runs in a different mount namespace, and Python fails to
     # load the files it needs for those encodings (getting LookupError: unknown encoding: ascii)
-    ldd_version = subprocess.run(["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout
+    ldd_version = run_process(
+        ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, suppress_log=True, check=False
+    ).stdout
     # catches GLIBC & EGLIBC
     m = re.search(br"GLIBC (.*?)\)", ldd_version)
     if m is not None:
@@ -373,3 +410,33 @@ def reset_umask() -> None:
     Resets our umask back to a sane value.
     """
     os.umask(0o022)
+
+
+def is_running_in_init_pid() -> bool:
+    """
+    Check if we're running in the init PID namespace.
+
+    This check is implemented by checking if PID 2 is running, and if it's named "kthreadd"
+    which is the kernel thread from which kernel threads are forked. It's always PID 2 and
+    we should always see it in the init NS. If we don't have a PID 2 running, or if it's not named
+    kthreadd, then we're not in the init PID NS.
+    """
+    try:
+        p = psutil.Process(2)
+    except psutil.NoSuchProcess:
+        return False
+    else:
+        # technically, funny processes can name themselves "kthreadd", causing this check to pass in a non-init NS.
+        # but we don't need to handle such extreme cases, I think.
+        return p.name() == "kthreadd"
+
+
+def limit_frequency(limit: int, requested: int, msg_header: str, runtime_logger: logging.Logger):
+    if requested > limit:
+        runtime_logger.warning(
+            f"{msg_header}: Requested frequency ({requested}) is higher than the limit {limit}, "
+            f"limiting frequency to the limit ({limit})"
+        )
+        return limit
+
+    return requested

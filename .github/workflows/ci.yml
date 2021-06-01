@@ -26,7 +26,7 @@ jobs:
         pip install -r requirements.txt
 
     - name: Run linters
-      run: ./lint.sh
+      run: ./lint.sh --ci
 
   test:
     strategy:
@@ -51,12 +51,9 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v2
 
-    - name: Install dependencies
-      run: |
-        sudo env "PATH=$PATH" python -m pip install --upgrade pip
-        sudo env "PATH=$PATH" pip install -r dev-requirements.txt
-        sudo env "PATH=$PATH" pip install -r requirements.txt
-        ./scripts/build.sh
+    - name: Build
+      run: ./scripts/build.sh
 
-    - name: Run tests
-      run: sudo env "PATH=$PATH" python -m pytest -v tests/ --ignore=tests/test_executable.py
+    # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
+    - name: Run gProfiler tests
+      run: NO_APT_INSTALL=1 ./tests/test.sh --ignore=tests/test_executable.py

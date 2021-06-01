@@ -15,7 +15,7 @@ from logging import Logger
 from pathlib import Path
 from socket import gethostname
 from threading import Event
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
 import configargparse
 from requests import RequestException, Timeout
@@ -25,7 +25,8 @@ from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIC
 from gprofiler.docker_client import DockerClient
 from gprofiler.java import JavaProfiler
 from gprofiler.perf import SystemProfiler
-from gprofiler.profiler_base import NoopProfiler
+from gprofiler.php import PHPSpyProfiler
+from .profiler_base import NoopProfiler
 from gprofiler.python import get_python_profiler
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
@@ -34,6 +35,7 @@ from gprofiler.utils import (
     get_iso8061_format_time,
     grab_gprofiler_mutex,
     is_root,
+    is_running_in_init_pid,
     log_system_info,
     reset_umask,
     resource_path,
@@ -47,7 +49,7 @@ DEFAULT_LOG_MAX_SIZE = 1024 * 1024 * 5
 DEFAULT_LOG_BACKUP_COUNT = 1
 
 DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
-DEFAULT_SAMPLING_FREQUENCY = 10
+DEFAULT_SAMPLING_FREQUENCY = 11
 # by default - these match
 DEFAULT_CONTINUOUS_MODE_INTERVAL = DEFAULT_PROFILING_DURATION
 # 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
@@ -67,6 +69,14 @@ def sigint_handler(sig, frame):
         raise KeyboardInterrupt
 
 
+def create_profiler_or_noop(profiler_constructor_callback: Callable, runtime_name: str):
+    try:
+        return profiler_constructor_callback()
+    except Exception:
+        logger.exception(f"Couldn't create {runtime_name} profiler, continuing without this runtime profiler")
+        return NoopProfiler()
+
+
 class GProfiler:
     def __init__(
         self,
@@ -78,6 +88,7 @@ class GProfiler:
         runtimes: Dict[str, bool],
         client: APIClient,
         include_container_names=True,
+        php_process_filter: str = PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
     ):
         self._frequency = frequency
         self._duration = duration
@@ -95,7 +106,12 @@ class GProfiler:
         # files unnecessarily.
         self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
         self.java_profiler = (
-            JavaProfiler(self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name)
+            create_profiler_or_noop(
+                lambda: JavaProfiler(
+                    self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name
+                ),
+                "java",
+            )
             if self._runtimes["java"]
             else NoopProfiler()
         )
@@ -103,6 +119,16 @@ class GProfiler:
             self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name
         )
         self.initialize_python_profiler()
+        self.php_profiler = (
+            create_profiler_or_noop(
+                lambda: PHPSpyProfiler(
+                    self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name, php_process_filter
+                ),
+                "php",
+            )
+            if self._runtimes["php"]
+            else NoopProfiler()
+        )
         self._docker_client = DockerClient()
         self._include_container_names = include_container_names
 
@@ -115,12 +141,15 @@ class GProfiler:
 
     def initialize_python_profiler(self) -> None:
         self.python_profiler = (
-            get_python_profiler(
-                self._frequency,
-                self._duration,
-                self._stop_event,
-                self._temp_storage_dir.name,
-                self.initialize_python_profiler,
+            create_profiler_or_noop(
+                lambda: get_python_profiler(
+                    self._frequency,
+                    self._duration,
+                    self._stop_event,
+                    self._temp_storage_dir.name,
+                    self.initialize_python_profiler,
+                ),
+                "python",
             )
             if self._runtimes["python"]
             else NoopProfiler()
@@ -193,17 +222,20 @@ class GProfiler:
             self.python_profiler,
             self.java_profiler,
             self.system_profiler,
+            self.php_profiler,
         ):
             prof.start()
 
     def stop(self):
-        logger.info("Stopping gprofiler...")
+        logger.info("Stopping "
+                    "...")
         self._stop_event.set()
 
         for prof in (
             self.python_profiler,
             self.java_profiler,
             self.system_profiler,
+            self.php_profiler,
         ):
             prof.stop()
 
@@ -215,11 +247,13 @@ class GProfiler:
         java_future.name = "java"
         python_future = self._executor.submit(self.python_profiler.snapshot)
         python_future.name = "python"
+        php_future = self._executor.submit(self.php_profiler.snapshot)
+        php_future.name = "php"
         system_future = self._executor.submit(self.system_profiler.snapshot)
         system_future.name = "system"
 
         process_perfs: Dict[int, Dict[str, int]] = {}
-        for future in concurrent.futures.as_completed([java_future, python_future]):
+        for future in concurrent.futures.as_completed([java_future, python_future, php_future]):
             # if either of these fail - log it, and continue.
             try:
                 process_perfs.update(future.result())
@@ -341,6 +375,19 @@ def parse_cmd_args():
         default=True,
         help="Do not invoke runtime-specific profilers for Python processes",
     )
+    parser.add_argument(
+        "--no-php",
+        dest="php",
+        action="store_false",
+        default=True,
+        help="Do not invoke runtime-specific profilers for PHP processes",
+    )
+    parser.add_argument(
+        "--php-proc-filter",
+        dest="php_process_filter",
+        default=PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
+        help="Process filter for php processes (default: %(default)s)",
+    )
 
     parser.add_argument(
         "-u",
@@ -359,6 +406,7 @@ def parse_cmd_args():
     parser.add_argument("--token", dest="server_token", help="Server token")
     parser.add_argument("--service-name", help="Service name")
 
+    parser.add_argument('--version', action='version', version=__version__)
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
 
     logging_options = parser.add_argument_group("logging")
@@ -419,6 +467,14 @@ def verify_preconditions():
         print("Must run gprofiler as root, please re-run.", file=sys.stderr)
         sys.exit(1)
 
+    if not is_running_in_init_pid():
+        print(
+            "Please run me in the init PID namespace! In Docker, make sure you pass '--pid=host'."
+            " In Kubernetes, add 'hostPID: true' in the Pod spec.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     if not grab_gprofiler_mutex():
         print("Could not acquire gProfiler's lock. Is it already running?", file=sys.stderr)
         sys.exit(1)
@@ -457,8 +513,13 @@ def main():
             logger.exception("Encountered an exception while getting basic system info")
 
         if args.output_dir:
-            if not Path(args.output_dir).is_dir():
-                logger.error("Output directory does not exist")
+            try:
+                os.makedirs(args.output_dir, exist_ok=True)
+            except (FileExistsError, NotADirectoryError):
+                logger.error(
+                    "Output directory / a component in its path already exists as a non-directory!"
+                    f"Please check the path {args.output_dir!r}"
+                )
                 sys.exit(1)
 
         if not os.path.exists(TEMPORARY_STORAGE_PATH):
@@ -480,7 +541,7 @@ def main():
             logger.error(f"Failed to connect to server: {e}")
             return
 
-        runtimes = {"java": args.java, "python": args.python}
+        runtimes = {"java": args.java, "python": args.python, "php": args.php}
         gprofiler = GProfiler(
             args.frequency,
             args.duration,
@@ -490,6 +551,7 @@ def main():
             runtimes,
             client,
             not args.disable_container_names,
+            args.php_process_filter,
         )
         logger.info("gProfiler initialized and ready to start profiling")
 
