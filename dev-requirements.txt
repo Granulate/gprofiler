@@ -3,5 +3,3 @@ flake8
 black
 mypy
 isort
-pyinstaller==4.0
-staticx
