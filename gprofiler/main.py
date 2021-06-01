@@ -26,7 +26,7 @@ from gprofiler.docker_client import DockerClient
 from gprofiler.java import JavaProfiler
 from gprofiler.perf import SystemProfiler
 from gprofiler.php import PHPSpyProfiler
-from .profiler_base import NoopProfiler
+from gprofiler.profiler_base import NoopProfiler
 from gprofiler.python import get_python_profiler
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
@@ -54,7 +54,6 @@ DEFAULT_SAMPLING_FREQUENCY = 11
 DEFAULT_CONTINUOUS_MODE_INTERVAL = DEFAULT_PROFILING_DURATION
 # 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
 SIGINT_RATELIMIT = 0.5
-
 
 last_signal_ts: Optional[float] = None
 
@@ -212,7 +211,7 @@ class GProfiler:
         for line in collapsed_data.splitlines():
             if line.startswith("#"):
                 continue
-            lines.append(line[line.find(';') + 1 :])
+            lines.append(line[line.find(';') + 1:])
         return '\n'.join(lines)
 
     def start(self):
@@ -227,8 +226,7 @@ class GProfiler:
             prof.start()
 
     def stop(self):
-        logger.info("Stopping "
-                    "...")
+        logger.info("Stopping ...")
         self._stop_event.set()
 
         for prof in (
