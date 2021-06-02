@@ -10,7 +10,6 @@ from docker.models.images import Image
 
 from gprofiler.python import get_python_profiler
 from tests import CONTAINERS_DIRECTORY
-from tests.utils import copy_pyspy_from_image
 
 
 @pytest.fixture
@@ -31,13 +30,12 @@ def test_python_select_by_libpython(
     tmp_path,
     application_docker_container,
     assert_collapsed,
-    gprofiler_docker_image: Image,
+    gprofiler_docker_image_resources,
 ) -> None:
     """
     Tests that profiling of processes running Python, whose basename(readlink("/proc/pid/exe")) isn't "python".
     (for example, uwsgi). We expect to select these because they have "libpython" in their "/proc/pid/maps".
     """
-    copy_pyspy_from_image(gprofiler_docker_image)
     with get_python_profiler(1000, 1, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
     assert_collapsed(process_collapsed.get(application_docker_container.attrs["State"]["Pid"]))
