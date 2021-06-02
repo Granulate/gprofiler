@@ -6,6 +6,7 @@ from typing import Dict, List, Mapping
 from docker import DockerClient
 from docker.models.images import Image
 
+import gprofiler
 from gprofiler.utils import resource_path
 
 
@@ -58,8 +59,24 @@ def copy_pyspy_from_image(gprofiler_docker_image: Image):
     copy_file_from_image(
         gprofiler_docker_image,
         os.path.join("/app", "gprofiler", "resources", "python", "py-spy"),
-        resource_path("python/py-spy"),
+        resource_file_path("python/py-spy"),
     )
+
+
+def resource_file_path(relative_path: str) -> str:
+    """
+    Like resource_path() but works when relative_path is not existing yet.
+    """
+    assert not relative_path.startswith("/"), f"path mustn't start with /: {relative_path!r}"
+    path = os.path.join(os.path.dirname(gprofiler.__file__), "resources", relative_path)
+
+    if os.path.exists(path):
+        # during the tests - they should match.
+        assert os.path.abspath(resource_path(relative_path)) == os.path.abspath(
+            path
+        ), f"nonmatching results for {relative_path!r}"
+
+    return path
 
 
 def assert_function_in_collapsed(function_name: str, collapsed: Mapping[str, int]) -> None:
