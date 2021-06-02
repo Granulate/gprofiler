@@ -2,7 +2,6 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import os
 from pathlib import Path
 from threading import Event
 from typing import Callable, List, Mapping, Optional
@@ -16,13 +15,7 @@ from gprofiler.merge import parse_one_collapsed
 from gprofiler.php import PHPSpyProfiler
 from gprofiler.python import PySpyProfiler, PythonEbpfProfiler
 from tests import PHPSPY_DURATION
-from tests.utils import (
-    assert_function_in_collapsed,
-    copy_file_from_image,
-    copy_pyspy_from_image,
-    resource_file_path,
-    run_privileged_container,
-)
+from tests.utils import assert_function_in_collapsed, run_privileged_container
 
 
 @pytest.mark.parametrize("runtime", ["java"])
@@ -30,14 +23,8 @@ def test_java_from_host(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: Callable[[Optional[Mapping[str, int]]], None],
-    gprofiler_docker_image: Image,
+    gprofiler_docker_image_resources,
 ) -> None:
-    # copy the entire "java" directory
-    copy_file_from_image(
-        gprofiler_docker_image,
-        os.path.join("/app", "gprofiler", "resources", "java"),
-        resource_file_path(""),
-    )
     with JavaProfiler(1000, 1, True, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
         assert_collapsed(process_collapsed.get(application_pid))
@@ -48,9 +35,8 @@ def test_pyspy(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: Callable[[Optional[Mapping[str, int]]], None],
-    gprofiler_docker_image: Image,
+    gprofiler_docker_image_resources,
 ) -> None:
-    copy_pyspy_from_image(gprofiler_docker_image)
     with PySpyProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
         assert_collapsed(process_collapsed.get(application_pid))
@@ -61,14 +47,8 @@ def test_phpspy(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: Callable[[Optional[Mapping[str, int]]], None],
-    gprofiler_docker_image: Image,
+    gprofiler_docker_image_resources: Image,
 ) -> None:
-    copy_file_from_image(
-        gprofiler_docker_image,
-        os.path.join("/app", "gprofiler", "resources", "php", "phpspy"),
-        resource_file_path("php/phpspy"),
-    )
-
     with PHPSpyProfiler(1000, PHPSPY_DURATION, Event(), str(tmp_path), php_process_filter="php") as profiler:
         process_collapsed = profiler.snapshot()
         assert_collapsed(process_collapsed.get(application_pid))
@@ -76,19 +56,8 @@ def test_phpspy(
 
 @pytest.mark.parametrize("runtime", ["python"])
 def test_python_ebpf(
-    tmp_path,
-    application_pid,
-    assert_collapsed,
-    gprofiler_docker_image,
+    tmp_path, application_pid, assert_collapsed, gprofiler_docker_image, gprofiler_docker_image_resources
 ):
-    # get PyPerf from the built container
-    pyperf_path = resource_file_path(PythonEbpfProfiler.PYPERF_RESOURCE)
-    copy_file_from_image(
-        gprofiler_docker_image,
-        os.path.join("/app", "gprofiler", "resources", PythonEbpfProfiler.PYPERF_RESOURCE),
-        pyperf_path,
-    )
-
     with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
         collapsed = process_collapsed.get(application_pid)
