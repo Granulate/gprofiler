@@ -75,7 +75,7 @@ class JavaProfiler(ProfilerBase):
 
     def _get_async_profiler_stop_cmd(
         self, pid: int, output_path: str, jattach_path: str, async_profiler_lib_path: str, log_path: str
-    ):
+    ) -> List[str]:
         return [
             jattach_path,
             str(pid),
@@ -85,12 +85,40 @@ class JavaProfiler(ProfilerBase):
             f"stop,file={output_path},{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS},log={log_path}",
         ]
 
-    def _run_async_profiler(self, cmd: List[str], log_path_host: str):
+    def _run_async_profiler(self, cmd: List[str], log_path_host: str) -> None:
         try:
             run_process(cmd)
         except CalledProcessError:
             if os.path.exists(log_path_host):
                 logger.warning(f"async-profiler log: {Path(log_path_host).read_text()}")
+            raise
+
+    def _start_async_profiler(
+        self,
+        process: Process,
+        log_path_host: str,
+        log_path_process: str,
+        output_path_process: str,
+        libasyncprofiler_path_process: str,
+    ) -> None:
+        profiler_event = "itimer" if self._use_itimer else "cpu"
+
+        try:
+            self._run_async_profiler(
+                self._get_async_profiler_start_cmd(
+                    process.pid,
+                    profiler_event,
+                    self._interval,
+                    output_path_process,
+                    resource_path("java/jattach"),
+                    libasyncprofiler_path_process,
+                    log_path_process,
+                ),
+                log_path_host,
+            )
+        except CalledProcessError:
+            is_loaded = f" {libasyncprofiler_path_process}" in Path(f"/proc/{process.pid}/maps").read_text()
+            logger.warning(f"async-profiler DSO was{'' if is_loaded else ' not'} loaded into {process.pid}")
             raise
 
     @staticmethod
@@ -187,24 +215,9 @@ class JavaProfiler(ProfilerBase):
         if free_disk < 250 * 1024:
             raise Exception(f"Not enough free disk space: {free_disk}kb")
 
-        profiler_event = "itimer" if self._use_itimer else "cpu"
-        try:
-            self._run_async_profiler(
-                self._get_async_profiler_start_cmd(
-                    process.pid,
-                    profiler_event,
-                    self._interval,
-                    output_path_process,
-                    resource_path("java/jattach"),
-                    libasyncprofiler_path_process,
-                    log_path_process,
-                ),
-                log_path_host,
-            )
-        except CalledProcessError:
-            is_loaded = f" {libasyncprofiler_path_process}" in Path(f"/proc/{process.pid}/maps").read_text()
-            logger.warning(f"async-profiler DSO was{'' if is_loaded else ' not'} loaded into {process.pid}")
-            raise
+        self._start_async_profiler(
+            process, log_path_process, log_path_host, output_path_process, libasyncprofiler_path_process
+        )
 
         self._stop_event.wait(self._duration)
         if process.is_running():
