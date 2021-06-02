@@ -11,6 +11,6 @@ if [[ "$1" = "--ci" ]]; then
 fi
 
 isort --settings-file .isort.cfg .
-flake8 --config .flake8 .
 black --line-length 120 --skip-string-normalization $check_arg .
+flake8 --config .flake8 .
 mypy .
