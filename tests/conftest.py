@@ -113,9 +113,9 @@ def docker_client() -> DockerClient:
 
 @fixture(scope="session")
 def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
-    image: Image = docker_client.images.build(path=str(PARENT))[0]
-    yield image
-    docker_client.images.remove(image.id, force=True)
+    # access the prebuilt image.
+    # this is built in the CI, in the "Build gProfiler image" step.
+    yield docker_client.images.get("gprofiler")
 
 
 @fixture(scope="session")
