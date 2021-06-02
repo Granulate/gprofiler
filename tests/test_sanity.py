@@ -16,7 +16,7 @@ from gprofiler.merge import parse_one_collapsed
 from gprofiler.php import PHPSpyProfiler
 from gprofiler.python import PySpyProfiler, PythonEbpfProfiler
 from gprofiler.utils import resource_path
-from tests import PHPSPY_DURATION, RESOURCES_DIRECTORY
+from tests import PHPSPY_DURATION
 from tests.utils import (
     assert_function_in_collapsed,
     copy_file_from_image,
@@ -56,7 +56,6 @@ def test_phpspy(
     assert_collapsed: Callable[[Optional[Mapping[str, int]]], None],
     gprofiler_docker_image: Image,
 ) -> None:
-    os.makedirs(str(RESOURCES_DIRECTORY / "php"), exist_ok=True)
     copy_file_from_image(
         gprofiler_docker_image,
         os.path.join("/app", "gprofiler", "resources", "php", "phpspy"),

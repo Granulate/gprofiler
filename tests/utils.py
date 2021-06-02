@@ -34,6 +34,7 @@ def run_privileged_container(
 
 
 def copy_file_from_image(image: Image, container_path: str, host_path: str) -> None:
+    os.makedirs(os.path.dirname(host_path), exist_ok=True)
     # I tried writing it with the docker-py API, but retrieving large files with container.get_archive() just hangs...
     subprocess.run(
         f"c=$(docker container create {image.id}) && "
