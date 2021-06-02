@@ -1,8 +1,8 @@
 # parts are copied from Dockerfile
 
 # py-spy
-# rust:latest 1.52.1
-FROM rust@sha256:5f3bbf6200c057c4934deac814224e0038baa018c76aa54dfb84dd734315dad4 AS pyspy-builder
+# rust:slim 1.52.1
+FROM rust@sha256:9c106c1222abe1450f45774273f36246ebf257623ed51280dbc458632d14c9fc AS pyspy-builder
 
 COPY scripts/pyspy_env.sh .
 RUN ./pyspy_env.sh
