@@ -315,6 +315,7 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
                     "mnt": 0x00020000,  # CLONE_NEWNS
                     "net": 0x40000000,  # CLONE_NEWNET
                     "pid": 0x20000000,  # CLONE_NEWPID
+                    "uts": 0x04000000,  # CLONE_NEWUTS
                 }[nstype]
                 if (
                     libc.unshare(flag) != 0
@@ -342,15 +343,18 @@ def log_system_info():
 
     # move to host mount NS for distro & ldd.
     # now, distro will read the files on host.
-    def get_distro_and_libc():
+    # also move to host UTS NS for the hostname.
+    def get_infos():
         results.append(distro.linux_distribution())
         results.append(get_libc_version())
+        results.append(socket.gethostname())
 
-    run_in_ns(["mnt"], get_distro_and_libc)
-    assert len(results) == 2, f"only {len(results)} results, expected 2"
+    run_in_ns(["mnt", "uts"], get_infos)
+    assert len(results) == 3, f"only {len(results)} results, expected 3"
 
     logger.info(f"Linux distribution: {results[0]}")
     logger.info(f"libc version: {results[1]}")
+    logger.info(f"Hostname: {results[2]}")
 
 
 def grab_gprofiler_mutex() -> bool:
