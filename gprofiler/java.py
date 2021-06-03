@@ -134,6 +134,26 @@ class JavaProfiler(ProfilerBase):
             logger.warning(f"async-profiler DSO was{'' if is_loaded else ' not'} loaded into {process.pid}")
             raise
 
+    def _stop_async_profiler(
+        self,
+        process: Process,
+        libasyncprofiler_path_process: str,
+        output_path_process: Optional[str],
+        log_path_process: str,
+        log_path_host: str,
+    ) -> None:
+        self._run_async_profiler(
+            self._get_async_profiler_stop_cmd(
+                process.pid,
+                output_path_process,
+                resource_path("java/jattach"),
+                libasyncprofiler_path_process,
+                log_path_process,
+            ),
+            log_path_host,
+            process.pid,
+        )
+
     @staticmethod
     def _get_java_version(process: Process) -> str:
         nspid = get_process_nspid(process.pid)
@@ -234,16 +254,8 @@ class JavaProfiler(ProfilerBase):
 
         self._stop_event.wait(self._duration)
         if process.is_running():
-            self._run_async_profiler(
-                self._get_async_profiler_stop_cmd(
-                    process.pid,
-                    output_path_process,
-                    resource_path("java/jattach"),
-                    libasyncprofiler_path_process,
-                    log_path_process,
-                ),
-                log_path_host,
-                process.pid,
+            self._stop_async_profiler(
+                process, libasyncprofiler_path_process, output_path_process, log_path_process, log_path_host
             )
         else:
             # no output in this case :/
