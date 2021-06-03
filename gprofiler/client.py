@@ -37,15 +37,16 @@ class APIClient:
         self._host: str = host
         self._upload_timeout = upload_timeout
         self._version: str = version
+        self._key = key
         self._service = service
         self._hostname = hostname
 
-        self._init_session(key, service)
+        self._init_session()
         logger.info(f"The connection to the server was successfully established (service {service!r})")
 
-    def _init_session(self, key: str, service: str):
+    def _init_session(self):
         self._session: Session = requests.Session()
-        self._session.headers.update({"GPROFILER-API-KEY": key, "GPROFILER-SERVICE-NAME": service})
+        self._session.headers.update({"GPROFILER-API-KEY": self._key, "GPROFILER-SERVICE-NAME": self._service})
 
         # Raises on failure
         self.get_health()
@@ -55,7 +56,7 @@ class APIClient:
         return "{}/{}/{}".format(self._host.rstrip("/"), self.BASE_PATH, version)
 
     def _get_query_params(self) -> List[Tuple[str, str]]:
-        return [("service", self._service), ("hostname", self._hostname)]
+        return [("key", self._key), ("service", self._service), ("hostname", self._hostname)]
 
     def _send_request(
         self,
