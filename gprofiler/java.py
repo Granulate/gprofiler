@@ -95,11 +95,14 @@ class JavaProfiler(ProfilerBase):
     def _start_async_profiler(
         self,
         process: Process,
+        libasyncprofiler_path_process: str,
+        output_path_process: str,
         log_path_host: str,
         log_path_process: str,
-        output_path_process: str,
-        libasyncprofiler_path_process: str,
-    ) -> None:
+    ) -> bool:
+        """
+        Returns True if profiling was started; False if it was already started.
+        """
         profiler_event = "itimer" if self._use_itimer else "cpu"
 
         try:
@@ -116,8 +119,17 @@ class JavaProfiler(ProfilerBase):
                 log_path_host,
                 process.pid,
             )
-        except CalledProcessError:
+            return True
+        except CalledProcessError as e:
             is_loaded = f" {libasyncprofiler_path_process}" in Path(f"/proc/{process.pid}/maps").read_text()
+            if is_loaded:
+                if (
+                    e.returncode == 200
+                    and e.stdout.decode() == "[ERROR] Profiler already started\n"  # AP's COMMAND_ERROR
+                ):
+
+                    return False
+
             logger.warning(f"async-profiler DSO was{'' if is_loaded else ' not'} loaded into {process.pid}")
             raise
 
