@@ -74,16 +74,15 @@ class JavaProfiler(ProfilerBase):
         ]
 
     def _get_async_profiler_stop_cmd(
-        self, pid: int, output_path: str, jattach_path: str, async_profiler_lib_path: str, log_path: str
+        self, pid: int, output_path: Optional[str], jattach_path: str, async_profiler_lib_path: str, log_path: str
     ) -> List[str]:
-        return [
-            jattach_path,
-            str(pid),
-            "load",
-            async_profiler_lib_path,
-            "true",
-            f"stop,file={output_path},{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS},log={log_path}",
-        ]
+        ap_params = ["stop"]
+        if output_path is not None:
+            ap_params.append(f"file={output_path}")
+            ap_params.append(self.OUTPUT_FORMAT)
+            ap_params.append(self.FORMAT_PARAMS)
+        ap_params.append(f"log={log_path}")
+        return [jattach_path, str(pid), "load", async_profiler_lib_path, "true", ",".join(ap_params)]
 
     def _run_async_profiler(self, cmd: List[str], log_path_host: str, pid: int) -> None:
         try:
