@@ -245,9 +245,19 @@ class JavaProfiler(ProfilerBase):
         if free_disk < 250 * 1024:
             raise Exception(f"Not enough free disk space: {free_disk}kb")
 
-        self._start_async_profiler(
+        started = self._start_async_profiler(
             process, log_path_process, log_path_host, output_path_process, libasyncprofiler_path_process
         )
+        if not started:
+            # stop, and try to start again. this might happen if AP & gProfiler go out of sync: for example,
+            # gProfiler being stopped brutally, while AP keeps running. If gProfiler is later started again, it will
+            # try to start AP again...
+            self._stop_async_profiler(process, libasyncprofiler_path_process, None, log_path_process, log_path_host)
+            started = self._start_async_profiler(
+                process, log_path_process, log_path_host, output_path_process, libasyncprofiler_path_process
+            )
+            if not started:
+                raise Exception("async-profiler is still running, even after stopping it!")
 
         self._stop_event.wait(self._duration)
         if process.is_running():
