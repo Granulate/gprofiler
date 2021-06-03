@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 TEMPORARY_STORAGE_PATH = "/tmp/gprofiler_tmp"
 
 gprofiler_mutex: Optional[socket.socket]
+hostname: Optional[str] = None
 
 
 def resource_path(relative_path: str = "") -> str:
@@ -341,13 +342,15 @@ def log_system_info():
 
     distribution = "unknown"
     libc_version = "unknown"
+    global hostname
     hostname = "unknown"
 
     # move to host mount NS for distro & ldd.
     # now, distro will read the files on host.
     # also move to host UTS NS for the hostname.
     def get_infos():
-        nonlocal distribution, libc_version, hostname
+        nonlocal distribution, libc_version
+        global hostname
 
         try:
             distribution = distro.linux_distribution()
