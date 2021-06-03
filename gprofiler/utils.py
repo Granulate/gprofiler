@@ -461,3 +461,10 @@ def limit_frequency(limit: int, requested: int, msg_header: str, runtime_logger:
         return limit
 
     return requested
+
+
+def get_hostname() -> str:
+    if hostname is None:
+        raise Exception("hostname not initialized!")
+
+    return hostname

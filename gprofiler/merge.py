@@ -5,11 +5,11 @@
 import json
 import logging
 import re
-import socket
 from collections import Counter, defaultdict
 from typing import Iterable, Mapping, MutableMapping
 
 from gprofiler.docker_client import DockerClient
+from gprofiler.utils import get_hostname
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +137,7 @@ def merge_perfs(
     docker_client.reset_cache()
     profile_metadata = {
         'containers': container_names,
-        'hostname': socket.gethostname(),
+        'hostname': get_hostname(),
         'container_names_enabled': should_determine_container_names,
     }
     output = [f"#{json.dumps(profile_metadata)}"]
