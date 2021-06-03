@@ -7,7 +7,7 @@ import gzip
 import json
 import logging
 from io import BytesIO
-from typing import Dict
+from typing import Dict, List, Optional, Tuple
 
 import requests
 from requests import Session
@@ -33,10 +33,12 @@ class APIError(Exception):
 class APIClient:
     BASE_PATH = "api"
 
-    def __init__(self, host: str, key: str, service: str, upload_timeout: int, version: str = "v1"):
+    def __init__(self, host: str, key: str, service: str, hostname: str, upload_timeout: int, version: str = "v1"):
         self._host: str = host
         self._upload_timeout = upload_timeout
         self._version: str = version
+        self._service = service
+        self._hostname = hostname
 
         self._init_session(key, service)
         logger.info(f"The connection to the server was successfully established (service {service!r})")
@@ -52,19 +54,24 @@ class APIClient:
         version = api_version if api_version is not None else self._version
         return "{}/{}/{}".format(self._host.rstrip("/"), self.BASE_PATH, version)
 
+    def _get_query_params(self) -> List[Tuple[str, str]]:
+        return [("service", self._service), ("hostname", self._hostname)]
+
     def _send_request(
         self,
         method: str,
         path: str,
-        data: Dict,
+        data: Optional[Dict],
         files: Dict = None,
         timeout: float = DEFAULT_REQUEST_TIMEOUT,
         api_version: str = None,
     ) -> Dict:
         opts: dict = {"headers": {}, "files": files, "timeout": timeout}
 
+        params = self._get_query_params()
+
         if method.upper() == "GET":
-            opts["params"] = data
+            params += [(k, v) for k, v in data.items()] if data is not None else []
         else:
             opts["headers"]["Content-Encoding"] = "gzip"
             opts["headers"]["Content-type"] = "application/json"
@@ -72,12 +79,13 @@ class APIClient:
             with gzip.open(buffer, mode="wt", encoding="utf-8") as gzip_file:
                 json.dump(data, gzip_file, ensure_ascii=False)  # type: ignore
             opts["data"] = buffer.getvalue()
+        opts["params"] = params
 
         resp = self._session.request(method, "{}/{}".format(self.get_base_url(api_version), path), **opts)
         if 400 <= resp.status_code < 500:
             try:
-                data = resp.json()
-                raise APIError(data["message"], data)
+                resp_data = resp.json()
+                raise APIError(resp_data["message"], resp_data)
             except ValueError:
                 raise APIError(resp.text)
         else:
@@ -102,15 +110,13 @@ class APIClient:
     def get_health(self):
         return self.get("health_check")
 
-    def submit_profile(
-        self, start_time: datetime.datetime, end_time: datetime.datetime, hostname: str, profile: str
-    ) -> Dict:
+    def submit_profile(self, start_time: datetime.datetime, end_time: datetime.datetime, profile: str) -> Dict:
         return self.post(
             "profiles",
             {
                 "start_time": get_iso8061_format_time(start_time),
                 "end_time": get_iso8061_format_time(end_time),
-                "hostname": hostname,
+                "hostname": self._hostname,
                 "profile": profile,
             },
             timeout=self._upload_timeout,

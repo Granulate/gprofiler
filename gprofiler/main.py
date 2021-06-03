@@ -268,7 +268,7 @@ class GProfiler:
 
         if self._client:
             try:
-                self._client.submit_profile(local_start_time, local_end_time, get_hostname(), merged_result)
+                self._client.submit_profile(local_start_time, local_end_time, merged_result)
             except Timeout:
                 logger.error("Upload of profile to server timed out.")
             except APIError as e:
@@ -528,7 +528,7 @@ def main():
             if "server_upload_timeout" in args:
                 client_kwargs["upload_timeout"] = args.server_upload_timeout
             client = (
-                APIClient(args.server_host, args.server_token, args.service_name, **client_kwargs)
+                APIClient(args.server_host, args.server_token, args.service_name, get_hostname(), **client_kwargs)
                 if args.upload_results
                 else None
             )
