@@ -216,7 +216,7 @@ class JavaProfiler(ProfilerBase):
         try:
             # make it readable & exectuable by all.
             # see comment on TemporaryDirectoryWithMode in GProfiler.__init__.
-            os.makedirs(storage_dir_host, 0o755)
+            os.makedirs(storage_dir_host, 0o755, exist_ok=True)
             return self._profile_process_with_dir(process, storage_dir_host, process_root)
         finally:
             # ignore_errors because we are deleting paths via /proc/pid/root - and those processes
