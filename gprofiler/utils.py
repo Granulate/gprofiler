@@ -332,6 +332,10 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
 
 
 def log_system_info():
+    # initialized first
+    global hostname
+    hostname = "unknown"
+
     uname = platform.uname()
     logger.info(f"gProfiler Python version: {sys.version}")
     logger.info(f"gProfiler run mode: {get_run_mode()}")
@@ -342,8 +346,6 @@ def log_system_info():
 
     distribution = "unknown"
     libc_version = "unknown"
-    global hostname
-    hostname = "unknown"
 
     # move to host mount NS for distro & ldd.
     # now, distro will read the files on host.
