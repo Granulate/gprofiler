@@ -268,7 +268,7 @@ class GProfiler:
 
         if self._client:
             try:
-                self._client.submit_profile(local_start_time, local_end_time, merged_result)
+                self._client.submit_profile(local_start_time, local_end_time, merged_result, total_samples)
             except Timeout:
                 logger.error("Upload of profile to server timed out.")
             except APIError as e:

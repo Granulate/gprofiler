@@ -65,13 +65,15 @@ class APIClient:
         files: Dict = None,
         timeout: float = DEFAULT_REQUEST_TIMEOUT,
         api_version: str = None,
+        query_params: Dict[str, str] = None,
     ) -> Dict:
         opts: dict = {"headers": {}, "files": files, "timeout": timeout}
-
-        params = self._get_query_params()
+        if query_params is None:
+            query_params = {}
 
         if method.upper() == "GET":
-            params += [(k, v) for k, v in data.items()] if data is not None else []
+            if data is not None:
+                query_params.update(data)
         else:
             opts["headers"]["Content-Encoding"] = "gzip"
             opts["headers"]["Content-type"] = "application/json"
@@ -79,7 +81,8 @@ class APIClient:
             with gzip.open(buffer, mode="wt", encoding="utf-8") as gzip_file:
                 json.dump(data, gzip_file, ensure_ascii=False)  # type: ignore
             opts["data"] = buffer.getvalue()
-        opts["params"] = params
+
+        opts["params"] = self._get_query_params() + [(k, v) for k, v in query_params.items()]
 
         resp = self._session.request(method, "{}/{}".format(self.get_base_url(api_version), path), **opts)
         if 400 <= resp.status_code < 500:
@@ -110,7 +113,9 @@ class APIClient:
     def get_health(self):
         return self.get("health_check")
 
-    def submit_profile(self, start_time: datetime.datetime, end_time: datetime.datetime, profile: str) -> Dict:
+    def submit_profile(
+        self, start_time: datetime.datetime, end_time: datetime.datetime, profile: str, total_samples: int
+    ) -> Dict:
         return self.post(
             "profiles",
             {
@@ -121,4 +126,5 @@ class APIClient:
             },
             timeout=self._upload_timeout,
             api_version="v2",
+            params={"samples": str(total_samples)},
         )
