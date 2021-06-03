@@ -6,7 +6,7 @@ import json
 import logging
 import re
 from collections import Counter, defaultdict
-from typing import Iterable, Mapping, MutableMapping
+from typing import Iterable, Mapping, MutableMapping, Tuple
 
 from gprofiler.docker_client import DockerClient
 from gprofiler.utils import get_hostname
@@ -106,10 +106,11 @@ def merge_perfs(
     process_perfs: Mapping[int, Mapping[str, int]],
     docker_client: DockerClient,
     should_determine_container_names: bool,
-) -> str:
+) -> Tuple[str, int]:
     per_process_samples: MutableMapping[int, int] = Counter()
     new_samples: MutableMapping[str, int] = Counter()
     process_names = {}
+    total_samples = 0
     for parsed in perf_all:
         try:
             pid = int(parsed["pid"])
@@ -132,7 +133,9 @@ def merge_perfs(
             for stack, count in process_stacks.items():
                 container_name = _get_container_name(pid, docker_client, should_determine_container_names)
                 stack_line = ";".join([container_name, process_names[pid], stack])
-                new_samples[stack_line] += round(count * ratio)
+                count = round(count * ratio)
+                total_samples += count
+                new_samples[stack_line] += count
     container_names = docker_client.container_names
     docker_client.reset_cache()
     profile_metadata = {
@@ -142,7 +145,7 @@ def merge_perfs(
     }
     output = [f"#{json.dumps(profile_metadata)}"]
     output += [f"{stack} {count}" for stack, count in new_samples.items()]
-    return "\n".join(output)
+    return "\n".join(output), total_samples
 
 
 def _get_container_name(pid: int, docker_client: DockerClient, should_determine_container_names: bool):

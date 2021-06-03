@@ -259,7 +259,7 @@ class GProfiler:
                 logger.exception(f"{future.name} profiling failed")
 
         local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
-        merged_result = merge.merge_perfs(
+        merged_result, total_samples = merge.merge_perfs(
             system_future.result(), process_perfs, self._docker_client, self._include_container_names
         )
 
