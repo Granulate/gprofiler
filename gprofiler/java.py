@@ -90,6 +90,7 @@ class JavaProfiler(ProfilerBase):
         except CalledProcessError:
             if os.path.exists(log_path_host):
                 logger.warning(f"async-profiler (on {pid}) log: {Path(log_path_host).read_text()}")
+                os.unlink(log_path_host)
             raise
 
     def _start_async_profiler(
