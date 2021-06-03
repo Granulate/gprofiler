@@ -20,7 +20,6 @@ from gprofiler.profiler_base import ProfilerBase
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     get_process_nspid,
-    is_same_ns,
     pgrep_exe,
     remove_prefix,
     resolve_proc_root_links,
@@ -205,16 +204,14 @@ class JavaProfiler(ProfilerBase):
                 return None
 
         process_root = f"/proc/{process.pid}/root"
-        if is_same_ns(process.pid, "mnt"):
-            # processes running in my namespace can use my (temporary) storage dir
-            tmp_dir = self._storage_dir
-        else:
-            # processes running in other namespaces will use the base path
-            tmp_dir = TEMPORARY_STORAGE_PATH
+        # not using use self._storage_dir here on purpose: this path should remain constant for the lifetime
+        # of the target process, so AP is loaded exactly once (if we have multiple paths, AP can be loaded
+        # multiple times into the process)
+        process_ap_dir = os.path.join(TEMPORARY_STORAGE_PATH, str(process.pid))
 
         # we'll use separated storage directories per process: since multiple processes may run in the
         # same namespace, one may accidentally delete the storage directory of another.
-        storage_dir_host = resolve_proc_root_links(process_root, os.path.join(tmp_dir, str(process.pid)))
+        storage_dir_host = resolve_proc_root_links(process_root, process_ap_dir)
 
         try:
             # make it readable & exectuable by all.
