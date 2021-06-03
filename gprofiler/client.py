@@ -66,15 +66,15 @@ class APIClient:
         files: Dict = None,
         timeout: float = DEFAULT_REQUEST_TIMEOUT,
         api_version: str = None,
-        query_params: Dict[str, str] = None,
+        params: Dict[str, str] = None,
     ) -> Dict:
         opts: dict = {"headers": {}, "files": files, "timeout": timeout}
-        if query_params is None:
-            query_params = {}
+        if params is None:
+            params = {}
 
         if method.upper() == "GET":
             if data is not None:
-                query_params.update(data)
+                params.update(data)
         else:
             opts["headers"]["Content-Encoding"] = "gzip"
             opts["headers"]["Content-type"] = "application/json"
@@ -83,7 +83,7 @@ class APIClient:
                 json.dump(data, gzip_file, ensure_ascii=False)  # type: ignore
             opts["data"] = buffer.getvalue()
 
-        opts["params"] = self._get_query_params() + [(k, v) for k, v in query_params.items()]
+        opts["params"] = self._get_query_params() + [(k, v) for k, v in params.items()]
 
         resp = self._session.request(method, "{}/{}".format(self.get_base_url(api_version), path), **opts)
         if 400 <= resp.status_code < 500:
