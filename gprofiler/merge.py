@@ -110,7 +110,6 @@ def merge_perfs(
     per_process_samples: MutableMapping[int, int] = Counter()
     new_samples: MutableMapping[str, int] = Counter()
     process_names = {}
-    total_samples = 0
     for parsed in perf_all:
         try:
             pid = int(parsed["pid"])
@@ -133,9 +132,7 @@ def merge_perfs(
             for stack, count in process_stacks.items():
                 container_name = _get_container_name(pid, docker_client, should_determine_container_names)
                 stack_line = ";".join([container_name, process_names[pid], stack])
-                count = round(count * ratio)
-                total_samples += count
-                new_samples[stack_line] += count
+                new_samples[stack_line] += round(count * ratio)
     container_names = docker_client.container_names
     docker_client.reset_cache()
     profile_metadata = {
@@ -145,7 +142,7 @@ def merge_perfs(
     }
     output = [f"#{json.dumps(profile_metadata)}"]
     output += [f"{stack} {count}" for stack, count in new_samples.items()]
-    return "\n".join(output), total_samples
+    return "\n".join(output), sum(new_samples.values())
 
 
 def _get_container_name(pid: int, docker_client: DockerClient, should_determine_container_names: bool):
