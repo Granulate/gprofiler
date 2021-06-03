@@ -339,22 +339,36 @@ def log_system_info():
     logger.info(f"Total CPUs: {os.cpu_count()}")
     logger.info(f"Total RAM: {psutil.virtual_memory().total / (1 << 30):.2f} GB")
 
-    results = []
+    distribution = "unknown"
+    libc_version = "unknown"
+    hostname = "unknown"
 
     # move to host mount NS for distro & ldd.
     # now, distro will read the files on host.
     # also move to host UTS NS for the hostname.
     def get_infos():
-        results.append(distro.linux_distribution())
-        results.append(get_libc_version())
-        results.append(socket.gethostname())
+        nonlocal distribution, libc_version, hostname
+
+        try:
+            distribution = distro.linux_distribution()
+        except Exception:
+            logger.exception("Failed to get distribution")
+
+        try:
+            libc_version = get_libc_version()
+        except Exception:
+            logger.exception("Failed to get libc version")
+
+        try:
+            hostname = socket.gethostname()
+        except Exception:
+            logger.exception("Failed to get hostname")
 
     run_in_ns(["mnt", "uts"], get_infos)
-    assert len(results) == 3, f"only {len(results)} results, expected 3"
 
-    logger.info(f"Linux distribution: {results[0]}")
-    logger.info(f"libc version: {results[1]}")
-    logger.info(f"Hostname: {results[2]}")
+    logger.info(f"Linux distribution: {distribution}")
+    logger.info(f"libc version: {libc_version}")
+    logger.info(f"Hostname: {hostname}")
 
 
 def grab_gprofiler_mutex() -> bool:
