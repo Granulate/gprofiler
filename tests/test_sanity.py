@@ -23,7 +23,6 @@ def test_java_from_host(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: Callable[[Optional[Mapping[str, int]]], None],
-    gprofiler_docker_image_resources,
 ) -> None:
     with JavaProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
@@ -35,7 +34,6 @@ def test_pyspy(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: Callable[[Optional[Mapping[str, int]]], None],
-    gprofiler_docker_image_resources,
 ) -> None:
     with PySpyProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
@@ -47,7 +45,6 @@ def test_phpspy(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: Callable[[Optional[Mapping[str, int]]], None],
-    gprofiler_docker_image_resources: Image,
 ) -> None:
     with PHPSpyProfiler(1000, PHPSPY_DURATION, Event(), str(tmp_path), php_process_filter="php") as profiler:
         process_collapsed = profiler.snapshot()
@@ -55,9 +52,7 @@ def test_phpspy(
 
 
 @pytest.mark.parametrize("runtime", ["python"])
-def test_python_ebpf(
-    tmp_path, application_pid, assert_collapsed, gprofiler_docker_image, gprofiler_docker_image_resources
-):
+def test_python_ebpf(tmp_path, application_pid, assert_collapsed, gprofiler_docker_image):
     with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
         collapsed = process_collapsed.get(application_pid)

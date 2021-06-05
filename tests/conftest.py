@@ -17,9 +17,8 @@ from docker.models.containers import Container
 from docker.models.images import Image
 from pytest import fixture  # type: ignore
 
-import gprofiler
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
-from tests.utils import assert_function_in_collapsed, chmod_path_parts, copy_file_from_image
+from tests.utils import assert_function_in_collapsed, chmod_path_parts
 
 
 @fixture
@@ -116,18 +115,6 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
     # access the prebuilt image.
     # this is built in the CI, in the "Build gProfiler image" step.
     yield docker_client.images.get("gprofiler")
-
-
-@fixture(scope="session")
-def gprofiler_docker_image_resources(gprofiler_docker_image: Image):
-    """
-    Copy all resources from the built image.
-    """
-    copy_file_from_image(
-        gprofiler_docker_image,
-        os.path.join("/app", "gprofiler", "resources"),
-        os.path.join(os.path.dirname(gprofiler.__file__)),
-    )
 
 
 @fixture(scope="session")
