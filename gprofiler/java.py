@@ -55,38 +55,42 @@ class AsyncProfiledProcess:
     FORMAT_PARAMS = "ann,sig"
     OUTPUT_FORMAT = "collapsed"
 
-    def __init__(self, process: Process):
+    def __init__(self, process: Process, storage_dir: str):
         self.process = process
         self._process_root = f"/proc/{process.pid}/root"
-        # not using _storage_dir here on purpose: this path should remain constant for the lifetime
+        # not using storage_dir for AP itself on purpose: this path should remain constant for the lifetime
         # of the target process, so AP is loaded exactly once (if we have multiple paths, AP can be loaded
         # multiple times into the process)
-        # without depending on _storage_dir here, we maintain the same path even if gProfiler is re-run.
-        self._ap_dir = os.path.join(TEMPORARY_STORAGE_PATH, str(process.pid))
-        # we'll use separated storage directories per process: since multiple processes may run in the
-        # same namespace, one may interfere with the storage directory of another.
+        # without depending on storage_dir here, we maintain the same path even if gProfiler is re-run,
+        # because storage_dir changes between runs.
+        self._ap_dir = os.path.join(TEMPORARY_STORAGE_PATH)
         self._ap_dir_host = resolve_proc_root_links(self._process_root, self._ap_dir)
 
-        self._output_path_host = os.path.join(self._ap_dir_host, "async-profiler.output")
-        self._output_path_process = remove_prefix(self._output_path_host, self._process_root)
         self._libap_path_host = os.path.join(self._ap_dir_host, "libasyncProfiler.so")
         self._libap_path_process = remove_prefix(self._libap_path_host, self._process_root)
-        self._log_path_host = os.path.join(self._ap_dir_host, "async-profiler.log")
+
+        # for other purposes - we can use storage_dir.
+        self._storage_dir = storage_dir
+        self._storage_dir_host = resolve_proc_root_links(self._process_root, self._storage_dir)
+
+        self._output_path_host = os.path.join(self._storage_dir_host, f"async-profiler-{self.process.pid}.output")
+        self._output_path_process = remove_prefix(self._output_path_host, self._process_root)
+        self._log_path_host = os.path.join(self._storage_dir_host, f"async-profiler-{self.process.pid}.log")
         self._log_path_process = remove_prefix(self._log_path_host, self._process_root)
 
     def __enter__(self):
+        os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
+        os.makedirs(self._storage_dir_host, 0o755, exist_ok=True)
+
+        self._check_disk_requirements()
+
         # make out & log paths writable for all, so target process can write to them.
         # see comment on TemporaryDirectoryWithMode in GProfiler.__init__.
-        os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
-        self._check_disk_requirements()
         touch_path(self._output_path_host, 0o666)
         self._recreate_log()
-        # copy libasyncProfiler.so if needed. copy is not racy with respect to other processes running
-        # in the same namespace, because each one uses a separate directory.
+        # copy libasyncProfiler.so if needed
         if not os.path.exists(self._libap_path_host):
-            shutil.copy(resource_path("java/libasyncProfiler.so"), self._libap_path_host)
-            # explicitly chmod to allow access for all users
-            os.chmod(self._libap_path_host, 0o755)
+            self._copy_libap()
 
         return self
 
@@ -97,7 +101,28 @@ class AsyncProfiledProcess:
         remove_path(self._output_path_host, missing_ok=True)
         remove_path(self._log_path_host, missing_ok=True)
 
-    def _recreate_log(self):
+    def _copy_libap(self) -> None:
+        # copy *is* racy with respect to other processes running
+        # in the same namespace, because they all use the same directory for libasyncProfiler.so,
+        # as we don't want to create too many copies of it that will waste disk space.
+        try:
+            ap_file = open(self._libap_path_host, "xb")
+        except FileExistsError:
+            # TODO! need some way to sync & ensure file was written before returning from here...
+            return
+
+        try:
+            with ap_file:
+                shutil.copyfileobj(open(resource_path("java/libasyncProfiler.so"), "rb"), ap_file)
+        except:  # noqa - we intend to catch all
+            # don't leave intermediate files
+            os.unlink(self._libap_path_host)
+            raise
+        else:
+            # explicitly chmod to allow access for all users
+            os.chmod(self._libap_path_host, 0o755)
+
+    def _recreate_log(self) -> None:
         touch_path(self._log_path_host, 0o666)
 
     def _check_disk_requirements(self) -> None:
@@ -248,7 +273,7 @@ class JavaProfiler(ProfilerBase):
                 logger.warning(f"Process {process.pid} running unsupported Java version, skipping...")
                 return None
 
-        with AsyncProfiledProcess(process) as ap_proc:
+        with AsyncProfiledProcess(process, self._storage_dir) as ap_proc:
             return self._profile_ap_process(ap_proc)
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[Mapping[str, int]]:
