@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import concurrent.futures
+import errno
 import logging
 import os
 import shutil
@@ -64,7 +65,7 @@ class AsyncProfiledProcess:
         # multiple times into the process)
         # without depending on storage_dir here, we maintain the same path even if gProfiler is re-run,
         # because storage_dir changes between runs.
-        self._ap_dir = os.path.join(TEMPORARY_STORAGE_PATH)
+        self._ap_dir = os.path.join(TEMPORARY_STORAGE_PATH, "async-profiler")
         self._ap_dir_host = resolve_proc_root_links(self._process_root, self._ap_dir)
 
         self._libap_path_host = os.path.join(self._ap_dir_host, "libasyncProfiler.so")
@@ -103,25 +104,30 @@ class AsyncProfiledProcess:
         remove_path(self._log_path_host, missing_ok=True)
 
     def _copy_libap(self) -> None:
-        # copy *is* racy with respect to other processes running
-        # in the same namespace, because they all use the same directory for libasyncProfiler.so,
-        # as we don't want to create too many copies of it that will waste disk space.
+        # copy *is* racy with respect to other processes running in the same namespace, because they all use
+        # the same directory for libasyncProfiler.so, as we don't want to create too many copies of it that
+        # will waste disk space.
+        # my attempt here is to produce a race-free way of ensuring libasyncProfiler.so was fully copied
+        # to a *single* path, per namespace.
+        # newer kernels (>3.15 for ext4) have the renameat2 syscall, with RENAME_NOREPLACE, which lets you
+        # atomically move a file without replacing if the target already exists.
+        # this function operates similarly on directories. if you rename(dir_a, dir_b) then dir_b is replaced
+        # with dir_a iff it's empty. this gives us the same semantics.
+        # so, we create a temporary directory on the same filesystem (so move is atomic) in a race-free way
+        # by including the PID in its name; then we move it.
+        ap_dir_host_tmp = f"{self._ap_dir_host}.{self.process.pid}"
+        os.makedirs(ap_dir_host_tmp)
+        shutil.copy(resource_path("java/libasyncProfiler.so"), ap_dir_host_tmp)
         try:
-            ap_file = open(self._libap_path_host, "xb")
-        except FileExistsError:
-            # TODO! need some way to sync & ensure file was written before returning from here...
-            return
-
-        try:
-            with ap_file:
-                shutil.copyfileobj(open(resource_path("java/libasyncProfiler.so"), "rb"), ap_file)
-        except:  # noqa - we intend to catch all
-            # don't leave intermediate files
-            os.unlink(self._libap_path_host)
-            raise
-        else:
-            # explicitly chmod to allow access for all users
-            os.chmod(self._libap_path_host, 0o755)
+            os.rename(ap_dir_host_tmp, self._ap_dir_host)
+        except OSError as e:
+            if e.errno == errno.ENOTEMPTY:
+                # remove our copy
+                shutil.rmtree(ap_dir_host_tmp)
+                # it should have been created by somene else.
+                assert os.path.exists(self._libap_path_host)
+            else:
+                raise
 
     def _recreate_log(self) -> None:
         touch_path(self._log_path_host, self.OUTPUTS_MODE)
