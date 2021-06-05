@@ -115,6 +115,8 @@ class AsyncProfiledProcess:
         # with dir_a iff it's empty. this gives us the same semantics.
         # so, we create a temporary directory on the same filesystem (so move is atomic) in a race-free way
         # by including the PID in its name; then we move it.
+        # TODO: if we ever move away from the multithreaded model, we can get rid of this complexity
+        # by ensuring a known order of execution.
         ap_dir_host_tmp = f"{self._ap_dir_host}.{self.process.pid}"
         os.makedirs(ap_dir_host_tmp)
         shutil.copy(resource_path("java/libasyncProfiler.so"), ap_dir_host_tmp)
