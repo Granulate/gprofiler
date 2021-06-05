@@ -54,6 +54,7 @@ class AsyncProfiledProcess:
     JATTACH = resource_path("java/jattach")
     FORMAT_PARAMS = "ann,sig"
     OUTPUT_FORMAT = "collapsed"
+    OUTPUTS_MODE = 0o622  # readable by root, writable by all
 
     def __init__(self, process: Process, storage_dir: str):
         self.process = process
@@ -86,7 +87,7 @@ class AsyncProfiledProcess:
 
         # make out & log paths writable for all, so target process can write to them.
         # see comment on TemporaryDirectoryWithMode in GProfiler.__init__.
-        touch_path(self._output_path_host, 0o666)
+        touch_path(self._output_path_host, self.OUTPUTS_MODE)
         self._recreate_log()
         # copy libasyncProfiler.so if needed
         if not os.path.exists(self._libap_path_host):
@@ -123,7 +124,7 @@ class AsyncProfiledProcess:
             os.chmod(self._libap_path_host, 0o755)
 
     def _recreate_log(self) -> None:
-        touch_path(self._log_path_host, 0o666)
+        touch_path(self._log_path_host, self.OUTPUTS_MODE)
 
     def _check_disk_requirements(self) -> None:
         free_disk = psutil.disk_usage(self._ap_dir_host).free
