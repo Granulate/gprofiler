@@ -238,6 +238,15 @@ def touch_path(path: str, mode: int) -> None:
     os.chmod(path, mode)
 
 
+def remove_path(path: str, missing_ok: bool = False) -> None:
+    # backporting missing_ok, available only from 3.8
+    try:
+        Path(path).unlink()
+    except FileNotFoundError:
+        if not missing_ok:
+            raise
+
+
 def is_same_ns(pid: int, nstype: str) -> bool:
     return os.stat(f"/proc/self/ns/{nstype}").st_ino == os.stat(f"/proc/{pid}/ns/{nstype}").st_ino
 

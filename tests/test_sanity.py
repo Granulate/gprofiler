@@ -25,7 +25,7 @@ def test_java_from_host(
     assert_collapsed: Callable[[Optional[Mapping[str, int]]], None],
     gprofiler_docker_image_resources,
 ) -> None:
-    with JavaProfiler(1000, 1, True, Event(), str(tmp_path)) as profiler:
+    with JavaProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
         assert_collapsed(process_collapsed.get(application_pid))
 

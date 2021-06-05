@@ -7,20 +7,20 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from subprocess import CalledProcessError
 from threading import Event
 from typing import List, Mapping, Optional
 
 import psutil
 from psutil import Process
 
-from gprofiler.exceptions import StopEventSetException
+from gprofiler.exceptions import CalledProcessError, StopEventSetException
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profiler_base import ProfilerBase
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     get_process_nspid,
     pgrep_exe,
+    remove_path,
     remove_prefix,
     resolve_proc_root_links,
     resource_path,
@@ -32,126 +32,171 @@ from gprofiler.utils import (
 logger = logging.getLogger(__name__)
 
 
-class JavaProfiler(ProfilerBase):
+class JattachException(CalledProcessError):
+    def __init__(self, returncode, cmd, stdout, stderr, target_pid: int, ap_log: str):
+        super().__init__(returncode, cmd, stdout, stderr)
+        self._target_pid = target_pid
+        self._ap_log = ap_log
+
+    def __str__(self):
+        return super().__str__() + f"\nJava PID: {self._target_pid}\nasync-profiler log:\n{self._ap_log}"
+
+    def get_ap_log(self) -> str:
+        return self._ap_log
+
+
+class AsyncProfiledProcess:
+    """
+    Represents a process profiled with async-profiler.
+    """
+
+    AP_EVENT_TYPE = "itimer"
+    JATTACH = resource_path("java/jattach")
     FORMAT_PARAMS = "ann,sig"
     OUTPUT_FORMAT = "collapsed"
+
+    def __init__(self, process: Process):
+        self.process = process
+        self._process_root = f"/proc/{process.pid}/root"
+        # not using _storage_dir here on purpose: this path should remain constant for the lifetime
+        # of the target process, so AP is loaded exactly once (if we have multiple paths, AP can be loaded
+        # multiple times into the process)
+        # without depending on _storage_dir here, we maintain the same path even if gProfiler is re-run.
+        self._ap_dir = os.path.join(TEMPORARY_STORAGE_PATH, str(process.pid))
+        # we'll use separated storage directories per process: since multiple processes may run in the
+        # same namespace, one may interfere with the storage directory of another.
+        self._ap_dir_host = resolve_proc_root_links(self._process_root, self._ap_dir)
+
+        self._output_path_host = os.path.join(self._ap_dir_host, "async-profiler.output")
+        self._output_path_process = remove_prefix(self._output_path_host, self._process_root)
+        self._libap_path_host = os.path.join(self._ap_dir_host, "libasyncProfiler.so")
+        self._libap_path_process = remove_prefix(self._libap_path_host, self._process_root)
+        self._log_path_host = os.path.join(self._ap_dir_host, "async-profiler.log")
+        self._log_path_process = remove_prefix(self._log_path_host, self._process_root)
+
+    def __enter__(self):
+        # make out & log paths writable for all, so target process can write to them.
+        # see comment on TemporaryDirectoryWithMode in GProfiler.__init__.
+        os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
+        self._check_disk_requirements()
+        touch_path(self._output_path_host, 0o666)
+        self._recreate_log()
+        # copy libasyncProfiler.so if needed. copy is not racy with respect to other processes running
+        # in the same namespace, because each one uses a separate directory.
+        if not os.path.exists(self._libap_path_host):
+            shutil.copy(resource_path("java/libasyncProfiler.so"), self._libap_path_host)
+            # explicitly chmod to allow access for all users
+            os.chmod(self._libap_path_host, 0o755)
+
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # ignore_errors because we are deleting paths via /proc/pid/root - and the process
+        # might have gone down already.
+        # remove them as best effort.
+        remove_path(self._output_path_host, missing_ok=True)
+        remove_path(self._log_path_host, missing_ok=True)
+
+    def _recreate_log(self):
+        touch_path(self._log_path_host, 0o666)
+
+    def _check_disk_requirements(self) -> None:
+        free_disk = psutil.disk_usage(self._ap_dir_host).free
+        if free_disk < 250 * 1024:
+            raise Exception(f"Not enough free disk space: {free_disk}kb (path: {self._output_path_host}")
+
+    def _get_base_cmd(self) -> List[str]:
+        return [
+            self.JATTACH,
+            str(self.process.pid),
+            "load",
+            self._libap_path_process,
+            "true",
+        ]
+
+    def _get_start_cmd(self, interval: int) -> List[str]:
+        return self._get_base_cmd() + [
+            f"start,event={self.AP_EVENT_TYPE},file={self._output_path_process},{self.OUTPUT_FORMAT},"
+            f"{self.FORMAT_PARAMS},interval={interval},framebuf=2000000,log={self._log_path_process}",
+        ]
+
+    def _get_stop_cmd(self, with_output: bool) -> List[str]:
+        ap_params = ["stop"]
+        if with_output:
+            ap_params.append(f"file={self._output_path_process}")
+            ap_params.append(self.OUTPUT_FORMAT)
+            ap_params.append(self.FORMAT_PARAMS)
+        ap_params.append(f"log={self._log_path_process}")
+        return self._get_base_cmd() + [",".join(ap_params)]
+
+    def _run_async_profiler(self, cmd: List[str]) -> None:
+        try:
+            run_process(cmd)
+        except CalledProcessError as e:
+            if os.path.exists(self._log_path_host):
+                log = Path(self._log_path_host)
+                ap_log = log.read_text()
+                # clean immediately so we don't mix log messages from multiple invocations.
+                # this is also what AP's profiler.sh does.
+                log.unlink()
+                self._recreate_log()
+            else:
+                ap_log = "(log file doesn't exist)"
+
+            raise JattachException(e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log) from None
+
+    def start_async_profiler(self, interval: int) -> bool:
+        """
+        Returns True if profiling was started; False if it was already started.
+        """
+        start_cmd = self._get_start_cmd(interval)
+        try:
+            self._run_async_profiler(start_cmd)
+            return True
+        except JattachException as e:
+            is_loaded = f" {self._libap_path_process}\n" in Path(f"/proc/{self.process.pid}/maps").read_text()
+            if is_loaded:
+                if (
+                    e.returncode == 200  # 200 == AP's COMMAND_ERROR
+                    and e.get_ap_log() == "[ERROR] Profiler already started\n"
+                ):
+                    # profiler was already running
+                    return False
+
+            logger.warning(f"async-profiler DSO was{'' if is_loaded else ' not'} loaded into {self.process.pid}")
+            raise
+
+    def stop_async_profiler(self, with_output: bool) -> None:
+        self._run_async_profiler(self._get_stop_cmd(with_output))
+
+    def read_output(self) -> Optional[str]:
+        try:
+            return Path(self._output_path_host).read_text()
+        except FileNotFoundError:
+            # perhaps it has exited?
+            # check for existence of self._process_root as well, because is_running returns True
+            # when the process is a zombie (and /proc/pid/root is not available in that case)
+            if not self.process.is_running() or not os.path.exists(self._process_root):
+                return None
+            raise
+
+
+class JavaProfiler(ProfilerBase):
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
     SKIP_VERSION_CHECK_BINARIES = ["jsvc"]
 
-    def __init__(self, frequency: int, duration: int, use_itimer: bool, stop_event: Event, storage_dir: str):
+    def __init__(self, frequency: int, duration: int, stop_event: Event, storage_dir: str):
         super().__init__()
         logger.info(f"Initializing Java profiler (frequency: {frequency}hz, duration: {duration}s)")
 
         # async-profiler accepts interval between samples (nanoseconds)
         self._interval = int((1 / frequency) * 1000_000_000)
         self._duration = duration
-        self._use_itimer = use_itimer
         self._stop_event = stop_event
         self._storage_dir = storage_dir
 
     def _is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
-
-    def _get_async_profiler_start_cmd(
-        self,
-        pid: int,
-        event_type: str,
-        interval: int,
-        output_path: str,
-        jattach_path: str,
-        async_profiler_lib_path: str,
-        log_path: str,
-    ) -> List[str]:
-        return [
-            jattach_path,
-            str(pid),
-            "load",
-            async_profiler_lib_path,
-            "true",
-            f"start,event={event_type},file={output_path},{self.OUTPUT_FORMAT},"
-            f"{self.FORMAT_PARAMS},interval={interval},framebuf=2000000,log={log_path}",
-        ]
-
-    def _get_async_profiler_stop_cmd(
-        self, pid: int, output_path: Optional[str], jattach_path: str, async_profiler_lib_path: str, log_path: str
-    ) -> List[str]:
-        ap_params = ["stop"]
-        if output_path is not None:
-            ap_params.append(f"file={output_path}")
-            ap_params.append(self.OUTPUT_FORMAT)
-            ap_params.append(self.FORMAT_PARAMS)
-        ap_params.append(f"log={log_path}")
-        return [jattach_path, str(pid), "load", async_profiler_lib_path, "true", ",".join(ap_params)]
-
-    def _run_async_profiler(self, cmd: List[str], log_path_host: str, pid: int) -> None:
-        try:
-            run_process(cmd)
-        except CalledProcessError:
-            if os.path.exists(log_path_host):
-                logger.warning(f"async-profiler (on {pid}) log: {Path(log_path_host).read_text()}")
-                os.unlink(log_path_host)
-            raise
-
-    def _start_async_profiler(
-        self,
-        process: Process,
-        libasyncprofiler_path_process: str,
-        output_path_process: str,
-        log_path_host: str,
-        log_path_process: str,
-    ) -> bool:
-        """
-        Returns True if profiling was started; False if it was already started.
-        """
-        profiler_event = "itimer" if self._use_itimer else "cpu"
-
-        try:
-            self._run_async_profiler(
-                self._get_async_profiler_start_cmd(
-                    process.pid,
-                    profiler_event,
-                    self._interval,
-                    output_path_process,
-                    resource_path("java/jattach"),
-                    libasyncprofiler_path_process,
-                    log_path_process,
-                ),
-                log_path_host,
-                process.pid,
-            )
-            return True
-        except CalledProcessError as e:
-            is_loaded = f" {libasyncprofiler_path_process}" in Path(f"/proc/{process.pid}/maps").read_text()
-            if is_loaded:
-                if (
-                    e.returncode == 200
-                    and e.stdout.decode() == "[ERROR] Profiler already started\n"  # AP's COMMAND_ERROR
-                ):
-
-                    return False
-
-            logger.warning(f"async-profiler DSO was{'' if is_loaded else ' not'} loaded into {process.pid}")
-            raise
-
-    def _stop_async_profiler(
-        self,
-        process: Process,
-        libasyncprofiler_path_process: str,
-        output_path_process: Optional[str],
-        log_path_process: str,
-        log_path_host: str,
-    ) -> None:
-        self._run_async_profiler(
-            self._get_async_profiler_stop_cmd(
-                process.pid,
-                output_path_process,
-                resource_path("java/jattach"),
-                libasyncprofiler_path_process,
-                log_path_process,
-            ),
-            log_path_host,
-            process.pid,
-        )
 
     @staticmethod
     def _get_java_version(process: Process) -> str:
@@ -203,85 +248,45 @@ class JavaProfiler(ProfilerBase):
                 logger.warning(f"Process {process.pid} running unsupported Java version, skipping...")
                 return None
 
-        process_root = f"/proc/{process.pid}/root"
-        # not using use self._storage_dir here on purpose: this path should remain constant for the lifetime
-        # of the target process, so AP is loaded exactly once (if we have multiple paths, AP can be loaded
-        # multiple times into the process)
-        process_ap_dir = os.path.join(TEMPORARY_STORAGE_PATH, str(process.pid))
+        with AsyncProfiledProcess(process) as ap_proc:
+            return self._profile_ap_process(ap_proc)
 
-        # we'll use separated storage directories per process: since multiple processes may run in the
-        # same namespace, one may accidentally delete the storage directory of another.
-        storage_dir_host = resolve_proc_root_links(process_root, process_ap_dir)
-
-        try:
-            # make it readable & exectuable by all.
-            # see comment on TemporaryDirectoryWithMode in GProfiler.__init__.
-            os.makedirs(storage_dir_host, 0o755, exist_ok=True)
-            return self._profile_process_with_dir(process, storage_dir_host, process_root)
-        finally:
-            # ignore_errors because we are deleting paths via /proc/pid/root - and those processes
-            # might have went down already.
-            shutil.rmtree(storage_dir_host, ignore_errors=True)
-
-    def _profile_process_with_dir(
-        self, process: Process, storage_dir_host: str, process_root: str
-    ) -> Optional[Mapping[str, int]]:
-        output_path_host = os.path.join(storage_dir_host, f"async-profiler-{process.pid}.output")
-        touch_path(output_path_host, 0o666)  # make it writable for all, so target process can write
-        output_path_process = remove_prefix(output_path_host, process_root)
-
-        libasyncprofiler_path_host = os.path.join(storage_dir_host, "libasyncProfiler.so")
-        libasyncprofiler_path_process = remove_prefix(libasyncprofiler_path_host, process_root)
-        if not os.path.exists(libasyncprofiler_path_host):
-            shutil.copy(resource_path("java/libasyncProfiler.so"), libasyncprofiler_path_host)
-            # explicitly chmod to allow access for non-root users
-            os.chmod(libasyncprofiler_path_host, 0o755)
-
-        log_path_host = os.path.join(storage_dir_host, f"async-profiler-{process.pid}.log")
-        touch_path(log_path_host, 0o666)  # make it writable for all, so target process can write
-        log_path_process = remove_prefix(log_path_host, process_root)
-
-        free_disk = psutil.disk_usage(output_path_host).free
-        if free_disk < 250 * 1024:
-            raise Exception(f"Not enough free disk space: {free_disk}kb")
-
-        started = self._start_async_profiler(
-            process, log_path_process, log_path_host, output_path_process, libasyncprofiler_path_process
-        )
+    def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[Mapping[str, int]]:
+        started = ap_proc.start_async_profiler(self._interval)
         if not started:
+            logger.info(f"Found async-profiler already started on {ap_proc.process.pid}, trying to stop it...")
             # stop, and try to start again. this might happen if AP & gProfiler go out of sync: for example,
             # gProfiler being stopped brutally, while AP keeps running. If gProfiler is later started again, it will
             # try to start AP again...
-            self._stop_async_profiler(process, libasyncprofiler_path_process, None, log_path_process, log_path_host)
-            started = self._start_async_profiler(
-                process, log_path_process, log_path_host, output_path_process, libasyncprofiler_path_process
-            )
+            ap_proc.stop_async_profiler(with_output=False)
+            started = ap_proc.start_async_profiler(self._interval)
             if not started:
-                raise Exception("async-profiler is still running, even after stopping it!")
+                raise Exception(
+                    f"async-profiler is still running in {ap_proc.process.pid}, even after trying to stop it!"
+                )
 
         self._stop_event.wait(self._duration)
-        if process.is_running():
-            self._stop_async_profiler(
-                process, libasyncprofiler_path_process, output_path_process, log_path_process, log_path_host
-            )
+
+        if ap_proc.process.is_running():
+            ap_proc.stop_async_profiler(True)
         else:
+            logger.info(f"Profiled process {ap_proc.process.pid} exited before stopping async-profiler")
             # no output in this case :/
             return None
 
         if self._stop_event.is_set():
             raise StopEventSetException()
 
-        logger.info(f"Finished profiling process {process.pid}")
-
-        try:
-            output = Path(output_path_host).read_text()
-        except FileNotFoundError:
-            # check for existence of process_root as well, because is_running returns True
-            # when the process is a zombie (and /proc/pid/root is not available in that case)
-            if not process.is_running() or not os.path.exists(process_root):
-                return None
-            raise
-        return parse_one_collapsed(output)
+        output = ap_proc.read_output()
+        if output is None:
+            logger.warning(
+                f"Profiled process {ap_proc.process.pid} exited after stopping async-profiler"
+                " but before reading the output"
+            )
+            return None
+        else:
+            logger.info(f"Finished profiling process {ap_proc.process.pid}")
+            return parse_one_collapsed(output)
 
     def snapshot(self) -> Mapping[int, Mapping[str, int]]:
         processes = list(pgrep_exe(r"^.+/(java|jsvc)$"))
