@@ -99,7 +99,7 @@ gProfiler requires Python 3.6+ to run.
 
 ```bash
 pip3 install -r requirements.txt
-./scripts/build.sh
+./scripts/copy_resources_from_image.sh
 ```
 
 Then, run the following **as root**:

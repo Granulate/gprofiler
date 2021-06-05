@@ -30,16 +30,18 @@ This above commands installs all packages required for building, developing and 
 ## Building
 
 ### Standard build
-The step of building essentialy downloads external dependencies required for the project. You can run those through:
+There are build scripts under `scripts/` for all components gProfiler uses.
+They are all invoked during the Docker build (described ahead).
+If you don't want to build them, you can copy the built artifacts from the latest Docker image build; there's an helper script to do that:
 ```bash
-./scripts/build.sh
+./scripts/copy_resources_from_image.sh
 ```
 
-The above command will download all dependencies to `bin` directory.
+The above command will download all dependencies to the `gprofiler/resources` directory.
 
 
 ### Docker build
-Alternatively, you can build the docker image through:
+Alternatively, you can build the docker image, including all dependencies, through:
 ```bash
 docker build -t granulate/gprofiler .
 ```
