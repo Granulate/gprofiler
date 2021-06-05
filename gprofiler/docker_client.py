@@ -21,9 +21,9 @@ class DockerClient:
             logger.warning(
                 'Could not initiate the Docker client, so the profiling data will not include the container'
                 ' names. If you are running the gProfiler in a container, please mount the Docker sock file'
-                'by running the Docker run command with the following argument: '
-                '"-v /var/run/docker.sock:/var/run/docker.sock". Otherwise, please open a new issue here: '
-                'https://github.com/Granulate/gprofiler/issues/new'
+                ' by running the Docker run command with the following argument:'
+                ' "-v /var/run/docker.sock:/var/run/docker.sock". Otherwise, please open a new issue here:'
+                ' https://github.com/Granulate/gprofiler/issues/new'
             )
             self._client = None
 
