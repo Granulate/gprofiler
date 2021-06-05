@@ -4,6 +4,7 @@
 #
 import concurrent.futures
 import errno
+import functools
 import logging
 import os
 import shutil
@@ -46,13 +47,17 @@ class JattachException(CalledProcessError):
         return self._ap_log
 
 
+@functools.lru_cache(maxsize=1)
+def jattach_path() -> str:
+    return resource_path("java/jattach")
+
+
 class AsyncProfiledProcess:
     """
     Represents a process profiled with async-profiler.
     """
 
     AP_EVENT_TYPE = "itimer"
-    JATTACH = resource_path("java/jattach")
     FORMAT_PARAMS = "ann,sig"
     OUTPUT_FORMAT = "collapsed"
     OUTPUTS_MODE = 0o622  # readable by root, writable by all
@@ -141,7 +146,7 @@ class AsyncProfiledProcess:
 
     def _get_base_cmd(self) -> List[str]:
         return [
-            self.JATTACH,
+            jattach_path(),
             str(self.process.pid),
             "load",
             self._libap_path_process,
