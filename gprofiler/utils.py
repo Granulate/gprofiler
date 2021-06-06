@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 TEMPORARY_STORAGE_PATH = "/tmp/gprofiler_tmp"
 
 gprofiler_mutex: Optional[socket.socket]
+hostname: Optional[str] = None
 
 
 def resource_path(relative_path: str = "") -> str:
@@ -295,7 +296,7 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
     Runs a callback in a new thread, switching to a set of the namespaces of a target process before
     doing so.
 
-    Needed initially for swithcing mount namespaces, because we can't setns(CLONE_NEWNS) in a multithreaded
+    Needed initially for switching mount namespaces, because we can't setns(CLONE_NEWNS) in a multithreaded
     program (unless we unshare(CLONE_NEWNS) before). so, we start a new thread, unshare() & setns() it,
     run our callback and then stop the thread (so we don't keep unshared threads running around).
     For other namespace types, we use this function to execute callbacks without changing the namespaces
@@ -315,6 +316,7 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
                     "mnt": 0x00020000,  # CLONE_NEWNS
                     "net": 0x40000000,  # CLONE_NEWNET
                     "pid": 0x20000000,  # CLONE_NEWPID
+                    "uts": 0x04000000,  # CLONE_NEWUTS
                 }[nstype]
                 if (
                     libc.unshare(flag) != 0
@@ -329,7 +331,41 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
     t.join()
 
 
-def log_system_info():
+def _initialize_system_info():
+    # initialized first
+    global hostname
+    hostname = "<unknown>"
+    distribution = "unknown"
+    libc_version = "unknown"
+
+    # move to host mount NS for distro & ldd.
+    # now, distro will read the files on host.
+    # also move to host UTS NS for the hostname.
+    def get_infos():
+        nonlocal distribution, libc_version
+        global hostname
+
+        try:
+            distribution = distro.linux_distribution()
+        except Exception:
+            logger.exception("Failed to get distribution")
+
+        try:
+            libc_version = get_libc_version()
+        except Exception:
+            logger.exception("Failed to get libc version")
+
+        try:
+            hostname = socket.gethostname()
+        except Exception:
+            logger.exception("Failed to get hostname")
+
+    run_in_ns(["mnt", "uts"], get_infos)
+
+    return hostname, distribution, libc_version
+
+
+def log_system_info() -> None:
     uname = platform.uname()
     logger.info(f"gProfiler Python version: {sys.version}")
     logger.info(f"gProfiler run mode: {get_run_mode()}")
@@ -337,20 +373,10 @@ def log_system_info():
     logger.info(f"Kernel uname version: {uname.version}")
     logger.info(f"Total CPUs: {os.cpu_count()}")
     logger.info(f"Total RAM: {psutil.virtual_memory().total / (1 << 30):.2f} GB")
-
-    results = []
-
-    # move to host mount NS for distro & ldd.
-    # now, distro will read the files on host.
-    def get_distro_and_libc():
-        results.append(distro.linux_distribution())
-        results.append(get_libc_version())
-
-    run_in_ns(["mnt"], get_distro_and_libc)
-    assert len(results) == 2, f"only {len(results)} results, expected 2"
-
-    logger.info(f"Linux distribution: {results[0]}")
-    logger.info(f"libc version: {results[1]}")
+    hostname, distribution, libc_version = _initialize_system_info()
+    logger.info(f"Linux distribution: {distribution}")
+    logger.info(f"libc version: {libc_version}")
+    logger.info(f"Hostname: {hostname}")
 
 
 def grab_gprofiler_mutex() -> bool:
@@ -440,3 +466,8 @@ def limit_frequency(limit: int, requested: int, msg_header: str, runtime_logger:
         return limit
 
     return requested
+
+
+def get_hostname() -> str:
+    assert hostname is not None, "hostname not initialized!"
+    return hostname

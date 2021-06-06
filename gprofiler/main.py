@@ -13,7 +13,6 @@ import sys
 import time
 from logging import Logger
 from pathlib import Path
-from socket import gethostname
 from threading import Event
 from typing import Callable, Dict, Optional
 
@@ -32,6 +31,7 @@ from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     TemporaryDirectoryWithMode,
     atomically_symlink,
+    get_hostname,
     get_iso8061_format_time,
     grab_gprofiler_mutex,
     is_root,
@@ -268,7 +268,7 @@ class GProfiler:
 
         if self._client:
             try:
-                self._client.submit_profile(local_start_time, local_end_time, gethostname(), merged_result)
+                self._client.submit_profile(local_start_time, local_end_time, get_hostname(), merged_result)
             except Timeout:
                 logger.error("Upload of profile to server timed out.")
             except APIError as e:
