@@ -6,7 +6,7 @@ import json
 import logging
 import re
 from collections import Counter, defaultdict
-from typing import Iterable, Mapping, MutableMapping
+from typing import Iterable, Mapping, MutableMapping, Tuple
 
 from gprofiler.docker_client import DockerClient
 from gprofiler.utils import get_hostname
@@ -106,7 +106,7 @@ def merge_perfs(
     process_perfs: Mapping[int, Mapping[str, int]],
     docker_client: DockerClient,
     should_determine_container_names: bool,
-) -> str:
+) -> Tuple[str, int]:
     per_process_samples: MutableMapping[int, int] = Counter()
     new_samples: MutableMapping[str, int] = Counter()
     process_names = {}
@@ -142,7 +142,7 @@ def merge_perfs(
     }
     output = [f"#{json.dumps(profile_metadata)}"]
     output += [f"{stack} {count}" for stack, count in new_samples.items()]
-    return "\n".join(output)
+    return "\n".join(output), sum(new_samples.values())
 
 
 def _get_container_name(pid: int, docker_client: DockerClient, should_determine_container_names: bool):
