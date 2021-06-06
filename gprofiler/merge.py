@@ -191,7 +191,7 @@ def parse_perf_script(script: Optional[str]) -> Tuple[ProcessToStackSampleCounte
             comm = sample_dict["comm"]
             stack = sample_dict["stack"]
             if stack is not None:
-                pid_to_collapsed_stacks_counters[pid][collapse_stack(stack, comm)] += 1
+                pid_to_collapsed_stacks_counters[pid][collapse_stack(comm, stack)] += 1
             pid_to_comm.setdefault(pid, comm)
         except Exception:
             logger.exception(f"Error processing sample: {sample}")
