@@ -93,7 +93,7 @@ def collapse_stack(comm: str, stack: str) -> str:
 
 
 def merge_global_perfs(
-        raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str]
+    raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str]
 ) -> Tuple[ProcessToStackSampleCounters, ProcessIdToCommMapping]:
     fp_perf, fp_pid_to_comm = parse_perf_script(raw_fp_perf)
     dwarf_perf, dwarf_pid_to_comm = parse_perf_script(raw_dwarf_perf)
@@ -123,10 +123,10 @@ def merge_global_perfs(
 
 
 def add_highest_avg_depth_stacks_per_process(
-        dwarf_perf: ProcessToStackSampleCounters,
-        fp_perf: ProcessToStackSampleCounters,
-        fp_to_dwarf_sample_ratio: float,
-        merged_pid_to_stacks_counters: ProcessToStackSampleCounters,
+    dwarf_perf: ProcessToStackSampleCounters,
+    fp_perf: ProcessToStackSampleCounters,
+    fp_to_dwarf_sample_ratio: float,
+    merged_pid_to_stacks_counters: ProcessToStackSampleCounters,
 ):
     for pid, fp_collapsed_stacks_counters in fp_perf.items():
         if pid not in dwarf_perf:
@@ -146,7 +146,7 @@ def add_highest_avg_depth_stacks_per_process(
 
 
 def scale_dwarf_samples_count(
-        dwarf_collapsed_stacks_counters: StackToSampleCount, fp_to_dwarf_sample_ratio: float
+    dwarf_collapsed_stacks_counters: StackToSampleCount, fp_to_dwarf_sample_ratio: float
 ) -> StackToSampleCount:
     if fp_to_dwarf_sample_ratio == 1:
         return dwarf_collapsed_stacks_counters
@@ -199,11 +199,11 @@ def parse_perf_script(script: Optional[str]) -> Tuple[ProcessToStackSampleCounte
 
 
 def merge_perfs(
-        system_perf_pid_to_stacks_counter: ProcessToStackSampleCounters,
-        pid_to_comm: ProcessIdToCommMapping,
-        process_perfs: ProcessToStackSampleCounters,
-        docker_client: DockerClient,
-        should_determine_container_names: bool,
+    system_perf_pid_to_stacks_counter: ProcessToStackSampleCounters,
+    pid_to_comm: ProcessIdToCommMapping,
+    process_perfs: ProcessToStackSampleCounters,
+    docker_client: DockerClient,
+    should_determine_container_names: bool,
 ) -> str:
     per_process_samples: MutableMapping[int, int] = Counter()
     new_samples: StackToSampleCount = Counter()
