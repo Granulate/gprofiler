@@ -398,7 +398,7 @@ def parse_cmd_args():
     parser.add_argument(
         "--perf-mode",
         dest="perf_mode",
-        default="smart",
+        default="fp",
         choices=["fp", "dwarf", "smart"],
         help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge them "
         "by choosing the best result per process",
