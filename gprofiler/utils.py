@@ -194,7 +194,7 @@ def pgrep_maps(match: str) -> List[Process]:
     return processes
 
 
-def get_iso8061_format_time(time: datetime.datetime) -> str:
+def get_iso8601_format_time(time: datetime.datetime) -> str:
     return time.replace(microsecond=0).isoformat()
 
 

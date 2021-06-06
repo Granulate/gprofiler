@@ -7,12 +7,12 @@ import gzip
 import json
 import logging
 from io import BytesIO
-from typing import Dict
+from typing import Dict, List, Optional, Tuple
 
 import requests
 from requests import Session
 
-from gprofiler.utils import get_iso8061_format_time
+from gprofiler.utils import get_iso8601_format_time
 
 logger = logging.getLogger(__name__)
 
@@ -33,17 +33,20 @@ class APIError(Exception):
 class APIClient:
     BASE_PATH = "api"
 
-    def __init__(self, host: str, key: str, service: str, upload_timeout: int, version: str = "v1"):
+    def __init__(self, host: str, key: str, service: str, hostname: str, upload_timeout: int, version: str = "v1"):
         self._host: str = host
         self._upload_timeout = upload_timeout
         self._version: str = version
+        self._key = key
+        self._service = service
+        self._hostname = hostname
 
-        self._init_session(key, service)
+        self._init_session()
         logger.info(f"The connection to the server was successfully established (service {service!r})")
 
-    def _init_session(self, key: str, service: str):
+    def _init_session(self):
         self._session: Session = requests.Session()
-        self._session.headers.update({"GPROFILER-API-KEY": key, "GPROFILER-SERVICE-NAME": service})
+        self._session.headers.update({"GPROFILER-API-KEY": self._key, "GPROFILER-SERVICE-NAME": self._service})
 
         # Raises on failure
         self.get_health()
@@ -52,19 +55,31 @@ class APIClient:
         version = api_version if api_version is not None else self._version
         return "{}/{}/{}".format(self._host.rstrip("/"), self.BASE_PATH, version)
 
+    def _get_query_params(self) -> List[Tuple[str, str]]:
+        return [
+            ("key", self._key),
+            ("service", self._service),
+            ("hostname", self._hostname),
+            ("timestamp", get_iso8601_format_time(datetime.datetime.utcnow())),
+        ]
+
     def _send_request(
         self,
         method: str,
         path: str,
-        data: Dict,
+        data: Optional[Dict],
         files: Dict = None,
         timeout: float = DEFAULT_REQUEST_TIMEOUT,
         api_version: str = None,
+        params: Dict[str, str] = None,
     ) -> Dict:
         opts: dict = {"headers": {}, "files": files, "timeout": timeout}
+        if params is None:
+            params = {}
 
         if method.upper() == "GET":
-            opts["params"] = data
+            if data is not None:
+                params.update(data)
         else:
             opts["headers"]["Content-Encoding"] = "gzip"
             opts["headers"]["Content-type"] = "application/json"
@@ -73,11 +88,13 @@ class APIClient:
                 json.dump(data, gzip_file, ensure_ascii=False)  # type: ignore
             opts["data"] = buffer.getvalue()
 
+        opts["params"] = self._get_query_params() + [(k, v) for k, v in params.items()]
+
         resp = self._session.request(method, "{}/{}".format(self.get_base_url(api_version), path), **opts)
         if 400 <= resp.status_code < 500:
             try:
-                data = resp.json()
-                raise APIError(data["message"], data)
+                response_data = resp.json()
+                raise APIError(response_data.get("message", "(no message in response)"), response_data)
             except ValueError:
                 raise APIError(resp.text)
         else:
@@ -103,16 +120,17 @@ class APIClient:
         return self.get("health_check")
 
     def submit_profile(
-        self, start_time: datetime.datetime, end_time: datetime.datetime, hostname: str, profile: str
+        self, start_time: datetime.datetime, end_time: datetime.datetime, profile: str, total_samples: int
     ) -> Dict:
         return self.post(
             "profiles",
             {
-                "start_time": get_iso8061_format_time(start_time),
-                "end_time": get_iso8061_format_time(end_time),
-                "hostname": hostname,
+                "start_time": get_iso8601_format_time(start_time),
+                "end_time": get_iso8601_format_time(end_time),
+                "hostname": self._hostname,
                 "profile": profile,
             },
             timeout=self._upload_timeout,
             api_version="v2",
+            params={"samples": str(total_samples)},
         )
