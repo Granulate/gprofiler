@@ -334,7 +334,7 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
 def _initialize_system_info():
     # initialized first
     global hostname
-    hostname = "unknown"
+    hostname = "<unknown>"
     distribution = "unknown"
     libc_version = "unknown"
 
