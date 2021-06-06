@@ -65,7 +65,7 @@ Run the following to have gProfiler running continuously, uploading to Granulate
 ```bash
 docker pull granulate/gprofiler:latest
 docker run --name gprofiler -d --restart=always \
-    --network=host --pid=host --userns=host --privileged \
+    --pid=host --userns=host --privileged \
     -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro \
     -v /var/run/docker.sock:/var/run/docker.sock \
 	granulate/gprofiler:latest -cu --token <token> --service-name <service> [options]

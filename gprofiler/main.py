@@ -13,7 +13,6 @@ import sys
 import time
 from logging import Logger
 from pathlib import Path
-from socket import gethostname
 from threading import Event
 from typing import Callable, Dict, Optional
 
@@ -33,7 +32,8 @@ from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     TemporaryDirectoryWithMode,
     atomically_symlink,
-    get_iso8061_format_time,
+    get_hostname,
+    get_iso8601_format_time,
     grab_gprofiler_mutex,
     is_root,
     is_running_in_init_pid,
@@ -175,8 +175,8 @@ class GProfiler:
         local_start_time: datetime.datetime,
         local_end_time: datetime.datetime,
     ) -> None:
-        start_ts = get_iso8061_format_time(local_start_time)
-        end_ts = get_iso8061_format_time(local_end_time)
+        start_ts = get_iso8601_format_time(local_start_time)
+        end_ts = get_iso8601_format_time(local_end_time)
         base_filename = os.path.join(self._output_dir, "profile_{}".format(end_ts))
 
         collapsed_path = base_filename + ".col"
@@ -263,7 +263,7 @@ class GProfiler:
 
         local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
         system_perf_pid_to_stacks_counter, pid_to_name = system_future.result()
-        merged_result = merge.merge_perfs(
+        merged_result, total_samples = merge.merge_perfs(
             system_perf_pid_to_stacks_counter,
             pid_to_name,
             process_perfs,
@@ -276,7 +276,7 @@ class GProfiler:
 
         if self._client:
             try:
-                self._client.submit_profile(local_start_time, local_end_time, gethostname(), merged_result)
+                self._client.submit_profile(local_start_time, local_end_time, merged_result, total_samples)
             except Timeout:
                 logger.error("Upload of profile to server timed out.")
             except APIError as e:
@@ -560,7 +560,7 @@ def main():
             if "server_upload_timeout" in args:
                 client_kwargs["upload_timeout"] = args.server_upload_timeout
             client = (
-                APIClient(args.server_host, args.server_token, args.service_name, **client_kwargs)
+                APIClient(args.server_host, args.server_token, args.service_name, get_hostname(), **client_kwargs)
                 if args.upload_results
                 else None
             )

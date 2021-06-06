@@ -7,11 +7,11 @@ import logging
 import math
 import random
 import re
-import socket
 from collections import Counter, defaultdict
 from typing import Dict, Iterable, Mapping, MutableMapping, Optional, Tuple
 
 from gprofiler.docker_client import DockerClient
+from gprofiler.utils import get_hostname
 
 StackToSampleCount = Counter
 ProcessToStackSampleCounters = MutableMapping[int, StackToSampleCount]
@@ -204,7 +204,7 @@ def merge_perfs(
     process_perfs: ProcessToStackSampleCounters,
     docker_client: DockerClient,
     should_determine_container_names: bool,
-) -> str:
+) -> Tuple[str, int]:
     per_process_samples: MutableMapping[int, int] = Counter()
     new_samples: StackToSampleCount = Counter()
     for pid, stacks_counters in system_perf_pid_to_stacks_counter.items():
@@ -228,12 +228,12 @@ def merge_perfs(
     docker_client.reset_cache()
     profile_metadata = {
         'containers': container_names,
-        'hostname': socket.gethostname(),
+        'hostname': get_hostname(),
         'container_names_enabled': should_determine_container_names,
     }
     output = [f"#{json.dumps(profile_metadata)}"]
     output += [f"{stack} {count}" for stack, count in new_samples.items()]
-    return "\n".join(output)
+    return "\n".join(output), sum(new_samples.values())
 
 
 def _get_container_name(pid: int, docker_client: DockerClient, should_determine_container_names: bool):
