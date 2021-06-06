@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Tuple
 import requests
 from requests import Session
 
-from gprofiler.utils import get_iso8061_format_time
+from gprofiler.utils import get_iso8601_format_time
 
 logger = logging.getLogger(__name__)
 
@@ -120,8 +120,8 @@ class APIClient:
         return self.post(
             "profiles",
             {
-                "start_time": get_iso8061_format_time(start_time),
-                "end_time": get_iso8061_format_time(end_time),
+                "start_time": get_iso8601_format_time(start_time),
+                "end_time": get_iso8601_format_time(end_time),
                 "hostname": self._hostname,
                 "profile": profile,
             },

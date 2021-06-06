@@ -32,7 +32,7 @@ from gprofiler.utils import (
     TemporaryDirectoryWithMode,
     atomically_symlink,
     get_hostname,
-    get_iso8061_format_time,
+    get_iso8601_format_time,
     grab_gprofiler_mutex,
     is_root,
     is_running_in_init_pid,
@@ -172,8 +172,8 @@ class GProfiler:
         local_start_time: datetime.datetime,
         local_end_time: datetime.datetime,
     ) -> None:
-        start_ts = get_iso8061_format_time(local_start_time)
-        end_ts = get_iso8061_format_time(local_end_time)
+        start_ts = get_iso8601_format_time(local_start_time)
+        end_ts = get_iso8601_format_time(local_end_time)
         base_filename = os.path.join(self._output_dir, "profile_{}".format(end_ts))
 
         collapsed_path = base_filename + ".col"
