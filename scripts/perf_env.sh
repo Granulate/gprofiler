@@ -5,12 +5,18 @@
 #
 set -euo pipefail
 
-apt-get update && apt-get install -y \
-    build-essential \
+apt-get update
+apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    make \
     git \
     curl \
+    ca-certificates \
+    lbzip2 \
+    unzip \
+    python3 \
     autoconf \
-    asciidoc \
     libssl-dev \
     zlib1g-dev \
     libaudit-dev \
