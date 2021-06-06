@@ -24,6 +24,7 @@ from gprofiler import __version__, merge
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
 from gprofiler.docker_client import DockerClient
 from gprofiler.java import JavaProfiler
+from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.perf import SystemProfiler
 from gprofiler.php import PHPSpyProfiler
 from gprofiler.profiler_base import NoopProfiler
@@ -252,7 +253,7 @@ class GProfiler:
         system_future = self._executor.submit(self.system_profiler.snapshot)
         system_future.name = "system"
 
-        process_perfs: Dict[int, Dict[str, int]] = {}
+        process_perfs: ProcessToStackSampleCounters = {}
         for future in concurrent.futures.as_completed([java_future, python_future, php_future]):
             # if either of these fail - log it, and continue.
             try:
