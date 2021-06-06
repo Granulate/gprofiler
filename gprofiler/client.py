@@ -56,7 +56,12 @@ class APIClient:
         return "{}/{}/{}".format(self._host.rstrip("/"), self.BASE_PATH, version)
 
     def _get_query_params(self) -> List[Tuple[str, str]]:
-        return [("key", self._key), ("service", self._service), ("hostname", self._hostname)]
+        return [
+            ("key", self._key),
+            ("service", self._service),
+            ("hostname", self._hostname),
+            ("timestamp", get_iso8601_format_time(datetime.datetime.utcnow())),
+        ]
 
     def _send_request(
         self,
