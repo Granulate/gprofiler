@@ -127,7 +127,9 @@ class AsyncProfiledProcess:
         # by ensuring a known order of execution.
         ap_dir_host_tmp = f"{self._ap_dir_host}.{self.process.pid}"
         os.makedirs(ap_dir_host_tmp)
-        shutil.copy(resource_path("java/libasyncProfiler.so"), ap_dir_host_tmp)
+        libap_tmp = os.path.join(ap_dir_host_tmp, "libasyncProfiler.so")
+        shutil.copy(resource_path("java/libasyncProfiler.so"), libap_tmp)
+        os.chmod(libap_tmp, 0o755)  # make it accessible for all; needed with PyInstaller, which extracts files as 0700
         try:
             os.rename(ap_dir_host_tmp, self._ap_dir_host)
         except OSError as e:
