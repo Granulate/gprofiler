@@ -88,8 +88,8 @@ class APIClient:
         resp = self._session.request(method, "{}/{}".format(self.get_base_url(api_version), path), **opts)
         if 400 <= resp.status_code < 500:
             try:
-                resp_data = resp.json()
-                raise APIError(resp_data["message"], resp_data)
+                response_data = resp.json()
+                raise APIError(response_data.get("message", "(no message in response)"), response_data)
             except ValueError:
                 raise APIError(resp.text)
         else:
