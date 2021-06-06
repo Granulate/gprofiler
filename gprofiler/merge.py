@@ -2,12 +2,16 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import json
 import logging
 import math
 import random
 import re
+import socket
 from collections import Counter, defaultdict
 from typing import Dict, Iterable, Mapping, MutableMapping, Optional, Tuple
+
+from gprofiler.docker_client import DockerClient
 
 StackToSampleCount = Counter
 ProcessToStackSampleCounters = MutableMapping[int, StackToSampleCount]
@@ -69,7 +73,7 @@ def parse_many_collapsed(text: str) -> ProcessToStackSampleCounters:
     return results
 
 
-def collapse_stack(stack: str, comm: str) -> str:
+def collapse_stack(comm: str, stack: str) -> str:
     """
     Collapse a single stack from "perf".
     """
@@ -89,7 +93,7 @@ def collapse_stack(stack: str, comm: str) -> str:
 
 
 def merge_global_perfs(
-    raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str]
+        raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str]
 ) -> Tuple[ProcessToStackSampleCounters, ProcessIdToCommMapping]:
     fp_perf, fp_pid_to_comm = parse_perf_script(raw_fp_perf)
     dwarf_perf, dwarf_pid_to_comm = parse_perf_script(raw_dwarf_perf)
@@ -119,10 +123,10 @@ def merge_global_perfs(
 
 
 def add_highest_avg_depth_stacks_per_process(
-    dwarf_perf: ProcessToStackSampleCounters,
-    fp_perf: ProcessToStackSampleCounters,
-    fp_to_dwarf_sample_ratio: float,
-    merged_pid_to_stacks_counters: ProcessToStackSampleCounters,
+        dwarf_perf: ProcessToStackSampleCounters,
+        fp_perf: ProcessToStackSampleCounters,
+        fp_to_dwarf_sample_ratio: float,
+        merged_pid_to_stacks_counters: ProcessToStackSampleCounters,
 ):
     for pid, fp_collapsed_stacks_counters in fp_perf.items():
         if pid not in dwarf_perf:
@@ -142,7 +146,7 @@ def add_highest_avg_depth_stacks_per_process(
 
 
 def scale_dwarf_samples_count(
-    dwarf_collapsed_stacks_counters: StackToSampleCount, fp_to_dwarf_sample_ratio: float
+        dwarf_collapsed_stacks_counters: StackToSampleCount, fp_to_dwarf_sample_ratio: float
 ) -> StackToSampleCount:
     if fp_to_dwarf_sample_ratio == 1:
         return dwarf_collapsed_stacks_counters
@@ -195,9 +199,11 @@ def parse_perf_script(script: Optional[str]) -> Tuple[ProcessToStackSampleCounte
 
 
 def merge_perfs(
-    system_perf_pid_to_stacks_counter: ProcessToStackSampleCounters,
-    pid_to_comm: ProcessIdToCommMapping,
-    process_perfs: ProcessToStackSampleCounters,
+        system_perf_pid_to_stacks_counter: ProcessToStackSampleCounters,
+        pid_to_comm: ProcessIdToCommMapping,
+        process_perfs: ProcessToStackSampleCounters,
+        docker_client: DockerClient,
+        should_determine_container_names: bool,
 ) -> str:
     per_process_samples: MutableMapping[int, int] = Counter()
     new_samples: StackToSampleCount = Counter()
@@ -213,7 +219,20 @@ def merge_perfs(
         if process_perf_count > 0:
             ratio = perf_all_count / process_perf_count
             for stack, count in process_stacks.items():
-                full_stack = ";".join([pid_to_comm[pid], stack])
+                container_name = _get_container_name(pid, docker_client, should_determine_container_names)
+                full_stack = ";".join([container_name, pid_to_comm[pid], stack])
                 new_samples[full_stack] += round(count * ratio)
+    container_names = docker_client.container_names
+    docker_client.reset_cache()
+    profile_metadata = {
+        'containers': container_names,
+        'hostname': socket.gethostname(),
+        'container_names_enabled': should_determine_container_names,
+    }
+    output = [f"#{json.dumps(profile_metadata)}"]
+    output += [f"{stack} {count}" for stack, count in new_samples.items()]
+    return "\n".join(output)
 
-    return "\n".join((f"{stack} {count}" for stack, count in new_samples.items()))
+
+def _get_container_name(pid: int, docker_client: DockerClient, should_determine_container_names: bool):
+    return docker_client.get_container_name(pid) if should_determine_container_names else ""

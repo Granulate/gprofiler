@@ -11,8 +11,8 @@ from typing import Tuple
 
 import psutil
 
-from .merge import ProcessIdToCommMapping, ProcessToStackSampleCounters, merge_global_perfs
-from .utils import TEMPORARY_STORAGE_PATH, resource_path, run_process
+from gprofiler.merge import ProcessIdToCommMapping, ProcessToStackSampleCounters, merge_global_perfs
+from gprofiler.utils import TEMPORARY_STORAGE_PATH, resource_path, run_process
 
 logger = logging.getLogger(__name__)
 
