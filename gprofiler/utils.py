@@ -331,19 +331,10 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
     t.join()
 
 
-def log_system_info():
+def _initialize_system_info():
     # initialized first
     global hostname
     hostname = "unknown"
-
-    uname = platform.uname()
-    logger.info(f"gProfiler Python version: {sys.version}")
-    logger.info(f"gProfiler run mode: {get_run_mode()}")
-    logger.info(f"Kernel uname release: {uname.release}")
-    logger.info(f"Kernel uname version: {uname.version}")
-    logger.info(f"Total CPUs: {os.cpu_count()}")
-    logger.info(f"Total RAM: {psutil.virtual_memory().total / (1 << 30):.2f} GB")
-
     distribution = "unknown"
     libc_version = "unknown"
 
@@ -371,6 +362,18 @@ def log_system_info():
 
     run_in_ns(["mnt", "uts"], get_infos)
 
+    return hostname, distribution, libc_version
+
+
+def log_system_info() -> None:
+    uname = platform.uname()
+    logger.info(f"gProfiler Python version: {sys.version}")
+    logger.info(f"gProfiler run mode: {get_run_mode()}")
+    logger.info(f"Kernel uname release: {uname.release}")
+    logger.info(f"Kernel uname version: {uname.version}")
+    logger.info(f"Total CPUs: {os.cpu_count()}")
+    logger.info(f"Total RAM: {psutil.virtual_memory().total / (1 << 30):.2f} GB")
+    hostname, distribution, libc_version = _initialize_system_info()
     logger.info(f"Linux distribution: {distribution}")
     logger.info(f"libc version: {libc_version}")
     logger.info(f"Hostname: {hostname}")
