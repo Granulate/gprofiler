@@ -41,7 +41,10 @@ class JattachException(CalledProcessError):
         self._ap_log = ap_log
 
     def __str__(self):
-        return super().__str__() + f"\nJava PID: {self._target_pid}\nasync-profiler log:\n{self._ap_log}"
+        ap_log = self._ap_log.strip()
+        if not ap_log:
+            ap_log = "(empty)"
+        return super().__str__() + f"\nJava PID: {self._target_pid}\nasync-profiler log:\n{ap_log}"
 
     def get_ap_log(self) -> str:
         return self._ap_log
