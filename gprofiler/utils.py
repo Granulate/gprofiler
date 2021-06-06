@@ -296,7 +296,7 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
     Runs a callback in a new thread, switching to a set of the namespaces of a target process before
     doing so.
 
-    Needed initially for swithcing mount namespaces, because we can't setns(CLONE_NEWNS) in a multithreaded
+    Needed initially for switching mount namespaces, because we can't setns(CLONE_NEWNS) in a multithreaded
     program (unless we unshare(CLONE_NEWNS) before). so, we start a new thread, unshare() & setns() it,
     run our callback and then stop the thread (so we don't keep unshared threads running around).
     For other namespace types, we use this function to execute callbacks without changing the namespaces
