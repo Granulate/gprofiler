@@ -504,7 +504,7 @@ def main():
     reset_umask()
 
     try:
-        logger.info(f"Running gprofiler (version {__version__})...")
+        logger.info(f"Running gprofiler (version {__version__}), commandline: {' '.join(sys.argv[1:])!r}")
         try:
             log_system_info()
         except Exception:
