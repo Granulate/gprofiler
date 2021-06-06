@@ -211,7 +211,9 @@ def merge_perfs(
         if pid in process_perfs:
             per_process_samples[pid] += sum(stacks_counters.values())
         else:
-            new_samples += stacks_counters
+            container_name = _get_container_name(pid, docker_client, should_determine_container_names)
+            for stack, count in stacks_counters.items():
+                new_samples[f"{container_name};{stack}"] += count
 
     for pid, perf_all_count in per_process_samples.items():
         process_stacks = process_perfs[pid]
