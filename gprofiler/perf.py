@@ -69,6 +69,11 @@ class SystemProfiler:
             raise Exception(f"Free disk space: {free_disk}kb. Skipping perf!")
 
         logger.info("Running global perf...")
+        perf_result = self._get_global_perf_result()
+        logger.info("Finished running global perf")
+        return perf_result
+
+    def _get_global_perf_result(self):
         if not self._fp_perf:
             return merge_global_perfs(None, self._run_perf(dwarf=True))
         if not self._dwarf_perf:
@@ -82,7 +87,4 @@ class SystemProfiler:
             dwarf_future = executor.submit(self._run_perf, True)
         fp_perf = fp_future.result()
         dwarf_perf = dwarf_future.result()
-
-        logger.info("Finished running global perf")
-
         return merge_global_perfs(fp_perf, dwarf_perf)
