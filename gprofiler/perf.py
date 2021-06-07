@@ -7,7 +7,7 @@ import logging
 import os
 from tempfile import NamedTemporaryFile
 from threading import Event
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 import psutil
 
