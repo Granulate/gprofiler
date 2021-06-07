@@ -23,6 +23,7 @@ from gprofiler import __version__, merge
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
 from gprofiler.docker_client import DockerClient
 from gprofiler.java import JavaProfiler
+from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.perf import SystemProfiler
 from gprofiler.php import PHPSpyProfiler
 from gprofiler.profiler_base import NoopProfiler
@@ -84,6 +85,8 @@ class GProfiler:
         output_dir: str,
         flamegraph: bool,
         rotating_output: bool,
+        perf_mode: str,
+        dwarf_stack_size: int,
         runtimes: Dict[str, bool],
         client: APIClient,
         include_container_names=True,
@@ -115,7 +118,7 @@ class GProfiler:
             else NoopProfiler()
         )
         self.system_profiler = SystemProfiler(
-            self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name
+            self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name, perf_mode, dwarf_stack_size
         )
         self.initialize_python_profiler()
         self.php_profiler = (
@@ -250,7 +253,7 @@ class GProfiler:
         system_future = self._executor.submit(self.system_profiler.snapshot)
         system_future.name = "system"
 
-        process_perfs: Dict[int, Dict[str, int]] = {}
+        process_perfs: ProcessToStackSampleCounters = {}
         for future in concurrent.futures.as_completed([java_future, python_future, php_future]):
             # if either of these fail - log it, and continue.
             try:
@@ -259,8 +262,13 @@ class GProfiler:
                 logger.exception(f"{future.name} profiling failed")
 
         local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
+        system_perf_pid_to_stacks_counter, pid_to_name = system_future.result()
         merged_result, total_samples = merge.merge_perfs(
-            system_future.result(), process_perfs, self._docker_client, self._include_container_names
+            system_perf_pid_to_stacks_counter,
+            pid_to_name,
+            process_perfs,
+            self._docker_client,
+            self._include_container_names,
         )
 
         if self._output_dir:
@@ -388,6 +396,24 @@ def parse_cmd_args():
     )
 
     parser.add_argument(
+        "--perf-mode",
+        dest="perf_mode",
+        default="fp",
+        choices=["fp", "dwarf", "smart"],
+        help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge them "
+        "by choosing the best result per process",
+    )
+
+    parser.add_argument(
+        "--perf-dwarf-stack-size",
+        dest="dwarf_stack_size",
+        default=8192,
+        type=int,
+        help="The max stack size for the Dwarf perf, in bytes. Must be <=65528."
+        " Relevant for --perf-mode dwarf|smart. Default: %(default)s",
+    )
+
+    parser.add_argument(
         "-u",
         "--upload-results",
         action="store_true",
@@ -456,6 +482,12 @@ def parse_cmd_args():
 
     if not args.upload_results and not args.output_dir:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
+
+    if args.dwarf_stack_size > 65528:
+        parser.error("--perf-dwarf-stack-size maximum size is 65528")
+
+    if args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
+        parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode smart|dwarf")
 
     return args
 
@@ -546,6 +578,8 @@ def main():
             args.output_dir,
             args.flamegraph,
             args.rotating_output,
+            args.perf_mode,
+            args.dwarf_stack_size,
             runtimes,
             client,
             not args.disable_container_names,
