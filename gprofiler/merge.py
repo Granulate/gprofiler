@@ -4,12 +4,18 @@
 #
 import json
 import logging
+import math
+import random
 import re
-import socket
 from collections import Counter, defaultdict
-from typing import Dict, Iterable, Mapping, MutableMapping
+from typing import Dict, Iterable, Mapping, MutableMapping, Optional, Tuple
 
 from gprofiler.docker_client import DockerClient
+from gprofiler.utils import get_hostname
+
+StackToSampleCount = Counter
+ProcessToStackSampleCounters = MutableMapping[int, StackToSampleCount]
+ProcessIdToCommMapping = Dict[int, str]
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +35,7 @@ def parse_one_collapsed(collapsed: str) -> Mapping[str, int]:
     """
     Parse a stack-collapsed listing where all stacks are from the same process.
     """
-    stacks: MutableMapping[str, int] = Counter()
+    stacks: StackToSampleCount = Counter()
     for line in collapsed.splitlines():
         if line.strip() == "":
             continue
@@ -43,12 +49,12 @@ def parse_one_collapsed(collapsed: str) -> Mapping[str, int]:
     return dict(stacks)
 
 
-def parse_many_collapsed(text: str) -> Mapping[int, Mapping[str, int]]:
+def parse_many_collapsed(text: str) -> ProcessToStackSampleCounters:
     """
     Parse a stack-collapsed listing where stacks are prefixed with the command and pid/tid of their
     origin.
     """
-    results: MutableMapping[int, MutableMapping[str, int]] = defaultdict(Counter)
+    results: ProcessToStackSampleCounters = defaultdict(Counter)
     bad_lines = []
 
     for line in text.splitlines():
@@ -86,7 +92,90 @@ def _collapse_stack(comm: str, stack: str) -> str:
     return ";".join(funcs)
 
 
-def parse_perf_script(script: str):
+def merge_global_perfs(
+    raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str]
+) -> Tuple[ProcessToStackSampleCounters, ProcessIdToCommMapping]:
+    fp_perf, fp_pid_to_comm = _parse_perf_script(raw_fp_perf)
+    dwarf_perf, dwarf_pid_to_comm = _parse_perf_script(raw_dwarf_perf)
+    dwarf_pid_to_comm.update(fp_pid_to_comm)
+    merged_pid_to_comm = dwarf_pid_to_comm
+
+    if raw_fp_perf is None:
+        return dwarf_perf, merged_pid_to_comm
+    elif raw_dwarf_perf is None:
+        return fp_perf, merged_pid_to_comm
+
+    total_fp_samples = sum([sum(stacks.values()) for stacks in fp_perf.values()])
+    total_dwarf_samples = sum([sum(stacks.values()) for stacks in dwarf_perf.values()])
+    fp_to_dwarf_sample_ratio = total_fp_samples / total_dwarf_samples
+
+    # The FP perf is used here as the "main" perf, to which the DWARF perf is scaled.
+    merged_pid_to_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
+    add_highest_avg_depth_stacks_per_process(
+        dwarf_perf, fp_perf, fp_to_dwarf_sample_ratio, merged_pid_to_stacks_counters
+    )
+    total_merged_samples = sum([sum(stacks.values()) for stacks in merged_pid_to_stacks_counters.values()])
+    logger.debug(
+        f"Total FP samples: {total_fp_samples}; Total DWARF samples: {total_dwarf_samples}; "
+        f"FP to DWARF ratio: {fp_to_dwarf_sample_ratio}; Total merged samples: {total_merged_samples}"
+    )
+    return merged_pid_to_stacks_counters, merged_pid_to_comm
+
+
+def add_highest_avg_depth_stacks_per_process(
+    dwarf_perf: ProcessToStackSampleCounters,
+    fp_perf: ProcessToStackSampleCounters,
+    fp_to_dwarf_sample_ratio: float,
+    merged_pid_to_stacks_counters: ProcessToStackSampleCounters,
+):
+    for pid, fp_collapsed_stacks_counters in fp_perf.items():
+        if pid not in dwarf_perf:
+            merged_pid_to_stacks_counters[pid] = fp_collapsed_stacks_counters
+            continue
+
+        fp_frame_count_average = _get_average_frame_count(fp_collapsed_stacks_counters.keys())
+        dwarf_collapsed_stacks_counters = dwarf_perf[pid]
+        dwarf_frame_count_average = _get_average_frame_count(dwarf_collapsed_stacks_counters.keys())
+        if fp_frame_count_average > dwarf_frame_count_average:
+            merged_pid_to_stacks_counters[pid] = fp_collapsed_stacks_counters
+        else:
+            dwarf_collapsed_stacks_counters = scale_dwarf_samples_count(
+                dwarf_collapsed_stacks_counters, fp_to_dwarf_sample_ratio
+            )
+            merged_pid_to_stacks_counters[pid] = dwarf_collapsed_stacks_counters
+
+
+def scale_dwarf_samples_count(
+    dwarf_collapsed_stacks_counters: StackToSampleCount, fp_to_dwarf_sample_ratio: float
+) -> StackToSampleCount:
+    if fp_to_dwarf_sample_ratio == 1:
+        return dwarf_collapsed_stacks_counters
+    # scale the dwarf stacks to the FP stacks to avoid skewing the results
+    for stack, sample_count in dwarf_collapsed_stacks_counters.items():
+        new_count = sample_count * fp_to_dwarf_sample_ratio
+        # If we were to round all of the sample counts it could skew the results. By using a random factor,
+        # we mostly solve this by randomly rounding up / down stacks.
+        # The higher the fractional part of the new count, the more likely it is to be rounded up instead of down
+        new_count = math.ceil(new_count) if new_count - int(new_count) <= random.random() else math.floor(new_count)
+        if new_count == 0:
+            # TODO: For more accurate truncation, check if there's a common frame for the truncated stacks and combine
+            #  them
+            continue
+        dwarf_collapsed_stacks_counters[stack] = new_count
+    # Note - returning the value is not necessary, but is done for readability
+    return dwarf_collapsed_stacks_counters
+
+
+def _get_average_frame_count(stacks: Iterable[str]) -> float:
+    frame_count_per_samples = [sample.count(";") for sample in stacks]
+    return sum(frame_count_per_samples) / len(frame_count_per_samples)
+
+
+def _parse_perf_script(script: Optional[str]) -> Tuple[ProcessToStackSampleCounters, ProcessIdToCommMapping]:
+    pid_to_collapsed_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
+    pid_to_comm: ProcessIdToCommMapping = {}
+    if script is None:
+        return pid_to_collapsed_stacks_counters, pid_to_comm
     for sample in script.split("\n\n"):
         try:
             if sample.strip() == "":
@@ -96,42 +185,58 @@ def parse_perf_script(script: str):
             match = SAMPLE_REGEX.match(sample)
             if match is None:
                 raise Exception("Failed to match sample")
-            yield match.groupdict()
+            sample_dict = match.groupdict()
+
+            pid = int(sample_dict["pid"])
+            comm = sample_dict["comm"]
+            stack = sample_dict["stack"]
+            if stack is not None:
+                pid_to_collapsed_stacks_counters[pid][_collapse_stack(comm, stack)] += 1
+            pid_to_comm.setdefault(pid, comm)
         except Exception:
             logger.exception(f"Error processing sample: {sample}")
+    return pid_to_collapsed_stacks_counters, pid_to_comm
 
 
-def _concatenate_stacks(profile_metadata: Dict, stacks_iter: Iterable[Mapping[str, int]]) -> str:
+def _concatenate_stacks_and_metadata(
+    stacks_iter: Iterable[StackToSampleCount], docker_client: DockerClient, container_names_enabled: bool
+) -> Tuple[str, int]:
     """
     Concatenate all stacks from all stack mappings in stack_iter.
     """
+    container_names = docker_client.container_names
+    docker_client.reset_cache()
+    profile_metadata = {
+        'containers': container_names,
+        'hostname': get_hostname(),
+        'container_names_enabled': container_names_enabled,
+    }
+
     lines = [f"#{json.dumps(profile_metadata)}"]
-    lines.extend([f"{stack} {count}" for stacks in stacks_iter for stack, count in stacks.items()])
-    return "\n".join(lines)
+    total_samples = 0
+    for stacks in stacks_iter:
+        for stack, count in stacks.items():
+            total_samples += count
+            lines.append(f"{stack} {count}")
+    return "\n".join(lines), total_samples
 
 
 def merge_perfs(
-    perf_all: Iterable[Mapping[str, str]],
-    process_perfs: Mapping[int, Mapping[str, int]],
+    system_perf_pid_to_stacks_counter: ProcessToStackSampleCounters,
+    pid_to_comm: ProcessIdToCommMapping,
+    process_perfs: ProcessToStackSampleCounters,
     docker_client: DockerClient,
-    should_determine_container_names: bool,
-) -> str:
+    container_names_enabled: bool,
+) -> Tuple[str, int]:
     per_process_samples: MutableMapping[int, int] = Counter()
-    new_samples: MutableMapping[str, int] = Counter()
-    process_names = {}
-    for parsed in perf_all:
-        try:
-            pid = int(parsed["pid"])
-            if pid in process_perfs:
-                per_process_samples[pid] += 1
-                process_names[pid] = parsed["comm"]
-            elif parsed["stack"] is not None:
-                container_name = _get_container_name(pid, docker_client, should_determine_container_names)
-                collapsed_stack = _collapse_stack(parsed["comm"], parsed["stack"])
-                stack_line = f'{container_name};{collapsed_stack}'
-                new_samples[stack_line] += 1
-        except Exception:
-            logger.exception(f"Error processing sample: {parsed}")
+    new_samples: StackToSampleCount = Counter()
+    for pid, stacks_counters in system_perf_pid_to_stacks_counter.items():
+        if pid in process_perfs:
+            per_process_samples[pid] += sum(stacks_counters.values())
+        else:
+            container_name = _get_container_name(pid, docker_client, container_names_enabled)
+            for stack, count in stacks_counters.items():
+                new_samples[f"{container_name};{stack}"] += count
 
     for pid, perf_all_count in per_process_samples.items():
         process_stacks = process_perfs[pid]
@@ -139,22 +244,17 @@ def merge_perfs(
         if process_perf_count > 0:
             ratio = perf_all_count / process_perf_count
             for stack, count in process_stacks.items():
-                container_name = _get_container_name(pid, docker_client, should_determine_container_names)
-                stack_line = ";".join([container_name, process_names[pid], stack])
-                new_samples[stack_line] += round(count * ratio)
-    container_names = docker_client.container_names
-    docker_client.reset_cache()
-    profile_metadata = {
-        'containers': container_names,
-        'hostname': socket.gethostname(),
-        'container_names_enabled': should_determine_container_names,
-    }
-    return _concatenate_stacks(profile_metadata, (new_samples,))
+                container_name = _get_container_name(pid, docker_client, container_names_enabled)
+                full_stack = ";".join([container_name, pid_to_comm[pid], stack])
+                new_samples[full_stack] += round(count * ratio)
+    return _concatenate_stacks_and_metadata((new_samples,), docker_client, container_names_enabled)
 
 
-def concatenate_perfs(process_perfs: Mapping[int, Mapping[str, int]]) -> str:
-    return _concatenate_stacks({}, process_perfs.values())
+def concatenate_perfs(
+    process_perfs: Mapping[int, StackToSampleCount], docker_client: DockerClient, container_names_enabled: bool
+) -> Tuple[str, int]:
+    return _concatenate_stacks_and_metadata(process_perfs.values(), docker_client, container_names_enabled)
 
 
-def _get_container_name(pid: int, docker_client: DockerClient, should_determine_container_names: bool):
-    return docker_client.get_container_name(pid) if should_determine_container_names else ""
+def _get_container_name(pid: int, docker_client: DockerClient, container_names_enabled: bool):
+    return docker_client.get_container_name(pid) if container_names_enabled else ""
