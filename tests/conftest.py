@@ -142,6 +142,8 @@ def application_docker_container(
     else:
         container: Container = docker_client.containers.run(application_docker_image, detach=True, user="5555:6666")
         while container.status != "running":
+            if container.status == "exited":
+                raise Exception(container.logs().decode())
             sleep(1)
             container.reload()
         yield container
