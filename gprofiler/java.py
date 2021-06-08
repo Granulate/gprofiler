@@ -149,8 +149,12 @@ class AsyncProfiledProcess:
         Avoid running if disk space is low, so we don't reach out-of-disk space situation because of profiling data.
         """
         free_disk = psutil.disk_usage(self._storage_dir_host).free
-        if free_disk < 250 * 1024:
-            raise Exception(f"Not enough free disk space: {free_disk}kb (path: {self._output_path_host}")
+        required = 250 * 1024
+        if free_disk < required:
+            raise Exception(
+                f"Not enough free disk space: {free_disk}kb left, {250 * 1024}kb"
+                f" required (on path: {self._output_path_host!r}"
+            )
 
     def _get_base_cmd(self) -> List[str]:
         return [
