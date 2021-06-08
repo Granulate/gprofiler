@@ -57,7 +57,7 @@ def test_java_async_profiler_stopped(
         assert container is not None, "got None container?"
 
         # and stop after a short while, brutally.
-        time.sleep(5)
+        time.sleep(10)
         container.kill("SIGKILL")
     finally:
         if container is not None:
