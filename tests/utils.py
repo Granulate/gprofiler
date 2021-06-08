@@ -36,8 +36,8 @@ def run_privileged_container(
         assert isinstance(container_or_logs, bytes), container_or_logs
         container, logs = None, container_or_logs.decode()
 
-    print("Container logs:", logs.decode())  # print, so failing tests display it
-    return container, logs.decode()
+    print("Container logs:", logs)  # print, so failing tests display it
+    return container, logs
 
 
 def copy_file_from_image(image: Image, container_path: str, host_path: str) -> None:
