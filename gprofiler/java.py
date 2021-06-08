@@ -145,7 +145,10 @@ class AsyncProfiledProcess:
         touch_path(self._log_path_host, self.OUTPUTS_MODE)
 
     def _check_disk_requirements(self) -> None:
-        free_disk = psutil.disk_usage(self._ap_dir_host).free
+        """
+        Avoid running if disk space is low, so we don't reach out-of-disk space situation because of profiling data.
+        """
+        free_disk = psutil.disk_usage(self._storage_dir_host).free
         if free_disk < 250 * 1024:
             raise Exception(f"Not enough free disk space: {free_disk}kb (path: {self._output_path_host}")
 
