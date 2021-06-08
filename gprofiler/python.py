@@ -78,7 +78,7 @@ class PySpyProfiler(PythonProfilerBase):
     def _profile_process(self, process: Process):
         logger.info(f"Profiling process {process.pid} ({process.cmdline()})")
 
-        local_output_path = os.path.join(self._storage_dir, f"{process.pid}.py.col.dat")
+        local_output_path = os.path.join(self._storage_dir, f"{process.pid}.col")
         try:
             run_process(self._make_command(process.pid, local_output_path), stop_event=self._stop_event)
         except ProcessStoppedException:
@@ -154,7 +154,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
         self.process = None
-        self.output_path = Path(self._storage_dir) / "py.col.dat"
+        self.output_path = Path(self._storage_dir) / "col"
 
     @classmethod
     def _check_missing_headers(cls, stdout) -> bool:

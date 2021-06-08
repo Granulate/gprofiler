@@ -55,7 +55,7 @@ class PHPSpyProfiler(ProfilerBase):
         self._storage_dir = storage_dir
         logger.info(f"Initializing PHP profiler (frequency: {self._frequency}hz, duration: {self._duration}s)")
         self._process: Optional[Popen] = None
-        self._output_path = Path(self._storage_dir) / "php.col"
+        self._output_path = Path(self._storage_dir) / "col"
         self._process_filter = php_process_filter
 
     def start(self):

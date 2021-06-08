@@ -58,7 +58,7 @@ class RbSpyProfiler(ProfilerBase):
     def _profile_process(self, process: Process):
         logger.info(f"Profiling process {process.pid} ({' '.join(process.cmdline())})")
 
-        local_output_path = os.path.join(self._storage_dir, f"{process.pid}.rb.col.dat")
+        local_output_path = os.path.join(self._storage_dir, f"{process.pid}.col")
         try:
             run_process(self._make_command(process.pid, local_output_path), stop_event=self._stop_event)
         except ProcessStoppedException:
