@@ -302,6 +302,8 @@ class JavaProfiler(ProfilerBase):
             # stop, and try to start again. this might happen if AP & gProfiler go out of sync: for example,
             # gProfiler being stopped brutally, while AP keeps running. If gProfiler is later started again, it will
             # try to start AP again...
+            # not using the "resume" action because I'm not sure it properly reconfigures all settings; while stop;start
+            # surely does.
             ap_proc.stop_async_profiler(with_output=False)
             started = ap_proc.start_async_profiler(self._interval)
             if not started:
