@@ -31,12 +31,12 @@ def run_privileged_container(
         **extra_kwargs,
     )
     if isinstance(container_or_logs, Container):
-        container, logs = container_or_logs, container_or_logs.logs()
+        container, logs = container_or_logs, container_or_logs.logs().decode()
     else:
         assert isinstance(container_or_logs, bytes), container_or_logs
-        container, logs = None, container_or_logs
+        container, logs = None, container_or_logs.decode()
 
-    print(f"Container logs {logs}")  # print, so failing tests display it
+    print("Container logs:", logs.decode())  # print, so failing tests display it
     return container, logs.decode()
 
 
