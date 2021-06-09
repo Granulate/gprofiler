@@ -64,10 +64,13 @@ def test_java_async_profiler_stopped(
             container.remove(force=True)
 
     # run "status"
-    with TestsAsyncProfiledProcess(psutil.Process(application_pid), tmp_path) as ap_proc:
+    proc = psutil.Process(application_pid)
+    with TestsAsyncProfiledProcess(proc, tmp_path) as ap_proc:
         ap_proc.status_async_profiler()
     # printed the process' stdout, see ACTION_STATUS case in async-profiler/profiler.cpp
     expected_message = b"Profiling is running for "
+
+    assert any("libasyncProfiler.so" in m.path for m in proc.memory_maps())
 
     # container case
     if application_docker_container is not None:
