@@ -118,7 +118,7 @@ class PHPSpyProfiler(ProfilerBase):
                 raise StopEventSetException()
 
         # All the snapshot samples should be in a single file
-        assert len(output_files) == 1
+        assert len(output_files) == 1, "expected single file but got: " + str(output_files)
         return Path(output_files[0])
 
     @classmethod
