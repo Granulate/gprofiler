@@ -14,10 +14,10 @@ FROM pyspy-rbspy-builder-common AS rbspy-builder
 COPY scripts/rbspy_build.sh .
 RUN ./rbspy_build.sh
 
+# perf
 # ubuntu:16.04
 FROM ubuntu@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c AS perf-builder
 
-# perf
 COPY scripts/perf_env.sh .
 RUN ./perf_env.sh
 
