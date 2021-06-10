@@ -7,7 +7,7 @@ set -e
 
 if [ -z ${NO_APT_INSTALL+x} ]; then
  sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update
- sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io php
+ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io php ruby2.7
 fi
 
 python3 -m pip install -q --upgrade setuptools pip
