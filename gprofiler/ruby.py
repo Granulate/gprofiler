@@ -11,10 +11,10 @@ from typing import List, Mapping, Optional
 
 from psutil import Process
 
-from .exceptions import ProcessStoppedException, StopEventSetException
-from .merge import parse_one_collapsed
-from .profiler_base import ProfilerBase
-from .utils import limit_frequency, pgrep_maps, resource_path, run_process
+from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
+from gprofiler.merge import parse_one_collapsed
+from gprofiler.profiler_base import ProfilerBase
+from gprofiler.utils import limit_frequency, pgrep_maps, resource_path, run_process
 
 logger = logging.getLogger(__name__)
 
