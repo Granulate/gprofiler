@@ -13,7 +13,7 @@ from typing import List, Mapping, MutableMapping, Optional, Pattern
 
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.profiler_base import ProfilerBase
-from gprofiler.utils import limit_frequency, resource_path, start_process, wait_event
+from gprofiler.utils import limit_frequency, random_prefix, resource_path, start_process, wait_event
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ class PHPSpyProfiler(ProfilerBase):
         self._storage_dir = storage_dir
         logger.info(f"Initializing PHP profiler (frequency: {self._frequency}hz, duration: {self._duration}s)")
         self._process: Optional[Popen] = None
-        self._output_path = Path(self._storage_dir) / "php.col"
+        self._output_path = Path(self._storage_dir) / f"phpspy.{random_prefix()}.col"
         self._process_filter = php_process_filter
 
     def start(self):
@@ -118,7 +118,7 @@ class PHPSpyProfiler(ProfilerBase):
                 raise StopEventSetException()
 
         # All the snapshot samples should be in a single file
-        assert len(output_files) == 1
+        assert len(output_files) == 1, "expected single file but got: " + str(output_files)
         return Path(output_files[0])
 
     @classmethod

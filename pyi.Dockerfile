@@ -1,14 +1,21 @@
 # parts are copied from Dockerfile
 
-# py-spy
 # rust:slim 1.52.1
-FROM rust@sha256:9c106c1222abe1450f45774273f36246ebf257623ed51280dbc458632d14c9fc AS pyspy-builder
+# using the same builder for both pyspy and rbspy since they share build dependencies
+FROM rust@sha256:9c106c1222abe1450f45774273f36246ebf257623ed51280dbc458632d14c9fc AS pyspy-rbspy-builder-common
 
-COPY scripts/pyspy_env.sh .
-RUN ./pyspy_env.sh
+COPY scripts/prepare_x86_64-unknown-linux-musl.sh .
+RUN ./prepare_x86_64-unknown-linux-musl.sh
 
+# py-spy
+FROM pyspy-rbspy-builder-common AS pyspy-builder
 COPY scripts/pyspy_build.sh .
 RUN ./pyspy_build.sh
+
+# rbspy
+FROM pyspy-rbspy-builder-common AS rbspy-builder
+COPY scripts/rbspy_build.sh .
+RUN ./rbspy_build.sh
 
 # perf
 # ubuntu:16.04
@@ -85,6 +92,7 @@ COPY scripts/build.sh scripts/build.sh
 RUN ./scripts/build.sh
 
 # copy PyPerf and stuff
+RUN mkdir -p gprofiler/resources/ruby
 RUN mkdir -p gprofiler/resources/python/pyperf
 RUN cp /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
 # copy licenses and notice file.
@@ -93,6 +101,7 @@ RUN cp -r /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
 RUN cp /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 
 COPY --from=pyspy-builder /py-spy/target/x86_64-unknown-linux-musl/release/py-spy gprofiler/resources/python/py-spy
+COPY --from=rbspy-builder /rbspy/target/x86_64-unknown-linux-musl/release/rbspy gprofiler/resources/ruby/rbspy
 COPY --from=perf-builder /perf gprofiler/resources/perf
 
 COPY --from=phpspy-builder /phpspy/phpspy gprofiler/resources/php/phpspy

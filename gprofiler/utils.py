@@ -9,9 +9,11 @@ import fcntl
 import logging
 import os
 import platform
+import random
 import re
 import shutil
 import socket
+import string
 import subprocess
 import sys
 import time
@@ -480,3 +482,7 @@ def limit_frequency(limit: int, requested: int, msg_header: str, runtime_logger:
 def get_hostname() -> str:
     assert hostname is not None, "hostname not initialized!"
     return hostname
+
+
+def random_prefix():
+    ''.join(random.choice(string.ascii_letters) for _ in range(16))
