@@ -10,15 +10,15 @@ import signal
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
-from typing import Callable, List, Mapping, Optional, Union
+from typing import Callable, List, Optional, Union
 
 from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
 from gprofiler.merge import parse_many_collapsed, parse_one_collapsed
 from gprofiler.profiler_base import ProfilerBase
+from gprofiler.types import ProcessToStackSampleCounters
 from gprofiler.utils import (
-    limit_frequency,
     pgrep_maps,
     poll_process,
     random_prefix,
@@ -33,26 +33,7 @@ logger = logging.getLogger(__name__)
 _reinitialize_profiler: Optional[Callable[[], None]] = None
 
 
-class PythonProfilerBase(ProfilerBase):
-    MAX_FREQUENCY: Optional[int] = None  # set by base classes
-
-    def __init__(
-        self,
-        frequency: int,
-        duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
-    ):
-        super().__init__()
-        assert isinstance(self.MAX_FREQUENCY, int)
-        self._frequency = limit_frequency(self.MAX_FREQUENCY, frequency, self.__class__.__name__, logger)
-        self._duration = duration
-        self._stop_event = stop_event or Event()
-        self._storage_dir = storage_dir
-        logger.info(f"Initializing Python profiler (frequency: {self._frequency}hz, duration: {duration}s)")
-
-
-class PySpyProfiler(PythonProfilerBase):
+class PySpyProfiler(ProfilerBase):
     MAX_FREQUENCY = 50
     BLACKLISTED_PYTHON_PROCS = ["unattended-upgrades", "networkd-dispatcher", "supervisord", "tuned"]
 
@@ -115,7 +96,7 @@ class PySpyProfiler(PythonProfilerBase):
 
         return filtered_procs
 
-    def snapshot(self) -> Mapping[int, Mapping[str, int]]:
+    def snapshot(self) -> ProcessToStackSampleCounters:
         processes_to_profile = self._find_python_processes_to_profile()
         if not processes_to_profile:
             return {}
@@ -136,7 +117,7 @@ class PySpyProfiler(PythonProfilerBase):
         return results
 
 
-class PythonEbpfProfiler(PythonProfilerBase):
+class PythonEbpfProfiler(ProfilerBase):
     MAX_FREQUENCY = 1000
     PYPERF_RESOURCE = "python/pyperf/PyPerf"
     events_buffer_pages = 256  # 1mb and needs to be physically contiguous
@@ -276,7 +257,7 @@ class PythonEbpfProfiler(PythonProfilerBase):
                 self._terminate()
                 self._pyperf_error(process)
 
-    def snapshot(self) -> Mapping[int, Mapping[str, int]]:
+    def snapshot(self) -> ProcessToStackSampleCounters:
         if self._stop_event.wait(self._duration):
             raise StopEventSetException()
         collapsed_path = self._dump()

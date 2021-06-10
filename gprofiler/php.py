@@ -9,11 +9,12 @@ from functools import lru_cache
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
-from typing import List, Mapping, MutableMapping, Optional, Pattern
+from typing import List, Optional, Pattern
 
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.profiler_base import ProfilerBase
-from gprofiler.utils import limit_frequency, random_prefix, resource_path, start_process, wait_event
+from gprofiler.types import ProcessToStackSampleCounters
+from gprofiler.utils import random_prefix, resource_path, start_process, wait_event
 
 logger = logging.getLogger(__name__)
 
@@ -42,18 +43,7 @@ class PHPSpyProfiler(ProfilerBase):
         storage_dir: str,
         php_process_filter: str = DEFAULT_PROCESS_FILTER,
     ):
-        self._frequency = limit_frequency(self.MAX_FREQUENCY, frequency, "phpspy", logger)
-
-        if duration < self.MIN_DURATION:
-            raise ValueError(
-                f"Minimum duration for phpspy is {self.MIN_DURATION} (given {duration}), "
-                "raise duration in order to profile php processes"
-            )
-
-        self._duration = max(duration, self.MIN_DURATION)
-        self._stop_event = stop_event or Event()
-        self._storage_dir = storage_dir
-        logger.info(f"Initializing PHP profiler (frequency: {self._frequency}hz, duration: {self._duration}s)")
+        super().__init__(frequency, duration, stop_event, storage_dir)
         self._process: Optional[Popen] = None
         self._output_path = Path(self._storage_dir) / f"phpspy.{random_prefix()}.col"
         self._process_filter = php_process_filter
@@ -138,7 +128,7 @@ class PHPSpyProfiler(ProfilerBase):
         return ';'.join(reversed(parsed_frames))
 
     @classmethod
-    def _parse_phpspy_output(cls, phpspy_output: str) -> Mapping[int, Mapping[str, int]]:
+    def _parse_phpspy_output(cls, phpspy_output: str) -> ProcessToStackSampleCounters:
         def extract_metadata_section(re_expr: Pattern, metadata_line: str) -> str:
             match = re_expr.match(metadata_line)
             if not match:
@@ -147,7 +137,7 @@ class PHPSpyProfiler(ProfilerBase):
                 )
             return match.group(1)
 
-        results: MutableMapping[int, MutableMapping[str, int]] = defaultdict(Counter)
+        results: ProcessToStackSampleCounters = defaultdict(Counter)
 
         stacks = phpspy_output.split('\n\n')  # Last part is always empty.
         last_stack, stacks = stacks[-1], stacks[:-1]
@@ -177,7 +167,7 @@ class PHPSpyProfiler(ProfilerBase):
 
         return dict(results)
 
-    def snapshot(self) -> Mapping[int, Mapping[str, int]]:
+    def snapshot(self) -> ProcessToStackSampleCounters:
         if self._stop_event.wait(self._duration):
             raise StopEventSetException()
         stderr = self._process.stderr.read1(1024).decode()  # type: ignore

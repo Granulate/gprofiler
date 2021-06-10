@@ -10,7 +10,7 @@ import os
 import shutil
 from pathlib import Path
 from threading import Event
-from typing import List, Mapping, Optional
+from typing import Dict, List, Mapping, Optional
 
 import psutil
 from psutil import Process
@@ -18,6 +18,7 @@ from psutil import Process
 from gprofiler.exceptions import CalledProcessError, StopEventSetException
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profiler_base import ProfilerBase
+from gprofiler.types import ProcessToStackSampleCounters
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     get_process_nspid,
@@ -237,14 +238,10 @@ class JavaProfiler(ProfilerBase):
     SKIP_VERSION_CHECK_BINARIES = ["jsvc"]
 
     def __init__(self, frequency: int, duration: int, stop_event: Event, storage_dir: str):
-        super().__init__()
-        logger.info(f"Initializing Java profiler (frequency: {frequency}hz, duration: {duration}s)")
+        super().__init__(frequency, duration, stop_event, storage_dir)
 
         # async-profiler accepts interval between samples (nanoseconds)
         self._interval = int((1 / frequency) * 1000_000_000)
-        self._duration = duration
-        self._stop_event = stop_event
-        self._storage_dir = storage_dir
 
     def _is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -341,13 +338,13 @@ class JavaProfiler(ProfilerBase):
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
             return parse_one_collapsed(output)
 
-    def snapshot(self) -> Mapping[int, Mapping[str, int]]:
+    def snapshot(self) -> ProcessToStackSampleCounters:
         processes = list(pgrep_exe(r"^.+/(java|jsvc)$"))
         if not processes:
             return {}
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:
-            futures = {}
+            futures: Dict[concurrent.futures.Future, int] = {}
             for process in processes:
                 futures[executor.submit(self._profile_process, process)] = process.pid
 

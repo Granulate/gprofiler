@@ -468,11 +468,11 @@ def is_running_in_init_pid() -> bool:
         return p.name() == "kthreadd"
 
 
-def limit_frequency(limit: int, requested: int, msg_header: str, runtime_logger: logging.Logger):
-    if requested > limit:
+def limit_frequency(limit: Optional[int], requested: int, msg_header: str, runtime_logger: logging.Logger):
+    if limit is not None and requested > limit:
         runtime_logger.warning(
             f"{msg_header}: Requested frequency ({requested}) is higher than the limit {limit}, "
-            f"limiting frequency to the limit ({limit})"
+            f"limiting the frequency to the limit ({limit})"
         )
         return limit
 
