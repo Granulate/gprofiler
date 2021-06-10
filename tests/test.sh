@@ -5,9 +5,19 @@
 #
 set -e
 
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"  # https://stackoverflow.com/a/246128
+
 if [ -z ${NO_APT_INSTALL+x} ]; then
  sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update
  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io php
+fi
+
+# we'll check 1 file, perf
+PERF_RESOURCE="$SCRIPT_DIR/../gprofiler/resources/perf"
+if [ ! -f "$PERF_RESOURCE" ]; then
+    echo "perf resource not found: $(readlink -f "$PERF_RESOURCE")"
+    echo "Please run $(readlink -f "$SCRIPT_DIR/../scripts/copy_resources_from_image.sh") to get all resources"
+    exit 1
 fi
 
 python3 -m pip install -q --upgrade setuptools pip
