@@ -53,7 +53,7 @@ class PythonProfilerBase(ProfilerBase):
 
 
 class PySpyProfiler(PythonProfilerBase):
-    MAX_FREQUENCY = 10
+    MAX_FREQUENCY = 50
     BLACKLISTED_PYTHON_PROCS = ["unattended-upgrades", "networkd-dispatcher", "supervisord", "tuned"]
 
     def _make_command(self, pid: int, output_path: str):

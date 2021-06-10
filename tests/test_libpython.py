@@ -30,7 +30,6 @@ def test_python_select_by_libpython(
     tmp_path,
     application_docker_container,
     assert_collapsed,
-    gprofiler_docker_image_resources,
 ) -> None:
     """
     Tests that profiling of processes running Python, whose basename(readlink("/proc/pid/exe")) isn't "python".

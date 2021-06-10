@@ -1,9 +1,10 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Mapping
+from typing import Dict, List, Mapping, Optional, Tuple
 
 from docker import DockerClient
+from docker.models.containers import Container
 from docker.models.images import Image
 
 
@@ -12,11 +13,12 @@ def run_privileged_container(
     image: Image,
     command: List[str],
     volumes: Dict[str, Dict[str, str]] = None,
+    auto_remove=True,
     **extra_kwargs,
-):
+) -> Tuple[Optional[Container], str]:
     if volumes is None:
         volumes = {}
-    container = docker_client.containers.run(
+    container_or_logs = docker_client.containers.run(
         image,
         command,
         privileged=True,
@@ -24,11 +26,18 @@ def run_privileged_container(
         pid_mode="host",
         userns_mode="host",
         volumes=volumes,
-        auto_remove=True,
+        auto_remove=auto_remove,
         stderr=True,
         **extra_kwargs,
     )
-    print(f"Container logs {container}")
+    if isinstance(container_or_logs, Container):
+        container, logs = container_or_logs, container_or_logs.logs().decode()
+    else:
+        assert isinstance(container_or_logs, bytes), container_or_logs
+        container, logs = None, container_or_logs.decode()
+
+    print("Container logs:", logs)  # print, so failing tests display it
+    return container, logs
 
 
 def copy_file_from_image(image: Image, container_path: str, host_path: str) -> None:
