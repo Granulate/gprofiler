@@ -14,7 +14,7 @@ from psutil import Process
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profiler_base import ProfilerBase
-from gprofiler.utils import limit_frequency, pgrep_maps, resource_path, run_process
+from gprofiler.utils import limit_frequency, pgrep_maps, random_prefix, resource_path, run_process
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class RbSpyProfiler(ProfilerBase):
     def _profile_process(self, process: Process):
         logger.info(f"Profiling process {process.pid} ({' '.join(process.cmdline())})")
 
-        local_output_path = os.path.join(self._storage_dir, f"{process.pid}.col")
+        local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
         try:
             run_process(self._make_command(process.pid, local_output_path), stop_event=self._stop_event)
         except ProcessStoppedException:
