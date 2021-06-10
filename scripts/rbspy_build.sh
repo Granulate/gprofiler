@@ -5,6 +5,6 @@
 #
 set -euo pipefail
 
-git clone --depth 1 -b granulate/on-cpu https://github.com/Granulate/rbspy.git && git -C rbspy reset --hard a2d305eaccb924df28d386b2331c56ba66d6fe5f
+git clone --depth 1 -b granulate-master https://github.com/Granulate/rbspy.git && git -C rbspy reset --hard b69a3131b8c8581b1c249e7394524845eaa5eca1
 cd rbspy
 cargo build --release --target=x86_64-unknown-linux-musl
