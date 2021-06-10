@@ -47,13 +47,32 @@ The default profiling frequency is *11 hertz*. Using higher frequency will lead 
 
 The default duration is *60 seconds*, and the default interval matches it. So gProfiler runs the profiling sessions back-to-back - the next session starts as soon as the previous session is done.
 
-* `--no-java`, `--no-python`, `--no-php`, `--no-ruby`: Disable the runtime-specific profilers.
+### Java profiling options
+
+* `--no-java`: Disable profilers for Java.
+
+### Python profiling options
+* `--no-python`: Alias of `--python-mode none`.
+* `--python-mode`: Controls which profiler is used for Python.
+    * `auto` - (default) try with PyPerf, fall back to py-spy.
+    * `pyperf` - Use PyPerf with no py-spy fallback.
+    * `pyspy` - Use py-spy.
+    * `none` - Disable profilers for Python.
+
+### PHP profiling options
+* `--no-php`: Disable profilers for PHP.
+* `--php-proc-filter`: Process filter (`pgrep`) to select PHP processes for profiling (this is phpspy's `-P` option)
+
+### Ruby profiling options
+* `--no-ruby`: Disable profilers for Ruby.
+
+### System profiling options
 
 * `--perf-mode`: Controls the global perf strategy. Must be one of the following options:
-  * `fp` - Use Frame Pointers for the call graph
-  * `dwarf` - Use DWARF for the call graph (adds the `--call-graph dwarf` argument to the `perf` command)
-  * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process.
-  * `none` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
+    * `fp` - Use Frame Pointers for the call graph
+    * `dwarf` - Use DWARF for the call graph (adds the `--call-graph dwarf` argument to the `perf` command)
+    * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process.
+    * `none` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
 
 ### Continuous mode
 gProfiler can be run in a continuous mode, profiling periodically, using the `--continuous`/`-c` flag.
