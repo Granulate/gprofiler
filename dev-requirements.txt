@@ -1,5 +1,6 @@
-pytest
-flake8
-black
-mypy
-isort
+pytest==6.2.4
+flake8==3.9.2
+black==21.5b2
+mypy==0.901
+isort==5.8.0
+types-requests==0.1.9
