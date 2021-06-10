@@ -323,8 +323,9 @@ class PythonProfiler(ProfilerInterface):
         if self._ebpf_profiler is not None:
             try:
                 return self._ebpf_profiler.snapshot()
-            except PythonEbpfError:
-                logger.warning("Python eBPF profiler failed")
+            except PythonEbpfError as e:
+                pypspy_msg = ", falling back to py-spy" if self._pyspy_profiler is not None else ""
+                logger.warning(f"Python eBPF profiler failed (exit code: {e.returncode}){pypspy_msg}")
                 self._ebpf_profiler = None
                 return {}  # empty this round
         elif self._pyspy_profiler is not None:
