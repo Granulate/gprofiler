@@ -9,9 +9,11 @@ import fcntl
 import logging
 import os
 import platform
+import random
 import re
 import shutil
 import socket
+import string
 import subprocess
 import sys
 import time
@@ -237,6 +239,15 @@ def touch_path(path: str, mode: int) -> None:
     Path(path).touch()
     # chmod() afterwards (can't use 'mode' in touch(), because it's affected by umask)
     os.chmod(path, mode)
+
+
+def remove_path(path: str, missing_ok: bool = False) -> None:
+    # backporting missing_ok, available only from 3.8
+    try:
+        Path(path).unlink()
+    except FileNotFoundError:
+        if not missing_ok:
+            raise
 
 
 def is_same_ns(pid: int, nstype: str) -> bool:
@@ -471,3 +482,7 @@ def limit_frequency(limit: int, requested: int, msg_header: str, runtime_logger:
 def get_hostname() -> str:
     assert hostname is not None, "hostname not initialized!"
     return hostname
+
+
+def random_prefix():
+    ''.join(random.choice(string.ascii_letters) for _ in range(16))

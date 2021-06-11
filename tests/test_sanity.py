@@ -14,6 +14,7 @@ from gprofiler.java import JavaProfiler
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.php import PHPSpyProfiler
 from gprofiler.python import PySpyProfiler, PythonEbpfProfiler
+from gprofiler.ruby import RbSpyProfiler
 from tests import PHPSPY_DURATION
 from tests.utils import assert_function_in_collapsed, run_privileged_container
 
@@ -23,9 +24,8 @@ def test_java_from_host(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: Callable[[Optional[Mapping[str, int]]], None],
-    gprofiler_docker_image_resources,
 ) -> None:
-    with JavaProfiler(1000, 1, True, Event(), str(tmp_path)) as profiler:
+    with JavaProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
         assert_collapsed(process_collapsed.get(application_pid))
 
@@ -35,7 +35,6 @@ def test_pyspy(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: Callable[[Optional[Mapping[str, int]]], None],
-    gprofiler_docker_image_resources,
 ) -> None:
     with PySpyProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
@@ -47,17 +46,26 @@ def test_phpspy(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: Callable[[Optional[Mapping[str, int]]], None],
-    gprofiler_docker_image_resources: Image,
 ) -> None:
     with PHPSpyProfiler(1000, PHPSPY_DURATION, Event(), str(tmp_path), php_process_filter="php") as profiler:
         process_collapsed = profiler.snapshot()
         assert_collapsed(process_collapsed.get(application_pid))
 
 
+@pytest.mark.parametrize("runtime", ["ruby"])
+def test_rbspy(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed: Callable[[Optional[Mapping[str, int]]], None],
+    gprofiler_docker_image: Image,
+) -> None:
+    with RbSpyProfiler(1000, 3, Event(), str(tmp_path)) as profiler:
+        process_collapsed = profiler.snapshot()
+        assert_collapsed(process_collapsed.get(application_pid))
+
+
 @pytest.mark.parametrize("runtime", ["python"])
-def test_python_ebpf(
-    tmp_path, application_pid, assert_collapsed, gprofiler_docker_image, gprofiler_docker_image_resources
-):
+def test_python_ebpf(tmp_path, application_pid, assert_collapsed, gprofiler_docker_image):
     with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
         collapsed = process_collapsed.get(application_pid)

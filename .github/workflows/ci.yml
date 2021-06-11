@@ -30,6 +30,7 @@ jobs:
 
   test:
     strategy:
+      fail-fast: false  # helps detecting flakiness / errors specific to one Python version
       matrix:
         python-version: [3.6, 3.7, 3.8.8, 3.9.2]
 
@@ -51,13 +52,13 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v2
 
-    - name: Build
-      run: ./scripts/build.sh
-
       # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
       # more nicely. the tests will then be able to use the built image.
     - name: Build gProfiler image
       run: DOCKER_BUILDKIT=1 docker build -t gprofiler .
+
+    - name: Copy resources from gProfiler image
+      run: ./scripts/copy_resources_from_image.sh gprofiler
 
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests

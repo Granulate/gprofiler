@@ -15,7 +15,7 @@ from gprofiler.merge import parse_one_collapsed
 from tests.utils import run_privileged_container
 
 
-@pytest.mark.parametrize("runtime", ["java", "python", "php"])
+@pytest.mark.parametrize("runtime", ["java", "python", "php", "ruby"])
 def test_from_executable(
     gprofiler_exe: Path,
     application_pid: int,

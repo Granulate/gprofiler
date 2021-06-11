@@ -28,6 +28,7 @@ from gprofiler.perf import SystemProfiler
 from gprofiler.php import PHPSpyProfiler
 from gprofiler.profiler_base import NoopProfiler
 from gprofiler.python import get_python_profiler
+from gprofiler.ruby import RbSpyProfiler
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     TemporaryDirectoryWithMode,
@@ -113,7 +114,7 @@ class GProfiler:
         self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
         self.java_profiler = create_profiler_or_noop(
             self._runtimes,
-            lambda: JavaProfiler(self._frequency, self._duration, True, self._stop_event, self._temp_storage_dir.name),
+            lambda: JavaProfiler(self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name),
             "java",
         )
         self.system_profiler = create_profiler_or_noop(
@@ -135,6 +136,11 @@ class GProfiler:
                 self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name, php_process_filter
             ),
             "php",
+        )
+        self.ruby_profiler = create_profiler_or_noop(
+            self._runtimes,
+            lambda: RbSpyProfiler(self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name),
+            "ruby",
         )
         self._docker_client = DockerClient()
         self._include_container_names = include_container_names
@@ -227,6 +233,7 @@ class GProfiler:
             self.java_profiler,
             self.system_profiler,
             self.php_profiler,
+            self.ruby_profiler,
         ):
             prof.start()
 
@@ -239,6 +246,7 @@ class GProfiler:
             self.java_profiler,
             self.system_profiler,
             self.php_profiler,
+            self.ruby_profiler,
         ):
             prof.stop()
 
@@ -252,11 +260,13 @@ class GProfiler:
         python_future.name = "python"
         php_future = self._executor.submit(self.php_profiler.snapshot)
         php_future.name = "php"
+        ruby_future = self._executor.submit(self.ruby_profiler.snapshot)
+        ruby_future.name = "ruby"
         system_future = self._executor.submit(self.system_profiler.snapshot)
         system_future.name = "system"
 
         process_perfs: ProcessToStackSampleCounters = {}
-        for future in concurrent.futures.as_completed([java_future, python_future, php_future]):
+        for future in concurrent.futures.as_completed([java_future, python_future, php_future, ruby_future]):
             # if either of these fail - log it, and continue.
             try:
                 process_perfs.update(future.result())
@@ -276,7 +286,7 @@ class GProfiler:
                 self._include_container_names,
             )
         else:
-            assert system_result == {}  # should be empty!
+            assert system_result == {}, system_result  # should be empty!
             merged_result, total_samples = merge.concatenate_perfs(
                 process_perfs, self._docker_client, self._include_container_names
             )
@@ -405,6 +415,13 @@ def parse_cmd_args():
         dest="php_process_filter",
         default=PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
         help="Process filter for php processes (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--no-ruby",
+        dest="ruby",
+        action="store_false",
+        default=True,
+        help="Do not invoke runtime-specific profilers for Ruby processes",
     )
 
     parser.add_argument(
@@ -583,7 +600,13 @@ def main():
             logger.error(f"Failed to connect to server: {e}")
             return
 
-        runtimes = {"system": args.perf_mode != "none", "java": args.java, "python": args.python, "php": args.php}
+        runtimes = {
+            "system": args.perf_mode != "none",
+            "java": args.java,
+            "python": args.python,
+            "php": args.php,
+            "ruby": args.ruby,
+        }
         gprofiler = GProfiler(
             args.frequency,
             args.duration,

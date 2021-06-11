@@ -47,7 +47,7 @@ The default profiling frequency is *11 hertz*. Using higher frequency will lead 
 
 The default duration is *60 seconds*, and the default interval matches it. So gProfiler runs the profiling sessions back-to-back - the next session starts as soon as the previous session is done.
 
-* `--no-java`, `--no-python`: Disable the runtime-specific profilers of Java and/or Python, accordingly.
+* `--no-java`, `--no-python`, `--no-php`, `--no-ruby`: Disable the runtime-specific profilers.
 
 * `--perf-mode`: Controls the global perf strategy. Must be one of the following options:
   * `fp` - Use Frame Pointers for the call graph
@@ -105,7 +105,7 @@ gProfiler requires Python 3.6+ to run.
 
 ```bash
 pip3 install -r requirements.txt
-./scripts/build.sh
+./scripts/copy_resources_from_image.sh
 ```
 
 Then, run the following **as root**:
@@ -123,6 +123,8 @@ Alongside `perf`, gProfiler invokes runtime-specific profilers for processes bas
   * If eBPF is not available for whatever reason, py-spy is used.
 * PHP (Zend Engine), versions 7.0-8.0.
   * Uses [Granulate's fork](https://github.com/Granulate/phpspy/) of the phpspy project.
+* Ruby versions (versions 1.9.1 to 3.0.1)
+  * Uses [Granulate's fork](https://github.com/Granulate/rbspy) of the [rbspy](https://github.com/rbspy/rbspy) profiler.
 
 The runtime-specific profilers produce stack traces that include runtime information (i.e, stacks of Java/Python functions), unlike `perf` which produces native stacks of the JVM / CPython interpreter.
 The runtime stacks are then merged into the data collected by `perf`, substituting the *native* stacks `perf` has collected for those processes.
@@ -143,6 +145,7 @@ We recommend going through our [contribution guide](https://github.com/granulate
 * [py-spy](https://github.com/benfred/py-spy) by [Ben Frederickson](https://github.com/benfred). See [our fork](https://github.com/Granulate/py-spy).
 * [bcc](https://github.com/iovisor/bcc) (for PyPerf) by the IO Visor project. See [our fork](https://github.com/Granulate/bcc).
 * [phpspy](https://github.com/adsr/phpspy) by [Adam Saponara](https://github.com/adsr). See [our fork](https://github.com/Granulate/phpspy).
+* [rbspy](https://github.com/rbspy/rbspy) by the rbspy project. See [our fork](https://github.com/Granulate/rbspy)
 
 # Footnotes
 

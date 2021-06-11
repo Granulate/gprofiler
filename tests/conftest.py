@@ -4,10 +4,10 @@
 #
 import os
 import stat
+import subprocess
 from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
-from subprocess import Popen, TimeoutExpired, run
 from time import sleep
 from typing import Callable, Iterable, List, Mapping, Optional
 
@@ -17,9 +17,8 @@ from docker.models.containers import Container
 from docker.models.images import Image
 from pytest import fixture  # type: ignore
 
-import gprofiler
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
-from tests.utils import assert_function_in_collapsed, chmod_path_parts, copy_file_from_image
+from tests.utils import assert_function_in_collapsed, chmod_path_parts
 
 
 @fixture
@@ -50,7 +49,7 @@ def java_command_line(class_path: Path) -> List:
     # make all directories readable & executable by all.
     # Java fails with permissions errors: "Error: Could not find or load main class Fibonacci"
     chmod_path_parts(class_path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
-    run(["javac", CONTAINERS_DIRECTORY / "java/Fibonacci.java", "-d", class_path])
+    subprocess.run(["javac", CONTAINERS_DIRECTORY / "java/Fibonacci.java", "-d", class_path])
     return ["java", "-cp", class_path, "Fibonacci"]
 
 
@@ -62,6 +61,7 @@ def command_line(tmp_path: Path, runtime: str) -> List:
         # "CMD /path/to/lister.py", to test processes with non-python /proc/pid/comm
         "python": ["python3", CONTAINERS_DIRECTORY / "python/lister.py"],
         "php": ["php", CONTAINERS_DIRECTORY / "php/fibonacci.php"],
+        "ruby": ["ruby", CONTAINERS_DIRECTORY / "ruby/fibonacci.rb"],
     }[runtime]
 
 
@@ -72,12 +72,12 @@ def gprofiler_exe(request, tmp_path: Path) -> Path:
         return Path(precompiled)
 
     with chdir(PARENT):
-        pyi_popen = Popen(
+        pyi_popen = subprocess.Popen(
             ["pyinstaller", "--distpath", str(tmp_path), "pyinstaller.spec"],
         )
         pyi_popen.wait()
 
-    staticx_popen = Popen(["staticx", tmp_path / "gprofiler", tmp_path / "gprofiler"])
+    staticx_popen = subprocess.Popen(["staticx", tmp_path / "gprofiler", tmp_path / "gprofiler"])
     staticx_popen.wait()
     return tmp_path / "gprofiler"
 
@@ -93,17 +93,20 @@ def application_process(in_container: bool, command_line: List):
             os.setgid(1000)
             os.setuid(1000)
 
-        popen = Popen(command_line, preexec_fn=lower_privs)
+        popen = subprocess.Popen(command_line, preexec_fn=lower_privs, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             # wait 2 seconds to ensure it starts
             popen.wait(2)
-        except TimeoutExpired:
+        except subprocess.TimeoutExpired:
             pass
         else:
             raise Exception(f"Command {command_line} exited unexpectedly with {popen.returncode}")
 
         yield popen
         popen.kill()
+        stdout, stderr = popen.communicate()
+        print(f"stdout: {stdout.decode()}")
+        print(f"stderr: {stderr.decode()}")
 
 
 @fixture(scope="session")
@@ -116,18 +119,6 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
     # access the prebuilt image.
     # this is built in the CI, in the "Build gProfiler image" step.
     yield docker_client.images.get("gprofiler")
-
-
-@fixture(scope="session")
-def gprofiler_docker_image_resources(gprofiler_docker_image: Image):
-    """
-    Copy all resources from the built image.
-    """
-    copy_file_from_image(
-        gprofiler_docker_image,
-        os.path.join("/app", "gprofiler", "resources"),
-        os.path.join(os.path.dirname(gprofiler.__file__)),
-    )
 
 
 @fixture(scope="session")
@@ -169,7 +160,7 @@ def output_directory(tmp_path: Path) -> Path:
 
 
 @fixture
-def application_pid(in_container: bool, application_process: Popen, application_docker_container: Container):
+def application_pid(in_container: bool, application_process: subprocess.Popen, application_docker_container: Container):
     return application_docker_container.attrs["State"]["Pid"] if in_container else application_process.pid
 
 
@@ -187,6 +178,7 @@ def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int]], None]:
         "java": "Fibonacci.main",
         "python": "burner",
         "php": "fibonacci",
+        "ruby": "fibonacci",
     }[runtime]
 
     return partial(assert_function_in_collapsed, function_name)
