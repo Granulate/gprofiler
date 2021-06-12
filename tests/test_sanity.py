@@ -89,7 +89,7 @@ def test_from_container(
         "/lib/modules": {"bind": "/lib/modules", "mode": "ro"},
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
     }
-    args = ["-v", "-d", "1", "-o", inner_output_directory] + runtime_specific_args
+    args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args
     run_gprofiler_in_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
 
     collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
