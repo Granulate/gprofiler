@@ -181,9 +181,13 @@ def pgrep_maps(match: str) -> List[Process]:
         suppress_log=True,
         check=False,
     )
-    # might get 2 (which 'grep' exits with, if some files were unavailable, because processes have exited)
+    # 0 - found
+    # 1 - not found
+    # 2 - error (which we might get for a missing /proc/pid/maps file of a process which just exited)
+    # so this ensures grep wasn't killed by a signal
     assert result.returncode in (
         0,
+        1,
         2,
     ), f"unexpected 'grep' exit code: {result.returncode}, stdout {result.stdout!r} stderr {result.stderr!r}"
 
