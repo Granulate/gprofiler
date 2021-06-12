@@ -83,8 +83,8 @@ def test_java_async_profiler_stopped(
         assert expected_message in application_process.stdout.read1(4096)  # type: ignore
 
     # then start again, with 1 second
-    assert args[1] == "1000"
-    args[1] = "1"
+    assert args[2] == "1000"
+    args[2] = "1"
     _, logs = run_gprofiler_in_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
 
     assert "Found async-profiler already started" in logs
