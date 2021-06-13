@@ -15,7 +15,7 @@ from docker.models.images import Image
 
 from gprofiler.java import AsyncProfiledProcess
 from gprofiler.merge import parse_one_collapsed
-from tests.utils import run_privileged_container
+from tests.utils import run_gprofiler_in_container
 
 
 # adds the "status" command to AsyncProfiledProcess from gProfiler.
@@ -47,11 +47,11 @@ def test_java_async_profiler_stopped(
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
     }
     # run Java only (just so initialization is faster w/o Python/PHP) for 1000 seconds
-    args = ["-d", "1000", "-o", inner_output_directory, "--no-php", "--no-python"] + runtime_specific_args
+    args = ["-v", "-d", "1000", "-o", inner_output_directory, "--no-php", "--no-python"] + runtime_specific_args
 
     container = None
     try:
-        container, logs = run_privileged_container(
+        container, logs = run_gprofiler_in_container(
             docker_client, gprofiler_docker_image, args, volumes=volumes, auto_remove=False, detach=True
         )
         assert container is not None, "got None container?"
@@ -83,9 +83,9 @@ def test_java_async_profiler_stopped(
         assert expected_message in application_process.stdout.read1(4096)  # type: ignore
 
     # then start again, with 1 second
-    assert args[1] == "1000"
-    args[1] = "1"
-    _, logs = run_privileged_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
+    assert args[2] == "1000"
+    args[2] = "1"
+    _, logs = run_gprofiler_in_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
 
     assert "Found async-profiler already started" in logs
 

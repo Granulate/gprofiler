@@ -16,7 +16,7 @@ from gprofiler.php import PHPSpyProfiler
 from gprofiler.python import PySpyProfiler, PythonEbpfProfiler
 from gprofiler.ruby import RbSpyProfiler
 from tests import PHPSPY_DURATION
-from tests.utils import assert_function_in_collapsed, run_privileged_container
+from tests.utils import assert_function_in_collapsed, run_gprofiler_in_container
 
 
 @pytest.mark.parametrize("runtime", ["java"])
@@ -89,8 +89,8 @@ def test_from_container(
         "/lib/modules": {"bind": "/lib/modules", "mode": "ro"},
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
     }
-    args = ["-d", "1", "-o", inner_output_directory] + runtime_specific_args
-    run_privileged_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
+    args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args
+    run_gprofiler_in_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
 
     collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
     assert_collapsed(collapsed)
