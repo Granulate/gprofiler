@@ -61,7 +61,8 @@ FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681
 WORKDIR /app
 
 # kmod - for modprobe kheaders if it's available
-RUN apt-get update && apt-get install -y curl python3-pip kmod
+# binutils - for phpspy (uses objdump)
+RUN apt-get update && apt-get install --no-install-recommends -y curl python3-pip kmod binutils
 
 COPY --from=bcc-builder /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
 # copy licenses and notice file.
@@ -70,6 +71,7 @@ COPY --from=bcc-builder /bcc/bcc/licenses gprofiler/resources/python/pyperf/lice
 COPY --from=bcc-builder /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 
 COPY --from=pyspy-builder /py-spy/target/x86_64-unknown-linux-musl/release/py-spy gprofiler/resources/python/py-spy
+
 COPY --from=perf-builder /perf gprofiler/resources/perf
 
 COPY --from=phpspy-builder /phpspy/phpspy gprofiler/resources/php/phpspy
@@ -85,12 +87,9 @@ COPY --from=rbspy-builder /rbspy/target/x86_64-unknown-linux-musl/release/rbspy 
 COPY scripts/build.sh scripts/build.sh
 RUN ./scripts/build.sh
 
-COPY requirements.txt requirements.txt
-RUN pip3 install --no-cache-dir -r requirements.txt
-
-COPY LICENSE.md MANIFEST.in README.md setup.py ./
+COPY LICENSE.md MANIFEST.in README.md setup.py requirements.txt ./
 COPY gprofiler gprofiler
-RUN python3 setup.py install
+RUN pip3 install --no-cache-dir -e .
 
 # lets gProfiler know it is running in a container
 ENV GPROFILER_IN_CONTAINER=1
