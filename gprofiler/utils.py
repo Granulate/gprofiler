@@ -168,7 +168,12 @@ def run_process(
 
 def pgrep_exe(match: str) -> Iterator[Process]:
     pattern = re.compile(match)
-    return (process for process in psutil.process_iter() if pattern.match(process.exe()))
+    for process in psutil.process_iter():
+        try:
+            if pattern.match(process.exe()):
+                yield process
+        except psutil.NoSuchProcess:  # process might have died meanwhile
+            continue
 
 
 def pgrep_maps(match: str) -> List[Process]:
