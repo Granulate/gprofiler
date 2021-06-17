@@ -215,7 +215,7 @@ def merge_perfs(
                 new_samples[f"{container_name};{stack}"] += count
 
     for pid, perf_all_count in per_process_samples.items():
-        process_stacks = process_perfs[pid]
+        process_stacks = process_perfs.pop(pid)
         process_perf_count = sum(process_stacks.values())
         if process_perf_count > 0:
             ratio = perf_all_count / process_perf_count
@@ -223,6 +223,11 @@ def merge_perfs(
                 container_name = _get_container_name(pid, docker_client, should_determine_container_names)
                 full_stack = ";".join([container_name, pid_to_comm[pid], stack])
                 new_samples[full_stack] += round(count * ratio)
+
+    if process_perfs:
+        pids = ', '.join(str(x) for x in process_perfs)
+        logger.warning(f"Unaccounted samples for runtime pids {pids}!")
+
     container_names = docker_client.container_names
     docker_client.reset_cache()
     profile_metadata = {
