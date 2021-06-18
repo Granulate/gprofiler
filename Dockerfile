@@ -87,7 +87,12 @@ COPY --from=rbspy-builder /rbspy/target/x86_64-unknown-linux-musl/release/rbspy 
 COPY scripts/build.sh scripts/build.sh
 RUN ./scripts/build.sh
 
-COPY LICENSE.md MANIFEST.in README.md setup.py requirements.txt ./
+# done separately from the 'pip3 install -e' below; so we don't reinstall all dependencies on each
+# code change.
+COPY requirements.txt ./
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+COPY LICENSE.md MANIFEST.in README.md setup.py  ./
 COPY gprofiler gprofiler
 RUN pip3 install --no-cache-dir -e .
 
