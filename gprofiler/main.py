@@ -275,7 +275,12 @@ class GProfiler:
 
         local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
 
-        system_result = system_future.result()
+        try:
+            system_result = system_future.result()
+        except Exception:
+            logger.error("Running perf failed; consider running gProfiler with '--perf-mode none' to avoid using perf")
+            raise
+
         if self._runtimes["system"]:
             merged_result, total_samples = merge.merge_perfs(
                 system_result,
