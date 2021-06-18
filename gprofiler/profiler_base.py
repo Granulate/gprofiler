@@ -3,18 +3,25 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
-from typing import Mapping
+import logging
+from threading import Event
+from typing import Optional
+
+from gprofiler.types import ProcessToStackSampleCounters
+from gprofiler.utils import limit_frequency
+
+logger = logging.getLogger(__name__)
 
 
-class ProfilerBase:
+class ProfilerInterface:
     """
-    Base profiler class for all profilers.
+    Interface class for all profilers
     """
 
     def start(self) -> None:
         pass
 
-    def snapshot(self) -> Mapping[int, Mapping[str, int]]:
+    def snapshot(self) -> ProcessToStackSampleCounters:
         """
         :returns: Mapping from pid to stacks and their counts.
         """
@@ -31,10 +38,40 @@ class ProfilerBase:
         self.stop()
 
 
-class NoopProfiler(ProfilerBase):
+class ProfilerBase(ProfilerInterface):
+    """
+    Base profiler class for all profilers.
+    """
+
+    MAX_FREQUENCY: Optional[int] = None
+    MIN_DURATION: Optional[int] = None
+
+    def __init__(
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Optional[Event],
+        storage_dir: str,
+    ):
+        self._frequency = limit_frequency(self.MAX_FREQUENCY, frequency, self.__class__.__name__, logger)
+        if self.MIN_DURATION is not None and duration < self.MIN_DURATION:
+            raise ValueError(
+                f"Minimum duration for {self.__class__.__name__} is {self.MIN_DURATION} (given {duration}), "
+                "raise the duration in order to use this profiler"
+            )
+        self._duration = duration
+        self._stop_event = stop_event or Event()
+        self._storage_dir = storage_dir
+
+        logger.info(
+            f"Initialized {self.__class__.__name__} (frequency: {self._frequency}hz, duration: {self._duration}s)"
+        )
+
+
+class NoopProfiler(ProfilerInterface):
     """
     No-op profiler - used as a drop-in replacement for runtime profilers, when they are disabled.
     """
 
-    def snapshot(self) -> Mapping[int, Mapping[str, int]]:
+    def snapshot(self) -> ProcessToStackSampleCounters:
         return {}

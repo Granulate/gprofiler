@@ -6,15 +6,15 @@ import concurrent.futures
 import logging
 import os
 from pathlib import Path
-from threading import Event
-from typing import List, Mapping, Optional
+from typing import List
 
 from psutil import Process
 
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profiler_base import ProfilerBase
-from gprofiler.utils import limit_frequency, pgrep_maps, random_prefix, resource_path, run_process
+from gprofiler.types import ProcessToStackSampleCounters
+from gprofiler.utils import pgrep_maps, random_prefix, resource_path, run_process
 
 logger = logging.getLogger(__name__)
 
@@ -26,15 +26,6 @@ def _find_ruby_processes() -> List[Process]:
 class RbSpyProfiler(ProfilerBase):
     RESOURCE_PATH = "ruby/rbspy"
     MAX_FREQUENCY = 100
-
-    def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str):
-        super().__init__()
-        assert isinstance(self.MAX_FREQUENCY, int)
-        self._frequency = limit_frequency(self.MAX_FREQUENCY, frequency, self.__class__.__name__, logger)
-        self._duration = duration
-        self._stop_event = stop_event or Event()
-        self._storage_dir = storage_dir
-        logger.info(f"Initializing Ruby profiler (frequency: {self._frequency}hz, duration: {self._duration}s)")
 
     def _make_command(self, pid: int, output_path: str):
         return [
@@ -67,7 +58,7 @@ class RbSpyProfiler(ProfilerBase):
         logger.info(f"Finished profiling process {process.pid} with rbspy")
         return parse_one_collapsed(Path(local_output_path).read_text())
 
-    def snapshot(self) -> Mapping[int, Mapping[str, int]]:
+    def snapshot(self) -> ProcessToStackSampleCounters:
         processes_to_profile = _find_ruby_processes()
         if not processes_to_profile:
             return {}

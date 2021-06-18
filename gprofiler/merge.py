@@ -11,10 +11,9 @@ from collections import Counter, defaultdict
 from typing import Dict, Iterable, Mapping, MutableMapping, Optional, Tuple
 
 from gprofiler.docker_client import DockerClient
+from gprofiler.types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.utils import get_hostname
 
-StackToSampleCount = Counter
-ProcessToStackSampleCounters = MutableMapping[int, StackToSampleCount]
 ProcessIdToCommMapping = Dict[int, str]
 
 logger = logging.getLogger(__name__)

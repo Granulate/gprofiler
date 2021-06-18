@@ -24,7 +24,7 @@ class SystemProfiler:
     def __init__(
         self, frequency: int, duration: int, stop_event: Event, storage_dir: str, perf_mode: str, dwarf_stack_size
     ):
-        logger.info(f"Initializing system profiler (frequency: {frequency}hz, duration: {duration}s)")
+        logger.info(f"Initializing {self.__class__.__name__} (frequency: {frequency}hz, duration: {duration}s)")
         self._frequency = frequency
         self._duration = duration
         self._stop_event = stop_event
