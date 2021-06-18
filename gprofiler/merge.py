@@ -8,13 +8,11 @@ import math
 import random
 import re
 from collections import Counter, defaultdict
-from typing import Dict, Iterable, Mapping, MutableMapping, Optional, Tuple
+from typing import Iterable, Mapping, MutableMapping, Optional, Tuple
 
 from gprofiler.docker_client import DockerClient
 from gprofiler.types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.utils import get_hostname
-
-ProcessIdToCommMapping = Dict[int, str]
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +28,11 @@ SAMPLE_REGEX = re.compile(
 FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \((.*)\)$")
 
 
-def parse_one_collapsed(collapsed: str) -> Mapping[str, int]:
+def parse_one_collapsed(collapsed: str, add_comm: Optional[str] = None) -> Mapping[str, int]:
     """
-    Parse a stack-collapsed listing where all stacks are from the same process.
+    Parse a stack-collapsed listing.
+
+    If 'add_comm' is not None, add it as the first frame for each stack.
     """
     stacks: StackToSampleCount = Counter()
     for line in collapsed.splitlines():
@@ -42,7 +42,10 @@ def parse_one_collapsed(collapsed: str) -> Mapping[str, int]:
             continue
         try:
             stack, _, count = line.rpartition(" ")
-            stacks[stack] += int(count)
+            if add_comm is not None:
+                stacks[f"{add_comm};{stack}"] += int(count)
+            else:
+                stacks[stack] += int(count)
         except Exception:
             logger.exception(f'bad stack - line="{line}"')
     return dict(stacks)
@@ -59,10 +62,10 @@ def parse_many_collapsed(text: str) -> ProcessToStackSampleCounters:
     for line in text.splitlines():
         try:
             stack, count = line.rsplit(" ", maxsplit=1)
-            head, tail = stack.split(";", maxsplit=1)
-            _, pid_tid = head.rsplit("-", maxsplit=1)
+            comm_pid_tid, stack = stack.split(";", maxsplit=1)
+            comm, pid_tid = comm_pid_tid.rsplit("-", maxsplit=1)
             pid = int(pid_tid.split("/")[0])
-            results[pid][tail] += int(count)
+            results[pid][f"{comm};{stack}"] += int(count)
         except ValueError:
             bad_lines.append(line)
 
@@ -91,18 +94,14 @@ def _collapse_stack(comm: str, stack: str) -> str:
     return ";".join(funcs)
 
 
-def merge_global_perfs(
-    raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str]
-) -> Tuple[ProcessToStackSampleCounters, ProcessIdToCommMapping]:
-    fp_perf, fp_pid_to_comm = _parse_perf_script(raw_fp_perf)
-    dwarf_perf, dwarf_pid_to_comm = _parse_perf_script(raw_dwarf_perf)
-    dwarf_pid_to_comm.update(fp_pid_to_comm)
-    merged_pid_to_comm = dwarf_pid_to_comm
+def merge_global_perfs(raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str]) -> ProcessToStackSampleCounters:
+    fp_perf = _parse_perf_script(raw_fp_perf)
+    dwarf_perf = _parse_perf_script(raw_dwarf_perf)
 
     if raw_fp_perf is None:
-        return dwarf_perf, merged_pid_to_comm
+        return dwarf_perf
     elif raw_dwarf_perf is None:
-        return fp_perf, merged_pid_to_comm
+        return fp_perf
 
     total_fp_samples = sum([sum(stacks.values()) for stacks in fp_perf.values()])
     total_dwarf_samples = sum([sum(stacks.values()) for stacks in dwarf_perf.values()])
@@ -118,7 +117,7 @@ def merge_global_perfs(
         f"Total FP samples: {total_fp_samples}; Total DWARF samples: {total_dwarf_samples}; "
         f"FP to DWARF ratio: {fp_to_dwarf_sample_ratio}; Total merged samples: {total_merged_samples}"
     )
-    return merged_pid_to_stacks_counters, merged_pid_to_comm
+    return merged_pid_to_stacks_counters
 
 
 def add_highest_avg_depth_stacks_per_process(
@@ -170,11 +169,12 @@ def _get_average_frame_count(stacks: Iterable[str]) -> float:
     return sum(frame_count_per_samples) / len(frame_count_per_samples)
 
 
-def _parse_perf_script(script: Optional[str]) -> Tuple[ProcessToStackSampleCounters, ProcessIdToCommMapping]:
+def _parse_perf_script(script: Optional[str]) -> ProcessToStackSampleCounters:
     pid_to_collapsed_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
-    pid_to_comm: ProcessIdToCommMapping = {}
+
     if script is None:
-        return pid_to_collapsed_stacks_counters, pid_to_comm
+        return pid_to_collapsed_stacks_counters
+
     for sample in script.split("\n\n"):
         try:
             if sample.strip() == "":
@@ -191,10 +191,9 @@ def _parse_perf_script(script: Optional[str]) -> Tuple[ProcessToStackSampleCount
             stack = sample_dict["stack"]
             if stack is not None:
                 pid_to_collapsed_stacks_counters[pid][_collapse_stack(comm, stack)] += 1
-            pid_to_comm.setdefault(pid, comm)
         except Exception:
             logger.exception(f"Error processing sample: {sample}")
-    return pid_to_collapsed_stacks_counters, pid_to_comm
+    return pid_to_collapsed_stacks_counters
 
 
 def _concatenate_stacks_and_metadata(
@@ -222,7 +221,6 @@ def _concatenate_stacks_and_metadata(
 
 def merge_perfs(
     system_perf_pid_to_stacks_counter: ProcessToStackSampleCounters,
-    pid_to_comm: ProcessIdToCommMapping,
     process_perfs: ProcessToStackSampleCounters,
     docker_client: DockerClient,
     container_names_enabled: bool,
@@ -244,7 +242,7 @@ def merge_perfs(
             ratio = perf_all_count / process_perf_count
             for stack, count in process_stacks.items():
                 container_name = _get_container_name(pid, docker_client, container_names_enabled)
-                full_stack = ";".join([container_name, pid_to_comm[pid], stack])
+                full_stack = ";".join([container_name, stack])
                 new_samples[full_stack] += round(count * ratio)
     return _concatenate_stacks_and_metadata((new_samples,), docker_client, container_names_enabled)
 

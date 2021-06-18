@@ -277,10 +277,8 @@ class GProfiler:
 
         system_result = system_future.result()
         if self._runtimes["system"]:
-            system_perf_pid_to_stacks_counter, pid_to_name = system_future.result()
             merged_result, total_samples = merge.merge_perfs(
-                system_perf_pid_to_stacks_counter,
-                pid_to_name,
+                system_result,
                 process_perfs,
                 self._docker_client,
                 self._include_container_names,

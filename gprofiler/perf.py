@@ -11,7 +11,7 @@ from typing import Optional, Tuple
 
 import psutil
 
-from gprofiler.merge import ProcessIdToCommMapping, ProcessToStackSampleCounters, merge_global_perfs
+from gprofiler.merge import ProcessToStackSampleCounters, merge_global_perfs
 from gprofiler.utils import TEMPORARY_STORAGE_PATH, resource_path, run_process
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ class SystemProfiler:
             )
             return perf_script_result.stdout.decode('utf8')
 
-    def snapshot(self) -> Tuple[ProcessToStackSampleCounters, ProcessIdToCommMapping]:
+    def snapshot(self) -> ProcessToStackSampleCounters:
         free_disk = psutil.disk_usage(self._storage_dir).free
         if free_disk < 4 * 1024 * 1024:
             raise Exception(f"Free disk space: {free_disk}kb. Skipping perf!")
@@ -73,7 +73,7 @@ class SystemProfiler:
         logger.info("Finished running global perf")
         return perf_result
 
-    def _get_global_perf_result(self) -> Tuple[ProcessToStackSampleCounters, ProcessIdToCommMapping]:
+    def _get_global_perf_result(self) -> ProcessToStackSampleCounters:
         fp_perf: Optional[str] = None
         dwarf_perf: Optional[str] = None
         if not self._fp_perf:
