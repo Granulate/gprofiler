@@ -81,6 +81,7 @@ def test_from_container(
     gprofiler_docker_image: Image,
     output_directory: Path,
     assert_collapsed: Callable[[Mapping[str, int]], None],
+    runtime: str,
 ) -> None:
     _ = application_pid  # Fixture only used for running the application.
     inner_output_directory = "/tmp/gprofiler"
@@ -94,3 +95,4 @@ def test_from_container(
 
     collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
     assert_collapsed(collapsed)
+    assert all(stack.startswith(runtime) for stack in collapsed.keys())
