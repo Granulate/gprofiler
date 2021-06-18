@@ -129,7 +129,7 @@ class GProfiler:
             ),
             "system",
         )
-        self.initialize_python_profiler()
+        self._initialize_python_profiler()
         self.php_profiler = create_profiler_or_noop(
             self._runtimes,
             lambda: PHPSpyProfiler(
@@ -152,7 +152,7 @@ class GProfiler:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
 
-    def initialize_python_profiler(self) -> None:
+    def _initialize_python_profiler(self) -> None:
         self.python_profiler = create_profiler_or_noop(
             self._runtimes,
             lambda: get_python_profiler(
@@ -160,7 +160,7 @@ class GProfiler:
                 self._duration,
                 self._stop_event,
                 self._temp_storage_dir.name,
-                self.initialize_python_profiler,
+                self._initialize_python_profiler,
             ),
             "python",
         )
