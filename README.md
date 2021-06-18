@@ -91,7 +91,6 @@ sudo TMPDIR=/proc/self/cwd ./gprofiler -cu --token <token> --service-name <servi
 
 #### Executable known issues
 The following platforms are currently not supported with the gProfiler executable:
-+ Ubuntu 14.04
 + Alpine
 
 **Remark:** container-based execution works and can be used in those cases.
