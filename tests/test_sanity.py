@@ -73,7 +73,7 @@ def test_python_ebpf(tmp_path, application_pid, assert_collapsed, gprofiler_dock
         assert_function_in_collapsed("sys_getdents64", collapsed)  # ensure kernels stacks exist
 
 
-@pytest.mark.parametrize("runtime", ["java", "python", "php"])
+@pytest.mark.parametrize("runtime", ["java", "python", "php", "ruby"])
 def test_from_container(
     docker_client: DockerClient,
     application_pid: int,
