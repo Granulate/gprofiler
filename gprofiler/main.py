@@ -142,8 +142,10 @@ class GProfiler:
             lambda: RbSpyProfiler(self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name),
             "ruby",
         )
-        self._docker_client = DockerClient()
-        self._include_container_names = include_container_names
+        if include_container_names:
+            self._docker_client: Optional[DockerClient] = DockerClient()
+        else:
+            self._docker_client = None
 
     def __enter__(self):
         self.start()
@@ -265,11 +267,11 @@ class GProfiler:
         system_future = self._executor.submit(self.system_profiler.snapshot)
         system_future.name = "system"
 
-        process_perfs: ProcessToStackSampleCounters = {}
+        process_profiles: ProcessToStackSampleCounters = {}
         for future in concurrent.futures.as_completed([java_future, python_future, php_future, ruby_future]):
             # if either of these fail - log it, and continue.
             try:
-                process_perfs.update(future.result())
+                process_profiles.update(future.result())
             except Exception:
                 logger.exception(f"{future.name} profiling failed")
 
@@ -282,16 +284,16 @@ class GProfiler:
             raise
 
         if self._runtimes["system"]:
-            merged_result, total_samples = merge.merge_perfs(
+            merged_result, total_samples = merge.merge_profiles(
                 system_result,
-                process_perfs,
+                process_profiles,
                 self._docker_client,
-                self._include_container_names,
             )
         else:
             assert system_result == {}, system_result  # should be empty!
-            merged_result, total_samples = merge.concatenate_perfs(
-                process_perfs, self._docker_client, self._include_container_names
+            merged_result, total_samples = merge.concatenate_profiles(
+                process_profiles,
+                self._docker_client,
             )
 
         if self._output_dir:
