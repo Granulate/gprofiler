@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Tuple
 import requests
 from requests import Session
 
+from gprofiler import __version__
 from gprofiler.utils import get_iso8601_format_time
 
 logger = logging.getLogger(__name__)
@@ -132,5 +133,5 @@ class APIClient:
             },
             timeout=self._upload_timeout,
             api_version="v2",
-            params={"samples": str(total_samples)},
+            params={"samples": str(total_samples), "version": __version__},
         )
