@@ -54,10 +54,12 @@ The default duration is *60 seconds*, and the default interval matches it. So gP
 ### Python profiling options
 * `--no-python`: Alias of `--python-mode none`.
 * `--python-mode`: Controls which profiler is used for Python.
-    * `auto` - (default) try with PyPerf, fall back to py-spy.
+    * `auto` - (default) try with PyPerf (eBPF), fall back to py-spy.
     * `pyperf` - Use PyPerf with no py-spy fallback.
     * `pyspy` - Use py-spy.
     * `none` - Disable profilers for Python.
+
+Profiling using eBPF incurs lower overhead & provides kernel stacks. This (currently) requires kernel headers to be installed.
 
 ### PHP profiling options
 * `--no-php`: Disable profilers for PHP.
@@ -137,7 +139,7 @@ Alongside `perf`, gProfiler invokes runtime-specific profilers for processes bas
 * Java runtimes (version 7+) based on the HotSpot JVM, including the Oracle JDK and other builds of OpenJDK like AdoptOpenJDK and Azul Zulu.
   * Uses async-profiler.
 * The CPython interpreter, versions 2.7 and 3.5-3.9.
-  * eBPF profiling (based on PyPerf) requires Linux 4.14 or higher. Profiling using eBPF incurs lower overhead. This requires kernel headers to be installed.
+  * eBPF profiling (based on PyPerf) requires Linux 4.14 or higher; see [Python profiling options](#python-profiling-options) for more info.
   * If eBPF is not available for whatever reason, py-spy is used.
 * PHP (Zend Engine), versions 7.0-8.0.
   * Uses [Granulate's fork](https://github.com/Granulate/phpspy/) of the phpspy project.
