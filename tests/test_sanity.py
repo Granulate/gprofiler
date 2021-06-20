@@ -27,7 +27,7 @@ def test_java_from_host(
 ) -> None:
     with JavaProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
-        assert_collapsed(process_collapsed, True)
+        assert_collapsed(process_collapsed, check_comm=True)
 
 
 @pytest.mark.parametrize("runtime", ["python"])
@@ -39,7 +39,7 @@ def test_pyspy(
 ) -> None:
     with PySpyProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
-        assert_collapsed(process_collapsed, True)
+        assert_collapsed(process_collapsed, check_comm=True)
 
 
 @pytest.mark.parametrize("runtime", ["php"])
@@ -51,7 +51,7 @@ def test_phpspy(
 ) -> None:
     with PHPSpyProfiler(1000, PHPSPY_DURATION, Event(), str(tmp_path), php_process_filter="php") as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
-        assert_collapsed(process_collapsed, True)
+        assert_collapsed(process_collapsed, check_comm=True)
 
 
 @pytest.mark.parametrize("runtime", ["ruby"])
@@ -64,7 +64,7 @@ def test_rbspy(
 ) -> None:
     with RbSpyProfiler(1000, 3, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
-        assert_collapsed(process_collapsed, True)
+        assert_collapsed(process_collapsed, check_comm=True)
 
 
 @pytest.mark.parametrize("runtime", ["python"])
@@ -78,7 +78,7 @@ def test_python_ebpf(
     with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path)) as profiler:
         collapsed = profiler.snapshot()
         process_collapsed = collapsed.get(application_pid)
-        assert_collapsed(process_collapsed, True)
+        assert_collapsed(process_collapsed, check_comm=True)
         assert_function_in_collapsed(
             "do_syscall_64_[k]", "python", process_collapsed, True
         )  # ensure kernels stacks exist
