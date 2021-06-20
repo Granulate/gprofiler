@@ -417,20 +417,23 @@ def parse_cmd_args():
         help="Do not invoke runtime-specific profilers for Python processes (legacy option for '--python-mode none')",
     )
 
-    parser.add_argument(
+    php_options = parser.add_argument_group("PHP")
+    php_options.add_argument(
         "--no-php",
         dest="php",
         action="store_false",
         default=True,
         help="Do not invoke runtime-specific profilers for PHP processes",
     )
-    parser.add_argument(
+    php_options.add_argument(
         "--php-proc-filter",
         dest="php_process_filter",
         default=PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
         help="Process filter for php processes (default: %(default)s)",
     )
-    parser.add_argument(
+
+    ruby_options = parser.add_argument_group("Ruby")
+    ruby_options.add_argument(
         "--no-ruby",
         dest="ruby",
         action="store_false",
@@ -438,7 +441,8 @@ def parse_cmd_args():
         help="Do not invoke runtime-specific profilers for Ruby processes",
     )
 
-    parser.add_argument(
+    perf_options = parser.add_argument_group("perf")
+    perf_options.add_argument(
         "--perf-mode",
         dest="perf_mode",
         default="fp",
@@ -447,7 +451,7 @@ def parse_cmd_args():
         "by choosing the best result per process. If 'none' is chosen, do not invoke 'perf' at all. The "
         "output, in that case, is the concatenation of the results from all of the runtime profilers.",
     )
-    parser.add_argument(
+    perf_options.add_argument(
         "--perf-dwarf-stack-size",
         dest="dwarf_stack_size",
         default=8192,
