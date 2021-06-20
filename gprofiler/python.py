@@ -117,7 +117,7 @@ class PySpyProfiler(ProfilerBase):
 
 
 class PythonEbpfError(CalledProcessError):
-    """ "
+    """
     An error encountered while running PyPerf.
     """
 
