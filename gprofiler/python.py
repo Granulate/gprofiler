@@ -290,7 +290,6 @@ class PythonProfiler(ProfilerInterface):
         storage_dir: str,
         python_mode: str,
     ):
-        # not calling my c'tor - we're just a proxy class
         assert python_mode in ("auto", "pyperf", "pyspy"), f"unexpected mode: {python_mode}"
         if python_mode in ("auto", "pyperf"):
             self._ebpf_profiler = self._create_ebpf_profiler(frequency, duration, stop_event, storage_dir)
