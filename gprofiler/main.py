@@ -70,7 +70,11 @@ def sigint_handler(sig, frame):
         raise KeyboardInterrupt
 
 
-def create_profiler_or_noop(profiler_constructor_callback: Callable, runtime_name: str):
+def create_profiler_or_noop(runtimes: Dict[str, bool], profiler_constructor_callback: Callable, runtime_name: str):
+    # disabled?
+    if not runtimes[runtime_name]:
+        return NoopProfiler()
+
     try:
         return profiler_constructor_callback()
     except Exception:
@@ -108,38 +112,40 @@ class GProfiler:
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
         self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
-        self.java_profiler = (
-            create_profiler_or_noop(
-                lambda: JavaProfiler(self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name),
-                "java",
-            )
-            if self._runtimes["java"]
-            else NoopProfiler()
+        self.java_profiler = create_profiler_or_noop(
+            self._runtimes,
+            lambda: JavaProfiler(self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name),
+            "java",
         )
-        self.system_profiler = SystemProfiler(
-            self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name, perf_mode, dwarf_stack_size
+        self.system_profiler = create_profiler_or_noop(
+            self._runtimes,
+            lambda: SystemProfiler(
+                self._frequency,
+                self._duration,
+                self._stop_event,
+                self._temp_storage_dir.name,
+                perf_mode,
+                dwarf_stack_size,
+            ),
+            "system",
         )
-        self.initialize_python_profiler()
-        self.php_profiler = (
-            create_profiler_or_noop(
-                lambda: PHPSpyProfiler(
-                    self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name, php_process_filter
-                ),
-                "php",
-            )
-            if self._runtimes["php"]
-            else NoopProfiler()
+        self._initialize_python_profiler()
+        self.php_profiler = create_profiler_or_noop(
+            self._runtimes,
+            lambda: PHPSpyProfiler(
+                self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name, php_process_filter
+            ),
+            "php",
         )
-        self.ruby_profiler = (
-            create_profiler_or_noop(
-                lambda: RbSpyProfiler(self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name),
-                "ruby",
-            )
-            if self._runtimes["ruby"]
-            else NoopProfiler()
+        self.ruby_profiler = create_profiler_or_noop(
+            self._runtimes,
+            lambda: RbSpyProfiler(self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name),
+            "ruby",
         )
-        self._docker_client = DockerClient()
-        self._include_container_names = include_container_names
+        if include_container_names:
+            self._docker_client: Optional[DockerClient] = DockerClient()
+        else:
+            self._docker_client = None
 
     def __enter__(self):
         self.start()
@@ -148,20 +154,17 @@ class GProfiler:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
 
-    def initialize_python_profiler(self) -> None:
-        self.python_profiler = (
-            create_profiler_or_noop(
-                lambda: get_python_profiler(
-                    self._frequency,
-                    self._duration,
-                    self._stop_event,
-                    self._temp_storage_dir.name,
-                    self.initialize_python_profiler,
-                ),
-                "python",
-            )
-            if self._runtimes["python"]
-            else NoopProfiler()
+    def _initialize_python_profiler(self) -> None:
+        self.python_profiler = create_profiler_or_noop(
+            self._runtimes,
+            lambda: get_python_profiler(
+                self._frequency,
+                self._duration,
+                self._stop_event,
+                self._temp_storage_dir.name,
+                self._initialize_python_profiler,
+            ),
+            "python",
         )
 
     def _update_last_output(self, last_output_name: str, output_path: str) -> None:
@@ -264,23 +267,34 @@ class GProfiler:
         system_future = self._executor.submit(self.system_profiler.snapshot)
         system_future.name = "system"
 
-        process_perfs: ProcessToStackSampleCounters = {}
+        process_profiles: ProcessToStackSampleCounters = {}
         for future in concurrent.futures.as_completed([java_future, python_future, php_future, ruby_future]):
             # if either of these fail - log it, and continue.
             try:
-                process_perfs.update(future.result())
+                process_profiles.update(future.result())
             except Exception:
                 logger.exception(f"{future.name} profiling failed")
 
         local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
-        system_perf_pid_to_stacks_counter, pid_to_name = system_future.result()
-        merged_result, total_samples = merge.merge_perfs(
-            system_perf_pid_to_stacks_counter,
-            pid_to_name,
-            process_perfs,
-            self._docker_client,
-            self._include_container_names,
-        )
+
+        try:
+            system_result = system_future.result()
+        except Exception:
+            logger.error("Running perf failed; consider running gProfiler with '--perf-mode none' to avoid using perf")
+            raise
+
+        if self._runtimes["system"]:
+            merged_result, total_samples = merge.merge_profiles(
+                system_result,
+                process_profiles,
+                self._docker_client,
+            )
+        else:
+            assert system_result == {}, system_result  # should be empty!
+            merged_result, total_samples = merge.concatenate_profiles(
+                process_profiles,
+                self._docker_client,
+            )
 
         if self._output_dir:
             self._generate_output_files(merged_result, local_start_time, local_end_time)
@@ -385,6 +399,7 @@ def parse_cmd_args():
         default=True,
         help="Do not invoke runtime-specific profilers for Java processes",
     )
+
     parser.add_argument(
         "--no-python",
         dest="python",
@@ -392,6 +407,7 @@ def parse_cmd_args():
         default=True,
         help="Do not invoke runtime-specific profilers for Python processes",
     )
+
     parser.add_argument(
         "--no-php",
         dest="php",
@@ -417,11 +433,11 @@ def parse_cmd_args():
         "--perf-mode",
         dest="perf_mode",
         default="fp",
-        choices=["fp", "dwarf", "smart"],
+        choices=["fp", "dwarf", "smart", "none"],
         help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge them "
-        "by choosing the best result per process",
+        "by choosing the best result per process. If 'none' is chosen, do not invoke 'perf' at all. The "
+        "output, in that case, is the concatenation of the results from all of the runtime profilers.",
     )
-
     parser.add_argument(
         "--perf-dwarf-stack-size",
         dest="dwarf_stack_size",
@@ -589,7 +605,13 @@ def main():
             logger.error(f"Failed to connect to server: {e}")
             return
 
-        runtimes = {"java": args.java, "python": args.python, "php": args.php, "ruby": args.ruby}
+        runtimes = {
+            "system": args.perf_mode != "none",
+            "java": args.java,
+            "python": args.python,
+            "php": args.php,
+            "ruby": args.ruby,
+        }
         gprofiler = GProfiler(
             args.frequency,
             args.duration,

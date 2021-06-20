@@ -315,6 +315,8 @@ class JavaProfiler(ProfilerBase):
                     f"async-profiler is still running in {ap_proc.process.pid}, even after trying to stop it!"
                 )
 
+        comm = ap_proc.process.name()
+
         self._stop_event.wait(self._duration)
 
         if ap_proc.process.is_running():
@@ -336,7 +338,7 @@ class JavaProfiler(ProfilerBase):
             return None
         else:
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
-            return parse_one_collapsed(output)
+            return parse_one_collapsed(output, comm)
 
     def snapshot(self) -> ProcessToStackSampleCounters:
         processes = list(pgrep_exe(r"^.+/(java|jsvc)$"))

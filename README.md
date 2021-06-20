@@ -53,7 +53,7 @@ The default duration is *60 seconds*, and the default interval matches it. So gP
   * `fp` - Use Frame Pointers for the call graph
   * `dwarf` - Use DWARF for the call graph (adds the `--call-graph dwarf` argument to the `perf` command)
   * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process.
-  
+  * `none` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
 
 ### Continuous mode
 gProfiler can be run in a continuous mode, profiling periodically, using the `--continuous`/`-c` flag.
@@ -91,7 +91,6 @@ sudo TMPDIR=/proc/self/cwd ./gprofiler -cu --token <token> --service-name <servi
 
 #### Executable known issues
 The following platforms are currently not supported with the gProfiler executable:
-+ Ubuntu 14.04
 + Alpine
 
 **Remark:** container-based execution works and can be used in those cases.
@@ -128,6 +127,12 @@ Alongside `perf`, gProfiler invokes runtime-specific profilers for processes bas
 
 The runtime-specific profilers produce stack traces that include runtime information (i.e, stacks of Java/Python functions), unlike `perf` which produces native stacks of the JVM / CPython interpreter.
 The runtime stacks are then merged into the data collected by `perf`, substituting the *native* stacks `perf` has collected for those processes.
+
+## perf-less mode
+
+It is possible to run gProfiler without using `perf` - this is useful where `perf` can't be used, for whatever reason (e.g permissions). This mode is enabled by `--perf-mode none`.
+
+In this mode, gProfiler uses runtime-specific profilers only, and their results are concatenated (instead of scaled into the results collected by `perf`). This means that, although the results from different profilers are viewed on the same graph, they are not necessarily of the same scale: so you can compare the samples count of Java to Java, but not Java to Python.
 
 # Contribute
 We welcome all feedback and suggestion through Github Issues:

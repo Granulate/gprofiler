@@ -59,6 +59,7 @@ class PySpyProfiler(ProfilerBase):
 
     def _profile_process(self, process: Process):
         logger.info(f"Profiling process {process.pid} ({process.cmdline()})")
+        comm = process.name()
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
         try:
@@ -67,7 +68,7 @@ class PySpyProfiler(ProfilerBase):
             raise StopEventSetException
 
         logger.info(f"Finished profiling process {process.pid} with py-spy")
-        return parse_one_collapsed(Path(local_output_path).read_text())
+        return parse_one_collapsed(Path(local_output_path).read_text(), comm)
 
     def _find_python_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
