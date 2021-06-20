@@ -76,6 +76,11 @@ Profiling using eBPF incurs lower overhead & provides kernel stacks. This (curre
     * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process.
     * `none` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
 
+## Other options
+### Sending logs to server
+**By default, gProfiler sends logs to Granulate Performance Studio** (when using `--upload-results`/`-u` flag)
+This behavior can be disabled by passing `--dont-send-logs` or the setting environment variable `DONT_SEND_LOGS=1`.
+
 ### Continuous mode
 gProfiler can be run in a continuous mode, profiling periodically, using the `--continuous`/`-c` flag.
 Note that when using `--continuous` with `--output-dir`, a new file will be created during *each* sampling interval.
