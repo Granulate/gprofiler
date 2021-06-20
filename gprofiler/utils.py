@@ -207,7 +207,10 @@ def pgrep_maps(match: str) -> List[Process]:
     for line in result.stdout.splitlines():
         assert line.startswith(b"/proc/") and line.endswith(b"/maps"), f"unexpected 'grep' line: {line!r}"
         pid = int(line[len(b"/proc/") : -len(b"/maps")])
-        processes.append(Process(pid))
+        try:
+            processes.append(Process(pid))
+        except psutil.NoSuchProcess:
+            continue  # process might have died meanwhile
 
     return processes
 
