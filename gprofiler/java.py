@@ -5,7 +5,6 @@
 import concurrent.futures
 import errno
 import functools
-import logging
 import os
 import shutil
 from pathlib import Path
@@ -16,6 +15,7 @@ import psutil
 from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError, StopEventSetException
+from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profiler_base import ProfilerBase
 from gprofiler.types import ProcessToStackSampleCounters
@@ -32,7 +32,7 @@ from gprofiler.utils import (
     touch_path,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger_adapter(__name__)
 
 
 class JattachException(CalledProcessError):

@@ -4,7 +4,6 @@
 #
 import concurrent.futures
 import glob
-import logging
 import os
 import signal
 from pathlib import Path
@@ -15,6 +14,7 @@ from typing import List, Optional
 from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
+from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_many_collapsed, parse_one_collapsed
 from gprofiler.profiler_base import ProfilerBase, ProfilerInterface
 from gprofiler.types import ProcessToStackSampleCounters
@@ -28,7 +28,7 @@ from gprofiler.utils import (
     wait_event,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger_adapter(__name__)
 
 
 class PySpyProfiler(ProfilerBase):
@@ -56,7 +56,7 @@ class PySpyProfiler(ProfilerBase):
         ]
 
     def _profile_process(self, process: Process):
-        logger.info(f"Profiling process {process.pid} ({process.cmdline()})")
+        logger.info(f"Profiling process {process.pid} ({process.cmdline()})", no_server_log=True)
         comm = process.name()
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")

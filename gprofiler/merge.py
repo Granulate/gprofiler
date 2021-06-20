@@ -3,7 +3,6 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import json
-import logging
 import math
 import random
 import re
@@ -11,10 +10,11 @@ from collections import Counter, defaultdict
 from typing import Iterable, Optional, Tuple
 
 from gprofiler.docker_client import DockerClient
+from gprofiler.log import get_logger_adapter
 from gprofiler.types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.utils import get_hostname
 
-logger = logging.getLogger(__name__)
+logger = get_logger_adapter(__name__)
 
 SAMPLE_REGEX = re.compile(
     r"\s*(?P<comm>.+?)\s+(?P<pid>[\d-]+)/(?P<tid>[\d-]+)(?:\s+\[(?P<cpu>\d+)])?\s+(?P<time>\d+\.\d+):\s+"
