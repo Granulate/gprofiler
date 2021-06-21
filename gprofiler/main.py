@@ -27,7 +27,7 @@ from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.perf import SystemProfiler
 from gprofiler.php import PHPSpyProfiler
 from gprofiler.profiler_base import NoopProfiler
-from gprofiler.python import get_python_profiler
+from gprofiler.python import PythonProfiler
 from gprofiler.ruby import RbSpyProfiler
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
@@ -92,6 +92,7 @@ class GProfiler:
         rotating_output: bool,
         perf_mode: str,
         dwarf_stack_size: int,
+        python_mode: str,
         runtimes: Dict[str, bool],
         client: APIClient,
         include_container_names=True,
@@ -129,7 +130,17 @@ class GProfiler:
             ),
             "system",
         )
-        self._initialize_python_profiler()
+        self.python_profiler = create_profiler_or_noop(
+            self._runtimes,
+            lambda: PythonProfiler(
+                self._frequency,
+                self._duration,
+                self._stop_event,
+                self._temp_storage_dir.name,
+                python_mode,
+            ),
+            "python",
+        )
         self.php_profiler = create_profiler_or_noop(
             self._runtimes,
             lambda: PHPSpyProfiler(
@@ -153,19 +164,6 @@ class GProfiler:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
-
-    def _initialize_python_profiler(self) -> None:
-        self.python_profiler = create_profiler_or_noop(
-            self._runtimes,
-            lambda: get_python_profiler(
-                self._frequency,
-                self._duration,
-                self._stop_event,
-                self._temp_storage_dir.name,
-                self._initialize_python_profiler,
-            ),
-            "python",
-        )
 
     def _update_last_output(self, last_output_name: str, output_path: str) -> None:
         last_output = os.path.join(self._output_dir, last_output_name)
@@ -392,15 +390,8 @@ def parse_cmd_args():
         "--rotating-output", action="store_true", default=False, help="Keep only the last profile result"
     )
 
-    parser.add_argument(
-        "--disable-pidns-check",
-        action="store_false",
-        default=True,
-        dest="pid_ns_check",
-        help="Disable host PID NS check on startup",
-    )
-
-    parser.add_argument(
+    java_options = parser.add_argument_group("Java")
+    java_options.add_argument(
         "--no-java",
         dest="java",
         action="store_false",
@@ -408,28 +399,41 @@ def parse_cmd_args():
         help="Do not invoke runtime-specific profilers for Java processes",
     )
 
-    parser.add_argument(
+    python_options = parser.add_argument_group("Python")
+    python_options.add_argument(
+        "--python-mode",
+        dest="python_mode",
+        default="auto",
+        choices=["auto", "pyspy", "pyperf", "none"],
+        help="Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), pyspy (always use"
+        " py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails) or none (no runtime profilers"
+        " for Python).",
+    )
+    python_options.add_argument(
         "--no-python",
-        dest="python",
-        action="store_false",
-        default=True,
-        help="Do not invoke runtime-specific profilers for Python processes",
+        dest="python_mode",
+        action="store_const",
+        const="none",
+        help="Do not invoke runtime-specific profilers for Python processes (legacy option for '--python-mode none')",
     )
 
-    parser.add_argument(
+    php_options = parser.add_argument_group("PHP")
+    php_options.add_argument(
         "--no-php",
         dest="php",
         action="store_false",
         default=True,
         help="Do not invoke runtime-specific profilers for PHP processes",
     )
-    parser.add_argument(
+    php_options.add_argument(
         "--php-proc-filter",
         dest="php_process_filter",
         default=PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
         help="Process filter for php processes (default: %(default)s)",
     )
-    parser.add_argument(
+
+    ruby_options = parser.add_argument_group("Ruby")
+    ruby_options.add_argument(
         "--no-ruby",
         dest="ruby",
         action="store_false",
@@ -437,7 +441,8 @@ def parse_cmd_args():
         help="Do not invoke runtime-specific profilers for Ruby processes",
     )
 
-    parser.add_argument(
+    perf_options = parser.add_argument_group("perf")
+    perf_options.add_argument(
         "--perf-mode",
         dest="perf_mode",
         default="fp",
@@ -446,7 +451,7 @@ def parse_cmd_args():
         "by choosing the best result per process. If 'none' is chosen, do not invoke 'perf' at all. The "
         "output, in that case, is the concatenation of the results from all of the runtime profilers.",
     )
-    parser.add_argument(
+    perf_options.add_argument(
         "--perf-dwarf-stack-size",
         dest="dwarf_stack_size",
         default=8192,
@@ -507,6 +512,14 @@ def parse_cmd_args():
         default=DEFAULT_CONTINUOUS_MODE_INTERVAL,
         help="Time between each profiling sessions in seconds (default: %(default)s). Note: this is the time between"
         " session starts, not between the end of one session to the beginning of the next one.",
+    )
+
+    parser.add_argument(
+        "--disable-pidns-check",
+        action="store_false",
+        default=True,
+        dest="pid_ns_check",
+        help="Disable host PID NS check on startup",
     )
 
     args = parser.parse_args()
@@ -617,7 +630,7 @@ def main():
         runtimes = {
             "system": args.perf_mode != "none",
             "java": args.java,
-            "python": args.python,
+            "python": args.python_mode != "none",
             "php": args.php,
             "ruby": args.ruby,
         }
@@ -629,6 +642,7 @@ def main():
             args.rotating_output,
             args.perf_mode,
             args.dwarf_stack_size,
+            args.python_mode,
             runtimes,
             client,
             not args.disable_container_names,

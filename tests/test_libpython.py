@@ -8,7 +8,7 @@ import pytest  # type: ignore
 from docker import DockerClient
 from docker.models.images import Image
 
-from gprofiler.python import get_python_profiler
+from gprofiler.python import PythonProfiler
 from tests import CONTAINERS_DIRECTORY
 
 
@@ -36,7 +36,7 @@ def test_python_select_by_libpython(
     (for example, uwsgi). We expect to select these because they have "libpython" in their "/proc/pid/maps".
     This test runs a Python named "shmython".
     """
-    with get_python_profiler(1000, 1, Event(), str(tmp_path)) as profiler:
+    with PythonProfiler(1000, 1, Event(), str(tmp_path), "pyspy") as profiler:
         process_collapsed = profiler.snapshot()
     collapsed = process_collapsed.get(application_docker_container.attrs["State"]["Pid"])
     assert_collapsed(collapsed)
