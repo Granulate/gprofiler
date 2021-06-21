@@ -47,13 +47,34 @@ The default profiling frequency is *11 hertz*. Using higher frequency will lead 
 
 The default duration is *60 seconds*, and the default interval matches it. So gProfiler runs the profiling sessions back-to-back - the next session starts as soon as the previous session is done.
 
-* `--no-java`, `--no-python`, `--no-php`, `--no-ruby`: Disable the runtime-specific profilers.
+### Java profiling options
+
+* `--no-java`: Disable profilers for Java.
+
+### Python profiling options
+* `--no-python`: Alias of `--python-mode none`.
+* `--python-mode`: Controls which profiler is used for Python.
+    * `auto` - (default) try with PyPerf (eBPF), fall back to py-spy.
+    * `pyperf` - Use PyPerf with no py-spy fallback.
+    * `pyspy` - Use py-spy.
+    * `none` - Disable profilers for Python.
+
+Profiling using eBPF incurs lower overhead & provides kernel stacks. This (currently) requires kernel headers to be installed.
+
+### PHP profiling options
+* `--no-php`: Disable profilers for PHP.
+* `--php-proc-filter`: Process filter (`pgrep`) to select PHP processes for profiling (this is phpspy's `-P` option)
+
+### Ruby profiling options
+* `--no-ruby`: Disable profilers for Ruby.
+
+### System profiling options
 
 * `--perf-mode`: Controls the global perf strategy. Must be one of the following options:
-  * `fp` - Use Frame Pointers for the call graph
-  * `dwarf` - Use DWARF for the call graph (adds the `--call-graph dwarf` argument to the `perf` command)
-  * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process.
-  * `none` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
+    * `fp` - Use Frame Pointers for the call graph
+    * `dwarf` - Use DWARF for the call graph (adds the `--call-graph dwarf` argument to the `perf` command)
+    * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process.
+    * `none` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
 
 ### Continuous mode
 gProfiler can be run in a continuous mode, profiling periodically, using the `--continuous`/`-c` flag.
@@ -118,7 +139,7 @@ Alongside `perf`, gProfiler invokes runtime-specific profilers for processes bas
 * Java runtimes (version 7+) based on the HotSpot JVM, including the Oracle JDK and other builds of OpenJDK like AdoptOpenJDK and Azul Zulu.
   * Uses async-profiler.
 * The CPython interpreter, versions 2.7 and 3.5-3.9.
-  * eBPF profiling (based on PyPerf) requires Linux 4.14 or higher. Profiling using eBPF incurs lower overhead. This requires kernel headers to be installed.
+  * eBPF profiling (based on PyPerf) requires Linux 4.14 or higher; see [Python profiling options](#python-profiling-options) for more info.
   * If eBPF is not available for whatever reason, py-spy is used.
 * PHP (Zend Engine), versions 7.0-8.0.
   * Uses [Granulate's fork](https://github.com/Granulate/phpspy/) of the phpspy project.
