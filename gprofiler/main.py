@@ -52,8 +52,7 @@ DEFAULT_LOG_BACKUP_COUNT = 1
 
 DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 11
-# by default - these match
-DEFAULT_CONTINUOUS_MODE_INTERVAL = DEFAULT_PROFILING_DURATION
+
 # 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
 SIGINT_RATELIMIT = 0.5
 
@@ -313,16 +312,13 @@ class GProfiler:
         with self:
             self._snapshot()
 
-    def run_continuous(self, interval):
+    def run_continuous(self):
         with self:
             while not self._stop_event.is_set():
-                start_time = time.monotonic()
                 try:
                     self._snapshot()
                 except Exception:
                     logger.exception("Profiling run failed!")
-                time_spent = time.monotonic() - start_time
-                self._stop_event.wait(max(interval - time_spent, 0))
 
 
 def setup_logger(stream_level: int, log_file_path: str, rotate_max_bytes: int, rotate_backup_count: int):
@@ -504,15 +500,6 @@ def parse_cmd_args():
     continuous_command_parser.add_argument(
         "--continuous", "-c", action="store_true", dest="continuous", help="Run in continuous mode"
     )
-    continuous_command_parser.add_argument(
-        "-i",
-        "--profiling-interval",
-        type=int,
-        dest="continuous_profiling_interval",
-        default=DEFAULT_CONTINUOUS_MODE_INTERVAL,
-        help="Time between each profiling sessions in seconds (default: %(default)s). Note: this is the time between"
-        " session starts, not between the end of one session to the beginning of the next one.",
-    )
 
     parser.add_argument(
         "--disable-pidns-check",
@@ -529,11 +516,6 @@ def parse_cmd_args():
             parser.error("Must provide --token when --upload-results is passed")
         if not args.service_name:
             parser.error("Must provide --service-name when --upload-results is passed")
-
-    if args.continuous and args.duration > args.continuous_profiling_interval:
-        parser.error(
-            "--profiling-duration must be lower or equal to --profiling-interval when profiling in continuous mode"
-        )
 
     if not args.upload_results and not args.output_dir:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
@@ -651,7 +633,7 @@ def main():
         logger.info("gProfiler initialized and ready to start profiling")
 
         if args.continuous:
-            gprofiler.run_continuous(args.continuous_profiling_interval)
+            gprofiler.run_continuous()
         else:
             gprofiler.run_single()
 
