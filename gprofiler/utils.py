@@ -503,5 +503,5 @@ def get_hostname() -> str:
     return hostname
 
 
-def random_prefix():
-    ''.join(random.choice(string.ascii_letters) for _ in range(16))
+def random_prefix() -> str:
+    return ''.join(random.choice(string.ascii_letters) for _ in range(16))
