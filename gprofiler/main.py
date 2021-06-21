@@ -479,6 +479,7 @@ def parse_cmd_args():
 
     parser.add_argument('--version', action='version', version=__version__)
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
+    
 
     logging_options = parser.add_argument_group("logging")
     logging_options.add_argument("--log-file", action="store", type=str, dest="log_file", default=DEFAULT_LOG_FILE)
@@ -513,6 +514,14 @@ def parse_cmd_args():
         help="Time between each profiling sessions in seconds (default: %(default)s). Note: this is the time between"
         " session starts, not between the end of one session to the beginning of the next one.",
     )
+    
+    parser.add_argument(
+        "--disable-pidns-check",
+        action="store_false",
+        default=True,
+        dest="pid_ns_check",
+        help="Disable host PID NS check on startup",
+    )
 
     args = parser.parse_args()
 
@@ -539,15 +548,16 @@ def parse_cmd_args():
     return args
 
 
-def verify_preconditions():
+def verify_preconditions(args):
     if not is_root():
         print("Must run gprofiler as root, please re-run.", file=sys.stderr)
         sys.exit(1)
 
-    if not is_running_in_init_pid():
+    if args.pid_ns_check and not is_running_in_init_pid():
         print(
             "Please run me in the init PID namespace! In Docker, make sure you pass '--pid=host'."
-            " In Kubernetes, add 'hostPID: true' in the Pod spec.",
+            " In Kubernetes, add 'hostPID: true' in the Pod spec.\n"
+            "You can disable this check with --disable-pidns-check.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -570,7 +580,7 @@ def setup_signals() -> None:
 
 def main():
     args = parse_cmd_args()
-    verify_preconditions()
+    verify_preconditions(args)
     setup_logger(
         logging.DEBUG if args.verbose else logging.INFO,
         args.log_file,
