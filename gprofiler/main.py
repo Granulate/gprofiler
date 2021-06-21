@@ -479,7 +479,6 @@ def parse_cmd_args():
 
     parser.add_argument('--version', action='version', version=__version__)
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
-    
 
     logging_options = parser.add_argument_group("logging")
     logging_options.add_argument("--log-file", action="store", type=str, dest="log_file", default=DEFAULT_LOG_FILE)
@@ -514,7 +513,7 @@ def parse_cmd_args():
         help="Time between each profiling sessions in seconds (default: %(default)s). Note: this is the time between"
         " session starts, not between the end of one session to the beginning of the next one.",
     )
-    
+
     parser.add_argument(
         "--disable-pidns-check",
         action="store_false",
