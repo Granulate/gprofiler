@@ -40,6 +40,26 @@ def run_privileged_container(
     return container, logs
 
 
+def _no_errors(logs: str):
+    # example line: [2021-06-12 10:13:57,528] ERROR: gprofiler: ruby profiling failed
+    assert "] ERROR: " not in logs, "found ERRORs in gProfiler logs!"
+
+
+def run_gprofiler_in_container(
+    docker_client: DockerClient, image: Image, command: List[str], **kwargs
+) -> Tuple[Optional[Container], str]:
+    """
+    Wrapper around run_privileged_container() that also verifies there are not ERRORs in gProfiler's output log.
+    """
+    assert "-v" in command, "plesae run with -v!"  # otherwise there are no loglevel prints
+    container, logs = run_privileged_container(docker_client, image, command, **kwargs)
+    if container is not None:
+        _no_errors(container.logs().decode())
+    else:
+        _no_errors(logs)
+    return container, logs
+
+
 def copy_file_from_image(image: Image, container_path: str, host_path: str) -> None:
     os.makedirs(os.path.dirname(host_path), exist_ok=True)
     # I tried writing it with the docker-py API, but retrieving large files with container.get_archive() just hangs...
@@ -60,7 +80,9 @@ def chmod_path_parts(path: Path, add_mode: int) -> None:
         os.chmod(subpath, os.stat(subpath).st_mode | add_mode)
 
 
-def assert_function_in_collapsed(function_name: str, collapsed: Mapping[str, int]) -> None:
+def assert_function_in_collapsed(
+    function_name: str, runtime: str, collapsed: Mapping[str, int], check_comm: bool = False
+) -> None:
     print(f"collapsed: {collapsed}")
     assert any(
         (function_name in record) for record in collapsed.keys()

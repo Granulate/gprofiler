@@ -125,6 +125,9 @@ class PHPSpyProfiler(ProfilerBase):
                 )
 
             parsed_frames.append(f"{match.group('line')}_{cls.PHP_FRAME_ANNOTATION}")
+        # add the "comm" - currently just "php", until we complete https://github.com/Granulate/phpspy/pull/3
+        # to get the real comm.
+        parsed_frames.append("php")
         return ';'.join(reversed(parsed_frames))
 
     @classmethod

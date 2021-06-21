@@ -12,7 +12,7 @@ from docker import DockerClient
 from docker.models.images import Image
 
 from gprofiler.merge import parse_one_collapsed
-from tests.utils import run_privileged_container
+from tests.utils import run_gprofiler_in_container
 
 
 @pytest.mark.parametrize("runtime", ["java", "python", "php", "ruby"])
@@ -38,10 +38,11 @@ def test_from_executable(
 
         command = [
             str(gprofiler_inner_dir / gprofiler_exe),
+            "-v",
             "--output-dir",
             str(inner_output_dir),
         ] + runtime_specific_args
-        run_privileged_container(docker_client, exec_container_image, command=command, volumes=volumes)
+        run_gprofiler_in_container(docker_client, exec_container_image, command=command, volumes=volumes)
     else:
         os.mkdir(output_directory)
         command = ["sudo", str(gprofiler_exe), "--output-dir", str(output_directory), "-d", "5"] + runtime_specific_args

@@ -48,6 +48,7 @@ class RbSpyProfiler(ProfilerBase):
 
     def _profile_process(self, process: Process):
         logger.info(f"Profiling process {process.pid} ({' '.join(process.cmdline())})")
+        comm = process.name()
 
         local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
         try:
@@ -56,7 +57,7 @@ class RbSpyProfiler(ProfilerBase):
             raise StopEventSetException
 
         logger.info(f"Finished profiling process {process.pid} with rbspy")
-        return parse_one_collapsed(Path(local_output_path).read_text())
+        return parse_one_collapsed(Path(local_output_path).read_text(), comm)
 
     def snapshot(self) -> ProcessToStackSampleCounters:
         processes_to_profile = _find_ruby_processes()

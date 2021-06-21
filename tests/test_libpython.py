@@ -34,7 +34,10 @@ def test_python_select_by_libpython(
     """
     Tests that profiling of processes running Python, whose basename(readlink("/proc/pid/exe")) isn't "python".
     (for example, uwsgi). We expect to select these because they have "libpython" in their "/proc/pid/maps".
+    This test runs a Python named "shmython".
     """
     with get_python_profiler(1000, 1, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot()
-    assert_collapsed(process_collapsed.get(application_docker_container.attrs["State"]["Pid"]))
+    collapsed = process_collapsed.get(application_docker_container.attrs["State"]["Pid"])
+    assert_collapsed(collapsed)
+    assert all(stack.startswith("shmython") for stack in collapsed.keys())

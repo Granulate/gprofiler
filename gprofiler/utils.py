@@ -168,7 +168,12 @@ def run_process(
 
 def pgrep_exe(match: str) -> Iterator[Process]:
     pattern = re.compile(match)
-    return (process for process in psutil.process_iter() if pattern.match(process.exe()))
+    for process in psutil.process_iter():
+        try:
+            if pattern.match(process.exe()):
+                yield process
+        except psutil.NoSuchProcess:  # process might have died meanwhile
+            continue
 
 
 def pgrep_maps(match: str) -> List[Process]:
@@ -181,11 +186,22 @@ def pgrep_maps(match: str) -> List[Process]:
         suppress_log=True,
         check=False,
     )
-    # might get 2 (which 'grep' exits with, if some files were unavailable, because processes have exited)
+    # 0 - found
+    # 1 - not found
+    # 2 - error (which we might get for a missing /proc/pid/maps file of a process which just exited)
+    # so this ensures grep wasn't killed by a signal
     assert result.returncode in (
         0,
+        1,
         2,
     ), f"unexpected 'grep' exit code: {result.returncode}, stdout {result.stdout!r} stderr {result.stderr!r}"
+
+    error_lines = []
+    for line in result.stderr.splitlines():
+        if not (line.startswith(b"grep: /proc/") and line.endswith(b"/maps: No such file or directory")):
+            error_lines.append(line)
+    if error_lines:
+        logger.error(f"Unexpected 'grep' error output (first 10 lines): {error_lines[:10]}")
 
     processes: List[Process] = []
     for line in result.stdout.splitlines():
