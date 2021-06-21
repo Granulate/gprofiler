@@ -10,13 +10,13 @@ import signal
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
-from typing import Callable, List, Optional, Union
+from typing import List, Optional
 
 from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
 from gprofiler.merge import parse_many_collapsed, parse_one_collapsed
-from gprofiler.profiler_base import ProfilerBase
+from gprofiler.profiler_base import ProfilerBase, ProfilerInterface
 from gprofiler.types import ProcessToStackSampleCounters
 from gprofiler.utils import (
     pgrep_maps,
@@ -29,8 +29,6 @@ from gprofiler.utils import (
 )
 
 logger = logging.getLogger(__name__)
-
-_reinitialize_profiler: Optional[Callable[[], None]] = None
 
 
 class PySpyProfiler(ProfilerBase):
@@ -118,6 +116,12 @@ class PySpyProfiler(ProfilerBase):
         return results
 
 
+class PythonEbpfError(CalledProcessError):
+    """
+    An error encountered while running PyPerf.
+    """
+
+
 class PythonEbpfProfiler(ProfilerBase):
     MAX_FREQUENCY = 1000
     PYPERF_RESOURCE = "python/pyperf/PyPerf"
@@ -165,7 +169,7 @@ class PythonEbpfProfiler(ProfilerBase):
         stdout = process.stdout.read().decode()
         stderr = process.stderr.read().decode()
         cls._check_missing_headers(stdout)
-        raise CalledProcessError(process.returncode, process.args, stdout, stderr)
+        raise PythonEbpfError(process.returncode, process.args, stdout, stderr)
 
     @classmethod
     def _check_output(cls, process: Popen, output_path: Path):
@@ -245,18 +249,10 @@ class PythonEbpfProfiler(ProfilerBase):
             return output
         except TimeoutError:
             # error flow :(
-            try:
-                if _reinitialize_profiler is not None:
-                    logger.warning("Reverting to py-spy")
-                    global _profiler_class
-                    _profiler_class = PySpyProfiler
-                    _reinitialize_profiler()
-            finally:
-                # in any case, we should stop PyPerf.
-                logger.warning("PyPerf dead/not responding, killing it")
-                process = self.process  # save it
-                self._terminate()
-                self._pyperf_error(process)
+            logger.warning("PyPerf dead/not responding, killing it")
+            process = self.process  # save it
+            self._terminate()
+            self._pyperf_error(process)
 
     def snapshot(self) -> ProcessToStackSampleCounters:
         if self._stop_event.wait(self._duration):
@@ -280,31 +276,66 @@ class PythonEbpfProfiler(ProfilerBase):
             logger.info("Finished profiling Python processes with PyPerf")
 
 
-_profiler_class = None
+class PythonProfiler(ProfilerInterface):
+    """
+    Controls PySpyProfiler & PythonEbpfProfiler as needed, providing a clean interface
+    to GProfiler.
+    """
 
+    def __init__(
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Event,
+        storage_dir: str,
+        python_mode: str,
+    ):
+        assert python_mode in ("auto", "pyperf", "pyspy"), f"unexpected mode: {python_mode}"
+        if python_mode in ("auto", "pyperf"):
+            self._ebpf_profiler = self._create_ebpf_profiler(frequency, duration, stop_event, storage_dir)
+        else:
+            self._ebpf_profiler = None
 
-def determine_profiler_class(storage_dir: str, stop_event: Event):
-    try:
-        PythonEbpfProfiler.test(storage_dir, stop_event)
-        return PythonEbpfProfiler
-    except Exception as e:
-        # Fallback to py-spy
-        logger.debug(f"eBPF profiler error: {str(e)}")
-        logger.info("Python eBPF profiler initialization failed. Falling back to py-spy...")
-        return PySpyProfiler
+        if python_mode in ("auto", "pyspy"):
+            self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(frequency, duration, stop_event, storage_dir)
+        else:
+            self._pyspy_profiler = None
 
+    def _create_ebpf_profiler(
+        self, frequency: int, duration: int, stop_event: Event, storage_dir: str
+    ) -> Optional[PythonEbpfProfiler]:
+        try:
+            PythonEbpfProfiler.test(storage_dir, stop_event)
+            return PythonEbpfProfiler(frequency, duration, stop_event, storage_dir)
+        except Exception as e:
+            logger.debug(f"eBPF profiler error: {str(e)}")
+            logger.info("Python eBPF profiler initialization failed")
+            return None
 
-def get_python_profiler(
-    frequency: int,
-    duration: int,
-    stop_event: Event,
-    storage_dir: str,
-    reinitialize_profiler: Optional[Callable[[], None]] = None,
-) -> Union[PythonEbpfProfiler, PySpyProfiler]:
-    global _reinitialize_profiler
-    _reinitialize_profiler = reinitialize_profiler
+    def start(self) -> None:
+        if self._ebpf_profiler is not None:
+            self._ebpf_profiler.start()
+        elif self._pyspy_profiler is not None:
+            self._pyspy_profiler.start()
 
-    global _profiler_class
-    if _profiler_class is None:
-        _profiler_class = determine_profiler_class(storage_dir, stop_event)
-    return _profiler_class(frequency, duration, stop_event, storage_dir)
+    def snapshot(self) -> ProcessToStackSampleCounters:
+        if self._ebpf_profiler is not None:
+            try:
+                return self._ebpf_profiler.snapshot()
+            except PythonEbpfError as e:
+                pypspy_msg = ", falling back to py-spy" if self._pyspy_profiler is not None else ""
+                logger.warning(f"Python eBPF profiler failed (exit code: {e.returncode}){pypspy_msg}")
+                self._ebpf_profiler = None
+                return {}  # empty this round
+        elif self._pyspy_profiler is not None:
+            return self._pyspy_profiler.snapshot()
+        else:
+            # this can happen python_mode was 'pyperf' and PyPerf has failed.
+            # we won't resort to py-spy in this case.
+            return {}
+
+    def stop(self) -> None:
+        if self._ebpf_profiler is not None:
+            self._ebpf_profiler.stop()
+        elif self._pyspy_profiler is not None:
+            self._pyspy_profiler.stop()
