@@ -8,7 +8,7 @@ To upload results, you will have to register and generate a token on the website
 
 gProfiler runs on Linux.
 
-![Granulate Performance Studio example view](https://github.com/Granulate/gprofiler/blob/master/images/studio.png?raw=true)
+![Granulate Performance Studio example view](https://github.com/Granulate/gprofiler/blob/feature/update-readme-image/images/studio.gif?raw=true)
 
 # Running
 
