@@ -257,10 +257,10 @@ def merge_profiles(
             continue
 
         perf_samples_count = sum(process_perf.values())
-        assert perf_samples_count > 0
-
         profile_samples_count = sum(stacks.values())
-        ratio = profile_samples_count / perf_samples_count
+        assert profile_samples_count > 0
+
+        ratio = perf_samples_count / profile_samples_count
 
         # do the scaling by the ratio of samples: samples we received from the runtime profiler
         # of this process, by the samples we received from perf for this process.
