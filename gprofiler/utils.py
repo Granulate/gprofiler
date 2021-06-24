@@ -351,13 +351,9 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
                 if libc.unshare(flag) != 0:
                     raise ValueError(f"Failed to unshare({nstype})")
 
-                nsfd = -1
-                try:
-                    nsfd = os.open(f"/proc/{target_pid}/ns/{nstype}", os.O_RDONLY)
-                    if libc.setns(nsfd, flag) != 0:
+                with open(f"/proc/{target_pid}/ns/{nstype}", "r") as nsf:
+                    if libc.setns(nsf.fileno(), flag) != 0:
                         raise ValueError(f"Failed to setns({nstype}) (to pid {target_pid})")
-                finally:
-                    os.close(nsfd)
 
         callback()
 
