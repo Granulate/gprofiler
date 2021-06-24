@@ -251,6 +251,10 @@ def merge_profiles(
 ) -> Tuple[str, int]:
     # merge process profiles into the global perf results.
     for pid, stacks in process_profiles.items():
+        if len(stacks) == 0:
+            # no samples collected by the runtime profiler for this process (empty stackcollapse file)
+            continue
+
         process_perf = perf_pid_to_stacks_counter.get(pid)
         if process_perf is None:
             # no samples collected by perf for this process.
