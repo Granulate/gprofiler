@@ -47,7 +47,7 @@ class RbSpyProfiler(ProfilerBase):
         ]
 
     def _profile_process(self, process: Process):
-        logger.info(f"Profiling process {process.pid} ({' '.join(process.cmdline())})")
+        logger.info(f"Profiling process {process.pid}", cmdline=' '.join(process.cmdline()), no_extra_to_server=True)
         comm = process.name()
 
         local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from gprofiler.client import APIClient
 
 NO_SERVER_LOG_KEY = "no_server_log"
+NO_SERVER_EXTRA_KEY = "no_extra_to_server"
 RUN_ID_KEY = "run_id"
 CYCLE_ID_KEY = "cycle_id"
 LOGGER_NAME_RE = re.compile(r"gprofiler(?:\..+)?")
@@ -151,6 +152,8 @@ class RemoteLogsHandler(logging.Handler):
         else:
             exception_traceback = ''
 
+        extra = extra if not extra.pop(NO_SERVER_EXTRA_KEY, False) else {}
+
         return {
             "message": record.message,
             "level": record.levelname,
@@ -176,7 +179,7 @@ class RemoteLogsHandler(logging.Handler):
 
 
 class ExtraFormatter(logging.Formatter):
-    FILTERED_EXTRA_KEYS = [CYCLE_ID_KEY, RUN_ID_KEY, NO_SERVER_LOG_KEY]
+    FILTERED_EXTRA_KEYS = [CYCLE_ID_KEY, RUN_ID_KEY, NO_SERVER_LOG_KEY, NO_SERVER_EXTRA_KEY]
 
     def format(self, record: LogRecord) -> str:
         formatted = super().format(record)

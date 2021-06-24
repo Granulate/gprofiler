@@ -56,7 +56,7 @@ class PySpyProfiler(ProfilerBase):
         ]
 
     def _profile_process(self, process: Process):
-        logger.info(f"Profiling process {process.pid} ({process.cmdline()})", no_server_log=True)
+        logger.info(f"Profiling process {process.pid}", cmdline=process.cmdline(), no_extra_to_server=True)
         comm = process.name()
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
