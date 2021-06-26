@@ -3,7 +3,6 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import concurrent.futures
-import logging
 import os
 from pathlib import Path
 from typing import List
@@ -11,12 +10,13 @@ from typing import List
 from psutil import Process
 
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
+from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profiler_base import ProfilerBase
 from gprofiler.types import ProcessToStackSampleCounters
 from gprofiler.utils import pgrep_maps, random_prefix, resource_path, run_process
 
-logger = logging.getLogger(__name__)
+logger = get_logger_adapter(__name__)
 
 
 def _find_ruby_processes() -> List[Process]:
