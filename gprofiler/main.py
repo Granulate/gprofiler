@@ -498,7 +498,7 @@ def parse_cmd_args():
         "--dont-send-logs",
         action="store_false",
         dest="log_to_server",
-        default=(os.getenv("DONT_SEND_LOGS", None) is None),
+        default=(os.getenv("GPROFILER_DONT_SEND_LOGS", None) is None),
         help="Disable sending logs to server",
     )
 

@@ -79,7 +79,7 @@ Profiling using eBPF incurs lower overhead & provides kernel stacks. This (curre
 ## Other options
 ### Sending logs to server
 **By default, gProfiler sends logs to Granulate Performance Studio** (when using `--upload-results`/`-u` flag)
-This behavior can be disabled by passing `--dont-send-logs` or the setting environment variable `DONT_SEND_LOGS=1`.
+This behavior can be disabled by passing `--dont-send-logs` or the setting environment variable `GPROFILER_DONT_SEND_LOGS=1`.
 
 ### Continuous mode
 gProfiler can be run in a continuous mode, profiling periodically, using the `--continuous`/`-c` flag.
