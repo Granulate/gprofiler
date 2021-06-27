@@ -31,11 +31,12 @@ class PerfProcess:
     _dump_timeout_s = 5
     _poll_timeout_s = 5
 
-    def __init__(self, frequency: int, stop_event: Event, output_path: str, extra_params: List[str]):
+    def __init__(self, frequency: int, stop_event: Event, output_path: str, is_dwarf: bool, extra_args: List[str]):
         self._frequency = frequency
         self._stop_event = stop_event
         self._output_path = output_path
-        self._extra_params = extra_params
+        self._extra_args = extra_args
+        self._type = "dwarf" if is_dwarf else "fp"
         self._process: Optional[psutil.Process] = None
 
     @staticmethod
@@ -55,9 +56,10 @@ class PerfProcess:
             "--switch-output=signal",
             "--no-no-buildid",
             "--no-no-buildid-cache",
-        ] + self._extra_params
+        ] + self._extra_args
 
     def start(self) -> None:
+        logger.info(f"Starting perf ({self._type} mode)")
         process = start_process(self._get_perf_cmd(), via_staticx=False)
         try:
             wait_event(self._poll_timeout_s, self._stop_event, lambda: os.path.exists(self._output_path))
@@ -69,12 +71,14 @@ class PerfProcess:
             raise
         else:
             self._process = process
+            logger.info(f"Started perf ({self._type} mode)")
 
     def stop(self) -> None:
         if self._process is not None:
             self._process.terminate()  # okay to call even if process is already dead
             self._process.wait()
             self._process = None
+            logger.info(f"Stopped perf ({self._type} mode)")
 
     def switch_output(self) -> None:
         assert self._process is not None, "profiling not started!"
@@ -113,7 +117,7 @@ class SystemProfiler(ProfilerBase):
         self._perfs: List[PerfProcess] = []
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
-                self._frequency, self._stop_event, os.path.join(self._storage_dir, "perf.fp"), []
+                self._frequency, self._stop_event, os.path.join(self._storage_dir, "perf.fp"), False, []
             )
             self._perfs.append(self._perf_fp)
         else:
@@ -124,6 +128,7 @@ class SystemProfiler(ProfilerBase):
                 self._frequency,
                 self._stop_event,
                 os.path.join(self._storage_dir, "perf.dwarf"),
+                True,
                 ["--call-graph", f"dwarf,{dwarf_stack_size}"],
             )
             self._perfs.append(self._perf_dwarf)
