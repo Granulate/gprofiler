@@ -251,19 +251,22 @@ def merge_profiles(
 ) -> Tuple[str, int]:
     # merge process profiles into the global perf results.
     for pid, stacks in process_profiles.items():
+        if len(stacks) == 0:
+            # no samples collected by the runtime profiler for this process (empty stackcollapse file)
+            continue
+
         process_perf = perf_pid_to_stacks_counter.get(pid)
         if process_perf is None:
             # no samples collected by perf for this process.
             continue
 
         perf_samples_count = sum(process_perf.values())
-        assert perf_samples_count > 0
-
         profile_samples_count = sum(stacks.values())
-        ratio = profile_samples_count / perf_samples_count
+        assert profile_samples_count > 0
 
-        # do the scaling by the ratio of samples: samples we received from the runtime profiler
-        # of this process, by the samples we received from perf for this process.
+        # do the scaling by the ratio of samples: samples we received from perf for this process,
+        # divided by samples we received from the runtime profiler of this process.
+        ratio = perf_samples_count / profile_samples_count
         for stack in stacks:
             stacks[stack] = round(stacks[stack] * ratio)
 

@@ -134,7 +134,7 @@ def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> P
 
     output_files = glob.glob(glob_pattern)
     # All the snapshot samples should be in one file
-    assert len(output_files) == 1
+    assert len(output_files) == 1, "expected single file but got: " + str(output_files)
     return Path(output_files[0])
 
 
@@ -261,7 +261,7 @@ def resolve_proc_root_links(proc_root: str, ns_path: str) -> str:
 
 def remove_prefix(s: str, prefix: str) -> str:
     # like str.removeprefix of Python 3.9, but this also ensures the prefix exists.
-    assert s.startswith(prefix)
+    assert s.startswith(prefix), f"{s} doesn't start with {prefix}"
     return s[len(prefix) :]
 
 
@@ -359,11 +359,12 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
                     "pid": 0x20000000,  # CLONE_NEWPID
                     "uts": 0x04000000,  # CLONE_NEWUTS
                 }[nstype]
-                if (
-                    libc.unshare(flag) != 0
-                    or libc.setns(os.open(f"/proc/{target_pid}/ns/{nstype}", os.O_RDONLY), flag) != 0
-                ):
-                    raise ValueError(f"Failed to unshare({nstype}) and setns({nstype})")
+                if libc.unshare(flag) != 0:
+                    raise ValueError(f"Failed to unshare({nstype})")
+
+                with open(f"/proc/{target_pid}/ns/{nstype}", "r") as nsf:
+                    if libc.setns(nsf.fileno(), flag) != 0:
+                        raise ValueError(f"Failed to setns({nstype}) (to pid {target_pid})")
 
         callback()
 
