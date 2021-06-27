@@ -145,6 +145,7 @@ Alongside `perf`, gProfiler invokes runtime-specific profilers for processes bas
   * Uses [Granulate's fork](https://github.com/Granulate/phpspy/) of the phpspy project.
 * Ruby versions (versions 1.9.1 to 3.0.1)
   * Uses [Granulate's fork](https://github.com/Granulate/rbspy) of the [rbspy](https://github.com/rbspy/rbspy) profiler.
+* NodeJS: bases on `perf`, requires passing `--perf-prof` to the NodeJS process (and `--interpreted-frames-native-stack` if Nde version >= 10)
 
 The runtime-specific profilers produce stack traces that include runtime information (i.e, stacks of Java/Python functions), unlike `perf` which produces native stacks of the JVM / CPython interpreter.
 The runtime stacks are then merged into the data collected by `perf`, substituting the *native* stacks `perf` has collected for those processes.

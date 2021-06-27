@@ -32,8 +32,10 @@ class SystemProfiler(ProfilerBase):
     def _run_perf(self, dwarf: bool = False) -> str:
         buildid_args = ["--buildid-dir", PERF_BUILDID_DIR]
 
-        with NamedTemporaryFile(dir=self._storage_dir) as record_file:
-            args = ["-F", str(self._frequency), "-a", "-g", "-o", record_file.name]
+        with NamedTemporaryFile(dir=self._storage_dir) as record_file, NamedTemporaryFile(
+            dir=self._storage_dir
+        ) as inject_file:
+            args = ["-F", str(self._frequency), "-a", "-g", "-o", record_file.name, "-k", "1"]
             if dwarf:
                 args += ["--call-graph", f"dwarf,{self._dwarf_stack_size}"]
             run_process(
@@ -41,7 +43,12 @@ class SystemProfiler(ProfilerBase):
                 stop_event=self._stop_event,
             )
             perf_script_result = run_process(
-                [resource_path("perf")] + buildid_args + ["script", "-F", "+pid", "-i", record_file.name],
+                [resource_path("perf")]
+                + buildid_args
+                + ["inject", "--jit", "-o", inject_file.name, "-i", record_file.name],
+            )
+            perf_script_result = run_process(
+                [resource_path("perf")] + buildid_args + ["script", "-F", "+pid", "-i", inject_file.name],
                 suppress_log=True,
             )
             return perf_script_result.stdout.decode('utf8')
