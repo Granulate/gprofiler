@@ -5,6 +5,6 @@
 #
 set -euo pipefail
 
-git clone --depth 1 -b v0.3.7g2 https://github.com/Granulate/py-spy.git && git -C py-spy reset --hard 34a2a2bf7c324e08f31e83b3b34cff36d662c988
+git clone --depth 1 -b v0.3.7g3 https://github.com/Granulate/py-spy.git && git -C py-spy reset --hard 0aa5adace9c5d59cbf46b9c5b59ac92fb23b3e5a
 cd py-spy
 cargo build --release --target=x86_64-unknown-linux-musl
