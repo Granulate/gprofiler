@@ -230,7 +230,7 @@ class PythonEbpfProfiler(ProfilerBase):
 
         output_files = self._glob_output()
         # All the snapshot samples should be in one file
-        assert len(output_files) == 1
+        assert len(output_files) == 1, "expected single file but got: " + str(output_files)
         return Path(output_files[0])
 
     def _dump(self) -> Path:
