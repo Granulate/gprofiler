@@ -108,6 +108,7 @@ class GProfiler:
         self._rotating_output = rotating_output
         self._client = client
         self._stop_event = Event()
+        self._start_time = time.monotonic()
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
         # 1. accessible by everyone - for profilers that run code in target processes, like async-profiler
@@ -234,6 +235,7 @@ class GProfiler:
             "cloud_provider": cloud_metadata.pop("provider") or "unknown",
             "system_metadata": system_metadata.__dict__,
             "version": __version__,
+            "start_time": round(self._start_time),
         }
         if cloud_metadata is not None:
             metrics_dict["cloud_metadata"] = cloud_metadata
