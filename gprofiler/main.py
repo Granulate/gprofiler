@@ -21,6 +21,7 @@ from requests import RequestException, Timeout
 
 from gprofiler import __version__, merge
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
+from gprofiler.cloud_metrics import get_cloud_instance_metadata
 from gprofiler.docker_client import DockerClient
 from gprofiler.java import JavaProfiler
 from gprofiler.merge import ProcessToStackSampleCounters
@@ -35,6 +36,7 @@ from gprofiler.utils import (
     atomically_symlink,
     get_hostname,
     get_iso8601_format_time,
+    get_system_info,
     grab_gprofiler_mutex,
     is_root,
     is_running_in_init_pid,
@@ -224,6 +226,18 @@ class GProfiler:
                 continue
             lines.append(line[line.find(';') + 1 :])
         return '\n'.join(lines)
+
+    def send_metrics(self):
+        cloud_metadata = get_cloud_instance_metadata()
+        system_metadata = get_system_info()
+        metrics_dict = {
+            "cloud_provider": cloud_metadata.pop("provider") or "unknown",
+            "system_metadata": system_metadata.__dict__,
+            "version": __version__,
+        }
+        if cloud_metadata is not None:
+            metrics_dict["cloud_metadata"] = cloud_metadata
+        self._client.submit_metrics(metrics_dict)
 
     def start(self):
         self._stop_event.clear()
@@ -522,6 +536,14 @@ def parse_cmd_args():
         help="Disable host PID NS check on startup",
     )
 
+    parser.add_argument(
+        "--disable-metrics-collection",
+        action="store_false",
+        default=True,
+        dest="collect_metrics",
+        help="Disable sending metrics and cloud metadata to the performance studio",
+    )
+
     args = parser.parse_args()
 
     if args.upload_results:
@@ -649,7 +671,8 @@ def main():
             args.php_process_filter,
         )
         logger.info("gProfiler initialized and ready to start profiling")
-
+        if args.collect_metrics and args.upload_results:
+            gprofiler.send_metrics()
         if args.continuous:
             gprofiler.run_continuous(args.continuous_profiling_interval)
         else:

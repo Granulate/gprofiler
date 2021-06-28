@@ -135,3 +135,11 @@ class APIClient:
             api_version="v2",
             params={"samples": str(total_samples), "version": __version__},
         )
+
+    def submit_metrics(self, metrics: Dict):
+        return self.post(
+            "metrics",
+            metrics,
+            timeout=self._upload_timeout,
+            api_version="v1",
+        )

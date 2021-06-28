@@ -29,3 +29,8 @@ class CalledProcessError(subprocess.CalledProcessError):
 class ProgramMissingException(Exception):
     def __init__(self, program: str):
         super().__init__(f"The program {program!r} is missing! Please install it")
+
+
+class BadResponseCode(Exception):
+    def __init__(self, response_code: int):
+        super().__init__(f"Got a bad HTTP response code {response_code}")

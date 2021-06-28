@@ -17,6 +17,7 @@ import string
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
@@ -396,18 +397,52 @@ def _initialize_system_info():
     return hostname, distribution, libc_version
 
 
-def log_system_info() -> None:
-    uname = platform.uname()
-    logger.info(f"gProfiler Python version: {sys.version}")
-    logger.info(f"gProfiler run mode: {get_run_mode()}")
-    logger.info(f"Kernel uname release: {uname.release}")
-    logger.info(f"Kernel uname version: {uname.version}")
-    logger.info(f"Total CPUs: {os.cpu_count()}")
-    logger.info(f"Total RAM: {psutil.virtual_memory().total / (1 << 30):.2f} GB")
+@dataclass
+class SystemInfo:
+    python_version: str
+    run_mode: str
+    kernel_release: str
+    kernel_version: str
+    release_name: str
+    cpu_count: int
+    total_ram: int
+    hostname: str
+    linux_distribution: str
+    libc_version: str
+    architecture: str
+
+
+def get_system_info() -> SystemInfo:
     hostname, distribution, libc_version = _initialize_system_info()
-    logger.info(f"Linux distribution: {distribution}")
-    logger.info(f"libc version: {libc_version}")
-    logger.info(f"Hostname: {hostname}")
+    uname = platform.uname()
+    cpu_count = os.cpu_count()
+    cpu_count = cpu_count if cpu_count is not None else 0
+    return SystemInfo(
+        sys.version,
+        get_run_mode(),
+        uname.release,
+        uname.version,
+        uname.system,
+        cpu_count,
+        psutil.virtual_memory().total,
+        hostname,
+        distribution,
+        libc_version,
+        uname.machine,
+    )
+
+
+def log_system_info() -> None:
+    system_info = get_system_info()
+    logger.info(f"gProfiler Python version: {system_info.python_version}")
+    logger.info(f"gProfiler run mode: {system_info.run_mode}")
+    logger.info(f"Kernel uname release: {system_info.kernel_release}")
+    logger.info(f"Kernel uname version: {system_info.kernel_version}")
+    logger.info(f"Total CPUs: {system_info.cpu_count}")
+    logger.info(f"Total RAM: {system_info.total_ram / (1 << 30):.2f} GB")
+    logger.info(f"Linux distribution: {system_info.linux_distribution}")
+    logger.info(f"libc version: {system_info.libc_version}")
+    logger.info(f"Hostname: {system_info.hostname}")
 
 
 def grab_gprofiler_mutex() -> bool:
