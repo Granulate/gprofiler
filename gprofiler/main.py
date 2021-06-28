@@ -11,7 +11,6 @@ import os
 import signal
 import sys
 import time
-from logging import Logger
 from pathlib import Path
 from threading import Event
 from typing import Callable, Dict, Optional
@@ -23,12 +22,14 @@ from gprofiler import __version__, merge
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
 from gprofiler.docker_client import DockerClient
 from gprofiler.java import JavaProfiler
+from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.perf import SystemProfiler
 from gprofiler.php import PHPSpyProfiler
 from gprofiler.profiler_base import NoopProfiler
 from gprofiler.python import PythonProfiler
 from gprofiler.ruby import RbSpyProfiler
+from gprofiler.state import State, init_state
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     TemporaryDirectoryWithMode,
@@ -44,7 +45,7 @@ from gprofiler.utils import (
     run_process,
 )
 
-logger: Logger
+logger: logging.LoggerAdapter
 
 DEFAULT_LOG_FILE = "/var/log/gprofiler/gprofiler.log"
 DEFAULT_LOG_MAX_SIZE = 1024 * 1024 * 5
@@ -95,7 +96,9 @@ class GProfiler:
         python_mode: str,
         runtimes: Dict[str, bool],
         client: APIClient,
+        state: State,
         include_container_names=True,
+        remote_logs_handler: Optional[RemoteLogsHandler] = None,
         php_process_filter: str = PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
     ):
         self._frequency = frequency
@@ -105,6 +108,8 @@ class GProfiler:
         self._runtimes = runtimes
         self._rotating_output = rotating_output
         self._client = client
+        self._state = state
+        self._remote_logs_handler = remote_logs_handler
         self._stop_event = Event()
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
@@ -309,44 +314,41 @@ class GProfiler:
             else:
                 logger.info("Successfully uploaded profiling data to the server")
 
+    def _send_remote_logs(self):
+        """
+        The function is safe to call without wrapping with try/except block, the function should does the exception
+        handling by itself.
+        """
+        if self._remote_logs_handler is None:
+            return
+
+        try:
+            self._remote_logs_handler.try_send_log_to_server()
+        except Exception:
+            logger.exception("Couldn't send logs to server")
+
     def run_single(self):
         with self:
-            self._snapshot()
+            # In case of single run mode, use the same id for run_id and cycle_id
+            self._state.set_cycle_id(self._state.run_id)
+            try:
+                self._snapshot()
+            finally:
+                self._send_remote_logs()  # function is safe, wrapped with try/except block inside
 
     def run_continuous(self, interval):
         with self:
             while not self._stop_event.is_set():
                 start_time = time.monotonic()
+                self._state.init_new_cycle()
                 try:
                     self._snapshot()
                 except Exception:
                     logger.exception("Profiling run failed!")
+                finally:
+                    self._send_remote_logs()  # function is safe, wrapped with try/except block inside
                 time_spent = time.monotonic() - start_time
                 self._stop_event.wait(max(interval - time_spent, 0))
-
-
-def setup_logger(stream_level: int, log_file_path: str, rotate_max_bytes: int, rotate_backup_count: int):
-    global logger
-    logger = logging.getLogger("gprofiler")
-    logger.setLevel(logging.DEBUG)
-
-    stream_handler = logging.StreamHandler(stream=sys.stdout)
-    stream_handler.setLevel(stream_level)
-    if stream_level < logging.INFO:
-        stream_handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s"))
-    else:
-        stream_handler.setFormatter(logging.Formatter("[%(asctime)s] %(message)s", "%H:%M:%S"))
-    logger.addHandler(stream_handler)
-
-    os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
-    file_handler = logging.handlers.RotatingFileHandler(
-        log_file_path,
-        maxBytes=rotate_max_bytes,
-        backupCount=rotate_backup_count,
-    )
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s"))
-    logger.addHandler(file_handler)
 
 
 def parse_cmd_args():
@@ -492,6 +494,14 @@ def parse_cmd_args():
         dest="log_rotate_backup_count",
         default=DEFAULT_LOG_BACKUP_COUNT,
     )
+    logging_options.add_argument(
+        "--dont-send-logs",
+        action="store_false",
+        dest="log_to_server",
+        default=(os.getenv("GPROFILER_DONT_SEND_LOGS", None) is None),
+        help="Disable sending logs to server",
+    )
+
     parser.add_argument(
         "--disable-container-names",
         action="store_true",
@@ -580,13 +590,17 @@ def setup_signals() -> None:
 def main():
     args = parse_cmd_args()
     verify_preconditions(args)
-    setup_logger(
+    state = init_state()
+
+    remote_logs_handler = RemoteLogsHandler() if args.log_to_server and args.upload_results else None
+    global logger
+    logger = initial_root_logger_setup(
         logging.DEBUG if args.verbose else logging.INFO,
         args.log_file,
         args.log_rotate_max_size,
         args.log_rotate_backup_count,
+        remote_logs_handler,
     )
-    global logger  # silences flake8, who now knows that the "logger" global we refer to was initialized.
 
     setup_signals()
     reset_umask()
@@ -627,6 +641,9 @@ def main():
             logger.error(f"Failed to connect to server: {e}")
             return
 
+        if client is not None and remote_logs_handler is not None:
+            remote_logs_handler.init_api_client(client)
+
         runtimes = {
             "system": args.perf_mode != "none",
             "java": args.java,
@@ -645,7 +662,9 @@ def main():
             args.python_mode,
             runtimes,
             client,
+            state,
             not args.disable_container_names,
+            remote_logs_handler,
             args.php_process_filter,
         )
         logger.info("gProfiler initialized and ready to start profiling")
