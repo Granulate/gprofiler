@@ -30,6 +30,7 @@ from gprofiler.php import PHPSpyProfiler
 from gprofiler.profiler_base import NoopProfiler
 from gprofiler.python import PythonProfiler
 from gprofiler.ruby import RbSpyProfiler
+from gprofiler.system_metrics import SystemMetricsMonitor
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     TemporaryDirectoryWithMode,
@@ -97,6 +98,7 @@ class GProfiler:
         python_mode: str,
         runtimes: Dict[str, bool],
         client: APIClient,
+        collect_metrics: bool,
         include_container_names=True,
         php_process_filter: str = PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
     ):
@@ -160,6 +162,10 @@ class GProfiler:
             self._docker_client: Optional[DockerClient] = DockerClient()
         else:
             self._docker_client = None
+        if collect_metrics:
+            self._system_metrics_monitor: Optional[SystemMetricsMonitor] = SystemMetricsMonitor(self._duration)
+        else:
+            self._system_metrics_monitor = None
 
     def __enter__(self):
         self.start()
@@ -243,6 +249,8 @@ class GProfiler:
 
     def start(self):
         self._stop_event.clear()
+        if self._system_metrics_monitor is not None:
+            self._system_metrics_monitor.start()
 
         for prof in (
             self.python_profiler,
@@ -256,6 +264,8 @@ class GProfiler:
     def stop(self):
         logger.info("Stopping ...")
         self._stop_event.set()
+        if self._system_metrics_monitor is not None:
+            self._system_metrics_monitor.stop()
 
         for prof in (
             self.python_profiler,
@@ -314,8 +324,15 @@ class GProfiler:
             self._generate_output_files(merged_result, local_start_time, local_end_time)
 
         if self._client:
+            if self._system_metrics_monitor is not None:
+                cpu_avg = self._system_metrics_monitor.get_cpu_utilization()
+                mem_avg = self._system_metrics_monitor.get_average_memory_utilization()
+            else:
+                cpu_avg = mem_avg = None
             try:
-                self._client.submit_profile(local_start_time, local_end_time, merged_result, total_samples)
+                self._client.submit_profile(
+                    local_start_time, local_end_time, merged_result, total_samples, cpu_avg, mem_avg
+                )
             except Timeout:
                 logger.error("Upload of profile to server timed out.")
             except APIError as e:
@@ -669,6 +686,7 @@ def main():
             args.python_mode,
             runtimes,
             client,
+            args.collect_metrics,
             not args.disable_container_names,
             args.php_process_filter,
         )

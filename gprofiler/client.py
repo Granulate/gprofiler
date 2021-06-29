@@ -121,7 +121,13 @@ class APIClient:
         return self.get("health_check")
 
     def submit_profile(
-        self, start_time: datetime.datetime, end_time: datetime.datetime, profile: str, total_samples: int
+        self,
+        start_time: datetime.datetime,
+        end_time: datetime.datetime,
+        profile: str,
+        total_samples: int,
+        cpu_avg: Optional[float],
+        mem_avg: Optional[float],
     ) -> Dict:
         return self.post(
             "profiles",
@@ -130,6 +136,8 @@ class APIClient:
                 "end_time": get_iso8601_format_time(end_time),
                 "hostname": self._hostname,
                 "profile": profile,
+                "cpu_avg": cpu_avg,
+                "mem_avg": mem_avg,
             },
             timeout=self._upload_timeout,
             api_version="v2",
