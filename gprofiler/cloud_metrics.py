@@ -123,8 +123,18 @@ def get_azure_metadata() -> Optional[AzureInstanceMetadata]:
                 "image_version": image_reference["version"],
             }
 
-    return AzureInstanceMetadata("azure", instance_type, zone, region, subscription_id, resource_group_name,
-                                 resource_id, instance_id, name, image_info)
+    return AzureInstanceMetadata(
+        "azure",
+        instance_type,
+        zone,
+        region,
+        subscription_id,
+        resource_group_name,
+        resource_id,
+        instance_id,
+        name,
+        image_info,
+    )
 
 
 def send_request(url: str, headers: Dict[str, str] = None) -> Optional[Response]:
