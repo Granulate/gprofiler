@@ -11,7 +11,7 @@ from psutil import Process
 
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.log import get_logger_adapter
-from gprofiler.merge import parse_one_collapsed
+from gprofiler.merge import parse_and_remove_one_collapsed
 from gprofiler.profiler_base import ProfilerBase
 from gprofiler.types import ProcessToStackSampleCounters
 from gprofiler.utils import pgrep_maps, random_prefix, resource_path, run_process
@@ -57,7 +57,7 @@ class RbSpyProfiler(ProfilerBase):
             raise StopEventSetException
 
         logger.info(f"Finished profiling process {process.pid} with rbspy")
-        return parse_one_collapsed(Path(local_output_path).read_text(), comm)
+        return parse_and_remove_one_collapsed(Path(local_output_path), comm)
 
     def snapshot(self) -> ProcessToStackSampleCounters:
         processes_to_profile = _find_ruby_processes()
