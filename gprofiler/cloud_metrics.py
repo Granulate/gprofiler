@@ -79,7 +79,7 @@ def get_gcp_metadata() -> Optional[GcpInstanceMetadata]:
     availability_zone = instance_metadata["zone"]
     instance_type = instance_metadata["machineType"]
     preempted = instance_metadata["preempted"] == "TRUE"
-    preemptible = instance_metadata["scheduling"]["preemptible"]
+    preemptible = instance_metadata["scheduling"]["preemptible"] == "TRUE"
     instance_id = str(instance_metadata["id"])
     image_id = instance_metadata["image"]
     name = instance_metadata["name"]
