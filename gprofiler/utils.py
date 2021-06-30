@@ -373,12 +373,13 @@ def _initialize_system_info():
     hostname = "<unknown>"
     distribution = "unknown"
     libc_version = "unknown"
+    boot_time_ms = 0
 
     # move to host mount NS for distro & ldd.
     # now, distro will read the files on host.
     # also move to host UTS NS for the hostname.
     def get_infos():
-        nonlocal distribution, libc_version
+        nonlocal distribution, libc_version, boot_time_ms
         global hostname
 
         try:
@@ -396,9 +397,14 @@ def _initialize_system_info():
         except Exception:
             logger.exception("Failed to get hostname")
 
+        try:
+            boot_time_ms = round(time.monotonic() * 1000)
+        except Exception:
+            logger.exception("Failed to get the system boot time")
+
     run_in_ns(["mnt", "uts"], get_infos)
 
-    return hostname, distribution, libc_version
+    return hostname, distribution, libc_version, boot_time_ms
 
 
 @dataclass
@@ -422,11 +428,13 @@ class SystemInfo:
     kernel_version: str
     release_name: str
     cpu_count: int
-    total_ram: int
+    memory_capacity_mb: int
     hostname: str
     linux_distribution: LinuxDistribution
     libc: LibcVersion
     architecture: str
+    pid: int
+    spawn_uptime_ms: int
 
     def get_dict(self):
         sys_info_dict = self.__dict__.copy()
@@ -436,7 +444,7 @@ class SystemInfo:
 
 
 def get_system_info() -> SystemInfo:
-    hostname, distribution, libc_tuple = _initialize_system_info()
+    hostname, distribution, libc_tuple, boot_time_ms = _initialize_system_info()
     libc_type, libc_version = libc_tuple
     id_name, version, codename = distribution
     uname = platform.uname()
@@ -449,11 +457,13 @@ def get_system_info() -> SystemInfo:
         uname.version,
         uname.system,
         cpu_count,
-        psutil.virtual_memory().total,
+        round(psutil.virtual_memory().total / 1024),
         hostname,
         LinuxDistribution(id_name, version, codename),
         LibcVersion(type=libc_type, version=libc_version),
         uname.machine,
+        os.getpid(),
+        boot_time_ms,
     )
 
 
@@ -464,7 +474,7 @@ def log_system_info() -> None:
     logger.info(f"Kernel uname release: {system_info.kernel_release}")
     logger.info(f"Kernel uname version: {system_info.kernel_version}")
     logger.info(f"Total CPUs: {system_info.cpu_count}")
-    logger.info(f"Total RAM: {system_info.total_ram / (1 << 30):.2f} GB")
+    logger.info(f"Total RAM: {system_info.memory_capacity_mb / (1 << 20):.2f} GB")
     logger.info(f"Linux distribution: {system_info.linux_distribution}")
     logger.info(f"libc version: {system_info.libc.type}-{system_info.libc.version}")
     logger.info(f"Hostname: {system_info.hostname}")
