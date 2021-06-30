@@ -31,6 +31,7 @@ class RbSpyProfiler(ProfilerBase):
         return [
             resource_path(self.RESOURCE_PATH),
             "record",
+            "--silent",
             "-r",
             str(self._frequency),
             "-d",
