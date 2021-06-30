@@ -199,7 +199,10 @@ def pgrep_maps(match: str) -> List[Process]:
 
     error_lines = []
     for line in result.stderr.splitlines():
-        if not (line.startswith(b"grep: /proc/") and line.endswith(b"/maps: No such file or directory")):
+        if not (
+            line.startswith(b"grep: /proc/")
+            and (line.endswith(b"/maps: No such file or directory") or line.endswith(b"/maps: No such process"))
+        ):
             error_lines.append(line)
     if error_lines:
         logger.error(f"Unexpected 'grep' error output (first 10 lines): {error_lines[:10]}")
