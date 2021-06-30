@@ -28,10 +28,8 @@ RUN ./perf_build.sh
 # ubuntu 20.04
 FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93 AS bcc-builder
 
-RUN apt-get update
-
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y git build-essential iperf llvm-9-dev libclang-9-dev \
-  cmake python3 flex bison libelf-dev libz-dev
+COPY ./scripts/pyperf_env.sh .
+RUN ./pyperf_env.sh
 
 
 WORKDIR /bcc
