@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import List
 
-from psutil import Process
+from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.log import get_logger_adapter
@@ -75,6 +75,8 @@ class RbSpyProfiler(ProfilerBase):
                     results[futures[future]] = future.result()
                 except StopEventSetException:
                     raise
+                except NoSuchProcess:
+                    logger.debug(f"Process process went down during profiling {futures[future]}", exc_info=True)
                 except Exception:
                     logger.exception(f"Failed to profile Ruby process {futures[future]}")
 

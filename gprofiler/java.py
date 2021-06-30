@@ -322,7 +322,7 @@ class JavaProfiler(ProfilerBase):
         if ap_proc.process.is_running():
             ap_proc.stop_async_profiler(True)
         else:
-            logger.info(f"Profiled process {ap_proc.process.pid} exited before stopping async-profiler")
+            logger.debug(f"Profiled process {ap_proc.process.pid} exited before stopping async-profiler")
             # no output in this case :/
             return None
 
@@ -358,6 +358,8 @@ class JavaProfiler(ProfilerBase):
                         results[futures[future]] = result
                 except StopEventSetException:
                     raise
+                except psutil.NoSuchProcess:
+                    logger.debug(f"Process process went down during profiling {futures[future]}", exc_info=True)
                 except Exception:
                     logger.exception(f"Failed to profile Java process {futures[future]}")
 
