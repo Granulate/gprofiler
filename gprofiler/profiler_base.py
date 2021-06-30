@@ -3,14 +3,14 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
-import logging
 from threading import Event
 from typing import Optional
 
+from gprofiler.log import get_logger_adapter
 from gprofiler.types import ProcessToStackSampleCounters
 from gprofiler.utils import limit_frequency
 
-logger = logging.getLogger(__name__)
+logger = get_logger_adapter(__name__)
 
 
 class ProfilerInterface:

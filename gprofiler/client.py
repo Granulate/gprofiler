@@ -5,7 +5,6 @@
 import datetime
 import gzip
 import json
-import logging
 from io import BytesIO
 from typing import Dict, List, Optional, Tuple
 
@@ -13,22 +12,15 @@ import requests
 from requests import Session
 
 from gprofiler import __version__
+from gprofiler.exceptions import APIError
+from gprofiler.log import get_logger_adapter
 from gprofiler.utils import get_iso8601_format_time
 
-logger = logging.getLogger(__name__)
+logger = get_logger_adapter(__name__)
 
 GRANULATE_SERVER_HOST = "https://profiler.granulate.io"
 DEFAULT_REQUEST_TIMEOUT = 5
 DEFAULT_UPLOAD_TIMEOUT = 120
-
-
-class APIError(Exception):
-    def __init__(self, message: str, full_data: dict = None):
-        self.message = message
-        self.full_data = full_data
-
-    def __str__(self):
-        return self.message
 
 
 class APIClient:

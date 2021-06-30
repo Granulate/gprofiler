@@ -3,7 +3,6 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import concurrent.futures
-import logging
 import os
 from pathlib import Path
 from typing import List
@@ -11,12 +10,13 @@ from typing import List
 from psutil import Process
 
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
+from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profiler_base import ProfilerBase
 from gprofiler.types import ProcessToStackSampleCounters
 from gprofiler.utils import pgrep_maps, random_prefix, resource_path, run_process
 
-logger = logging.getLogger(__name__)
+logger = get_logger_adapter(__name__)
 
 
 def _find_ruby_processes() -> List[Process]:
@@ -31,6 +31,7 @@ class RbSpyProfiler(ProfilerBase):
         return [
             resource_path(self.RESOURCE_PATH),
             "record",
+            "--silent",
             "-r",
             str(self._frequency),
             "-d",
@@ -47,7 +48,7 @@ class RbSpyProfiler(ProfilerBase):
         ]
 
     def _profile_process(self, process: Process):
-        logger.info(f"Profiling process {process.pid} ({' '.join(process.cmdline())})")
+        logger.info(f"Profiling process {process.pid}", cmdline=' '.join(process.cmdline()), no_extra_to_server=True)
         comm = process.name()
 
         local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")

@@ -36,8 +36,9 @@ from gprofiler.exceptions import (
     ProgramMissingException,
     StopEventSetException,
 )
+from gprofiler.log import get_logger_adapter
 
-logger = logging.getLogger(__name__)
+logger = get_logger_adapter(__name__)
 
 TEMPORARY_STORAGE_PATH = "/tmp/gprofiler_tmp"
 
@@ -523,7 +524,7 @@ def is_running_in_init_pid() -> bool:
         return p.name() == "kthreadd"
 
 
-def limit_frequency(limit: Optional[int], requested: int, msg_header: str, runtime_logger: logging.Logger):
+def limit_frequency(limit: Optional[int], requested: int, msg_header: str, runtime_logger: logging.LoggerAdapter):
     if limit is not None and requested > limit:
         runtime_logger.warning(
             f"{msg_header}: Requested frequency ({requested}) is higher than the limit {limit}, "
