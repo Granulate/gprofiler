@@ -78,7 +78,11 @@ class APIClient:
             opts["headers"]["Content-type"] = "application/json"
             buffer = BytesIO()
             with gzip.open(buffer, mode="wt", encoding="utf-8") as gzip_file:
-                json.dump(data, gzip_file, ensure_ascii=False)  # type: ignore
+                try:
+                    json.dump(data, gzip_file, ensure_ascii=False)  # type: ignore
+                except TypeError:
+                    logger.exception("Given data is not a valid JSON!", bad_json=str(data))
+                    raise
             opts["data"] = buffer.getvalue()
 
         opts["params"] = self._get_query_params() + [(k, v) for k, v in params.items()]
