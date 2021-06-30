@@ -15,7 +15,7 @@ from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
 from gprofiler.log import get_logger_adapter
-from gprofiler.merge import parse_many_collapsed, parse_one_collapsed
+from gprofiler.merge import parse_and_remove_one_collapsed, parse_many_collapsed
 from gprofiler.profiler_base import ProfilerBase, ProfilerInterface
 from gprofiler.types import ProcessToStackSampleCounters
 from gprofiler.utils import (
@@ -66,7 +66,7 @@ class PySpyProfiler(ProfilerBase):
             raise StopEventSetException
 
         logger.info(f"Finished profiling process {process.pid} with py-spy")
-        return parse_one_collapsed(Path(local_output_path).read_text(), comm)
+        return parse_and_remove_one_collapsed(Path(local_output_path), comm)
 
     def _find_python_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
