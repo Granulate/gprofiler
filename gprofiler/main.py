@@ -244,12 +244,12 @@ class GProfiler:
         system_metadata = get_system_info()
         metadata_dict = {
             "cloud_provider": cloud_metadata.pop("provider") or "unknown",
-            "system_metadata": system_metadata.get_dict(),
             "version": __version__,
             "start_time": round(self._start_time),
         }
+        metadata_dict.update(system_metadata.get_dict())
         if cloud_metadata is not None:
-            metadata_dict["cloud_metadata"] = cloud_metadata
+            metadata_dict["cloud_info_wrapped"] = cloud_metadata
         self._client.submit_metadata(metadata_dict)
 
     def start(self):
