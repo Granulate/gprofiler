@@ -402,6 +402,19 @@ def _initialize_system_info():
 
 
 @dataclass
+class LibcVersion:
+    type: str
+    version: str
+
+
+@dataclass
+class LinuxDistribution:
+    id_name: str
+    version: str
+    codename: str
+
+
+@dataclass
 class SystemInfo:
     python_version: str
     run_mode: str
@@ -411,13 +424,21 @@ class SystemInfo:
     cpu_count: int
     total_ram: int
     hostname: str
-    linux_distribution: str
-    libc_version: str
+    linux_distribution: LinuxDistribution
+    libc: LibcVersion
     architecture: str
+
+    def get_dict(self):
+        sys_info_dict = self.__dict__.copy()
+        sys_info_dict["libc"] = sys_info_dict["libc"].__dict__
+        sys_info_dict["linux_distribution"] = sys_info_dict["linux_distribution"].__dict__
+        return sys_info_dict
 
 
 def get_system_info() -> SystemInfo:
-    hostname, distribution, libc_version = _initialize_system_info()
+    hostname, distribution, libc_tuple = _initialize_system_info()
+    libc_type, libc_version = libc_tuple
+    id_name, version, codename = distribution
     uname = platform.uname()
     cpu_count = os.cpu_count()
     cpu_count = cpu_count if cpu_count is not None else 0
@@ -430,8 +451,8 @@ def get_system_info() -> SystemInfo:
         cpu_count,
         psutil.virtual_memory().total,
         hostname,
-        distribution,
-        libc_version,
+        LinuxDistribution(id_name, version, codename),
+        LibcVersion(type=libc_type, version=libc_version),
         uname.machine,
     )
 
@@ -445,7 +466,7 @@ def log_system_info() -> None:
     logger.info(f"Total CPUs: {system_info.cpu_count}")
     logger.info(f"Total RAM: {system_info.total_ram / (1 << 30):.2f} GB")
     logger.info(f"Linux distribution: {system_info.linux_distribution}")
-    logger.info(f"libc version: {system_info.libc_version}")
+    logger.info(f"libc version: {system_info.libc.type}-{system_info.libc.version}")
     logger.info(f"Hostname: {system_info.hostname}")
 
 
