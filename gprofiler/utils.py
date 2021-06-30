@@ -26,6 +26,7 @@ from threading import Event, Thread
 from typing import Callable, Iterator, List, Optional, Tuple, Union
 
 import distro  # type: ignore
+import getmac
 import importlib_resources
 import psutil
 from psutil import Process
@@ -377,13 +378,14 @@ def _initialize_system_info():
     hostname = "<unknown>"
     distribution = "unknown"
     libc_version = "unknown"
+    mac_address = "unknown"
     boot_time_ms = 0
 
     # move to host mount NS for distro & ldd.
     # now, distro will read the files on host.
     # also move to host UTS NS for the hostname.
     def get_infos():
-        nonlocal distribution, libc_version, boot_time_ms
+        nonlocal distribution, libc_version, boot_time_ms, mac_address
         global hostname
 
         try:
@@ -406,9 +408,14 @@ def _initialize_system_info():
         except Exception:
             logger.exception("Failed to get the system boot time")
 
+        try:
+            mac_address = getmac.get_mac_address()
+        except Exception:
+            logger.exception("Failed to get MAC address")
+
     run_in_ns(["mnt", "uts"], get_infos)
 
-    return hostname, distribution, libc_version, boot_time_ms
+    return hostname, distribution, libc_version, boot_time_ms, mac_address
 
 
 @dataclass
@@ -439,6 +446,7 @@ class SystemInfo:
     architecture: str
     pid: int
     spawn_uptime_ms: int
+    mac_address: str
 
     def get_dict(self):
         sys_info_dict = self.__dict__.copy()
@@ -448,7 +456,7 @@ class SystemInfo:
 
 
 def get_system_info() -> SystemInfo:
-    hostname, distribution, libc_tuple, boot_time_ms = _initialize_system_info()
+    hostname, distribution, libc_tuple, boot_time_ms, mac_address = _initialize_system_info()
     libc_type, libc_version = libc_tuple
     id_name, version, codename = distribution
     uname = platform.uname()
@@ -468,6 +476,7 @@ def get_system_info() -> SystemInfo:
         uname.machine,
         os.getpid(),
         boot_time_ms,
+        mac_address,
     )
 
 
