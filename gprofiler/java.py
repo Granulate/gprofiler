@@ -2,14 +2,13 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import concurrent.futures
 import errno
 import functools
 import os
 import shutil
 from pathlib import Path
 from threading import Event
-from typing import Dict, List, Mapping, Optional
+from typing import List, Optional
 
 import psutil
 from psutil import Process
@@ -17,8 +16,8 @@ from psutil import Process
 from gprofiler.exceptions import CalledProcessError, StopEventSetException
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
-from gprofiler.profiler_base import ProfilerBase
-from gprofiler.types import ProcessToStackSampleCounters
+from gprofiler.profiler_base import ProcessProfilerBase
+from gprofiler.types import StackToSampleCount
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     get_process_nspid,
@@ -233,7 +232,7 @@ class AsyncProfiledProcess:
             raise
 
 
-class JavaProfiler(ProfilerBase):
+class JavaProfiler(ProcessProfilerBase):
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
     SKIP_VERSION_CHECK_BINARIES = ["jsvc"]
 
@@ -287,7 +286,7 @@ class JavaProfiler(ProfilerBase):
         # Version is printed to stderr
         return java_version_cmd_output.stderr.decode()
 
-    def _profile_process(self, process: Process) -> Optional[Mapping[str, int]]:
+    def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
         logger.info(f"Profiling java process {process.pid}...")
 
         # Get Java version
@@ -299,7 +298,7 @@ class JavaProfiler(ProfilerBase):
         with AsyncProfiledProcess(process, self._storage_dir) as ap_proc:
             return self._profile_ap_process(ap_proc)
 
-    def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[Mapping[str, int]]:
+    def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[StackToSampleCount]:
         started = ap_proc.start_async_profiler(self._interval)
         if not started:
             logger.info(f"Found async-profiler already started on {ap_proc.process.pid}, trying to stop it...")
@@ -340,27 +339,5 @@ class JavaProfiler(ProfilerBase):
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
             return parse_one_collapsed(output, comm)
 
-    def snapshot(self) -> ProcessToStackSampleCounters:
-        processes = list(pgrep_exe(r"^.+/(java|jsvc)$"))
-        if not processes:
-            return {}
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:
-            futures: Dict[concurrent.futures.Future, int] = {}
-            for process in processes:
-                futures[executor.submit(self._profile_process, process)] = process.pid
-
-            results = {}
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    result = future.result()
-                    if result is not None:
-                        results[futures[future]] = result
-                except StopEventSetException:
-                    raise
-                except psutil.NoSuchProcess:
-                    logger.debug(f"Process process went down during profiling {futures[future]}", exc_info=True)
-                except Exception:
-                    logger.exception(f"Failed to profile Java process {futures[future]}")
-
-        return results
+    def _select_processes_to_profile(self) -> List[Process]:
+        return pgrep_exe(r"^.+/(java|jsvc)$")
