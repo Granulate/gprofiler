@@ -288,28 +288,31 @@ def assert_program_installed(program: str):
         raise ProgramMissingException(program)
 
 
-def get_libc_version() -> Tuple[str, bytes]:
+def get_libc_version() -> Tuple[str, str]:
     # platform.libc_ver fails for musl, sadly (produces empty results).
     # so we'll run "ldd --version" and extract the version string from it.
     # not passing "encoding"/"text" - this runs in a different mount namespace, and Python fails to
     # load the files it needs for those encodings (getting LookupError: unknown encoding: ascii)
+    def decode_libc_version(version: bytes) -> str:
+        return version.decode("utf-8", errors="replace")
+
     ldd_version = run_process(
         ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, suppress_log=True, check=False
     ).stdout
     # catches GLIBC & EGLIBC
     m = re.search(br"GLIBC (.*?)\)", ldd_version)
     if m is not None:
-        return ("glibc", m.group(1))
+        return "glibc", decode_libc_version(m.group(1))
     # catches GNU libc
     m = re.search(br"\(GNU libc\) (.*?)\n", ldd_version)
     if m is not None:
-        return ("glibc", m.group(1))
+        return "glibc", decode_libc_version(m.group(1))
     # musl
     m = re.search(br"musl libc.*?\nVersion (.*?)\n", ldd_version, re.M)
     if m is not None:
-        return ("musl", m.group(1))
+        return "musl", decode_libc_version(m.group(1))
 
-    return ("unknown", ldd_version)
+    return "unknown", decode_libc_version(ldd_version)
 
 
 def get_run_mode() -> str:
