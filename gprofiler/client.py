@@ -135,7 +135,7 @@ class APIClient:
                 "profile": profile,
                 "cpu_avg": cpu_avg,
                 "mem_avg": mem_avg,
-                "spawn_time": get_iso8601_format_time_from_epoch_time(spawn_time)
+                "spawn_time": get_iso8601_format_time_from_epoch_time(spawn_time),
             },
             timeout=self._upload_timeout,
             api_version="v2",
