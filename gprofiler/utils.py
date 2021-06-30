@@ -217,6 +217,10 @@ def pgrep_maps(match: str) -> List[Process]:
     return processes
 
 
+def get_iso8601_format_time_from_epoch_time(time: float) -> str:
+    return get_iso8601_format_time(datetime.datetime.utcfromtimestamp(time))
+
+
 def get_iso8601_format_time(time: datetime.datetime) -> str:
     return time.replace(microsecond=0).isoformat()
 

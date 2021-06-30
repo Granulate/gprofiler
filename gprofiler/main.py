@@ -115,7 +115,7 @@ class GProfiler:
         self._state = state
         self._remote_logs_handler = remote_logs_handler
         self._stop_event = Event()
-        self._start_time = time.monotonic()
+        self._spawn_time = time.time()
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
         # 1. accessible by everyone - for profilers that run code in target processes, like async-profiler
@@ -245,7 +245,7 @@ class GProfiler:
         metadata_dict = {
             "cloud_provider": cloud_metadata.pop("provider") or "unknown",
             "version": __version__,
-            "start_time": round(self._start_time),
+            "start_time": round(self._spawn_time),
         }
         metadata_dict.update(system_metadata.get_dict())
         if cloud_metadata is not None:
@@ -336,7 +336,7 @@ class GProfiler:
                 cpu_avg = mem_avg = None
             try:
                 self._client.submit_profile(
-                    local_start_time, local_end_time, merged_result, total_samples, cpu_avg, mem_avg
+                    local_start_time, local_end_time, merged_result, total_samples, cpu_avg, mem_avg, self._spawn_time
                 )
             except Timeout:
                 logger.error("Upload of profile to server timed out.")

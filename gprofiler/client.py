@@ -14,7 +14,7 @@ from requests import Session
 from gprofiler import __version__
 from gprofiler.exceptions import APIError
 from gprofiler.log import get_logger_adapter
-from gprofiler.utils import get_iso8601_format_time
+from gprofiler.utils import get_iso8601_format_time, get_iso8601_format_time_from_epoch_time
 
 logger = get_logger_adapter(__name__)
 
@@ -124,6 +124,7 @@ class APIClient:
         total_samples: int,
         cpu_avg: Optional[float],
         mem_avg: Optional[float],
+        spawn_time: float,
     ) -> Dict:
         return self.post(
             "profiles",
@@ -134,6 +135,7 @@ class APIClient:
                 "profile": profile,
                 "cpu_avg": cpu_avg,
                 "mem_avg": mem_avg,
+                "spawn_time": get_iso8601_format_time_from_epoch_time(spawn_time)
             },
             timeout=self._upload_timeout,
             api_version="v2",
