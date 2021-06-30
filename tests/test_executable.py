@@ -12,7 +12,6 @@ from docker import DockerClient
 from docker.models.images import Image
 
 from gprofiler.merge import parse_one_collapsed
-from gprofiler.utils import TEMPORARY_STORAGE_PATH
 from tests.utils import run_gprofiler_in_container
 
 
@@ -50,8 +49,5 @@ def test_from_executable(
         popen = Popen(command)
         popen.wait()
 
-    # no leftovers in TEMPORARY_STORAGE_PATH - only async-profiler's directory, which is kept across gProfiler runs;
-    # and perf-buildids which is never deleted (but shouldn't grow too large)
-    assert all(i in ("perf-buildids", "async-profiler") for i in os.listdir(TEMPORARY_STORAGE_PATH))
     collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
     assert_collapsed(collapsed)
