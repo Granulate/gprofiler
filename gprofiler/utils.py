@@ -22,7 +22,7 @@ from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
-from typing import Callable, Iterator, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import distro  # type: ignore
 import importlib_resources
@@ -167,14 +167,16 @@ def run_process(
     return result
 
 
-def pgrep_exe(match: str) -> Iterator[Process]:
+def pgrep_exe(match: str) -> List[Process]:
     pattern = re.compile(match)
+    procs = []
     for process in psutil.process_iter():
         try:
             if pattern.match(process.exe()):
-                yield process
+                procs.append(process)
         except psutil.NoSuchProcess:  # process might have died meanwhile
             continue
+    return procs
 
 
 def pgrep_maps(match: str) -> List[Process]:
