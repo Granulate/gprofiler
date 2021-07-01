@@ -14,8 +14,10 @@ from typing import Optional, Tuple
 import distro  # type: ignore
 import psutil
 
-from gprofiler.utils import logger, run_in_ns, run_process
+from gprofiler.log import get_logger_adapter
+from gprofiler.utils import run_in_ns, run_process
 
+logger = get_logger_adapter(__name__)
 hostname: Optional[str] = None
 
 IS_64BIT = sys.maxsize > 2 ** 32
