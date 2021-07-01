@@ -2,6 +2,7 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import array
 import ctypes
 import datetime
 import errno
@@ -14,6 +15,7 @@ import re
 import shutil
 import socket
 import string
+import struct
 import subprocess
 import sys
 import time
@@ -26,7 +28,6 @@ from threading import Event, Thread
 from typing import Callable, Iterator, List, Optional, Tuple, Union
 
 import distro  # type: ignore
-import getmac
 import importlib_resources
 import psutil
 from psutil import Process
@@ -42,6 +43,14 @@ from gprofiler.log import get_logger_adapter
 logger = get_logger_adapter(__name__)
 
 TEMPORARY_STORAGE_PATH = "/tmp/gprofiler_tmp"
+
+IS_64BIT = sys.maxsize > 2 ** 32
+IFNAMSIZ = 16
+IFF_LOOPBACK = 8
+MAC_BYTES_LEN = 6
+SIZE_OF_SHORT = struct.calcsize('H')
+SIZE_OF_STUCT_ifreq = 40 if IS_64BIT else 32
+byte_count = 1024
 
 gprofiler_mutex: Optional[socket.socket]
 hostname: Optional[str] = None
@@ -330,6 +339,7 @@ def get_run_mode_and_deployment_type() -> Tuple[str, str]:
     else:
         return "local_python", "instances"
 
+
 def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int = 1) -> None:
     """
     Runs a callback in a new thread, switching to a set of the namespaces of a target process before
@@ -371,7 +381,7 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
     t.join()
 
 
-def get_local_ip():
+def get_local_ip() -> str:
     try:
         local_ips = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")]
     except Exception:
@@ -384,6 +394,27 @@ def get_local_ip():
         finally:
             s.close()
     return local_ips[0] if local_ips else "unknown"
+
+
+def get_mac_address() -> str:
+    buf = array.array('B', b'\0' * byte_count)
+    ifc = struct.pack('iL', byte_count, buf.buffer_info()[0])
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
+    outbytes = struct.unpack('iL', fcntl.ioctl(s.fileno(), 0x8912, ifc))[0]  # SIOCGIFCONF
+    data = buf.tobytes()[:outbytes]
+    for index in range(0, len(data), SIZE_OF_STUCT_ifreq):
+        iface = data[index : index + SIZE_OF_STUCT_ifreq]
+        res = fcntl.ioctl(s.fileno(), 0x8913, iface)  # SIOCGIFFLAGS
+        ifr_flags = struct.unpack(f'{IFNAMSIZ}sH', res[: IFNAMSIZ + SIZE_OF_SHORT])[1]
+        is_loopback = ifr_flags & IFF_LOOPBACK
+        if is_loopback:
+            continue
+        res = fcntl.ioctl(s.fileno(), 0x8927, iface)  # SIOCGIFHWADDR
+        address = struct.unpack(f'{IFNAMSIZ}sH{MAC_BYTES_LEN}s', res[: IFNAMSIZ + SIZE_OF_SHORT + MAC_BYTES_LEN])[2]
+        mac = struct.unpack(f'{MAC_BYTES_LEN}B', address)
+        address = ":".join(['%02X' % i for i in mac])
+        return address
+    return "unknown"
 
 
 def _initialize_system_info():
@@ -424,7 +455,8 @@ def _initialize_system_info():
             logger.exception("Failed to get the system boot time")
 
         try:
-            mac_address = getmac.get_mac_address()
+
+            mac_address = get_mac_address()
         except Exception:
             logger.exception("Failed to get MAC address")
 
@@ -433,7 +465,7 @@ def _initialize_system_info():
         except Exception:
             logger.exception("Failed to get the local IP")
 
-    run_in_ns(["mnt", "uts"], get_infos)
+    run_in_ns(["mnt", "uts", "pid", "net"], get_infos)
 
     return hostname, distribution, libc_version, boot_time_ms, mac_address, local_ip
 
@@ -448,7 +480,7 @@ class SystemInfo:
     system_name: str
     processors: int
     memory_capacity_mb: int
-    host_name: str
+    hostname: str
     os_name: str
     os_release: str
     os_codename: str
@@ -457,7 +489,7 @@ class SystemInfo:
     hardware_type: str
     pid: int
     spawn_uptime_ms: int
-    mac: str
+    mac_address: str
     private_ip: str
 
     def get_dict(self):
@@ -481,7 +513,7 @@ def get_system_info() -> SystemInfo:
         system_name=uname.system,
         processors=cpu_count,
         memory_capacity_mb=round(psutil.virtual_memory().total / 1024 / 1024),
-        host_name=hostname,
+        hostname=hostname,
         os_name=os_name,
         os_release=os_release,
         os_codename=os_codename,
@@ -490,7 +522,7 @@ def get_system_info() -> SystemInfo:
         hardware_type=uname.machine,
         pid=os.getpid(),
         spawn_uptime_ms=boot_time_ms,
-        mac=mac_address,
+        mac_address=mac_address,
         private_ip=local_ip,
     )
 
@@ -505,7 +537,7 @@ def log_system_info() -> None:
     logger.info(f"Total RAM: {system_info.memory_capacity_mb / (1 << 20):.2f} GB")
     logger.info(f"Linux distribution: {system_info.os_name} | {system_info.os_release} | {system_info.os_codename}")
     logger.info(f"libc version: {system_info.libc_type}-{system_info.libc_version}")
-    logger.info(f"Hostname: {system_info.host_name}")
+    logger.info(f"Hostname: {system_info.hostname}")
 
 
 def grab_gprofiler_mutex() -> bool:
