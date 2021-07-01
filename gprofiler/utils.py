@@ -425,13 +425,12 @@ def _initialize_system_info():
     libc_version = "unknown"
     mac_address = "unknown"
     local_ip = "unknown"
-    boot_time_ms = 0
 
     # move to host mount NS for distro & ldd.
     # now, distro will read the files on host.
     # also move to host UTS NS for the hostname.
     def get_infos():
-        nonlocal distribution, libc_version, boot_time_ms, mac_address, local_ip
+        nonlocal distribution, libc_version, mac_address, local_ip
         global hostname
 
         try:
@@ -450,11 +449,6 @@ def _initialize_system_info():
             logger.exception("Failed to get hostname")
 
         try:
-            boot_time_ms = round(time.monotonic() * 1000)
-        except Exception:
-            logger.exception("Failed to get the system boot time")
-
-        try:
 
             mac_address = get_mac_address()
         except Exception:
@@ -467,7 +461,7 @@ def _initialize_system_info():
 
     run_in_ns(["mnt", "uts", "pid", "net"], get_infos)
 
-    return hostname, distribution, libc_version, boot_time_ms, mac_address, local_ip
+    return hostname, distribution, libc_version, mac_address, local_ip
 
 
 @dataclass
@@ -497,7 +491,8 @@ class SystemInfo:
 
 
 def get_system_info() -> SystemInfo:
-    hostname, distribution, libc_tuple, boot_time_ms, mac_address, local_ip = _initialize_system_info()
+    hostname, distribution, libc_tuple, mac_address, local_ip = _initialize_system_info()
+    boot_time_ms = round(time.monotonic() * 1000)
     libc_type, libc_version = libc_tuple
     os_name, os_release, os_codename = distribution
     uname = platform.uname()
