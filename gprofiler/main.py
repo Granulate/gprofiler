@@ -25,8 +25,8 @@ from gprofiler.docker_client import DockerClient
 from gprofiler.java import JavaProfiler
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
-from gprofiler.metadata.cloud_metadata import get_cloud_instance_metadata
-from gprofiler.metadata.system_metadata import get_hostname, get_system_info
+from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
+from gprofiler.metadata.system_metadata import get_hostname
 from gprofiler.perf import SystemProfiler
 from gprofiler.php import PHPSpyProfiler
 from gprofiler.profiler_base import NoopProfiler
@@ -115,8 +115,7 @@ class GProfiler:
         self._state = state
         self._remote_logs_handler = remote_logs_handler
         self._stop_event = Event()
-        self._spawn_time = time.time()
-        self._static_metadata = get_system_info()
+        self._static_metadata = get_static_metadata(spawn_time=time.time())
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
         # 1. accessible by everyone - for profilers that run code in target processes, like async-profiler
@@ -241,25 +240,9 @@ class GProfiler:
         return '\n'.join(lines)
 
     def send_metadata(self):
-        metadata_dict = self._get_metadata()
+        metadata_dict = get_current_metadata(self._static_metadata)
         logger.debug("gProfiler metadata:\n" + pprint.pformat(metadata_dict))
         self._client.submit_metadata(metadata_dict)
-
-    def _get_metadata(self):
-        cloud_metadata = get_cloud_instance_metadata()
-        system_metadata = get_system_info()
-        spawn_time = datetime.datetime.utcfromtimestamp(self._spawn_time).replace(microsecond=0).isoformat()
-        current_time = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
-        metadata_dict = {
-            "cloud_provider": cloud_metadata.pop("provider") or "unknown",
-            "agent_version": __version__,
-            "spawn_time": spawn_time,
-            "current_time": current_time,
-        }
-        metadata_dict.update(system_metadata.get_dict())
-        if cloud_metadata is not None:
-            metadata_dict["cloud_info_wrapped"] = cloud_metadata
-        return metadata_dict
 
     def start(self):
         self._stop_event.clear()

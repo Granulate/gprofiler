@@ -33,7 +33,7 @@ from gprofiler.exceptions import (
     StopEventSetException,
 )
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata.system_metadata import get_system_info
+from gprofiler.metadata.system_metadata import get_static_system_info
 
 logger = get_logger_adapter(__name__)
 
@@ -330,7 +330,7 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
 
 
 def log_system_info() -> None:
-    system_info = get_system_info()
+    system_info = get_static_system_info()
     logger.info(f"gProfiler Python version: {system_info.python_version}")
     logger.info(f"gProfiler deployment mode: {system_info.run_mode}")
     logger.info(f"Kernel uname release: {system_info.kernel_release}")

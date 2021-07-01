@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import distro  # type: ignore
 import psutil
@@ -121,7 +121,6 @@ class SystemInfo:
     libc_version: str
     hardware_type: str
     pid: int
-    spawn_uptime_ms: int
     mac_address: str
     private_ip: str
 
@@ -129,9 +128,9 @@ class SystemInfo:
         return self.__dict__.copy()
 
 
-def get_system_info() -> SystemInfo:
+def get_static_system_info() -> SystemInfo:
     hostname, distribution, libc_tuple, mac_address, local_ip = _initialize_system_info()
-    boot_time_ms = round(time.monotonic() * 1000)
+
     libc_type, libc_version = libc_tuple
     os_name, os_release, os_codename = distribution
     uname = platform.uname()
@@ -155,10 +154,13 @@ def get_system_info() -> SystemInfo:
         libc_version=libc_version,
         hardware_type=uname.machine,
         pid=os.getpid(),
-        spawn_uptime_ms=boot_time_ms,
         mac_address=mac_address,
         private_ip=local_ip,
     )
+
+
+def get_dynamic_system_metadata() -> Dict:
+    return {"spawn_uptime_ms": round(time.monotonic() * 1000)}
 
 
 def get_hostname() -> str:

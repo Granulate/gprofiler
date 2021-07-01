@@ -144,7 +144,7 @@ def send_request(url: str, headers: Dict[str, str] = None) -> Optional[Response]
     return response
 
 
-def get_cloud_instance_metadata() -> Optional[Dict[str, Union[str, bool, int]]]:
+def get_static_cloud_instance_metadata() -> Optional[Dict[str, Union[str, bool, int]]]:
     cloud_metadata_fetchers = [get_aws_metadata, get_gcp_metadata, get_azure_metadata]
     raised_exceptions: List[Exception] = []
     for fetcher in cloud_metadata_fetchers:
