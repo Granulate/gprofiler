@@ -372,6 +372,18 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
     t.join()
 
 
+def get_local_ip():
+    local_ips = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")]
+    if not local_ips:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(("8.8.8.8", 53))
+            local_ips.append(s.getsockname()[0])
+        finally:
+            s.close()
+    return local_ips[0] if local_ips else "unknown"
+
+
 def _initialize_system_info():
     # initialized first
     global hostname
@@ -379,13 +391,14 @@ def _initialize_system_info():
     distribution = "unknown"
     libc_version = "unknown"
     mac_address = "unknown"
+    local_ip = "unknown"
     boot_time_ms = 0
 
     # move to host mount NS for distro & ldd.
     # now, distro will read the files on host.
     # also move to host UTS NS for the hostname.
     def get_infos():
-        nonlocal distribution, libc_version, boot_time_ms, mac_address
+        nonlocal distribution, libc_version, boot_time_ms, mac_address, local_ip
         global hostname
 
         try:
@@ -413,22 +426,14 @@ def _initialize_system_info():
         except Exception:
             logger.exception("Failed to get MAC address")
 
+        try:
+            local_ip = get_local_ip()
+        except Exception:
+            logger.exception("Failed to get the local IP")
+
     run_in_ns(["mnt", "uts"], get_infos)
 
-    return hostname, distribution, libc_version, boot_time_ms, mac_address
-
-
-@dataclass
-class LibcVersion:
-    type: str
-    version: str
-
-
-@dataclass
-class LinuxDistribution:
-    id_name: str
-    version: str
-    codename: str
+    return hostname, distribution, libc_version, boot_time_ms, mac_address, local_ip
 
 
 @dataclass
@@ -437,46 +442,52 @@ class SystemInfo:
     run_mode: str
     kernel_release: str
     kernel_version: str
-    release_name: str
-    cpu_count: int
+    system_name: str
+    processors: int
     memory_capacity_mb: int
-    hostname: str
-    linux_distribution: LinuxDistribution
-    libc: LibcVersion
-    architecture: str
+    host_name: str
+    os_name: str
+    os_release: str
+    os_codename: str
+    libc_type: str
+    libc_version: str
+    hardware_type: str
     pid: int
     spawn_uptime_ms: int
-    mac_address: str
+    mac: str
+    private_ip: str
 
     def get_dict(self):
-        sys_info_dict = self.__dict__.copy()
-        sys_info_dict["libc"] = sys_info_dict["libc"].__dict__
-        sys_info_dict["linux_distribution"] = sys_info_dict["linux_distribution"].__dict__
-        return sys_info_dict
+        return self.__dict__.copy()
 
 
 def get_system_info() -> SystemInfo:
-    hostname, distribution, libc_tuple, boot_time_ms, mac_address = _initialize_system_info()
+    hostname, distribution, libc_tuple, boot_time_ms, mac_address, local_ip = _initialize_system_info()
     libc_type, libc_version = libc_tuple
-    id_name, version, codename = distribution
+    os_name, os_release, os_codename = distribution
     uname = platform.uname()
     cpu_count = os.cpu_count()
     cpu_count = cpu_count if cpu_count is not None else 0
+
     return SystemInfo(
-        sys.version,
-        get_run_mode(),
-        uname.release,
-        uname.version,
-        uname.system,
-        cpu_count,
-        round(psutil.virtual_memory().total / 1024 / 1024),
-        hostname,
-        LinuxDistribution(id_name, version, codename),
-        LibcVersion(type=libc_type, version=libc_version),
-        uname.machine,
-        os.getpid(),
-        boot_time_ms,
-        mac_address,
+        python_version=sys.version,
+        run_mode=get_run_mode(),
+        kernel_release=uname.release,
+        kernel_version=uname.version,
+        system_name=uname.system,
+        processors=cpu_count,
+        memory_capacity_mb=round(psutil.virtual_memory().total / 1024 / 1024),
+        host_name=hostname,
+        os_name=os_name,
+        os_release=os_release,
+        os_codename=os_codename,
+        libc_type=libc_type,
+        libc_version=libc_version,
+        hardware_type=uname.machine,
+        pid=os.getpid(),
+        spawn_uptime_ms=boot_time_ms,
+        mac=mac_address,
+        private_ip=local_ip,
     )
 
 
@@ -486,11 +497,11 @@ def log_system_info() -> None:
     logger.info(f"gProfiler run mode: {system_info.run_mode}")
     logger.info(f"Kernel uname release: {system_info.kernel_release}")
     logger.info(f"Kernel uname version: {system_info.kernel_version}")
-    logger.info(f"Total CPUs: {system_info.cpu_count}")
+    logger.info(f"Total CPUs: {system_info.processors}")
     logger.info(f"Total RAM: {system_info.memory_capacity_mb / (1 << 20):.2f} GB")
-    logger.info(f"Linux distribution: {system_info.linux_distribution}")
-    logger.info(f"libc version: {system_info.libc.type}-{system_info.libc.version}")
-    logger.info(f"Hostname: {system_info.hostname}")
+    logger.info(f"Linux distribution: {system_info.os_name} | {system_info.os_release} | {system_info.os_codename}")
+    logger.info(f"libc version: {system_info.libc_type}-{system_info.libc_version}")
+    logger.info(f"Hostname: {system_info.host_name}")
 
 
 def grab_gprofiler_mutex() -> bool:
