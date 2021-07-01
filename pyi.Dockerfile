@@ -65,9 +65,6 @@ RUN yum install -y \
     ncurses-devel \
     elfutils-libelf-devel
 
-COPY ./scripts/libunwind_build.sh .
-RUN ./libunwind_build.sh
-
 WORKDIR /bcc
 
 RUN yum install -y centos-release-scl-rh
@@ -78,6 +75,9 @@ RUN yum install -y devtoolset-8 \
     llvm-toolset-7-llvm-static \
     llvm-toolset-7-clang-devel \
     devtoolset-8-elfutils-libelf-devel
+
+COPY ./scripts/libunwind_build.sh .
+RUN ./libunwind_build.sh
 
 COPY ./scripts/pyperf_build.sh .
 RUN source scl_source enable devtoolset-8 llvm-toolset-7 && source ./pyperf_build.sh
