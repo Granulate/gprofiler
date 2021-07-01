@@ -244,7 +244,7 @@ class GProfiler:
         system_metadata = get_system_info()
         metadata_dict = {
             "cloud_provider": cloud_metadata.pop("provider") or "unknown",
-            "version": __version__,
+            "agent_version": __version__,
             "start_time": round(self._spawn_time),
         }
         metadata_dict.update(system_metadata.get_dict())
