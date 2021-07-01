@@ -122,9 +122,9 @@ class APIClient:
         end_time: datetime.datetime,
         profile: str,
         total_samples: int,
+        spawn_time: float,
         cpu_avg: Optional[float],
         mem_avg: Optional[float],
-        spawn_time: float,
     ) -> Dict:
         return self.post(
             "profiles",

@@ -25,7 +25,7 @@ from gprofiler.docker_client import DockerClient
 from gprofiler.java import JavaProfiler
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
-from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
+from gprofiler.metadata.metadata_collector import Metadata, get_current_metadata, get_static_metadata
 from gprofiler.metadata.system_metadata import get_hostname
 from gprofiler.perf import SystemProfiler
 from gprofiler.php import PHPSpyProfiler
@@ -114,8 +114,12 @@ class GProfiler:
         self._client = client
         self._state = state
         self._remote_logs_handler = remote_logs_handler
+        self._collect_metrics = collect_metrics
         self._stop_event = Event()
-        self._static_metadata = get_static_metadata(spawn_time=time.time())
+        self._static_metadata: Optional[Metadata] = None
+        self._spawn_time = time.time()
+        if collect_metrics:
+            self._static_metadata = get_static_metadata(spawn_time=self._spawn_time)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
         # 1. accessible by everyone - for profilers that run code in target processes, like async-profiler
@@ -303,18 +307,20 @@ class GProfiler:
         except Exception:
             logger.error("Running perf failed; consider running gProfiler with '--perf-mode none' to avoid using perf")
             raise
-
+        metadata = get_current_metadata(self._static_metadata) if self._collect_metrics else None
         if self._runtimes["system"]:
             merged_result, total_samples = merge.merge_profiles(
                 system_result,
                 process_profiles,
                 self._docker_client,
+                metadata,
             )
         else:
             assert system_result == {}, system_result  # should be empty!
             merged_result, total_samples = merge.concatenate_profiles(
                 process_profiles,
                 self._docker_client,
+                metadata,
             )
 
         if self._output_dir:
@@ -328,7 +334,13 @@ class GProfiler:
                 cpu_avg = mem_avg = None
             try:
                 self._client.submit_profile(
-                    local_start_time, local_end_time, merged_result, total_samples, cpu_avg, mem_avg, self._spawn_time
+                    local_start_time,
+                    local_end_time,
+                    merged_result,
+                    total_samples,
+                    self._spawn_time,
+                    cpu_avg,
+                    mem_avg,
                 )
             except Timeout:
                 logger.error("Upload of profile to server timed out.")

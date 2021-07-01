@@ -1,11 +1,12 @@
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import requests
 from requests import Response
 
 from gprofiler.exceptions import BadResponseCode
+from gprofiler.metadata.metadata_collector import Metadata
 
 AWS_TIMEOUT = 5
 
@@ -144,7 +145,7 @@ def send_request(url: str, headers: Dict[str, str] = None) -> Optional[Response]
     return response
 
 
-def get_static_cloud_instance_metadata() -> Optional[Dict[str, Union[str, bool, int]]]:
+def get_static_cloud_instance_metadata() -> Optional[Metadata]:
     cloud_metadata_fetchers = [get_aws_metadata, get_gcp_metadata, get_azure_metadata]
     raised_exceptions: List[Exception] = []
     for fetcher in cloud_metadata_fetchers:
