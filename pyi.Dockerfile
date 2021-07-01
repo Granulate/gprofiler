@@ -24,6 +24,9 @@ FROM ubuntu@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa
 COPY scripts/perf_env.sh .
 RUN ./perf_env.sh
 
+COPY scripts/libunwind_build.sh .
+RUN ./libunwind_build.sh
+
 COPY scripts/perf_build.sh .
 RUN ./perf_build.sh
 
@@ -54,13 +57,18 @@ FROM centos@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b
 
 RUN yum install -y \
     git \
+    curl \
     cmake \
     python3 \
     flex \
     bison \
     zlib-devel.x86_64 \
+    liblzma-dev \
     ncurses-devel \
     elfutils-libelf-devel
+
+COPY ./scripts/libunwind_build.sh .
+RUN ./libunwind_build.sh
 
 WORKDIR /bcc
 
