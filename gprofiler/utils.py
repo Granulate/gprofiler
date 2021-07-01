@@ -320,16 +320,15 @@ def get_libc_version() -> Tuple[str, str]:
     return "unknown", decode_libc_version(ldd_version)
 
 
-def get_run_mode() -> str:
+def get_run_mode_and_deployment_type() -> Tuple[str, str]:
     if os.getenv("GPROFILER_IN_K8S") is not None:  # set in k8s/gprofiler.yaml
-        return "k8s"
+        return "k8s", "k8s"
     elif os.getenv("GPROFILER_IN_CONTAINER") is not None:  # set by our Dockerfile
-        return "container"
+        return "container", "containers"
     elif os.getenv("STATICX_BUNDLE_DIR") is not None:  # set by staticx
-        return "standalone_executable"
+        return "standalone_executable", "instances"
     else:
-        return "local_python"
-
+        return "local_python", "instances"
 
 def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int = 1) -> None:
     """
@@ -443,6 +442,7 @@ def _initialize_system_info():
 class SystemInfo:
     python_version: str
     run_mode: str
+    deployment_type: str
     kernel_release: str
     kernel_version: str
     system_name: str
@@ -471,10 +471,11 @@ def get_system_info() -> SystemInfo:
     uname = platform.uname()
     cpu_count = os.cpu_count()
     cpu_count = cpu_count if cpu_count is not None else 0
-
+    run_mode, deployment_type = get_run_mode_and_deployment_type()
     return SystemInfo(
         python_version=sys.version,
-        run_mode=get_run_mode(),
+        run_mode=run_mode,
+        deployment_type=deployment_type,
         kernel_release=uname.release,
         kernel_version=uname.version,
         system_name=uname.system,
