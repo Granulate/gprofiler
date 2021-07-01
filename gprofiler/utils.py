@@ -320,7 +320,7 @@ def get_libc_version() -> Tuple[str, str]:
     return "unknown", decode_libc_version(ldd_version)
 
 
-def get_deployment_mode() -> str:
+def get_run_mode() -> str:
     if os.getenv("GPROFILER_IN_K8S") is not None:  # set in k8s/gprofiler.yaml
         return "k8s"
     elif os.getenv("GPROFILER_IN_CONTAINER") is not None:  # set by our Dockerfile
@@ -442,7 +442,7 @@ def _initialize_system_info():
 @dataclass
 class SystemInfo:
     python_version: str
-    deployment_mode: str
+    run_mode: str
     kernel_release: str
     kernel_version: str
     system_name: str
@@ -474,7 +474,7 @@ def get_system_info() -> SystemInfo:
 
     return SystemInfo(
         python_version=sys.version,
-        deployment_mode=get_deployment_mode(),
+        run_mode=get_run_mode(),
         kernel_release=uname.release,
         kernel_version=uname.version,
         system_name=uname.system,
@@ -497,7 +497,7 @@ def get_system_info() -> SystemInfo:
 def log_system_info() -> None:
     system_info = get_system_info()
     logger.info(f"gProfiler Python version: {system_info.python_version}")
-    logger.info(f"gProfiler deployment mode: {system_info.deployment_mode}")
+    logger.info(f"gProfiler deployment mode: {system_info.run_mode}")
     logger.info(f"Kernel uname release: {system_info.kernel_release}")
     logger.info(f"Kernel uname version: {system_info.kernel_version}")
     logger.info(f"Total CPUs: {system_info.processors}")
