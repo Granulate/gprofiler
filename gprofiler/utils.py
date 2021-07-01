@@ -469,7 +469,7 @@ def get_system_info() -> SystemInfo:
         uname.version,
         uname.system,
         cpu_count,
-        round(psutil.virtual_memory().total / 1024),
+        round(psutil.virtual_memory().total / 1024 / 1024),
         hostname,
         LinuxDistribution(id_name, version, codename),
         LibcVersion(type=libc_type, version=libc_version),
