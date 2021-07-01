@@ -320,7 +320,7 @@ def get_libc_version() -> Tuple[str, str]:
     return "unknown", decode_libc_version(ldd_version)
 
 
-def get_run_mode() -> str:
+def get_deployment_mode() -> str:
     if os.getenv("GPROFILER_IN_K8S") is not None:  # set in k8s/gprofiler.yaml
         return "k8s"
     elif os.getenv("GPROFILER_IN_CONTAINER") is not None:  # set by our Dockerfile
@@ -373,7 +373,10 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
 
 
 def get_local_ip():
-    local_ips = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")]
+    try:
+        local_ips = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")]
+    except Exception:
+        local_ips = []
     if not local_ips:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
@@ -439,7 +442,7 @@ def _initialize_system_info():
 @dataclass
 class SystemInfo:
     python_version: str
-    run_mode: str
+    deployment_mode: str
     kernel_release: str
     kernel_version: str
     system_name: str
@@ -471,7 +474,7 @@ def get_system_info() -> SystemInfo:
 
     return SystemInfo(
         python_version=sys.version,
-        run_mode=get_run_mode(),
+        deployment_mode=get_deployment_mode(),
         kernel_release=uname.release,
         kernel_version=uname.version,
         system_name=uname.system,
@@ -494,7 +497,7 @@ def get_system_info() -> SystemInfo:
 def log_system_info() -> None:
     system_info = get_system_info()
     logger.info(f"gProfiler Python version: {system_info.python_version}")
-    logger.info(f"gProfiler run mode: {system_info.run_mode}")
+    logger.info(f"gProfiler deployment mode: {system_info.deployment_mode}")
     logger.info(f"Kernel uname release: {system_info.kernel_release}")
     logger.info(f"Kernel uname version: {system_info.kernel_version}")
     logger.info(f"Total CPUs: {system_info.processors}")
