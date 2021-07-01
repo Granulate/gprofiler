@@ -244,10 +244,12 @@ class GProfiler:
         cloud_metadata = get_cloud_instance_metadata()
         system_metadata = get_system_info()
         spawn_time = datetime.datetime.utcfromtimestamp(self._spawn_time).replace(microsecond=0).isoformat()
+        current_time = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
         metadata_dict = {
             "cloud_provider": cloud_metadata.pop("provider") or "unknown",
             "agent_version": __version__,
             "spawn_time": spawn_time,
+            "current_time": current_time,
         }
         metadata_dict.update(system_metadata.get_dict())
         if cloud_metadata is not None:
