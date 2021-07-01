@@ -11,8 +11,8 @@ from typing import Iterable, Optional, Tuple
 
 from gprofiler.docker_client import DockerClient
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.system_metadata import get_hostname
 from gprofiler.types import ProcessToStackSampleCounters, StackToSampleCount
-from gprofiler.utils import get_hostname
 
 logger = get_logger_adapter(__name__)
 
@@ -210,6 +210,7 @@ def _make_profile_metadata(docker_client: Optional[DockerClient]) -> str:
 
     return "# " + json.dumps(
         {
+            # todo: get hostname with other metadata instead of here
             'containers': container_names,
             'hostname': get_hostname(),
             'container_names_enabled': enabled,

@@ -21,11 +21,12 @@ from requests import RequestException, Timeout
 
 from gprofiler import __version__, merge
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
-from gprofiler.cloud_metadata import get_cloud_instance_metadata
 from gprofiler.docker_client import DockerClient
 from gprofiler.java import JavaProfiler
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
+from gprofiler.metadata.cloud_metadata import get_cloud_instance_metadata
+from gprofiler.metadata.system_metadata import get_hostname, get_system_info
 from gprofiler.perf import SystemProfiler
 from gprofiler.php import PHPSpyProfiler
 from gprofiler.profiler_base import NoopProfiler
@@ -37,9 +38,7 @@ from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     TemporaryDirectoryWithMode,
     atomically_symlink,
-    get_hostname,
     get_iso8601_format_time,
-    get_system_info,
     grab_gprofiler_mutex,
     is_root,
     is_running_in_init_pid,
@@ -117,6 +116,7 @@ class GProfiler:
         self._remote_logs_handler = remote_logs_handler
         self._stop_event = Event()
         self._spawn_time = time.time()
+        self._static_metadata = get_system_info()
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
         # 1. accessible by everyone - for profilers that run code in target processes, like async-profiler
@@ -241,6 +241,11 @@ class GProfiler:
         return '\n'.join(lines)
 
     def send_metadata(self):
+        metadata_dict = self._get_metadata()
+        logger.debug("gProfiler metadata:\n" + pprint.pformat(metadata_dict))
+        self._client.submit_metadata(metadata_dict)
+
+    def _get_metadata(self):
         cloud_metadata = get_cloud_instance_metadata()
         system_metadata = get_system_info()
         spawn_time = datetime.datetime.utcfromtimestamp(self._spawn_time).replace(microsecond=0).isoformat()
@@ -254,8 +259,7 @@ class GProfiler:
         metadata_dict.update(system_metadata.get_dict())
         if cloud_metadata is not None:
             metadata_dict["cloud_info_wrapped"] = cloud_metadata
-        logger.debug("gProfiler metadata:\n" + pprint.pformat(metadata_dict))
-        self._client.submit_metadata(metadata_dict)
+        return metadata_dict
 
     def start(self):
         self._stop_event.clear()
