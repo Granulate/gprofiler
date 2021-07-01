@@ -88,7 +88,7 @@ RUN source scl_source enable devtoolset-8 llvm-toolset-7 && source ./pyperf_buil
 WORKDIR /app
 
 RUN yum update -y && yum install -y epel-release
-RUN yum install -y gcc python3 curl python3-pip patchelf python3-devel upx
+RUN yum install -y gcc python3 curl python3-pip patchelf python3-devel upx liblzma-dev
 
 COPY requirements.txt requirements.txt
 RUN python3 -m pip install -r requirements.txt
