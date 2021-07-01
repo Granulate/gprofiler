@@ -8,6 +8,7 @@ import logging
 import logging.config
 import logging.handlers
 import os
+import pprint
 import signal
 import sys
 import time
@@ -251,6 +252,7 @@ class GProfiler:
         metadata_dict.update(system_metadata.get_dict())
         if cloud_metadata is not None:
             metadata_dict["cloud_info_wrapped"] = cloud_metadata
+        logger.debug("gProfiler metadata:\n" + pprint.pformat(metadata_dict))
         self._client.submit_metadata(metadata_dict)
 
     def start(self):
