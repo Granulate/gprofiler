@@ -208,6 +208,6 @@ def _initialize_system_info():
         except Exception:
             logger.exception("Failed to get the local IP")
 
-    run_in_ns(["mnt", "uts", "pid", "net"], get_infos)
+    run_in_ns(["mnt", "uts", "net"], get_infos)
 
     return hostname, distribution, libc_version, mac_address, local_ip
