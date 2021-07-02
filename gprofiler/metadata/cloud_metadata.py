@@ -1,12 +1,18 @@
+from __future__ import annotations  # type: ignore
+
 import logging
+import typing
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 
 import requests
 from requests import Response
 
 from gprofiler.exceptions import BadResponseCode
-from gprofiler.metadata.metadata_collector import Metadata
+
+if typing.TYPE_CHECKING:
+    from typing import Dict, List, Optional
+
+    from gprofiler.metadata.metadata_collector import Metadata
 
 AWS_TIMEOUT = 5
 
