@@ -307,7 +307,9 @@ class GProfiler:
         except Exception:
             logger.error("Running perf failed; consider running gProfiler with '--perf-mode none' to avoid using perf")
             raise
-        metadata = get_current_metadata(self._static_metadata) if self._collect_metrics else None
+        metadata = (
+            get_current_metadata(self._static_metadata) if self._collect_metrics else {"hostname": get_hostname()}
+        )
         if self._runtimes["system"]:
             merged_result, total_samples = merge.merge_profiles(
                 system_result,

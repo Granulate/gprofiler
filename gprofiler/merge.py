@@ -2,6 +2,8 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+from __future__ import annotations  # type: ignore
+
 import json
 import math
 import random
@@ -200,7 +202,7 @@ def _parse_perf_script(script: Optional[str]) -> ProcessToStackSampleCounters:
     return pid_to_collapsed_stacks_counters
 
 
-def _make_profile_metadata(docker_client: Optional[DockerClient], metadata: Optional[Metadata]) -> str:
+def _make_profile_metadata(docker_client: Optional[DockerClient], metadata: Metadata) -> str:
     if docker_client is not None:
         container_names = docker_client.container_names
         docker_client.reset_cache()
@@ -211,11 +213,9 @@ def _make_profile_metadata(docker_client: Optional[DockerClient], metadata: Opti
 
     profile_metadata = {
         'containers': container_names,
-        'hostname': get_hostname(),
         'container_names_enabled': enabled,
     }
-    if metadata is not None:
-        profile_metadata.update(metadata)
+    profile_metadata.update(metadata)
     return "# " + json.dumps(profile_metadata)
 
 
@@ -226,7 +226,7 @@ def _get_container_name(pid: int, docker_client: Optional[DockerClient]):
 def concatenate_profiles(
     process_profiles: ProcessToStackSampleCounters,
     docker_client: Optional[DockerClient],
-    metadata: Optional[Metadata],
+    metadata: Metadata,
 ) -> Tuple[str, int]:
     """
     Concatenate all stacks from all stack mappings in process_profiles.
@@ -251,7 +251,7 @@ def merge_profiles(
     perf_pid_to_stacks_counter: ProcessToStackSampleCounters,
     process_profiles: ProcessToStackSampleCounters,
     docker_client: Optional[DockerClient],
-    metadata: Optional[Metadata],
+    metadata: Metadata,
 ) -> Tuple[str, int]:
     # merge process profiles into the global perf results.
     for pid, stacks in process_profiles.items():
