@@ -61,11 +61,9 @@ RUN yum install -y \
     flex \
     bison \
     zlib-devel.x86_64 \
-    liblzma-dev \
+    xz-devel \
     ncurses-devel \
     elfutils-libelf-devel
-
-WORKDIR /bcc
 
 RUN yum install -y centos-release-scl-rh
 # mostly taken from https://github.com/iovisor/bcc/blob/master/INSTALL.md#install-and-compile-llvm
@@ -79,6 +77,8 @@ RUN yum install -y devtoolset-8 \
 COPY ./scripts/libunwind_build.sh .
 RUN ./libunwind_build.sh
 
+WORKDIR /bcc
+
 COPY ./scripts/pyperf_build.sh .
 RUN source scl_source enable devtoolset-8 llvm-toolset-7 && source ./pyperf_build.sh
 
@@ -88,7 +88,7 @@ RUN source scl_source enable devtoolset-8 llvm-toolset-7 && source ./pyperf_buil
 WORKDIR /app
 
 RUN yum update -y && yum install -y epel-release
-RUN yum install -y gcc python3 curl python3-pip patchelf python3-devel upx liblzma-dev
+RUN yum install -y gcc python3 curl python3-pip patchelf python3-devel upx
 
 COPY requirements.txt requirements.txt
 RUN python3 -m pip install -r requirements.txt
