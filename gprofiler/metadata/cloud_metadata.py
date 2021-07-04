@@ -2,7 +2,6 @@ from __future__ import annotations  # type: ignore
 
 import logging
 import typing
-from dataclasses import dataclass
 
 import requests
 from requests import Response
@@ -19,44 +18,79 @@ AWS_TIMEOUT = 5
 logger = logging.getLogger(__name__)
 
 
-@dataclass
 class InstanceMetadataBase:
-    provider: str
+    def __init__(self, provider: str):
+        self.provider = provider
 
 
-@dataclass()
 class AwsInstanceMetadata(InstanceMetadataBase):
-    region: str
-    zone: str
-    instance_type: str
-    life_cycle: str
-    account_id: str
-    image_id: str
-    instance_id: str
+    def __init__(
+        self,
+        provider: str,
+        region: str,
+        zone: str,
+        instance_type: str,
+        life_cycle: str,
+        account_id: str,
+        image_id: str,
+        instance_id: str,
+    ):
+        super().__init__(provider)
+        self.region = region
+        self.zone = zone
+        self.instance_type = instance_type
+        self.life_cycle = life_cycle
+        self.account_id = account_id
+        self.image_id = image_id
+        self.instance_id = instance_id
 
 
-@dataclass
 class GcpInstanceMetadata(InstanceMetadataBase):
-    zone: str
-    instance_type: str
-    preempted: bool
-    preemptible: bool
-    instance_id: str
-    image_id: str
-    name: str
+    def __init__(
+        self,
+        provider: str,
+        zone: str,
+        instance_type: str,
+        preempted: bool,
+        preemptible: bool,
+        instance_id: str,
+        image_id: str,
+        name: str,
+    ):
+        super().__init__(provider)
+        self.zone = zone
+        self.instance_type = instance_type
+        self.preempted = preempted
+        self.preemptible = preemptible
+        self.instance_id = instance_id
+        self.image_id = image_id
+        self.name = name
 
 
-@dataclass
 class AzureInstanceMetadata(InstanceMetadataBase):
-    instance_type: str
-    zone: str
-    region: str
-    subscription_id: str
-    resource_group_name: str
-    resource_id: str
-    instance_id: str
-    name: str
-    image_info: Optional[Dict[str, str]]
+    def __init__(
+        self,
+        provider: str,
+        instance_type: str,
+        zone: str,
+        region: str,
+        subscription_id: str,
+        resource_group_name: str,
+        resource_id: str,
+        instance_id: str,
+        name: str,
+        image_info: Optional[Dict[str, str]],
+    ):
+        super().__init__(provider)
+        self.instance_type = instance_type
+        self.zone = zone
+        self.region = region
+        self.subscription_id = subscription_id
+        self.resource_group_name = resource_group_name
+        self.resource_id = resource_id
+        self.instance_id = instance_id
+        self.name = name
+        self.image_info = image_info
 
 
 def get_aws_metadata() -> Optional[AwsInstanceMetadata]:

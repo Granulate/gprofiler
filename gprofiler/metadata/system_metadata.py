@@ -8,7 +8,6 @@ import struct
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
 import distro  # type: ignore
@@ -105,26 +104,46 @@ def get_mac_address() -> str:
     return "unknown"
 
 
-@dataclass
 class SystemInfo:
-    python_version: str
-    run_mode: str
-    deployment_type: str
-    kernel_release: str
-    kernel_version: str
-    system_name: str
-    processors: int
-    memory_capacity_mb: int
-    hostname: str
-    os_name: str
-    os_release: str
-    os_codename: str
-    libc_type: str
-    libc_version: str
-    hardware_type: str
-    pid: int
-    mac_address: str
-    private_ip: str
+    def __init__(
+        self,
+        python_version: str,
+        run_mode: str,
+        deployment_type: str,
+        kernel_release: str,
+        kernel_version: str,
+        system_name: str,
+        processors: int,
+        memory_capacity_mb: int,
+        hostname: str,
+        os_name: str,
+        os_release: str,
+        os_codename: str,
+        libc_type: str,
+        libc_version: str,
+        hardware_type: str,
+        pid: int,
+        mac_address: str,
+        private_ip: str,
+    ):
+        self.python_version = python_version
+        self.run_mode = run_mode
+        self.deployment_type = deployment_type
+        self.kernel_release = kernel_release
+        self.kernel_version = kernel_version
+        self.system_name = system_name
+        self.processors = processors
+        self.memory_capacity_mb = memory_capacity_mb
+        self.hostname = hostname
+        self.os_name = os_name
+        self.os_release = os_release
+        self.os_codename = os_codename
+        self.libc_type = libc_type
+        self.libc_version = libc_version
+        self.hardware_type = hardware_type
+        self.pid = pid
+        self.mac_address = mac_address
+        self.private_ip = private_ip
 
     def get_dict(self):
         return self.__dict__.copy()
