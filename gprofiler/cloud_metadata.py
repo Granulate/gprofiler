@@ -1,4 +1,3 @@
-import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Union
 
@@ -6,10 +5,11 @@ import requests
 from requests import Response
 
 from gprofiler.exceptions import BadResponseCode
+from gprofiler.log import get_logger_adapter
 
 METADATA_REQUEST_TIMEOUT = 5
 
-logger = logging.getLogger(__name__)
+logger = get_logger_adapter(__name__)
 
 
 @dataclass
