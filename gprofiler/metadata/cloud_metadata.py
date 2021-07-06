@@ -1,17 +1,13 @@
-import typing
+from typing import Dict, List, Optional
 
 import requests
 from requests import Response
 
 from gprofiler.exceptions import BadResponseCode
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.metadata_type import Metadata
 
 METADATA_REQUEST_TIMEOUT = 5
-if typing.TYPE_CHECKING:
-    from typing import Dict, List, Optional
-
-    from gprofiler.metadata.metadata_collector import Metadata
-
 
 logger = get_logger_adapter(__name__)
 

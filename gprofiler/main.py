@@ -12,7 +12,6 @@ import pprint
 import signal
 import sys
 import time
-import typing
 from pathlib import Path
 from threading import Event
 from typing import Callable, Dict, Optional
@@ -27,10 +26,7 @@ from gprofiler.java import JavaProfiler
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
-
-if typing.TYPE_CHECKING:
-    from gprofiler.metadata.metadata_collector import Metadata
-
+from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.metadata.system_metadata import get_hostname
 from gprofiler.perf import SystemProfiler
 from gprofiler.php import PHPSpyProfiler

@@ -1,12 +1,11 @@
 import datetime
 import time
-from typing import Dict, Optional, Union
+from typing import Optional
 
 from gprofiler import __version__
 from gprofiler.metadata.cloud_metadata import get_static_cloud_instance_metadata
+from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.metadata.system_metadata import get_dynamic_system_metadata, get_static_system_info
-
-Metadata = Dict[str, Union[str, int, bool, Dict]]
 
 
 def get_static_metadata(spawn_time: Optional[float]) -> Metadata:

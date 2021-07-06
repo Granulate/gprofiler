@@ -7,16 +7,12 @@ import json
 import math
 import random
 import re
-import typing
 from collections import Counter, defaultdict
 from typing import Iterable, Optional, Tuple
 
 from gprofiler.docker_client import DockerClient
 from gprofiler.log import get_logger_adapter
-
-if typing.TYPE_CHECKING:
-    from gprofiler.metadata.metadata_collector import Metadata
-
+from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.types import ProcessToStackSampleCounters, StackToSampleCount
 
 logger = get_logger_adapter(__name__)
