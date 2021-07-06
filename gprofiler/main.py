@@ -105,6 +105,7 @@ class GProfiler:
         runtimes: Dict[str, bool],
         client: APIClient,
         collect_metrics: bool,
+        collect_metadata: bool,
         state: State,
         include_container_names=True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
@@ -120,10 +121,11 @@ class GProfiler:
         self._state = state
         self._remote_logs_handler = remote_logs_handler
         self._collect_metrics = collect_metrics
+        self._collect_metadata = collect_metadata
         self._stop_event = Event()
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
-        if collect_metrics:
+        if collect_metadata:
             self._static_metadata = get_static_metadata(spawn_time=self._spawn_time)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
@@ -313,7 +315,7 @@ class GProfiler:
             logger.error("Running perf failed; consider running gProfiler with '--perf-mode none' to avoid using perf")
             raise
         metadata = (
-            get_current_metadata(self._static_metadata) if self._collect_metrics else {"hostname": get_hostname()}
+            get_current_metadata(self._static_metadata) if self._collect_metadata else {"hostname": get_hostname()}
         )
         if self._runtimes["system"]:
             merged_result, total_samples = merge.merge_profiles(
@@ -581,7 +583,15 @@ def parse_cmd_args():
         action="store_false",
         default=True,
         dest="collect_metrics",
-        help="Disable sending metrics and cloud metadata to the performance studio",
+        help="Disable sending system metrics to the performance studio",
+    )
+
+    parser.add_argument(
+        "--disable-metadata-collection",
+        action="store_false",
+        default=True,
+        dest="collect_metadata",
+        help="Disable sending system and cloud metadata to the performance studio",
     )
 
     args = parser.parse_args()
@@ -715,6 +725,7 @@ def main():
             runtimes,
             client,
             args.collect_metrics,
+            args.collect_metadata,
             state,
             not args.disable_container_names,
             remote_logs_handler,
