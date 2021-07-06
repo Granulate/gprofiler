@@ -8,12 +8,12 @@ from requests import Response
 
 from gprofiler.exceptions import BadResponseCode
 
+METADATA_REQUEST_TIMEOUT = 5
 if typing.TYPE_CHECKING:
     from typing import Dict, List, Optional
 
     from gprofiler.metadata.metadata_collector import Metadata
 
-AWS_TIMEOUT = 5
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ def get_gcp_metadata() -> Optional[GcpInstanceMetadata]:
         headers={"Metadata-Flavor": "Google"},
     )
     if response is None:
-        return response
+        return None
     instance_metadata = response.json()
     availability_zone = instance_metadata["zone"]
     instance_type = instance_metadata["machineType"]
@@ -179,7 +179,7 @@ def get_azure_metadata() -> Optional[AzureInstanceMetadata]:
 
 
 def send_request(url: str, headers: Dict[str, str] = None) -> Optional[Response]:
-    response = requests.get(url, headers=headers or {}, timeout=AWS_TIMEOUT)
+    response = requests.get(url, headers=headers or {}, timeout=METADATA_REQUEST_TIMEOUT)
     if not response.ok:
         raise BadResponseCode(response.status_code)
     return response

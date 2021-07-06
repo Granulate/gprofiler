@@ -11,22 +11,27 @@ DEFAULT_POLLING_INTERVAL_SECONDS = 5
 
 class SystemMetricsMonitor:
     def __init__(self, max_memory_poll_age_seconds: int, polling_rate_seconds: int = DEFAULT_POLLING_INTERVAL_SECONDS):
+        self._polling_rate_seconds = polling_rate_seconds
         self._cpu_count = psutil.cpu_count() or 1
         self._mem_percentages: Deque[float] = deque(maxlen=round(max_memory_poll_age_seconds / polling_rate_seconds))
         self._last_cpu_poll_time: Optional[float] = None
         self._last_cpu_utilization_percentages: Optional[Tuple[float, float]] = None
         self._stop_event = Event()
-        self._thread = Thread(target=self._continuously_polling_memory, args=(polling_rate_seconds,))
+        self._thread = None
 
         self.get_cpu_utilization()  # Call this once to set the necessary data
 
     def start(self):
+        assert self._thread is None, "SystemMetricsMonitor is already running"
         self._stop_event.clear()
+        self._thread = Thread(target=self._continuously_polling_memory, args=(self._polling_rate_seconds,))
         self._thread.start()
 
     def stop(self):
         self._stop_event.set()
+        assert self._thread is not None, "SystemMetricsMonitor was not running"
         self._thread.join()
+        self._thread = None
 
     def _continuously_polling_memory(self, polling_rate_seconds: int):
         while not self._stop_event.is_set():
