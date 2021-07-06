@@ -1,5 +1,3 @@
-from __future__ import annotations  # type: ignore
-
 import typing
 
 import requests
