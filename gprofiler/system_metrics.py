@@ -7,6 +7,7 @@ from typing import Deque, List, Optional, Tuple
 import psutil
 
 DEFAULT_POLLING_INTERVAL_SECONDS = 5
+STOP_TIMEOUT_SECONDS = 30
 
 
 class SystemMetricsMonitor:
@@ -30,7 +31,7 @@ class SystemMetricsMonitor:
     def stop(self):
         self._stop_event.set()
         assert self._thread is not None, "SystemMetricsMonitor was not running"
-        self._thread.join()
+        self._thread.join(STOP_TIMEOUT_SECONDS)
         self._thread = None
 
     def _continuously_polling_memory(self, polling_rate_seconds: int):
