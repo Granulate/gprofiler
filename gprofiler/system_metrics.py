@@ -6,6 +6,8 @@ from typing import Deque, List, Optional, Tuple
 
 import psutil
 
+from gprofiler.exceptions import ThreadStopTimeoutError
+
 DEFAULT_POLLING_INTERVAL_SECONDS = 5
 STOP_TIMEOUT_SECONDS = 30
 
@@ -32,6 +34,8 @@ class SystemMetricsMonitor:
         self._stop_event.set()
         assert self._thread is not None, "SystemMetricsMonitor was not running"
         self._thread.join(STOP_TIMEOUT_SECONDS)
+        if self._thread.is_alive():
+            raise ThreadStopTimeoutError("The SystemMetricsMonitor internal thread could not stop because of a timeout")
         self._thread = None
 
     def _continuously_polling_memory(self, polling_rate_seconds: int):
