@@ -732,7 +732,7 @@ def main():
             args.php_process_filter,
         )
         logger.info("gProfiler initialized and ready to start profiling")
-        if args.collect_metrics and args.upload_results:
+        if args.collect_metadata and args.upload_results:
             gprofiler.send_metadata()
         if args.continuous:
             gprofiler.run_continuous(args.continuous_profiling_interval)
