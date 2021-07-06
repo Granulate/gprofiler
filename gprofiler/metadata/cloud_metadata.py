@@ -1,12 +1,12 @@
 from __future__ import annotations  # type: ignore
 
-import logging
 import typing
 
 import requests
 from requests import Response
 
 from gprofiler.exceptions import BadResponseCode
+from gprofiler.log import get_logger_adapter
 
 METADATA_REQUEST_TIMEOUT = 5
 if typing.TYPE_CHECKING:
@@ -15,7 +15,7 @@ if typing.TYPE_CHECKING:
     from gprofiler.metadata.metadata_collector import Metadata
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger_adapter(__name__)
 
 
 class InstanceMetadataBase:
