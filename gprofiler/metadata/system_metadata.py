@@ -193,8 +193,8 @@ def _initialize_system_info():
     # initialized first
     global hostname
     hostname = "<unknown>"
-    distribution = "unknown"
-    libc_version = "unknown"
+    distribution = ("unknown", "unknown", "unknown")
+    libc_version = ("unknown", "unknown")
     mac_address = "unknown"
     local_ip = "unknown"
 
