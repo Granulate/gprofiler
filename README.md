@@ -81,6 +81,13 @@ Profiling using eBPF incurs lower overhead & provides kernel stacks. This (curre
 **By default, gProfiler sends logs to Granulate Performance Studio** (when using `--upload-results`/`-u` flag)
 This behavior can be disabled by passing `--dont-send-logs` or the setting environment variable `GPROFILER_DONT_SEND_LOGS=1`.
 
+### Metrics and metadata collection
+By default, the gProfiler agent sends system metrics (CPU and RAM usage) and metadata to the performance studio.
+The metadata includes system metadata like the kernel version and CPU count, and cloud metadata like the type of the instance you are running on.
+You can disable metrics and metadata by using the following parameters:
+* Use `--disable-metrics-collection` to disable metrics collection
+* Use `--disable-metadata-collection` to disable metadata collection
+
 ### Continuous mode
 gProfiler can be run in a continuous mode, profiling periodically, using the `--continuous`/`-c` flag.
 Note that when using `--continuous` with `--output-dir`, a new file will be created during *each* sampling interval.
