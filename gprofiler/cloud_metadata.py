@@ -155,7 +155,7 @@ def get_cloud_instance_metadata() -> Optional[Dict[str, Union[str, bool, int]]]:
         except Exception as exception:
             raised_exceptions.append(exception)
     formatted_exceptions = ', '.join([repr(exception) for exception in raised_exceptions])
-    logger.warning(
+    logger.debug(
         f"Could not get any cloud instance metadata because of the following exceptions: {formatted_exceptions}"
     )
     return None
