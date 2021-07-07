@@ -8,7 +8,6 @@ import logging
 import logging.config
 import logging.handlers
 import os
-import pprint
 import signal
 import sys
 import time
@@ -245,11 +244,6 @@ class GProfiler:
                 continue
             lines.append(line[line.find(';') + 1 :])
         return '\n'.join(lines)
-
-    def send_metadata(self):
-        metadata_dict = get_current_metadata(self._static_metadata)
-        logger.debug("gProfiler metadata:\n" + pprint.pformat(metadata_dict))
-        self._client.submit_metadata(metadata_dict)
 
     def start(self):
         self._stop_event.clear()

@@ -141,11 +141,3 @@ class APIClient:
             api_version="v2",
             params={"samples": str(total_samples), "version": __version__},
         )
-
-    def submit_metadata(self, metadata: Dict):
-        return self.post(
-            "agent-metadata",
-            metadata,
-            timeout=self._upload_timeout,
-            api_version="v1",
-        )
