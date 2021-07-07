@@ -8,7 +8,7 @@ import struct
 import subprocess
 import sys
 import time
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 import distro  # type: ignore
 import psutil
@@ -125,6 +125,7 @@ class SystemInfo:
         pid: int,
         mac_address: str,
         private_ip: str,
+        spawn_uptime_ms: float,
     ):
         self.python_version = python_version
         self.run_mode = run_mode
@@ -151,7 +152,9 @@ class SystemInfo:
 
 def get_static_system_info() -> SystemInfo:
     hostname, distribution, libc_tuple, mac_address, local_ip = _initialize_system_info()
-
+    clock_boottime_type = getattr(time, "CLOCK_BOOTTIME")
+    assert clock_boottime_type is not None, "The gProfiler only supports Unix with a kernel version of >=2.6.39"
+    spawn_uptime_ms = time.clock_gettime(clock_boottime_type)
     libc_type, libc_version = libc_tuple
     os_name, os_release, os_codename = distribution
     uname = platform.uname()
@@ -177,11 +180,8 @@ def get_static_system_info() -> SystemInfo:
         pid=os.getpid(),
         mac_address=mac_address,
         private_ip=local_ip,
+        spawn_uptime_ms=spawn_uptime_ms,
     )
-
-
-def get_dynamic_system_metadata() -> Dict:
-    return {"spawn_uptime_ms": round(time.monotonic() * 1000)}
 
 
 def get_hostname() -> str:

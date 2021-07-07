@@ -5,7 +5,7 @@ from typing import Optional
 from gprofiler import __version__
 from gprofiler.metadata.cloud_metadata import get_static_cloud_instance_metadata
 from gprofiler.metadata.metadata_type import Metadata
-from gprofiler.metadata.system_metadata import get_dynamic_system_metadata, get_static_system_info
+from gprofiler.metadata.system_metadata import get_static_system_info
 
 
 def get_static_metadata(spawn_time: Optional[float]) -> Metadata:
@@ -30,5 +30,4 @@ def get_current_metadata(static_metadata: Metadata) -> Metadata:
     current_time = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
     dynamic_metadata = static_metadata
     dynamic_metadata.update({"current_time": current_time})
-    dynamic_metadata.update(get_dynamic_system_metadata())
     return dynamic_metadata
