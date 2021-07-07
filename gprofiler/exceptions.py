@@ -29,3 +29,20 @@ class CalledProcessError(subprocess.CalledProcessError):
 class ProgramMissingException(Exception):
     def __init__(self, program: str):
         super().__init__(f"The program {program!r} is missing! Please install it")
+
+
+class APIError(Exception):
+    def __init__(self, message: str, full_data: dict = None):
+        self.message = message
+        self.full_data = full_data
+
+    def __str__(self):
+        return self.message
+
+
+class UninitializedStateException(Exception):
+    pass
+
+
+class StateAlreadyInitializedException(Exception):
+    pass

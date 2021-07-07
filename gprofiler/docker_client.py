@@ -2,15 +2,16 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import logging
 import re
 from typing import Dict, List, Optional, Set
 
 import docker
 
+from gprofiler.log import get_logger_adapter
+
 DOCKER_SYSTEMD_CGROUPS = [re.compile(r"/system.slice/docker-([a-z0-9]{64})\.scope")]
 
-logger = logging.getLogger(__name__)
+logger = get_logger_adapter(__name__)
 
 
 class DockerClient:
