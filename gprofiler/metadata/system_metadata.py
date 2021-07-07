@@ -145,6 +145,7 @@ class SystemInfo:
         self.pid = pid
         self.mac_address = mac_address
         self.private_ip = private_ip
+        self.spawn_uptime_ms = spawn_uptime_ms
 
     def get_dict(self):
         return self.__dict__.copy()
