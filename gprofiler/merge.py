@@ -213,7 +213,7 @@ def _make_profile_metadata(docker_client: Optional[DockerClient], metadata: Meta
         'containers': container_names,
         'container_names_enabled': enabled,
     }
-    profile_metadata.update(metadata)
+    profile_metadata["metadata"] = metadata
     formatted_profile_metadata = "# " + json.dumps(profile_metadata)
     formatted_profile_metadata = formatted_profile_metadata.replace('\n', ' ')
     return formatted_profile_metadata
