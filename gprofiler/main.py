@@ -726,7 +726,7 @@ def main():
             args.collect_metrics,
             args.collect_metadata,
             state,
-            args.__dict__ if args.send_args else None,
+            args.__dict__ if args.send_args and args.collect_metadata else None,
             not args.disable_container_names,
             remote_logs_handler,
             args.php_process_filter,
