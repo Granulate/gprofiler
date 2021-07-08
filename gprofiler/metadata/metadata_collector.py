@@ -24,7 +24,7 @@ def get_static_metadata(spawn_time: Optional[float], run_args: Dict = None) -> M
     if cloud_metadata is not None:
         metadata_dict["cloud_info_wrapped"] = cloud_metadata
     if run_args is not None:
-        metadata_dict["run_args"] = run_args
+        metadata_dict["run_arguments"] = run_args
     return metadata_dict
 
 
