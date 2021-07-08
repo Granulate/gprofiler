@@ -102,6 +102,7 @@ class GProfiler:
         collect_metrics: bool,
         collect_metadata: bool,
         state: State,
+        run_args: Dict,
         include_container_names=True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         php_process_filter: str = PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
@@ -121,7 +122,7 @@ class GProfiler:
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
         if collect_metadata:
-            self._static_metadata = get_static_metadata(spawn_time=self._spawn_time)
+            self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=run_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
         # 1. accessible by everyone - for profilers that run code in target processes, like async-profiler
@@ -584,6 +585,14 @@ def parse_cmd_args():
         help="Disable sending system and cloud metadata to the performance studio",
     )
 
+    parser.add_argument(
+        "--disable-argument-uploading",
+        action="store_false",
+        default=True,
+        dest="send_args",
+        help="Disable sending the gProfiler arguments to the performance studio",
+    )
+
     args = parser.parse_args()
 
     if args.upload_results:
@@ -717,6 +726,7 @@ def main():
             args.collect_metrics,
             args.collect_metadata,
             state,
+            args.__dict__ if args.send_args else None,
             not args.disable_container_names,
             remote_logs_handler,
             args.php_process_filter,

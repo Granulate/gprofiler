@@ -87,6 +87,7 @@ The metadata includes system metadata like the kernel version and CPU count, and
 You can disable metrics and metadata by using the following parameters:
 * Use `--disable-metrics-collection` to disable metrics collection
 * Use `--disable-metadata-collection` to disable metadata collection
+* Use `--disable-argument-uploading` to prevent the gProfiler from uploading of the execution arguments to the performance studio
 
 ### Continuous mode
 gProfiler can be run in a continuous mode, profiling periodically, using the `--continuous`/`-c` flag.
