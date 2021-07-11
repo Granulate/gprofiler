@@ -13,6 +13,7 @@ from typing import List, Optional
 import psutil
 from psutil import Process
 
+from gprofiler import __version__
 from gprofiler.exceptions import CalledProcessError, StopEventSetException
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
@@ -73,7 +74,9 @@ class AsyncProfiledProcess:
         # multiple times into the process)
         # without depending on storage_dir here, we maintain the same path even if gProfiler is re-run,
         # because storage_dir changes between runs.
-        self._ap_dir = os.path.join(TEMPORARY_STORAGE_PATH, "async-profiler")
+        # we embed the gprofiler version in the path, so different gprofiler versions can use different AP
+        # versions.
+        self._ap_dir = os.path.join(TEMPORARY_STORAGE_PATH, f"async-profiler-{__version__}")
         self._ap_dir_host = resolve_proc_root_links(self._process_root, self._ap_dir)
 
         self._libap_path_host = os.path.join(self._ap_dir_host, "libasyncProfiler.so")
