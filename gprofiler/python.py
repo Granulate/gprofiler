@@ -2,9 +2,7 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import concurrent.futures
 import glob
-import logging
 import os
 import signal
 from pathlib import Path
@@ -15,9 +13,10 @@ from typing import List, Optional
 from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
-from gprofiler.merge import parse_many_collapsed, parse_one_collapsed
-from gprofiler.profiler_base import ProfilerBase, ProfilerInterface
-from gprofiler.types import ProcessToStackSampleCounters
+from gprofiler.log import get_logger_adapter
+from gprofiler.merge import parse_and_remove_one_collapsed, parse_many_collapsed
+from gprofiler.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
+from gprofiler.types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.utils import (
     pgrep_maps,
     poll_process,
@@ -29,10 +28,10 @@ from gprofiler.utils import (
     wait_for_file_by_prefix,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger_adapter(__name__)
 
 
-class PySpyProfiler(ProfilerBase):
+class PySpyProfiler(ProcessProfilerBase):
     MAX_FREQUENCY = 50
     BLACKLISTED_PYTHON_PROCS = ["unattended-upgrades", "networkd-dispatcher", "supervisord", "tuned"]
 
@@ -56,8 +55,8 @@ class PySpyProfiler(ProfilerBase):
             "--full-filenames",
         ]
 
-    def _profile_process(self, process: Process):
-        logger.info(f"Profiling process {process.pid} ({process.cmdline()})")
+    def _profile_process(self, process: Process) -> StackToSampleCount:
+        logger.info(f"Profiling process {process.pid}", cmdline=process.cmdline(), no_extra_to_server=True)
         comm = process.name()
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
@@ -67,9 +66,9 @@ class PySpyProfiler(ProfilerBase):
             raise StopEventSetException
 
         logger.info(f"Finished profiling process {process.pid} with py-spy")
-        return parse_one_collapsed(Path(local_output_path).read_text(), comm)
+        return parse_and_remove_one_collapsed(Path(local_output_path), comm)
 
-    def _find_python_processes_to_profile(self) -> List[Process]:
+    def _select_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
         for process in pgrep_maps(
             r"(?:^.+/(?:lib)?python[^/]*$)|(?:^.+/site-packages/.+?$)|(?:^.+/dist-packages/.+?$)"
@@ -95,26 +94,6 @@ class PySpyProfiler(ProfilerBase):
                 logger.exception(f"Couldn't add pid {process.pid} to list")
 
         return filtered_procs
-
-    def snapshot(self) -> ProcessToStackSampleCounters:
-        processes_to_profile = self._find_python_processes_to_profile()
-        if not processes_to_profile:
-            return {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes_to_profile)) as executor:
-            futures = {}
-            for process in processes_to_profile:
-                futures[executor.submit(self._profile_process, process)] = process.pid
-
-            results = {}
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    results[futures[future]] = future.result()
-                except StopEventSetException:
-                    raise
-                except Exception:
-                    logger.exception(f"Failed to profile Python process {futures[future]}")
-
-        return results
 
 
 class PythonEbpfError(CalledProcessError):

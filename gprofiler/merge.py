@@ -3,18 +3,19 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import json
-import logging
 import math
 import random
 import re
 from collections import Counter, defaultdict
+from pathlib import Path
 from typing import Iterable, Optional, Tuple
 
 from gprofiler.docker_client import DockerClient
+from gprofiler.log import get_logger_adapter
 from gprofiler.types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.utils import get_hostname
 
-logger = logging.getLogger(__name__)
+logger = get_logger_adapter(__name__)
 
 SAMPLE_REGEX = re.compile(
     r"\s*(?P<comm>.+?)\s+(?P<pid>[\d-]+)/(?P<tid>[\d-]+)(?:\s+\[(?P<cpu>\d+)])?\s+(?P<time>\d+\.\d+):\s+"
@@ -51,6 +52,15 @@ def parse_one_collapsed(collapsed: str, add_comm: Optional[str] = None) -> Stack
             logger.exception(f'bad stack - line="{line}"')
 
     return stacks
+
+
+def parse_and_remove_one_collapsed(collapsed: Path, add_comm: Optional[str] = None) -> StackToSampleCount:
+    """
+    Parse a stack-collapsed file and remove it.
+    """
+    data = collapsed.read_text()
+    collapsed.unlink()
+    return parse_one_collapsed(data, add_comm)
 
 
 def parse_many_collapsed(text: str) -> ProcessToStackSampleCounters:

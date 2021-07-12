@@ -23,7 +23,7 @@ from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
-from typing import Callable, Iterator, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import distro  # type: ignore
 import importlib_resources
@@ -36,8 +36,9 @@ from gprofiler.exceptions import (
     ProgramMissingException,
     StopEventSetException,
 )
+from gprofiler.log import get_logger_adapter
 
-logger = logging.getLogger(__name__)
+logger = get_logger_adapter(__name__)
 
 TEMPORARY_STORAGE_PATH = "/tmp/gprofiler_tmp"
 
@@ -177,14 +178,16 @@ def run_process(
     return result
 
 
-def pgrep_exe(match: str) -> Iterator[Process]:
+def pgrep_exe(match: str) -> List[Process]:
     pattern = re.compile(match)
+    procs = []
     for process in psutil.process_iter():
         try:
             if pattern.match(process.exe()):
-                yield process
+                procs.append(process)
         except psutil.NoSuchProcess:  # process might have died meanwhile
             continue
+    return procs
 
 
 def pgrep_maps(match: str) -> List[Process]:
@@ -209,7 +212,10 @@ def pgrep_maps(match: str) -> List[Process]:
 
     error_lines = []
     for line in result.stderr.splitlines():
-        if not (line.startswith(b"grep: /proc/") and line.endswith(b"/maps: No such file or directory")):
+        if not (
+            line.startswith(b"grep: /proc/")
+            and (line.endswith(b"/maps: No such file or directory") or line.endswith(b"/maps: No such process"))
+        ):
             error_lines.append(line)
     if error_lines:
         logger.error(f"Unexpected 'grep' error output (first 10 lines): {error_lines[:10]}")
@@ -499,7 +505,7 @@ def is_running_in_init_pid() -> bool:
         return p.name() == "kthreadd"
 
 
-def limit_frequency(limit: Optional[int], requested: int, msg_header: str, runtime_logger: logging.Logger):
+def limit_frequency(limit: Optional[int], requested: int, msg_header: str, runtime_logger: logging.LoggerAdapter):
     if limit is not None and requested > limit:
         runtime_logger.warning(
             f"{msg_header}: Requested frequency ({requested}) is higher than the limit {limit}, "

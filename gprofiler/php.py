@@ -1,6 +1,5 @@
 import fcntl
 import glob
-import logging
 import os
 import re
 import signal
@@ -12,11 +11,12 @@ from threading import Event
 from typing import List, Optional, Pattern
 
 from gprofiler.exceptions import StopEventSetException
+from gprofiler.log import get_logger_adapter
 from gprofiler.profiler_base import ProfilerBase
 from gprofiler.types import ProcessToStackSampleCounters
 from gprofiler.utils import random_prefix, resource_path, start_process, wait_event
 
-logger = logging.getLogger(__name__)
+logger = get_logger_adapter(__name__)
 
 
 class PHPSpyProfiler(ProfilerBase):

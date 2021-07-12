@@ -8,7 +8,7 @@ To upload results, you will have to register and generate a token on the website
 
 gProfiler runs on Linux.
 
-![Granulate Performance Studio example view](https://github.com/Granulate/gprofiler/blob/master/images/studio.gif?raw=true)
+![Granulate Performance Studio example view](https://user-images.githubusercontent.com/58514213/124375504-36b0b200-dcab-11eb-8d64-caf20687a29f.gif)
 
 # Running
 
@@ -74,6 +74,11 @@ Profiling using eBPF incurs lower overhead & provides kernel stacks. This (curre
     * `dwarf` - Use DWARF for the call graph (adds the `--call-graph dwarf` argument to the `perf` command)
     * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process.
     * `none` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
+
+## Other options
+### Sending logs to server
+**By default, gProfiler sends logs to Granulate Performance Studio** (when using `--upload-results`/`-u` flag)
+This behavior can be disabled by passing `--dont-send-logs` or the setting environment variable `GPROFILER_DONT_SEND_LOGS=1`.
 
 ### Continuous mode
 gProfiler can be run in a continuous mode, profiling periodically, using the `--continuous`/`-c` flag.
