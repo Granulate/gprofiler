@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import concurrent.futures
+import functools
 import os
 from tempfile import NamedTemporaryFile
 from threading import Event
@@ -18,6 +19,11 @@ from gprofiler.utils import TEMPORARY_STORAGE_PATH, resource_path, run_process
 logger = get_logger_adapter(__name__)
 
 PERF_BUILDID_DIR = os.path.join(TEMPORARY_STORAGE_PATH, "perf-buildids")
+
+
+@functools.lru_cache(maxsize=1)
+def perf_path() -> str:
+    return resource_path("perf")
 
 
 class SystemProfiler(ProfilerBase):
@@ -44,26 +50,29 @@ class SystemProfiler(ProfilerBase):
         with NamedTemporaryFile(dir=self._storage_dir) as record_file, NamedTemporaryFile(
             dir=self._storage_dir
         ) as inject_file:
-            args = ["-F", str(self._frequency), "-a", "-g", "-o", record_file.name, "-k", "1"]
+            inject = not dwarf and self._inject_jit
+
+            args = ["-F", str(self._frequency), "-a", "-g", "-o", record_file.name]
+            if inject:
+                args += ["-k", "1"]
+
             if dwarf:
                 args += ["--call-graph", f"dwarf,{self._dwarf_stack_size}"]
             run_process(
-                [resource_path("perf")] + buildid_args + ["record"] + args + ["--", "sleep", str(self._duration)],
+                [perf_path()] + buildid_args + ["record"] + args + ["--", "sleep", str(self._duration)],
                 stop_event=self._stop_event,
             )
 
-            if not dwarf and self._inject_jit:
-                perf_script_result = run_process(
-                    [resource_path("perf")]
-                    + buildid_args
-                    + ["inject", "--jit", "-o", inject_file.name, "-i", record_file.name],
+            if inject:
+                run_process(
+                    [perf_path()] + buildid_args + ["inject", "--jit", "-o", inject_file.name, "-i", record_file.name],
                 )
                 script_input = inject_file.name
             else:
                 script_input = record_file.name
 
             perf_script_result = run_process(
-                [resource_path("perf")] + buildid_args + ["script", "-F", "+pid", "-i", script_input],
+                [perf_path()] + buildid_args + ["script", "-F", "+pid", "-i", script_input],
                 suppress_log=True,
             )
 
