@@ -92,6 +92,7 @@ class GProfiler:
         flamegraph: bool,
         rotating_output: bool,
         perf_mode: str,
+        nodejs_mode: str,
         dwarf_stack_size: int,
         python_mode: str,
         runtimes: Dict[str, bool],
@@ -131,6 +132,7 @@ class GProfiler:
                 self._stop_event,
                 self._temp_storage_dir.name,
                 perf_mode,
+                nodejs_mode == "perf",
                 dwarf_stack_size,
             ),
             "system",
@@ -408,7 +410,7 @@ def parse_cmd_args():
         default="auto",
         choices=["auto", "pyspy", "pyperf", "none"],
         help="Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), pyspy (always use"
-        " py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails) or none (no runtime profilers"
+        " py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails) or none (no runtime-specific profilers"
         " for Python).",
     )
     python_options.add_argument(
@@ -441,6 +443,16 @@ def parse_cmd_args():
         action="store_false",
         default=True,
         help="Do not invoke runtime-specific profilers for Ruby processes",
+    )
+
+    nodejs_options = parser.add_argument_group("NodeJS")
+    nodejs_options.add_argument(
+        "--nodejs-mode",
+        dest="nodejs_mode",
+        default="none",
+        choices=["perf", "none"],
+        help="Select the NodeJS profiling mode: perf (run 'perf inject --jit' on perf results, to augment them"
+        " with jitdump files of NodeJS processes, if present) or none (no runtime-specific profilers for NodeJS)",
     )
 
     perf_options = parser.add_argument_group("perf")
@@ -552,7 +564,10 @@ def parse_cmd_args():
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
 
     if args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
-        parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode smart|dwarf")
+        parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode 'smart' or 'dwarf'")
+
+    if args.nodejs_mode == "perf" and args.perf_mode not in ("fp", "smart"):
+        parser.error("--nodejs-mode perf requires --perf-mode 'fp' or 'smart'")
 
     return args
 
@@ -658,6 +673,7 @@ def main():
             args.flamegraph,
             args.rotating_output,
             args.perf_mode,
+            args.nodejs_mode,
             args.dwarf_stack_size,
             args.python_mode,
             runtimes,

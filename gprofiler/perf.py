@@ -22,12 +22,21 @@ PERF_BUILDID_DIR = os.path.join(TEMPORARY_STORAGE_PATH, "perf-buildids")
 
 class SystemProfiler(ProfilerBase):
     def __init__(
-        self, frequency: int, duration: int, stop_event: Event, storage_dir: str, perf_mode: str, dwarf_stack_size
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Event,
+        storage_dir: str,
+        perf_mode: str,
+        inject_jit: bool,
+        dwarf_stack_size,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
         self._fp_perf = perf_mode in ("fp", "smart")
         self._dwarf_perf = perf_mode in ("dwarf", "smart")
         self._dwarf_stack_size = dwarf_stack_size
+        assert self._fp_perf or not inject_jit
+        self._inject_jit = inject_jit
 
     def _run_perf(self, dwarf: bool = False) -> str:
         buildid_args = ["--buildid-dir", PERF_BUILDID_DIR]
@@ -42,15 +51,22 @@ class SystemProfiler(ProfilerBase):
                 [resource_path("perf")] + buildid_args + ["record"] + args + ["--", "sleep", str(self._duration)],
                 stop_event=self._stop_event,
             )
+
+            if not dwarf and self._inject_jit:
+                perf_script_result = run_process(
+                    [resource_path("perf")]
+                    + buildid_args
+                    + ["inject", "--jit", "-o", inject_file.name, "-i", record_file.name],
+                )
+                script_input = inject_file.name
+            else:
+                script_input = record_file.name
+
             perf_script_result = run_process(
-                [resource_path("perf")]
-                + buildid_args
-                + ["inject", "--jit", "-o", inject_file.name, "-i", record_file.name],
-            )
-            perf_script_result = run_process(
-                [resource_path("perf")] + buildid_args + ["script", "-F", "+pid", "-i", inject_file.name],
+                [resource_path("perf")] + buildid_args + ["script", "-F", "+pid", "-i", script_input],
                 suppress_log=True,
             )
+
             return perf_script_result.stdout.decode('utf8')
 
     def snapshot(self) -> ProcessToStackSampleCounters:
