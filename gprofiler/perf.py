@@ -3,7 +3,6 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import concurrent.futures
-import logging
 import os
 from tempfile import NamedTemporaryFile
 from threading import Event
@@ -11,11 +10,12 @@ from typing import Optional, Tuple
 
 import psutil
 
+from gprofiler.log import get_logger_adapter
 from gprofiler.merge import ProcessToStackSampleCounters, merge_global_perfs
 from gprofiler.profiler_base import ProfilerBase
 from gprofiler.utils import TEMPORARY_STORAGE_PATH, resource_path, run_process
 
-logger = logging.getLogger(__name__)
+logger = get_logger_adapter(__name__)
 
 PERF_BUILDID_DIR = os.path.join(TEMPORARY_STORAGE_PATH, "perf-buildids")
 

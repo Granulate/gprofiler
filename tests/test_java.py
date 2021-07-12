@@ -19,7 +19,7 @@ from tests.utils import run_gprofiler_in_container
 
 
 # adds the "status" command to AsyncProfiledProcess from gProfiler.
-class TestsAsyncProfiledProcess(AsyncProfiledProcess):
+class AsyncProfiledProcessForTests(AsyncProfiledProcess):
     def status_async_profiler(self):
         self._run_async_profiler(self._get_base_cmd() + [f"status,log={self._log_path_process}"])
 
@@ -65,7 +65,7 @@ def test_java_async_profiler_stopped(
 
     # run "status"
     proc = psutil.Process(application_pid)
-    with TestsAsyncProfiledProcess(proc, tmp_path) as ap_proc:
+    with AsyncProfiledProcessForTests(proc, tmp_path) as ap_proc:
         ap_proc.status_async_profiler()
     # printed the process' stdout, see ACTION_STATUS case in async-profiler/profiler.cpp
     expected_message = b"Profiling is running for "
