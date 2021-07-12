@@ -29,7 +29,7 @@ class SystemProfiler(ProfilerBase):
         storage_dir: str,
         perf_mode: str,
         inject_jit: bool,
-        dwarf_stack_size,
+        dwarf_stack_size: int,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
         self._fp_perf = perf_mode in ("fp", "smart")

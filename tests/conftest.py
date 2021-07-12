@@ -62,6 +62,12 @@ def command_line(tmp_path: Path, runtime: str) -> List:
         "python": ["python3", CONTAINERS_DIRECTORY / "python/lister.py"],
         "php": ["php", CONTAINERS_DIRECTORY / "php/fibonacci.php"],
         "ruby": ["ruby", CONTAINERS_DIRECTORY / "ruby/fibonacci.rb"],
+        "nodejs": [
+            "node",
+            "--perf-prof",
+            "--interpreted-frames-native-stack",
+            CONTAINERS_DIRECTORY / "nodejs/fibonacci.js",
+        ],
     }[runtime]
 
 
@@ -169,6 +175,7 @@ def runtime_specific_args(runtime: str) -> List[str]:
     return {
         "php": ["--php-proc-filter", "php", "-d", str(PHPSPY_DURATION)],  # phpspy needs a little more time to warm-up
         "python": ["-d", "3"],  # Burner python tests make syscalls and we want to record python + kernel stacks
+        "nodejs": ["--nodejs-mode", "perf"],  # enable NodeJS profiling
     }.get(runtime, [])
 
 
@@ -179,6 +186,7 @@ def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int], bool], None]:
         "python": "burner",
         "php": "fibonacci",
         "ruby": "fibonacci",
+        "nodejs": "fibonacci",
     }[runtime]
 
     return partial(assert_function_in_collapsed, function_name, runtime)
