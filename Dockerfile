@@ -46,8 +46,8 @@ COPY scripts/phpspy_build.sh .
 RUN ./phpspy_build.sh
 
 # async-profiler
-# centos:6
-FROM centos@sha256:dec8f471302de43f4cfcf82f56d99a5227b5ea1aa6d02fa56344986e1f4610e7 AS async-profiler-builder
+# centos:7
+FROM centos@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e AS async-profiler-builder
 COPY scripts/async_profiler_env.sh .
 RUN ./async_profiler_env.sh
 COPY scripts/async_profiler_build.sh .
