@@ -5,4 +5,4 @@
 #
 set -euo pipefail
 
-yum install -y gcc g++ gcc-c++.x86_64 make java-1.8.0-openjdk-devel glibc-static git
+yum install -y gcc g++ gcc-c++.x86_64 libstdc++-static make java-1.8.0-openjdk-devel glibc-static git

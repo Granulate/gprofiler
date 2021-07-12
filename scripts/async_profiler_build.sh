@@ -5,5 +5,5 @@
 #
 set -euo pipefail
 
-git clone --depth 1 -b v2.0g3 https://github.com/Granulate/async-profiler.git && cd async-profiler && git reset --hard 51447a849d686e899c1cd393e83f0f7c41685d95
+git clone --depth 1 -b static-libstdcpp https://github.com/Granulate/async-profiler.git && cd async-profiler && git reset --hard 6483566ab9560e882c29e08cea92a37fae4cf77e
 make release
