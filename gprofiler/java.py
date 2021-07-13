@@ -55,6 +55,11 @@ def jattach_path() -> str:
     return resource_path("java/jattach")
 
 
+@functools.lru_cache(maxsize=1)
+def get_ap_version() -> str:
+    return Path(resource_path("java/async-profiler-version")).read_text()
+
+
 class AsyncProfiledProcess:
     """
     Represents a process profiled with async-profiler.
@@ -73,7 +78,9 @@ class AsyncProfiledProcess:
         # multiple times into the process)
         # without depending on storage_dir here, we maintain the same path even if gProfiler is re-run,
         # because storage_dir changes between runs.
-        self._ap_dir = os.path.join(TEMPORARY_STORAGE_PATH, "async-profiler")
+        # we embed the async-profiler version in the path, so future gprofiler versions which use another version
+        # of AP case use it (will be loaded as a different DSO)
+        self._ap_dir = os.path.join(TEMPORARY_STORAGE_PATH, f"async-profiler-{get_ap_version()}")
         self._ap_dir_host = resolve_proc_root_links(self._process_root, self._ap_dir)
 
         self._libap_path_host = os.path.join(self._ap_dir_host, "libasyncProfiler.so")
