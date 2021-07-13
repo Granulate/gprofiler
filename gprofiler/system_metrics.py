@@ -1,5 +1,6 @@
 import statistics
 import time
+from abc import ABCMeta, abstractmethod
 from collections import deque
 from threading import Event, Thread
 from typing import Deque, List, Optional, Tuple
@@ -12,7 +13,28 @@ DEFAULT_POLLING_INTERVAL_SECONDS = 5
 STOP_TIMEOUT_SECONDS = 30
 
 
-class SystemMetricsMonitor:
+class SystemMetricsMonitorBase(metaclass=ABCMeta):
+    @abstractmethod
+    def start(self):
+        pass
+
+    @abstractmethod
+    def stop(self):
+        pass
+
+    @abstractmethod
+    def get_average_memory_utilization(self) -> Optional[float]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_cpu_utilization(self) -> Optional[float]:
+        """
+        Returns the CPU utilization percentage since the last time this method was called.
+        """
+        raise NotImplementedError
+
+
+class SystemMetricsMonitor(SystemMetricsMonitorBase):
     def __init__(self, max_memory_poll_age_seconds: int, polling_rate_seconds: int = DEFAULT_POLLING_INTERVAL_SECONDS):
         self._polling_rate_seconds = polling_rate_seconds
         self._cpu_count = psutil.cpu_count() or 1
@@ -64,7 +86,7 @@ class SystemMetricsMonitor:
             all_percentages.append(self._mem_percentages.popleft())
         return statistics.mean(all_percentages)
 
-    def get_cpu_utilization(self) -> float:
+    def get_cpu_utilization(self) -> Optional[float]:
         """
         Returns the CPU utilization percentage since the last time this method was called.
         Based on the psutil.cpu_percent method.
@@ -89,3 +111,17 @@ class SystemMetricsMonitor:
             return 0.0
         else:
             return round(overall_cpu_percent, 1)
+
+
+class NoopSystemMetricsMonitor(SystemMetricsMonitorBase):
+    def start(self):
+        pass
+
+    def stop(self):
+        pass
+
+    def get_average_memory_utilization(self) -> Optional[float]:
+        return None
+
+    def get_cpu_utilization(self) -> Optional[float]:
+        return None

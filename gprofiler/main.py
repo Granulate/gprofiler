@@ -31,7 +31,7 @@ from gprofiler.profiler_base import NoopProfiler
 from gprofiler.python import PythonProfiler
 from gprofiler.ruby import RbSpyProfiler
 from gprofiler.state import State, init_state
-from gprofiler.system_metrics import SystemMetricsMonitor
+from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     TemporaryDirectoryWithMode,
@@ -168,9 +168,9 @@ class GProfiler:
         else:
             self._docker_client = None
         if collect_metrics:
-            self._system_metrics_monitor: Optional[SystemMetricsMonitor] = SystemMetricsMonitor(self._duration)
+            self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._duration)
         else:
-            self._system_metrics_monitor = None
+            self._system_metrics_monitor = NoopSystemMetricsMonitor()
 
     def __enter__(self):
         self.start()
@@ -254,8 +254,7 @@ class GProfiler:
 
     def start(self):
         self._stop_event.clear()
-        if self._system_metrics_monitor is not None:
-            self._system_metrics_monitor.start()
+        self._system_metrics_monitor.start()
 
         for prof in (
             self.python_profiler,
@@ -269,8 +268,7 @@ class GProfiler:
     def stop(self):
         logger.info("Stopping ...")
         self._stop_event.set()
-        if self._system_metrics_monitor is not None:
-            self._system_metrics_monitor.stop()
+        self._system_metrics_monitor.stop()
 
         for prof in (
             self.python_profiler,
@@ -329,11 +327,8 @@ class GProfiler:
             self._generate_output_files(merged_result, local_start_time, local_end_time)
 
         if self._client:
-            if self._system_metrics_monitor is not None:
-                cpu_avg = self._system_metrics_monitor.get_cpu_utilization()
-                mem_avg = self._system_metrics_monitor.get_average_memory_utilization()
-            else:
-                cpu_avg = mem_avg = None
+            cpu_avg = self._system_metrics_monitor.get_cpu_utilization()
+            mem_avg = self._system_metrics_monitor.get_average_memory_utilization()
             try:
                 self._client.submit_profile(
                     local_start_time, local_end_time, merged_result, total_samples, cpu_avg, mem_avg, self._spawn_time
