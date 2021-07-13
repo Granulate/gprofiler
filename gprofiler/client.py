@@ -21,6 +21,7 @@ logger = get_logger_adapter(__name__)
 GRANULATE_SERVER_HOST = "https://profiler.granulate.io"
 DEFAULT_REQUEST_TIMEOUT = 5
 DEFAULT_UPLOAD_TIMEOUT = 120
+MAX_BAD_JSON_STRING_LENGTH = 1024
 
 
 class APIClient:
@@ -81,7 +82,10 @@ class APIClient:
                 try:
                     json.dump(data, gzip_file, ensure_ascii=False)  # type: ignore
                 except TypeError:
-                    logger.exception("Given data is not a valid JSON!", bad_json=str(data))
+                    bad_json = str(data)
+                    if len(bad_json) > MAX_BAD_JSON_STRING_LENGTH:
+                        bad_json = bad_json[:MAX_BAD_JSON_STRING_LENGTH]
+                    logger.exception("Given data is not a valid JSON!", bad_json=bad_json)
                     raise
             opts["data"] = buffer.getvalue()
 
