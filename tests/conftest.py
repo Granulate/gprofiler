@@ -99,7 +99,9 @@ def application_process(in_container: bool, command_line: List):
             os.setgid(1000)
             os.setuid(1000)
 
-        popen = subprocess.Popen(command_line, preexec_fn=lower_privs, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        popen = subprocess.Popen(
+            command_line, preexec_fn=lower_privs, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd="/tmp"
+        )
         try:
             # wait 2 seconds to ensure it starts
             popen.wait(2)
