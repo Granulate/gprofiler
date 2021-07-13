@@ -565,7 +565,7 @@ def parse_cmd_args():
         action="store_false",
         default=True,
         dest="collect_metrics",
-        help="Disable sending metrics and cloud metadata to the performance studio",
+        help="Disable sending metrics and cloud metadata to the Performance Studio",
     )
 
     args = parser.parse_args()
@@ -705,6 +705,7 @@ def main():
             args.php_process_filter,
         )
         logger.info("gProfiler initialized and ready to start profiling")
+
         if args.collect_metrics and args.upload_results:
             gprofiler.send_metadata()
         if args.continuous:
