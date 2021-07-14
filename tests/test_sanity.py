@@ -10,11 +10,11 @@ import pytest  # type: ignore
 from docker import DockerClient
 from docker.models.images import Image
 
-from gprofiler.java import JavaProfiler
 from gprofiler.merge import parse_one_collapsed
-from gprofiler.php import PHPSpyProfiler
-from gprofiler.python import PySpyProfiler, PythonEbpfProfiler
-from gprofiler.ruby import RbSpyProfiler
+from gprofiler.profilers.java import JavaProfiler
+from gprofiler.profilers.php import PHPSpyProfiler
+from gprofiler.profilers.python import PySpyProfiler, PythonEbpfProfiler
+from gprofiler.profilers.ruby import RbSpyProfiler
 from tests import PHPSPY_DURATION
 from tests.utils import assert_function_in_collapsed, run_gprofiler_in_container
 

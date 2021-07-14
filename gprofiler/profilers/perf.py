@@ -12,7 +12,7 @@ import psutil
 
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import ProcessToStackSampleCounters, merge_global_perfs
-from gprofiler.profiler_base import ProfilerBase
+from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.utils import TEMPORARY_STORAGE_PATH, resource_path, run_process
 
 logger = get_logger_adapter(__name__)

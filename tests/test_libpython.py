@@ -8,7 +8,7 @@ import pytest  # type: ignore
 from docker import DockerClient
 from docker.models.images import Image
 
-from gprofiler.python import PythonProfiler
+from gprofiler.profilers.python import PythonProfiler
 from tests import CONTAINERS_DIRECTORY
 
 

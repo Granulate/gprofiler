@@ -13,8 +13,8 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 
-from gprofiler.java import AsyncProfiledProcess
 from gprofiler.merge import parse_one_collapsed
+from gprofiler.profilers.java import AsyncProfiledProcess
 from tests.utils import run_gprofiler_in_container
 
 

@@ -12,7 +12,7 @@ from typing import List, Optional, Pattern
 
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.log import get_logger_adapter
-from gprofiler.profiler_base import ProfilerBase
+from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.types import ProcessToStackSampleCounters
 from gprofiler.utils import random_prefix, resource_path, start_process, wait_event
 

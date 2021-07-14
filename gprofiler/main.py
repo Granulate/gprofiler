@@ -21,14 +21,14 @@ from requests import RequestException, Timeout
 from gprofiler import __version__, merge
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
 from gprofiler.docker_client import DockerClient
-from gprofiler.java import JavaProfiler
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
-from gprofiler.perf import SystemProfiler
-from gprofiler.php import PHPSpyProfiler
-from gprofiler.profiler_base import NoopProfiler
-from gprofiler.python import PythonProfiler
-from gprofiler.ruby import RbSpyProfiler
+from gprofiler.profilers.java import JavaProfiler
+from gprofiler.profilers.perf import SystemProfiler
+from gprofiler.profilers.php import PHPSpyProfiler
+from gprofiler.profilers.profiler_base import NoopProfiler
+from gprofiler.profilers.python import PythonProfiler
+from gprofiler.profilers.ruby import RbSpyProfiler
 from gprofiler.state import State, init_state
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,

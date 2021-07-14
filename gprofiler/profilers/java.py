@@ -16,7 +16,7 @@ from psutil import Process
 from gprofiler.exceptions import CalledProcessError, StopEventSetException
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
-from gprofiler.profiler_base import ProcessProfilerBase
+from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.types import StackToSampleCount
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
