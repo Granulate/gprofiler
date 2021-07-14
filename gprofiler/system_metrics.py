@@ -57,7 +57,7 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
         assert self._thread is not None, "SystemMetricsMonitor was not running"
         self._thread.join(STOP_TIMEOUT_SECONDS)
         if self._thread.is_alive():
-            raise ThreadStopTimeoutError("The SystemMetricsMonitor internal thread could not stop because of a timeout")
+            raise ThreadStopTimeoutError("Timed out while waiting for the SystemMetricsMonitor internal thread to stop")
         self._thread = None
 
     def _continuously_polling_memory(self, polling_rate_seconds: int):
@@ -66,14 +66,7 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
             current_ram_percent = psutil.virtual_memory().percent
             self._mem_percentages.append(current_ram_percent)
             elapsed = time.monotonic() - start_time
-            self._sleep(polling_rate_seconds - elapsed)
-
-    def _sleep(self, amount_seconds: float):
-        sleep_intervals_total = int(amount_seconds * 100)
-        for sleep_interval in range(sleep_intervals_total):
-            time.sleep(sleep_interval / 100)
-            if self._stop_event.is_set():
-                return
+            self._stop_event.wait(timeout=polling_rate_seconds - elapsed)
 
     def get_average_memory_utilization(self) -> Optional[float]:
         current_length = len(self._mem_percentages)
