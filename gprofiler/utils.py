@@ -528,6 +528,7 @@ class CpuUsageLogger:
         """
         Reads the current snapshot of cpuacct.usage for a cgroup.
         """
+        assert self._enabled, "shouldn't reach here!"
         return int(self._cpuacct_usage.read_text())
 
     def init_cycles(self):
