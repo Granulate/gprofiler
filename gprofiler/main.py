@@ -25,9 +25,10 @@ from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.profilers.java import JavaProfiler
 from gprofiler.profilers.perf import SystemProfiler
-from gprofiler.profilers.php import PHPSpyProfiler
+from gprofiler.profilers.php import DEFAULT_PROCESS_FILTER, PHPSpyProfiler
 from gprofiler.profilers.profiler_base import NoopProfiler
 from gprofiler.profilers.python import PythonProfiler
+from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.profilers.ruby import RbSpyProfiler
 from gprofiler.state import State, init_state
 from gprofiler.utils import (
@@ -99,7 +100,7 @@ class GProfiler:
         state: State,
         include_container_names=True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
-        php_process_filter: str = PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
+        php_process_filter: str = DEFAULT_PROCESS_FILTER,
     ):
         self._frequency = frequency
         self._duration = duration
@@ -392,75 +393,7 @@ def parse_cmd_args():
         "--rotating-output", action="store_true", default=False, help="Keep only the last profile result"
     )
 
-    java_options = parser.add_argument_group("Java")
-    java_options.add_argument(
-        "--no-java",
-        dest="java",
-        action="store_false",
-        default=True,
-        help="Do not invoke runtime-specific profilers for Java processes",
-    )
-
-    python_options = parser.add_argument_group("Python")
-    python_options.add_argument(
-        "--python-mode",
-        dest="python_mode",
-        default="auto",
-        choices=["auto", "pyspy", "pyperf", "none"],
-        help="Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), pyspy (always use"
-        " py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails) or none (no runtime profilers"
-        " for Python).",
-    )
-    python_options.add_argument(
-        "--no-python",
-        dest="python_mode",
-        action="store_const",
-        const="none",
-        help="Do not invoke runtime-specific profilers for Python processes (legacy option for '--python-mode none')",
-    )
-
-    php_options = parser.add_argument_group("PHP")
-    php_options.add_argument(
-        "--no-php",
-        dest="php",
-        action="store_false",
-        default=True,
-        help="Do not invoke runtime-specific profilers for PHP processes",
-    )
-    php_options.add_argument(
-        "--php-proc-filter",
-        dest="php_process_filter",
-        default=PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
-        help="Process filter for php processes (default: %(default)s)",
-    )
-
-    ruby_options = parser.add_argument_group("Ruby")
-    ruby_options.add_argument(
-        "--no-ruby",
-        dest="ruby",
-        action="store_false",
-        default=True,
-        help="Do not invoke runtime-specific profilers for Ruby processes",
-    )
-
-    perf_options = parser.add_argument_group("perf")
-    perf_options.add_argument(
-        "--perf-mode",
-        dest="perf_mode",
-        default="fp",
-        choices=["fp", "dwarf", "smart", "none"],
-        help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge them "
-        "by choosing the best result per process. If 'none' is chosen, do not invoke 'perf' at all. The "
-        "output, in that case, is the concatenation of the results from all of the runtime profilers.",
-    )
-    perf_options.add_argument(
-        "--perf-dwarf-stack-size",
-        dest="dwarf_stack_size",
-        default=8192,
-        type=int,
-        help="The max stack size for the Dwarf perf, in bytes. Must be <=65528."
-        " Relevant for --perf-mode dwarf|smart. Default: %(default)s",
-    )
+    _add_profilers_arguments(parser)
 
     parser.add_argument(
         "-u",
@@ -555,6 +488,28 @@ def parse_cmd_args():
         parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode smart|dwarf")
 
     return args
+
+
+def _add_profilers_arguments(parser):
+    profilers_registry = get_profilers_registry()
+    for profiler_name, profiler_config in profilers_registry.items():
+        profiler_argument_group = parser.add_argument_group(profiler_name)
+        profiler_argument_group.add_argument(
+            f"--{profiler_name.lower()}-mode",
+            dest=f"{profiler_name.lower()}_mode",
+            default=profiler_config.default_mode,
+            help=profiler_config.profiler_mode_help,
+            choices=profiler_config.possible_modes,
+        )
+        profiler_argument_group.add_argument(
+            f"--no-{profiler_name.lower()}",
+            dest=profiler_name.lower(),
+            action="store_false",
+            default=True,
+            help=f"Deprecated. Use '--{profiler_name.lower()}-mode none' instead",
+        )
+        for profiler_argument in profiler_config.profiler_arguments:
+            profiler_argument_group.add_argument(profiler_argument.name, **profiler_argument.get_dict())
 
 
 def verify_preconditions(args):

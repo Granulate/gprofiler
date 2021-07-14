@@ -13,13 +13,35 @@ import psutil
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import ProcessToStackSampleCounters, merge_global_perfs
 from gprofiler.profilers.profiler_base import ProfilerBase
+from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import TEMPORARY_STORAGE_PATH, resource_path, run_process
 
 logger = get_logger_adapter(__name__)
 
 PERF_BUILDID_DIR = os.path.join(TEMPORARY_STORAGE_PATH, "perf-buildids")
+PERF_MODE_ARGUMENT_HELP = (
+    "Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge them"
+    " by choosing the best result per process. If 'none' is chosen, do not invoke 'perf' at"
+    " all. The output, in that case, is the concatenation of the results from all of the"
+    " runtime profilers."
+)
+DWARF_STACK_SIZE_HELP = (
+    "The max stack size for the Dwarf perf, in bytes. Must be <=65528."
+    " Relevant for --perf-mode dwarf|smart. Default: %(default)s"
+)
 
 
+@register_profiler(
+    "Perf",
+    possible_modes=["fp", "dwarf", "smart", "none"],
+    default_mode="fp",
+    profiler_mode_argument_help=PERF_MODE_ARGUMENT_HELP,
+    profiler_arguments=[
+        ProfilerArgument(
+            "--perf-dwarf-stack-size", help=DWARF_STACK_SIZE_HELP, type=int, default=8192, dest="dwarf_stack_size"
+        )
+    ],
+)
 class SystemProfiler(ProfilerBase):
     def __init__(
         self, frequency: int, duration: int, stop_event: Event, storage_dir: str, perf_mode: str, dwarf_stack_size

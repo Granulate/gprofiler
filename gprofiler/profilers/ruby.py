@@ -12,12 +12,14 @@ from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_and_remove_one_collapsed
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
+from gprofiler.profilers.registry import register_profiler
 from gprofiler.types import StackToSampleCount
 from gprofiler.utils import pgrep_maps, random_prefix, resource_path, run_process
 
 logger = get_logger_adapter(__name__)
 
 
+@register_profiler("Ruby")
 class RbSpyProfiler(ProcessProfilerBase):
     RESOURCE_PATH = "ruby/rbspy"
     MAX_FREQUENCY = 100

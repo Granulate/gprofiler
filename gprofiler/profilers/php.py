@@ -13,16 +13,28 @@ from typing import List, Optional, Pattern
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.log import get_logger_adapter
 from gprofiler.profilers.profiler_base import ProfilerBase
+from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.types import ProcessToStackSampleCounters
 from gprofiler.utils import random_prefix, resource_path, start_process, wait_event
 
 logger = get_logger_adapter(__name__)
+# Currently tracing only php-fpm, TODO: support mod_php in apache.
+DEFAULT_PROCESS_FILTER = "php-fpm"
 
 
+@register_profiler(
+    "PHP",
+    profiler_arguments=[
+        ProfilerArgument(
+            "--php-proc-filter",
+            help="Process filter for php processes (default: %(default)s)",
+            dest="php_process_filter",
+            default=DEFAULT_PROCESS_FILTER,
+        )
+    ],
+)
 class PHPSpyProfiler(ProfilerBase):
     PHPSPY_RESOURCE = "php/phpspy"
-    # Currently tracing only php-fpm, TODO: support mod_php in apache.
-    DEFAULT_PROCESS_FILTER = "php-fpm"
     dump_signal = signal.SIGUSR2
     poll_timeout = 10  # seconds
     MAX_FREQUENCY = 999
