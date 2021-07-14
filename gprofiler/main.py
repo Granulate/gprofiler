@@ -37,6 +37,7 @@ from gprofiler.utils import (
     atomically_symlink,
     get_hostname,
     get_iso8601_format_time,
+    get_run_mode,
     grab_gprofiler_mutex,
     is_root,
     is_running_in_init_pid,
@@ -586,6 +587,12 @@ def verify_preconditions(args):
 
     if not grab_gprofiler_mutex():
         print("Could not acquire gProfiler's lock. Is it already running?", file=sys.stderr)
+        sys.exit(1)
+
+    if args.log_cpu_usage and get_run_mode() not in ("k8s", "container"):
+        # TODO: we *can* move into another cpuacct cgroup, to let this work also when run as a standalone
+        # executable.
+        print("--log-cpu-usage is available only when run as a container!")
         sys.exit(1)
 
 
