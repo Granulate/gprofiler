@@ -1,9 +1,8 @@
 import statistics
 import time
 from abc import ABCMeta, abstractmethod
-from collections import deque
-from threading import Event, Thread
-from typing import Deque, List, Optional, Tuple
+from threading import Event, RLock, Thread
+from typing import List, Optional, Tuple
 
 import psutil
 
@@ -35,14 +34,15 @@ class SystemMetricsMonitorBase(metaclass=ABCMeta):
 
 
 class SystemMetricsMonitor(SystemMetricsMonitorBase):
-    def __init__(self, max_memory_poll_age_seconds: int, polling_rate_seconds: int = DEFAULT_POLLING_INTERVAL_SECONDS):
+    def __init__(self, polling_rate_seconds: int = DEFAULT_POLLING_INTERVAL_SECONDS):
         self._polling_rate_seconds = polling_rate_seconds
         self._cpu_count = psutil.cpu_count() or 1
-        self._mem_percentages: Deque[float] = deque(maxlen=round(max_memory_poll_age_seconds / polling_rate_seconds))
+        self._mem_percentages: List[float] = []
         self._last_cpu_poll_time: Optional[float] = None
         self._last_cpu_utilization_percentages: Optional[Tuple[float, float]] = None
         self._stop_event = Event()
         self._thread = None
+        self._lock = RLock()
 
         self.get_cpu_utilization()  # Call this once to set the necessary data
 
@@ -69,15 +69,14 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
             self._stop_event.wait(timeout=polling_rate_seconds - elapsed)
 
     def get_average_memory_utilization(self) -> Optional[float]:
-        current_length = len(self._mem_percentages)
-        if current_length == 0:
-            return None
-        all_percentages: List[float] = []
-        # Avoid a race condition by only fetching the current X values. More values can be added in the meantime by
-        # other threads, which will be popped in the next call.
-        for _ in range(current_length):
-            all_percentages.append(self._mem_percentages.popleft())
-        return statistics.mean(all_percentages)
+        with self._lock:
+            # Make sure there's only one thread that takes out the values
+            current_length = len(self._mem_percentages)
+            if current_length == 0:
+                return None
+            average_memory = statistics.mean(self._mem_percentages[:current_length])
+            self._mem_percentages[:current_length] = []
+            return average_memory
 
     def get_cpu_utilization(self) -> Optional[float]:
         """

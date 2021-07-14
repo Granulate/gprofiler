@@ -168,7 +168,7 @@ class GProfiler:
         else:
             self._docker_client = None
         if collect_metrics:
-            self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._duration)
+            self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor()
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
 
