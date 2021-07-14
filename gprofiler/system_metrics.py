@@ -39,7 +39,7 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
         self._cpu_count = psutil.cpu_count() or 1
         self._mem_percentages: List[float] = []
         self._last_cpu_poll_time: Optional[float] = None
-        self._last_cpu_utilization_percentages: Optional[Tuple[float, float]] = None
+        self._last_cpu_times: Optional[Tuple[float, float]] = None
         self._stop_event = Event()
         self._thread = None
         self._lock = RLock()
@@ -83,10 +83,10 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
         Returns the CPU utilization percentage since the last time this method was called.
         Based on the psutil.cpu_percent method.
         """
-        last_user, last_system = self._last_cpu_utilization_percentages or (None, None)
+        last_user, last_system = self._last_cpu_times or (None, None)
         current_cpu_times = psutil.cpu_times()
         current_user, current_system = current_cpu_times.user, current_cpu_times.system
-        self._last_cpu_utilization_percentages = (current_user, current_system)
+        self._last_cpu_times = (current_user, current_system)
         last_time = self._last_cpu_poll_time
         current_time = self._last_cpu_poll_time = time.monotonic() * self._cpu_count
 
