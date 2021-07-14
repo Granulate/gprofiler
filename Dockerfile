@@ -46,6 +46,7 @@ COPY scripts/phpspy_build.sh .
 RUN ./phpspy_build.sh
 
 # async-profiler
+# requires CentOS 6, so the built DSO can be loaded into machines running with old glibc.
 # centos:6
 FROM centos@sha256:dec8f471302de43f4cfcf82f56d99a5227b5ea1aa6d02fa56344986e1f4610e7 AS async-profiler-builder
 COPY scripts/async_profiler_env.sh .
