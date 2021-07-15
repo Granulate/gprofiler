@@ -33,10 +33,12 @@ from gprofiler.profilers.ruby import RbSpyProfiler
 from gprofiler.state import State, init_state
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
+    CpuUsageLogger,
     TemporaryDirectoryWithMode,
     atomically_symlink,
     get_hostname,
     get_iso8601_format_time,
+    get_run_mode,
     grab_gprofiler_mutex,
     is_root,
     is_running_in_init_pid,
@@ -98,6 +100,7 @@ class GProfiler:
         runtimes: Dict[str, bool],
         client: APIClient,
         state: State,
+        cpu_usage_logger: CpuUsageLogger,
         include_container_names=True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         php_process_filter: str = DEFAULT_PROCESS_FILTER,
@@ -163,6 +166,7 @@ class GProfiler:
             self._docker_client: Optional[DockerClient] = DockerClient()
         else:
             self._docker_client = None
+        self._cpu_usage_logger = cpu_usage_logger
 
     def __enter__(self):
         self.start()
@@ -339,6 +343,8 @@ class GProfiler:
 
     def run_continuous(self, interval):
         with self:
+            self._cpu_usage_logger.init_cycles()
+
             while not self._stop_event.is_set():
                 start_time = time.monotonic()
                 self._state.init_new_cycle()
@@ -350,6 +356,7 @@ class GProfiler:
                     self._send_remote_logs()  # function is safe, wrapped with try/except block inside
                 time_spent = time.monotonic() - start_time
                 self._stop_event.wait(max(interval - time_spent, 0))
+                self._cpu_usage_logger.log_cycle()
 
 
 def parse_cmd_args():
@@ -394,6 +401,13 @@ def parse_cmd_args():
     )
 
     _add_profilers_arguments(parser)
+
+    parser.add_argument(
+        "--log-cpu-usage",
+        action="store_true",
+        default=False,
+        help="Log CPU usage (per cgroup) on each profiling iteration. Works only when gProfiler runs as a container",
+    )
 
     parser.add_argument(
         "-u",
@@ -530,6 +544,12 @@ def verify_preconditions(args):
         print("Could not acquire gProfiler's lock. Is it already running?", file=sys.stderr)
         sys.exit(1)
 
+    if args.log_cpu_usage and get_run_mode() not in ("k8s", "container"):
+        # TODO: we *can* move into another cpuacct cgroup, to let this work also when run as a standalone
+        # executable.
+        print("--log-cpu-usage is available only when run as a container!")
+        sys.exit(1)
+
 
 def setup_signals() -> None:
     # When we run under staticx & PyInstaller, both of them forward (some of the) signals to gProfiler.
@@ -559,6 +579,8 @@ def main():
 
     setup_signals()
     reset_umask()
+    # assume we run in the root cgroup (when containerized, that's our view)
+    cpu_usage_logger = CpuUsageLogger(logger, "/", args.log_cpu_usage)
 
     try:
         logger.info(f"Running gprofiler (version {__version__}), commandline: {' '.join(sys.argv[1:])!r}")
@@ -618,6 +640,7 @@ def main():
             runtimes,
             client,
             state,
+            cpu_usage_logger,
             not args.disable_container_names,
             remote_logs_handler,
             args.php_process_filter,
@@ -633,6 +656,8 @@ def main():
         pass
     except Exception:
         logger.exception("Unexpected error occurred")
+
+    cpu_usage_logger.log_run()
 
 
 if __name__ == "__main__":
