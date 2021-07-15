@@ -89,9 +89,7 @@ class PerfProcess:
         # using read1() which performs just a single read() call and doesn't read until EOF
         # (unlike Popen.communicate())
         assert self._process is not None
-        # TODO these fail
-        # logger.debug(f"perf stdout: {self._process.stdout.read1(4096)}")
-        # logger.debug(f"perf stderr: {self._process.stderr.read1(4096)}")
+        logger.debug(f"perf stderr: {self._process.stderr.read1(4096)}")
 
         perf_script_proc = run_process(
             [resource_path("perf")] + self._get_buildid_args() + ["script", "-F", "+pid", "-i", str(perf_data)],
