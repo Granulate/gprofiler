@@ -15,6 +15,7 @@ apt-get install -y --no-install-recommends \
     ca-certificates \
     lbzip2 \
     unzip \
+    patch \
     python3 \
     autoconf \
     libssl-dev \

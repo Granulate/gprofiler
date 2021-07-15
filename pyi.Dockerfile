@@ -25,6 +25,7 @@ COPY scripts/perf_env.sh .
 RUN ./perf_env.sh
 
 COPY scripts/libunwind_build.sh .
+COPY scripts/libunwind-container-support.patch .
 RUN ./libunwind_build.sh
 
 COPY scripts/perf_build.sh .
@@ -57,6 +58,7 @@ RUN yum install -y \
     git \
     curl \
     cmake \
+    patch \
     python3 \
     flex \
     bison \
@@ -75,6 +77,7 @@ RUN yum install -y devtoolset-8 \
     devtoolset-8-elfutils-libelf-devel
 
 COPY ./scripts/libunwind_build.sh .
+COPY ./scripts/libunwind-container-support.patch .
 RUN ./libunwind_build.sh
 
 WORKDIR /bcc

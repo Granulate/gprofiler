@@ -5,14 +5,11 @@
 #
 set -euo pipefail
 
-pushd /tmp
-
-curl -L http://download.savannah.nongnu.org/releases/libunwind/libunwind-1.4.0.tar.gz -o libunwind-1.4.0.tar.gz
-tar -xf libunwind-1.4.0.tar.gz
-pushd libunwind-1.4.0
+curl -L http://download.savannah.nongnu.org/releases/libunwind/libunwind-1.5.0.tar.gz -o libunwind-1.5.0.tar.gz
+tar -xf libunwind-1.5.0.tar.gz
+pushd libunwind-1.5.0
+patch -p1 < ../libunwind-container-support.patch
 ./configure --prefix=/usr --disable-tests --disable-documentation && make install
 popd
-rm -r libunwind-1.4.0
-rm libunwind-1.4.0.tar.gz
-
-popd
+rm -r libunwind-1.5.0
+rm libunwind-1.5.0.tar.gz
