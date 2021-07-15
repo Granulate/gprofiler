@@ -506,27 +506,27 @@ def parse_cmd_args():
 
 
 def _add_profilers_arguments(parser):
-    profilers_registry = get_profilers_registry()
-    for profiler_name, profiler_config in profilers_registry.items():
-        profiler_argument_group = parser.add_argument_group(profiler_name)
-        profile_mode_var_name = f"{profiler_name.lower()}_mode"
-        profiler_argument_group.add_argument(
-            f"--{profiler_name.lower()}-mode",
-            dest=profile_mode_var_name,
-            default=profiler_config.default_mode,
-            help=profiler_config.profiler_mode_help,
-            choices=profiler_config.possible_modes,
+    registry = get_profilers_registry()
+    for name, config in registry.items():
+        arg_group = parser.add_argument_group(name)
+        mode_var = f"{name.lower()}_mode"
+        arg_group.add_argument(
+            f"--{name.lower()}-mode",
+            dest=mode_var,
+            default=config.default_mode,
+            help=config.profiler_mode_help,
+            choices=config.possible_modes,
         )
-        profiler_argument_group.add_argument(
-            f"--no-{profiler_name.lower()}",
+        arg_group.add_argument(
+            f"--no-{name.lower()}",
             action="store_const",
             const="disabled",
-            dest=profile_mode_var_name,
+            dest=mode_var,
             default=True,
-            help=f"Disable the profiling of {profiler_name} processes",
+            help=f"Disable the profiling of {name} processes",
         )
-        for profiler_argument in profiler_config.profiler_arguments:
-            profiler_argument_group.add_argument(profiler_argument.name, **profiler_argument.get_dict())
+        for profiler_argument in config.profiler_arguments:
+            arg_group.add_argument(profiler_argument.name, **profiler_argument.get_dict())
 
 
 def verify_preconditions(args):
