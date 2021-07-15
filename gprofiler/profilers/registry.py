@@ -57,7 +57,7 @@ def register_profiler(
     if profiler_mode_argument_help is None:
         profiler_mode_argument_help = (
             f"Choose the mode for profiling {profiler_name} processes. 'enabled'"
-            f" to automatically profile them, or 'disabled' to disable {profiler_name} profiling"
+            f" to profile them with the default method, or 'disabled' to disable {profiler_name} profiling"
         )
     if possible_modes is None:
         possible_modes = ["enabled", "disabled"]
@@ -66,7 +66,6 @@ def register_profiler(
         possible_modes.append("none")
 
     def profiler_decorator(profiler_class):
-        global profilers_config
         profilers_config[profiler_name] = ProfilerConfig(
             profiler_mode_argument_help, possible_modes, default_mode, profiler_arguments
         )
