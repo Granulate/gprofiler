@@ -44,9 +44,16 @@ DWARF_STACK_SIZE_HELP = (
 )
 class SystemProfiler(ProfilerBase):
     def __init__(
-        self, frequency: int, duration: int, stop_event: Event, storage_dir: str, perf_mode: str, dwarf_stack_size
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Event,
+        storage_dir: str,
+        perf_mode: str,
+        dwarf_stack_size,
+        **profiler_kwargs,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir)
+        super().__init__(frequency, duration, stop_event, storage_dir, **profiler_kwargs)
         self._fp_perf = perf_mode in ("fp", "smart")
         self._dwarf_perf = perf_mode in ("dwarf", "smart")
         self._dwarf_stack_size = dwarf_stack_size

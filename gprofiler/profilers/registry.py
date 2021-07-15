@@ -34,6 +34,7 @@ class ProfilerConfig:
     def __init__(
         self,
         profiler_mode_help: str,
+        profiler_class,
         possible_modes: List[str] = None,
         default_mode: str = "auto",
         arguments: List[ProfilerArgument] = None,
@@ -42,6 +43,7 @@ class ProfilerConfig:
         self.possible_modes: Optional[List[str]] = possible_modes
         self.default_mode: str = default_mode
         self.profiler_arguments: List[ProfilerArgument] = arguments if arguments is not None else []
+        self.profiler_class = profiler_class
 
 
 profilers_config: Dict[str, ProfilerConfig] = {}
@@ -65,13 +67,14 @@ def register_profiler(
     def profiler_decorator(profiler_class):
         global profilers_config
         profilers_config[profiler_name] = ProfilerConfig(
-            profiler_mode_argument_help, possible_modes, default_mode, profiler_arguments
+            profiler_mode_argument_help, profiler_class, possible_modes, default_mode, profiler_arguments
         )
+        profiler_class.name = profiler_name
         return profiler_class
 
     return profiler_decorator
 
 
-def get_profilers_registry():
+def get_profilers_registry() -> Dict[str, ProfilerConfig]:
     global profilers_config
     return profilers_config

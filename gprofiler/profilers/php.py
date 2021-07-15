@@ -11,10 +11,10 @@ from threading import Event
 from typing import List, Optional, Pattern
 
 from gprofiler.exceptions import StopEventSetException
+from gprofiler.gprofiler_types import ProcessToStackSampleCounters
 from gprofiler.log import get_logger_adapter
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.types import ProcessToStackSampleCounters
 from gprofiler.utils import random_prefix, resource_path, start_process, wait_event
 
 logger = get_logger_adapter(__name__)
@@ -54,8 +54,9 @@ class PHPSpyProfiler(ProfilerBase):
         stop_event: Optional[Event],
         storage_dir: str,
         php_process_filter: str = DEFAULT_PROCESS_FILTER,
+        **profiler_kwargs,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir)
+        super().__init__(frequency, duration, stop_event, storage_dir, **profiler_kwargs)
         self._process: Optional[Popen] = None
         self._output_path = Path(self._storage_dir) / f"phpspy.{random_prefix()}.col"
         self._process_filter = php_process_filter

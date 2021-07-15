@@ -245,8 +245,8 @@ class JavaProfiler(ProcessProfilerBase):
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
     SKIP_VERSION_CHECK_BINARIES = ["jsvc"]
 
-    def __init__(self, frequency: int, duration: int, stop_event: Event, storage_dir: str):
-        super().__init__(frequency, duration, stop_event, storage_dir)
+    def __init__(self, frequency: int, duration: int, stop_event: Event, storage_dir: str, **profiler_kwargs):
+        super().__init__(frequency, duration, stop_event, storage_dir, **profiler_kwargs)
 
         # async-profiler accepts interval between samples (nanoseconds)
         self._interval = int((1 / frequency) * 1000_000_000)

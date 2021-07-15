@@ -124,8 +124,9 @@ class PythonEbpfProfiler(ProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
+        **profiler_kwargs,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir)
+        super().__init__(frequency, duration, stop_event, storage_dir, **profiler_kwargs)
         self.process = None
         self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
 
@@ -281,24 +282,29 @@ class PythonProfiler(ProfilerInterface):
         stop_event: Event,
         storage_dir: str,
         python_mode: str,
+        **profiler_kwargs,
     ):
         assert python_mode in ("auto", "pyperf", "pyspy"), f"unexpected mode: {python_mode}"
         if python_mode in ("auto", "pyperf"):
-            self._ebpf_profiler = self._create_ebpf_profiler(frequency, duration, stop_event, storage_dir)
+            self._ebpf_profiler = self._create_ebpf_profiler(
+                frequency, duration, stop_event, storage_dir, **profiler_kwargs
+            )
         else:
             self._ebpf_profiler = None
 
         if python_mode in ("auto", "pyspy"):
-            self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(frequency, duration, stop_event, storage_dir)
+            self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(
+                frequency, duration, stop_event, storage_dir, **profiler_kwargs
+            )
         else:
             self._pyspy_profiler = None
 
     def _create_ebpf_profiler(
-        self, frequency: int, duration: int, stop_event: Event, storage_dir: str
+        self, frequency: int, duration: int, stop_event: Event, storage_dir: str, **profiler_kwargs
     ) -> Optional[PythonEbpfProfiler]:
         try:
             PythonEbpfProfiler.test(storage_dir, stop_event)
-            return PythonEbpfProfiler(frequency, duration, stop_event, storage_dir)
+            return PythonEbpfProfiler(frequency, duration, stop_event, storage_dir, **profiler_kwargs)
         except Exception as e:
             logger.debug(f"eBPF profiler error: {str(e)}")
             logger.info("Python eBPF profiler initialization failed")
