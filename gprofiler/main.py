@@ -366,6 +366,7 @@ def parse_cmd_args():
         add_config_file_help=True,
         add_env_var_help=False,
         default_config_files=["/etc/gprofiler/config.ini"],
+        conflict_handler='resolve',
     )
     parser.add_argument("--config", is_config_file=True, help="Config file path")
     parser.add_argument(
@@ -508,17 +509,19 @@ def _add_profilers_arguments(parser):
     profilers_registry = get_profilers_registry()
     for profiler_name, profiler_config in profilers_registry.items():
         profiler_argument_group = parser.add_argument_group(profiler_name)
+        profile_mode_var_name = f"{profiler_name.lower()}_mode"
         profiler_argument_group.add_argument(
             f"--{profiler_name.lower()}-mode",
-            dest=f"{profiler_name.lower()}_mode",
+            dest=profile_mode_var_name,
             default=profiler_config.default_mode,
             help=profiler_config.profiler_mode_help,
             choices=profiler_config.possible_modes,
         )
         profiler_argument_group.add_argument(
             f"--no-{profiler_name.lower()}",
-            dest=profiler_name.lower(),
-            action="store_false",
+            action="store_const",
+            const="disabled",
+            dest=profile_mode_var_name,
             default=True,
             help=f"Disable the profiling of {profiler_name} processes",
         )
@@ -622,11 +625,8 @@ def main():
             remote_logs_handler.init_api_client(client)
 
         runtimes = {
-            "system": args.perf_mode not in ["none", "disabled"],
-            "java": args.java and args.java_mode == "enabled",
-            "python": args.python_mode not in ["none", "disabled"],
-            "php": args.php and args.php_mode == "enabled",
-            "ruby": args.ruby and args.ruby_mode == "enabled",
+            profiler_name: getattr(args, f"{profiler_name}_mode") not in ["none", "disabled"]
+            for profiler_name in ["system", "java", "python", "php"]
         }
         gprofiler = GProfiler(
             args.frequency,
