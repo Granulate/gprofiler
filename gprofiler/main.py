@@ -297,6 +297,7 @@ def parse_cmd_args():
         add_config_file_help=True,
         add_env_var_help=False,
         default_config_files=["/etc/gprofiler/config.ini"],
+        conflict_handler='resolve',
     )
     parser.add_argument("--config", is_config_file=True, help="Config file path")
     parser.add_argument(
@@ -436,25 +437,27 @@ def parse_cmd_args():
 
 
 def _add_profilers_arguments(parser):
-    profilers_registry = get_profilers_registry()
-    for profiler_name, profiler_config in profilers_registry.items():
-        profiler_argument_group = parser.add_argument_group(profiler_name)
-        profiler_argument_group.add_argument(
-            f"--{profiler_name.lower()}-mode",
-            dest=f"{profiler_name.lower()}_mode",
-            default=profiler_config.default_mode,
-            help=profiler_config.profiler_mode_help,
-            choices=profiler_config.possible_modes,
+    registry = get_profilers_registry()
+    for name, config in registry.items():
+        arg_group = parser.add_argument_group(name)
+        mode_var = f"{name.lower()}_mode"
+        arg_group.add_argument(
+            f"--{name.lower()}-mode",
+            dest=mode_var,
+            default=config.default_mode,
+            help=config.profiler_mode_help,
+            choices=config.possible_modes,
         )
-        profiler_argument_group.add_argument(
-            f"--no-{profiler_name.lower()}",
-            dest=profiler_name.lower(),
-            action="store_false",
+        arg_group.add_argument(
+            f"--no-{name.lower()}",
+            action="store_const",
+            const="disabled",
+            dest=mode_var,
             default=True,
-            help=f"Disable the profiling of {profiler_name} processes",
+            help=f"Disable the profiling of {name} processes",
         )
-        for profiler_argument in profiler_config.profiler_arguments:
-            profiler_argument_group.add_argument(profiler_argument.name, **profiler_argument.get_dict())
+        for profiler_argument in config.profiler_arguments:
+            arg_group.add_argument(profiler_argument.name, **profiler_argument.get_dict())
 
 
 def verify_preconditions(args):

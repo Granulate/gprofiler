@@ -23,7 +23,7 @@ PERF_BUILDID_DIR = os.path.join(TEMPORARY_STORAGE_PATH, "perf-buildids")
 
 @register_profiler(
     "Perf",
-    possible_modes=["fp", "dwarf", "smart", "disabled", "none"],
+    possible_modes=["fp", "dwarf", "smart", "disabled"],
     default_mode="fp",
     profiler_mode_argument_help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge"
     " them by choosing the best result per process. If 'none' is chosen, do not invoke"
