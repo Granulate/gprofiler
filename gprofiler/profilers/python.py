@@ -30,12 +30,6 @@ from gprofiler.utils import (
 
 logger = get_logger_adapter(__name__)
 
-PYTHON_MODE_ARGUMENT_HELP = (
-    "Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), "
-    "pyspy (always use py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails)"
-    " or none (no runtime profilers for Python)."
-)
-
 
 class PySpyProfiler(ProcessProfilerBase):
     MAX_FREQUENCY = 50
@@ -266,7 +260,9 @@ class PythonEbpfProfiler(ProfilerBase):
     "Python",
     possible_modes=["auto", "pyperf", "pyspy", "disabed", "none"],
     default_mode="auto",
-    profiler_mode_argument_help=PYTHON_MODE_ARGUMENT_HELP,
+    profiler_mode_argument_help="Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), "
+    "pyspy (always use py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails)"
+    " or none (no runtime profilers for Python).",
 )
 class PythonProfiler(ProfilerInterface):
     """
