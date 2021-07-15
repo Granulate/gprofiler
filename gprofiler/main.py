@@ -506,7 +506,7 @@ def _add_profilers_arguments(parser):
             dest=profiler_name.lower(),
             action="store_false",
             default=True,
-            help=f"Deprecated. Use '--{profiler_name.lower()}-mode none' instead",
+            help=f"Disable the profiling of {profiler_name} processes",
         )
         for profiler_argument in profiler_config.profiler_arguments:
             profiler_argument_group.add_argument(profiler_argument.name, **profiler_argument.get_dict())
