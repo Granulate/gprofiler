@@ -35,7 +35,7 @@ class ProfilerConfig:
         self,
         profiler_mode_help: str,
         possible_modes: List[str] = None,
-        default_mode: str = "auto",
+        default_mode: str = "enabled",
         arguments: List[ProfilerArgument] = None,
     ):
         self.profiler_mode_help: str = profiler_mode_help
