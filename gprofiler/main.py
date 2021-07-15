@@ -626,7 +626,7 @@ def main():
 
         runtimes = {
             profiler_name: getattr(args, f"{profiler_name}_mode") not in ["none", "disabled"]
-            for profiler_name in ["system", "java", "python", "php"]
+            for profiler_name in get_profilers_registry()
         }
         gprofiler = GProfiler(
             args.frequency,
