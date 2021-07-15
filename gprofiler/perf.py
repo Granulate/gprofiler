@@ -13,18 +13,9 @@ from gprofiler.exceptions import StopEventSetException
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import ProcessToStackSampleCounters, merge_global_perfs
 from gprofiler.profiler_base import ProfilerBase
-from gprofiler.utils import (
-    TEMPORARY_STORAGE_PATH,
-    resource_path,
-    run_process,
-    start_process,
-    wait_event,
-    wait_for_file_by_prefix,
-)
+from gprofiler.utils import resource_path, run_process, start_process, wait_event, wait_for_file_by_prefix
 
 logger = get_logger_adapter(__name__)
-
-PERF_BUILDID_DIR = os.path.join(TEMPORARY_STORAGE_PATH, "perf-buildids")
 
 
 class PerfProcess:
@@ -39,10 +30,6 @@ class PerfProcess:
         self._type = "dwarf" if is_dwarf else "fp"
         self._process: Optional[psutil.Process] = None
 
-    @staticmethod
-    def _get_buildid_args() -> List[str]:
-        return ["--buildid-dir", PERF_BUILDID_DIR]
-
     def _get_perf_cmd(self) -> List[str]:
         return [
             resource_path("perf"),
@@ -54,8 +41,6 @@ class PerfProcess:
             "-o",
             self._output_path,
             "--switch-output=signal",
-            "--no-no-buildid",
-            "--no-no-buildid-cache",
         ] + self._extra_args
 
     def start(self) -> None:
@@ -92,7 +77,7 @@ class PerfProcess:
         logger.debug(f"perf stderr: {self._process.stderr.read1(4096)}")
 
         perf_script_proc = run_process(
-            [resource_path("perf")] + self._get_buildid_args() + ["script", "-F", "+pid", "-i", str(perf_data)],
+            [resource_path("perf"), "script", "-F", "+pid", "-i", str(perf_data)],
             suppress_log=True,
         )
         perf_data.unlink()
