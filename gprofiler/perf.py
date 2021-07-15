@@ -2,23 +2,22 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import concurrent.futures
 import functools
 import os
-from tempfile import NamedTemporaryFile
+import signal
+from pathlib import Path
 from threading import Event
-from typing import Optional, Tuple
+from typing import List, Optional
 
 import psutil
 
+from gprofiler.exceptions import StopEventSetException
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import ProcessToStackSampleCounters, merge_global_perfs
 from gprofiler.profiler_base import ProfilerBase
-from gprofiler.utils import TEMPORARY_STORAGE_PATH, resource_path, run_process
+from gprofiler.utils import resource_path, run_process, start_process, wait_event, wait_for_file_by_prefix
 
 logger = get_logger_adapter(__name__)
-
-PERF_BUILDID_DIR = os.path.join(TEMPORARY_STORAGE_PATH, "perf-buildids")
 
 
 @functools.lru_cache(maxsize=1)
@@ -26,7 +25,97 @@ def perf_path() -> str:
     return resource_path("perf")
 
 
+class PerfProcess:
+    _dump_timeout_s = 5
+    _poll_timeout_s = 5
+
+    def __init__(
+        self,
+        frequency: int,
+        stop_event: Event,
+        output_path: str,
+        is_dwarf: bool,
+        inject_jit: bool,
+        extra_args: List[str],
+    ):
+        self._frequency = frequency
+        self._stop_event = stop_event
+        self._output_path = output_path
+        self._type = "dwarf" if is_dwarf else "fp"
+        self._inject_jit = inject_jit
+        self._extra_args = extra_args + (["-k", "1"] if self._inject_jit else [])
+        self._process: Optional[psutil.Process] = None
+
+    def _get_perf_cmd(self) -> List[str]:
+        return [
+            perf_path(),
+            "record",
+            "-F",
+            str(self._frequency),
+            "-a",
+            "-g",
+            "-o",
+            self._output_path,
+            "--switch-output=signal",
+        ] + self._extra_args
+
+    def start(self) -> None:
+        logger.info(f"Starting perf ({self._type} mode)")
+        process = start_process(self._get_perf_cmd(), via_staticx=False)
+        try:
+            wait_event(self._poll_timeout_s, self._stop_event, lambda: os.path.exists(self._output_path))
+        except TimeoutError:
+            process.kill()
+            assert process.stdout is not None and process.stderr is not None
+            logger.error(f"perf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
+            raise
+        else:
+            self._process = process
+            logger.info(f"Started perf ({self._type} mode)")
+
+    def stop(self) -> None:
+        if self._process is not None:
+            self._process.terminate()  # okay to call even if process is already dead
+            self._process.wait()
+            self._process = None
+            logger.info(f"Stopped perf ({self._type} mode)")
+
+    def switch_output(self) -> None:
+        assert self._process is not None, "profiling not started!"
+        self._process.send_signal(signal.SIGUSR2)
+
+    def wait_and_script(self) -> str:
+        perf_data = wait_for_file_by_prefix(f"{self._output_path}.", self._dump_timeout_s, self._stop_event)
+
+        # using read1() which performs just a single read() call and doesn't read until EOF
+        # (unlike Popen.communicate())
+        assert self._process is not None
+        logger.debug(f"perf stderr: {self._process.stderr.read1(4096)}")
+
+        if self._inject_jit:
+            inject_data = Path(f"{str(perf_data)}.inject")
+            run_process(
+                [perf_path(), "inject", "--jit", "-o", str(inject_data), "-i", str(perf_data)],
+            )
+            perf_data.unlink()
+            perf_data = inject_data
+
+        perf_script_proc = run_process(
+            [perf_path(), "script", "-F", "+pid", "-i", str(perf_data)],
+            suppress_log=True,
+        )
+        perf_data.unlink()
+        return perf_script_proc.stdout.decode('utf8')
+
+
 class SystemProfiler(ProfilerBase):
+    """
+    We are running 2 perfs in parallel - one with DWARF and one with FP, and then we merge their results.
+    This improves the results from software that is compiled without frame pointers,
+    like some native software. DWARF by itself is not good enough, as it has issues with unwinding some
+    versions of Go processes.
+    """
+
     def __init__(
         self,
         frequency: int,
@@ -38,73 +127,52 @@ class SystemProfiler(ProfilerBase):
         dwarf_stack_size: int,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
-        self._fp_perf = perf_mode in ("fp", "smart")
-        self._dwarf_perf = perf_mode in ("dwarf", "smart")
-        self._dwarf_stack_size = dwarf_stack_size
-        assert self._fp_perf or not inject_jit
-        self._inject_jit = inject_jit
+        self._perfs: List[PerfProcess] = []
 
-    def _run_perf(self, dwarf: bool = False) -> str:
-        buildid_args = ["--buildid-dir", PERF_BUILDID_DIR]
-
-        with NamedTemporaryFile(dir=self._storage_dir) as record_file, NamedTemporaryFile(
-            dir=self._storage_dir
-        ) as inject_file:
-            inject = not dwarf and self._inject_jit
-
-            args = ["-F", str(self._frequency), "-a", "-g", "-o", record_file.name]
-            if inject:
-                args += ["-k", "1"]
-
-            if dwarf:
-                args += ["--call-graph", f"dwarf,{self._dwarf_stack_size}"]
-            run_process(
-                [perf_path()] + buildid_args + ["record"] + args + ["--", "sleep", str(self._duration)],
-                stop_event=self._stop_event,
+        if perf_mode in ("fp", "smart"):
+            self._perf_fp: Optional[PerfProcess] = PerfProcess(
+                self._frequency,
+                self._stop_event,
+                os.path.join(self._storage_dir, "perf.fp"),
+                False,
+                inject_jit,
+                [],
             )
+            self._perfs.append(self._perf_fp)
+        else:
+            self._perf_fp = None
 
-            if inject:
-                run_process(
-                    [perf_path()] + buildid_args + ["inject", "--jit", "-o", inject_file.name, "-i", record_file.name],
-                )
-                script_input = inject_file.name
-            else:
-                script_input = record_file.name
-
-            perf_script_result = run_process(
-                [perf_path()] + buildid_args + ["script", "-F", "+pid", "-i", script_input],
-                suppress_log=True,
+        if perf_mode in ("dwarf", "smart"):
+            self._perf_dwarf: Optional[PerfProcess] = PerfProcess(
+                self._frequency,
+                self._stop_event,
+                os.path.join(self._storage_dir, "perf.dwarf"),
+                True,
+                False,  # no inject in dwarf mode, yet
+                ["--call-graph", f"dwarf,{dwarf_stack_size}"],
             )
+            self._perfs.append(self._perf_dwarf)
+        else:
+            self._perf_dwarf = None
 
-            return perf_script_result.stdout.decode('utf8')
+        assert self._perf_fp is not None or self._perf_dwarf is not None
+
+    def start(self) -> None:
+        for perf in self._perfs:
+            perf.start()
+
+    def stop(self) -> None:
+        for perf in reversed(self._perfs):
+            perf.stop()
 
     def snapshot(self) -> ProcessToStackSampleCounters:
-        free_disk = psutil.disk_usage(self._storage_dir).free
-        if free_disk < 4 * 1024 * 1024:
-            raise Exception(f"Free disk space: {free_disk}kb. Skipping perf!")
+        if self._stop_event.wait(self._duration):
+            raise StopEventSetException
 
-        logger.info("Running global perf...")
-        perf_result = self._get_global_perf_result()
-        logger.info("Finished running global perf")
-        return perf_result
+        for perf in self._perfs:
+            perf.switch_output()
 
-    def _get_global_perf_result(self) -> ProcessToStackSampleCounters:
-        fp_perf: Optional[str] = None
-        dwarf_perf: Optional[str] = None
-        if not self._fp_perf:
-            dwarf_perf = self._run_perf(dwarf=True)
-        elif not self._dwarf_perf:
-            fp_perf = self._run_perf(dwarf=False)
-        else:
-            dwarf_perf, fp_perf = self._run_fp_and_dwarf_concurrent_perfs()
-        return merge_global_perfs(fp_perf, dwarf_perf)
-
-    def _run_fp_and_dwarf_concurrent_perfs(self) -> Tuple[str, str]:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            # We are running 2 perfs in parallel - one with DWARF and one with FP, and then we merge their results.
-            # This improves the results from software that is compiled without frame pointers,
-            # like some native software. DWARF by itself is not good enough, as it has issues with unwinding some
-            # versions of Go processes.
-            fp_future = executor.submit(self._run_perf, False)
-            dwarf_future = executor.submit(self._run_perf, True)
-        return dwarf_future.result(), fp_future.result()
+        return merge_global_perfs(
+            self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
+            self._perf_dwarf.wait_and_script() if self._perf_dwarf is not None else None,
+        )
