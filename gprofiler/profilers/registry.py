@@ -56,8 +56,8 @@ def register_profiler(
 ):
     if profiler_mode_argument_help is None:
         profiler_mode_argument_help = (
-            f"Choose the mode for profiling {profiler_name} processes. 'auto'"
-            f" to automatically profile them, or 'none' to disable {profiler_name} profiling"
+            f"Choose the mode for profiling {profiler_name} processes. 'enabled'"
+            f" to automatically profile them, or 'disabled' to disable {profiler_name} profiling"
         )
     if possible_modes is None:
         possible_modes = ["enabled", "disabled"]
