@@ -49,7 +49,7 @@ The default duration is *60 seconds*, and the default interval matches it. So gP
 
 ### Java profiling options
 
-* `--no-java`: Disable profilers for Java.
+* `--no-java` or `--java-mode disabled`: Disable profilers for Java.
 
 ### Python profiling options
 * `--no-python`: Alias of `--python-mode none`.
@@ -57,16 +57,16 @@ The default duration is *60 seconds*, and the default interval matches it. So gP
     * `auto` - (default) try with PyPerf (eBPF), fall back to py-spy.
     * `pyperf` - Use PyPerf with no py-spy fallback.
     * `pyspy` - Use py-spy.
-    * `none` - Disable profilers for Python.
+    * `disabled` - Disable profilers for Python.
 
 Profiling using eBPF incurs lower overhead & provides kernel stacks. This (currently) requires kernel headers to be installed.
 
 ### PHP profiling options
-* `--no-php`: Disable profilers for PHP.
+* `--no-php` or `--php-mode disabled`: Disable profilers for PHP.
 * `--php-proc-filter`: Process filter (`pgrep`) to select PHP processes for profiling (this is phpspy's `-P` option)
 
 ### Ruby profiling options
-* `--no-ruby`: Disable profilers for Ruby.
+* `--no-ruby` or `--ruby-mode disabled`: Disable profilers for Ruby.
 
 ### System profiling options
 
@@ -74,7 +74,7 @@ Profiling using eBPF incurs lower overhead & provides kernel stacks. This (curre
     * `fp` - Use Frame Pointers for the call graph
     * `dwarf` - Use DWARF for the call graph (adds the `--call-graph dwarf` argument to the `perf` command)
     * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process.
-    * `none` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
+    * `disabled` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
 
 ## Other options
 ### Sending logs to server
