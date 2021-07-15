@@ -52,17 +52,17 @@ profilers_config: Dict[str, ProfilerConfig] = {}
 def register_profiler(
     profiler_name: str,
     possible_modes: Optional[List] = None,
-    default_mode="auto",
+    default_mode="enabled",
     profiler_mode_argument_help: Optional[str] = None,
     profiler_arguments: Optional[List[ProfilerArgument]] = None,
 ):
     if profiler_mode_argument_help is None:
         profiler_mode_argument_help = (
-            f"Choose the mode for profiling {profiler_name} processes. 'auto'"
-            f" to automatically profile them, or 'none' to disable {profiler_name} profiling"
+            f"Choose the mode for profiling {profiler_name} processes. 'enabled'"
+            f" to automatically profile them, or 'disabled' to disable {profiler_name} profiling"
         )
     if possible_modes is None:
-        possible_modes = ["auto", "none"]
+        possible_modes = ["enabled", "disabled"]
 
     def profiler_decorator(profiler_class):
         global profilers_config
@@ -76,5 +76,4 @@ def register_profiler(
 
 
 def get_profilers_registry() -> Dict[str, ProfilerConfig]:
-    global profilers_config
     return profilers_config

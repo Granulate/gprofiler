@@ -19,26 +19,24 @@ from gprofiler.utils import TEMPORARY_STORAGE_PATH, resource_path, run_process
 logger = get_logger_adapter(__name__)
 
 PERF_BUILDID_DIR = os.path.join(TEMPORARY_STORAGE_PATH, "perf-buildids")
-PERF_MODE_ARGUMENT_HELP = (
-    "Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge them"
-    " by choosing the best result per process. If 'none' is chosen, do not invoke 'perf' at"
-    " all. The output, in that case, is the concatenation of the results from all of the"
-    " runtime profilers."
-)
-DWARF_STACK_SIZE_HELP = (
-    "The max stack size for the Dwarf perf, in bytes. Must be <=65528."
-    " Relevant for --perf-mode dwarf|smart. Default: %(default)s"
-)
 
 
 @register_profiler(
     "Perf",
-    possible_modes=["fp", "dwarf", "smart", "none"],
+    possible_modes=["fp", "dwarf", "smart", "disabled", "none"],
     default_mode="fp",
-    profiler_mode_argument_help=PERF_MODE_ARGUMENT_HELP,
+    profiler_mode_argument_help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge"
+    " them by choosing the best result per process. If 'none' is chosen, do not invoke"
+    " 'perf' at all. The output, in that case, is the concatenation of the results from all"
+    " of the runtime profilers.",
     profiler_arguments=[
         ProfilerArgument(
-            "--perf-dwarf-stack-size", help=DWARF_STACK_SIZE_HELP, type=int, default=8192, dest="dwarf_stack_size"
+            "--perf-dwarf-stack-size",
+            help="The max stack size for the Dwarf perf, in bytes. Must be <=65528."
+            " Relevant for --perf-mode dwarf|smart. Default: %(default)s",
+            type=int,
+            default=8192,
+            dest="dwarf_stack_size",
         )
     ],
 )
