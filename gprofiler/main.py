@@ -601,10 +601,10 @@ def main():
 
         runtimes = {
             "system": args.perf_mode != "none",
-            "java": args.java,
+            "java": args.java and args.java_mode == "enabled",
             "python": args.python_mode != "none",
-            "php": args.php,
-            "ruby": args.ruby,
+            "php": args.php and args.php_mode == "enabled",
+            "ruby": args.ruby and args.ruby_mode == "enabled",
         }
         gprofiler = GProfiler(
             args.frequency,

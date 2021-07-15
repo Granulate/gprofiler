@@ -60,7 +60,7 @@ def register_profiler(
             f" to automatically profile them, or 'none' to disable {profiler_name} profiling"
         )
     if possible_modes is None:
-        possible_modes = ["auto", "none"]
+        possible_modes = ["enabled", "disabled"]
 
     def profiler_decorator(profiler_class):
         global profilers_config
@@ -73,5 +73,4 @@ def register_profiler(
 
 
 def get_profilers_registry():
-    global profilers_config
     return profilers_config
