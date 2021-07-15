@@ -135,10 +135,6 @@ class SystemProfiler(ProfilerBase):
         assert self._perf_fp is not None or self._perf_dwarf is not None
 
     def start(self) -> None:
-        free_disk = psutil.disk_usage(self._storage_dir).free
-        if free_disk < 4 * 1024 * 1024:  # TODO explain
-            raise Exception(f"Free disk space: {free_disk}kb. Avoiding perf!")
-
         for perf in self._perfs:
             perf.start()
 
