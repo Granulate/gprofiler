@@ -286,7 +286,9 @@ class GProfiler:
         try:
             system_result = system_future.result()
         except Exception:
-            logger.error("Running perf failed; consider running gProfiler with '--perf-mode none' to avoid using perf")
+            logger.exception(
+                "Running perf failed; consider running gProfiler with '--perf-mode none' to avoid using perf"
+            )
             raise
 
         if self._runtimes["system"]:
