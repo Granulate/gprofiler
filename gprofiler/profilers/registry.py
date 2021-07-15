@@ -61,6 +61,9 @@ def register_profiler(
         )
     if possible_modes is None:
         possible_modes = ["enabled", "disabled"]
+    elif "none" not in possible_modes:
+        # Add the legacy "none" value, which is replaced by "disabled"
+        possible_modes.append("none")
 
     def profiler_decorator(profiler_class):
         global profilers_config
