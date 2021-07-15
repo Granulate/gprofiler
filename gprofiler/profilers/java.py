@@ -14,11 +14,11 @@ import psutil
 from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError, StopEventSetException
+from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
-from gprofiler.types import StackToSampleCount
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     get_process_nspid,
