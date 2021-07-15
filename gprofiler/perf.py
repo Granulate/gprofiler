@@ -65,7 +65,6 @@ class PerfProcess:
             wait_event(self._poll_timeout_s, self._stop_event, lambda: os.path.exists(self._output_path))
         except TimeoutError:
             process.kill()
-            # TODO check this flow - does it indeed print errors as expected?
             assert process.stdout is not None and process.stderr is not None
             logger.error(f"perf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
             raise
