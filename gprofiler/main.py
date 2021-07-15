@@ -600,9 +600,9 @@ def main():
             remote_logs_handler.init_api_client(client)
 
         runtimes = {
-            "system": args.perf_mode != "none",
+            "system": args.perf_mode not in ["none", "disabled"],
             "java": args.java and args.java_mode == "enabled",
-            "python": args.python_mode != "none",
+            "python": args.python_mode not in ["none", "disabled"],
             "php": args.php and args.php_mode == "enabled",
             "ruby": args.ruby and args.ruby_mode == "enabled",
         }

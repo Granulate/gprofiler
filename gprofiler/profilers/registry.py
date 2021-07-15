@@ -50,7 +50,7 @@ profilers_config: Dict[str, ProfilerConfig] = {}
 def register_profiler(
     profiler_name: str,
     possible_modes: Optional[List] = None,
-    default_mode="auto",
+    default_mode="enabled",
     profiler_mode_argument_help: Optional[str] = None,
     profiler_arguments: Optional[List[ProfilerArgument]] = None,
 ):

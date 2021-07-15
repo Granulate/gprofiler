@@ -264,7 +264,7 @@ class PythonEbpfProfiler(ProfilerBase):
 
 @register_profiler(
     "Python",
-    possible_modes=["auto", "pyperf", "pyspy", "none"],
+    possible_modes=["auto", "pyperf", "pyspy", "disabed", "none"],
     default_mode="auto",
     profiler_mode_argument_help=PYTHON_MODE_ARGUMENT_HELP,
 )
