@@ -5,11 +5,13 @@
 #
 set -euo pipefail
 
-curl -L http://download.savannah.nongnu.org/releases/libunwind/libunwind-1.5.0.tar.gz -o libunwind-1.5.0.tar.gz
+curl -L https://download.savannah.nongnu.org/releases/libunwind/libunwind-1.5.0.tar.gz -o libunwind-1.5.0.tar.gz
 tar -xf libunwind-1.5.0.tar.gz
+# Add containers support in libunwind
+curl https://github.com/libunwind/libunwind/commit/831459ee961e7d673bbd83e40d0823227c66db33.patch | sed s/unw_ltoa/ltoa/g > libunwind-container-support.patch
 pushd libunwind-1.5.0
 patch -p1 < ../libunwind-container-support.patch
-./configure --prefix=/usr --disable-tests --disable-documentation && make install
+./configure --prefix=/usr --disable-tests --disable-documentation && make install -j
 popd
 rm -r libunwind-1.5.0
 rm libunwind-1.5.0.tar.gz

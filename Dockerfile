@@ -22,7 +22,6 @@ COPY scripts/perf_env.sh .
 RUN ./perf_env.sh
 
 COPY scripts/libunwind_build.sh .
-COPY scripts/libunwind-container-support.patch .
 RUN ./libunwind_build.sh
 
 COPY scripts/perf_build.sh .
@@ -37,7 +36,6 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y git curl build-essential i
   cmake python3 flex bison libelf-dev libz-dev liblzma-dev
 
 COPY ./scripts/libunwind_build.sh .
-COPY ./scripts/libunwind-container-support.patch .
 RUN ./libunwind_build.sh
 
 WORKDIR /bcc
