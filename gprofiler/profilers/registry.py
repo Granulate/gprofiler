@@ -2,6 +2,8 @@ from typing import Any, Dict, List, Optional, Type
 
 
 class ProfilerArgument:
+    # It would have been better to replace with a dataclass, but since we want to support Python 3.6 this is the best
+    # alternative as we still need the get_dict method (which is not convenient to do with a namedtuple)
     def __init__(
         self,
         name: str,
