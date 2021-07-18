@@ -52,7 +52,7 @@ The default duration is *60 seconds*, and the default interval matches it. So gP
 * `--no-java` or `--java-mode disabled`: Disable profilers for Java.
 
 ### Python profiling options
-* `--no-python`: Alias of `--python-mode none`.
+* `--no-python`: Alias of `--python-mode disabled`.
 * `--python-mode`: Controls which profiler is used for Python.
     * `auto` - (default) try with PyPerf (eBPF), fall back to py-spy.
     * `pyperf` - Use PyPerf with no py-spy fallback.
@@ -156,7 +156,7 @@ The runtime stacks are then merged into the data collected by `perf`, substituti
 
 ## perf-less mode
 
-It is possible to run gProfiler without using `perf` - this is useful where `perf` can't be used, for whatever reason (e.g permissions). This mode is enabled by `--perf-mode none`.
+It is possible to run gProfiler without using `perf` - this is useful where `perf` can't be used, for whatever reason (e.g permissions). This mode is enabled by `--perf-mode disabled`.
 
 In this mode, gProfiler uses runtime-specific profilers only, and their results are concatenated (instead of scaled into the results collected by `perf`). This means that, although the results from different profilers are viewed on the same graph, they are not necessarily of the same scale: so you can compare the samples count of Java to Java, but not Java to Python.
 

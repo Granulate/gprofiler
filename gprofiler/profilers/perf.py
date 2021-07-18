@@ -26,7 +26,7 @@ PERF_BUILDID_DIR = os.path.join(TEMPORARY_STORAGE_PATH, "perf-buildids")
     possible_modes=["fp", "dwarf", "smart", "disabled"],
     default_mode="fp",
     profiler_mode_argument_help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge"
-    " them by choosing the best result per process. If 'none' is chosen, do not invoke"
+    " them by choosing the best result per process. If 'disabled' is chosen, do not invoke"
     " 'perf' at all. The output, in that case, is the concatenation of the results from all"
     " of the runtime profilers.",
     profiler_arguments=[
