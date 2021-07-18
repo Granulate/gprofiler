@@ -110,6 +110,12 @@ jobs:
           java-package: jdk
           architecture: x64
 
+      - name: Install Node.JS
+        uses: actions/setup-node@v2
+        with:
+          # same version as used in tests/containers/nodejs/Dockerfile
+          node-version: 10.x
+
       - name: Checkout Code
         uses: actions/checkout@v2
 
