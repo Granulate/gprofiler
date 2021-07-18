@@ -54,8 +54,8 @@ def register_profiler(
             f" to profile them with the default method, or 'disabled' to disable {profiler_name} profiling"
         )
     if possible_modes is None:
-        possible_modes = ["enabled", "disabled"]
-    elif "none" not in possible_modes:
+        possible_modes = ["enabled", "disabled", "none"]  # none is a legacy option
+    else:
         # Add the legacy "none" value, which is replaced by "disabled"
         possible_modes.append("none")
 
