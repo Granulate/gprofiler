@@ -101,6 +101,11 @@ def test_from_container(
         "/lib/modules": {"bind": "/lib/modules", "mode": "ro"},
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
     }
+
+    # Execute only the tested profiler
+    flags = ["--no-java", "--no-python", "--no-php", "--no-ruby"]
+    flags.remove("--no-{runtime}")
+
     args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args
     run_gprofiler_in_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
 
