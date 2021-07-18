@@ -525,7 +525,7 @@ def _add_profilers_arguments(parser):
             const="disabled",
             dest=mode_var,
             default=True,
-            help=f"Disable the profiling of {name} processes",
+            help=config.disablement_help,
         )
         for profiler_argument in config.profiler_arguments:
             arg_group.add_argument(profiler_argument.name, **profiler_argument.get_dict())

@@ -39,6 +39,8 @@ PERF_BUILDID_DIR = os.path.join(TEMPORARY_STORAGE_PATH, "perf-buildids")
             dest="dwarf_stack_size",
         )
     ],
+    disablement_help="Disable the global perf of processes,"
+    " and instead only concatenate runtime-specific profilers results",
 )
 class SystemProfiler(ProfilerBase):
     def __init__(
