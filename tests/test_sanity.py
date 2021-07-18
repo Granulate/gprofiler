@@ -109,7 +109,7 @@ def test_from_container(
     flags = ["--no-java", "--no-python", "--no-php", "--no-ruby"]
     flags.remove(f"--no-{runtime}")
 
-    args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args
+    args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args + flags
     run_gprofiler_in_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
 
     collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
