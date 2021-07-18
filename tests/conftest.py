@@ -111,6 +111,15 @@ def application_process(in_container: bool, command_line: List):
             raise Exception(f"Command {command_line} exited unexpectedly with {popen.returncode}")
 
         yield popen
+
+        # ensure, again, that it still alive (if it exited prematurely it might provide bad data for the tests)
+        try:
+            popen.wait(0)
+        except TimeoutError:
+            pass
+        else:
+            raise Exception(f"Command {command_line} exited unexpectedly during the test with {popen.returncode}")
+
         popen.kill()
         stdout, stderr = popen.communicate()
         print(f"stdout: {stdout.decode()}")
