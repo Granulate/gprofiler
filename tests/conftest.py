@@ -88,6 +88,12 @@ def gprofiler_exe(request, tmp_path: Path) -> Path:
     return tmp_path / "gprofiler"
 
 
+def _print_process_output(popen: subprocess.Popen) -> None:
+    stdout, stderr = popen.communicate()
+    print(f"stdout: {stdout.decode()}")
+    print(f"stderr: {stderr.decode()}")
+
+
 @fixture
 def application_process(in_container: bool, command_line: List):
     if in_container:
@@ -108,6 +114,7 @@ def application_process(in_container: bool, command_line: List):
         except subprocess.TimeoutExpired:
             pass
         else:
+            _print_process_output(popen)
             raise Exception(f"Command {command_line} exited unexpectedly with {popen.returncode}")
 
         yield popen
@@ -118,12 +125,11 @@ def application_process(in_container: bool, command_line: List):
         except subprocess.TimeoutExpired:
             pass
         else:
+            _print_process_output(popen)
             raise Exception(f"Command {command_line} exited unexpectedly during the test with {popen.returncode}")
 
         popen.kill()
-        stdout, stderr = popen.communicate()
-        print(f"stdout: {stdout.decode()}")
-        print(f"stderr: {stderr.decode()}")
+        _print_process_output(popen)
 
 
 @fixture(scope="session")
