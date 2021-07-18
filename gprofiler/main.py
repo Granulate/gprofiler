@@ -26,16 +26,17 @@ from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.metadata_type import Metadata
-from gprofiler.metadata.system_metadata import get_hostname
+from gprofiler.metadata.system_metadata import get_hostname, get_run_mode_and_deployment_type
 from gprofiler.perf import SystemProfiler
 from gprofiler.php import PHPSpyProfiler
 from gprofiler.profiler_base import NoopProfiler
 from gprofiler.python import PythonProfiler
 from gprofiler.ruby import RbSpyProfiler
 from gprofiler.state import State, init_state
-from gprofiler.system_metrics import SystemMetricsMonitor
+from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
+    CpuUsageLogger,
     TemporaryDirectoryWithMode,
     atomically_symlink,
     get_iso8601_format_time,
@@ -102,6 +103,7 @@ class GProfiler:
         collect_metrics: bool,
         collect_metadata: bool,
         state: State,
+        cpu_usage_logger: CpuUsageLogger,
         run_args: Dict,
         include_container_names=True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
@@ -174,10 +176,11 @@ class GProfiler:
             self._docker_client: Optional[DockerClient] = DockerClient()
         else:
             self._docker_client = None
+        self._cpu_usage_logger = cpu_usage_logger
         if collect_metrics:
-            self._system_metrics_monitor: Optional[SystemMetricsMonitor] = SystemMetricsMonitor(self._duration)
+            self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor()
         else:
-            self._system_metrics_monitor = None
+            self._system_metrics_monitor = NoopSystemMetricsMonitor()
 
     def __enter__(self):
         self.start()
@@ -248,8 +251,7 @@ class GProfiler:
 
     def start(self):
         self._stop_event.clear()
-        if self._system_metrics_monitor is not None:
-            self._system_metrics_monitor.start()
+        self._system_metrics_monitor.start()
 
         for prof in (
             self.python_profiler,
@@ -263,8 +265,7 @@ class GProfiler:
     def stop(self):
         logger.info("Stopping ...")
         self._stop_event.set()
-        if self._system_metrics_monitor is not None:
-            self._system_metrics_monitor.stop()
+        self._system_metrics_monitor.stop()
 
         for prof in (
             self.python_profiler,
@@ -327,11 +328,8 @@ class GProfiler:
             self._generate_output_files(merged_result, local_start_time, local_end_time)
 
         if self._client:
-            if self._system_metrics_monitor is not None:
-                cpu_avg = self._system_metrics_monitor.get_cpu_utilization()
-                mem_avg = self._system_metrics_monitor.get_average_memory_utilization()
-            else:
-                cpu_avg = mem_avg = None
+            cpu_avg = self._system_metrics_monitor.get_cpu_utilization()
+            mem_avg = self._system_metrics_monitor.get_average_memory_utilization()
             try:
                 self._client.submit_profile(
                     local_start_time,
@@ -375,6 +373,8 @@ class GProfiler:
 
     def run_continuous(self, interval):
         with self:
+            self._cpu_usage_logger.init_cycles()
+
             while not self._stop_event.is_set():
                 start_time = time.monotonic()
                 self._state.init_new_cycle()
@@ -386,6 +386,7 @@ class GProfiler:
                     self._send_remote_logs()  # function is safe, wrapped with try/except block inside
                 time_spent = time.monotonic() - start_time
                 self._stop_event.wait(max(interval - time_spent, 0))
+                self._cpu_usage_logger.log_cycle()
 
 
 def parse_cmd_args():
@@ -427,6 +428,13 @@ def parse_cmd_args():
 
     parser.add_argument(
         "--rotating-output", action="store_true", default=False, help="Keep only the last profile result"
+    )
+
+    parser.add_argument(
+        "--log-cpu-usage",
+        action="store_true",
+        default=False,
+        help="Log CPU usage (per cgroup) on each profiling iteration. Works only when gProfiler runs as a container",
     )
 
     java_options = parser.add_argument_group("Java")
@@ -582,7 +590,7 @@ def parse_cmd_args():
         action="store_false",
         default=True,
         dest="collect_metadata",
-        help="Disable sending system and cloud metadata to the performance studio",
+        help="Disable sending system and cloud metadata to the Performance Studio",
     )
 
     parser.add_argument(
@@ -636,6 +644,12 @@ def verify_preconditions(args):
         print("Could not acquire gProfiler's lock. Is it already running?", file=sys.stderr)
         sys.exit(1)
 
+    if args.log_cpu_usage and get_run_mode_and_deployment_type()[0] not in ("k8s", "container"):
+        # TODO: we *can* move into another cpuacct cgroup, to let this work also when run as a standalone
+        # executable.
+        print("--log-cpu-usage is available only when run as a container!")
+        sys.exit(1)
+
 
 def setup_signals() -> None:
     # When we run under staticx & PyInstaller, both of them forward (some of the) signals to gProfiler.
@@ -665,6 +679,8 @@ def main():
 
     setup_signals()
     reset_umask()
+    # assume we run in the root cgroup (when containerized, that's our view)
+    cpu_usage_logger = CpuUsageLogger(logger, "/", args.log_cpu_usage)
 
     try:
         logger.info(f"Running gprofiler (version {__version__}), commandline: {' '.join(sys.argv[1:])!r}")
@@ -726,6 +742,7 @@ def main():
             args.collect_metrics,
             args.collect_metadata,
             state,
+            cpu_usage_logger,
             args.__dict__ if args.send_args and args.collect_metadata else None,
             not args.disable_container_names,
             remote_logs_handler,
@@ -741,6 +758,8 @@ def main():
         pass
     except Exception:
         logger.exception("Unexpected error occurred")
+
+    cpu_usage_logger.log_run()
 
 
 if __name__ == "__main__":

@@ -88,6 +88,7 @@ class AzureInstanceMetadata(InstanceMetadataBase):
 
 
 def get_aws_metadata() -> Optional[AwsInstanceMetadata]:
+    # Documentation: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-categories.html
     metadata_response = send_request("http://169.254.169.254/latest/dynamic/instance-identity/document")
     life_cycle_response = send_request("http://169.254.169.254/latest/meta-data/instance-life-cycle")
     if life_cycle_response is None or metadata_response is None:
@@ -104,6 +105,7 @@ def get_aws_metadata() -> Optional[AwsInstanceMetadata]:
 
 
 def get_gcp_metadata() -> Optional[GcpInstanceMetadata]:
+    # Documentation: https://cloud.google.com/compute/docs/storing-retrieving-metadata
     response = send_request(
         "http://metadata.google.internal/computeMetadata/v1/instance/?recursive=true",
         headers={"Metadata-Flavor": "Google"},
@@ -131,6 +133,7 @@ def get_gcp_metadata() -> Optional[GcpInstanceMetadata]:
 
 
 def get_azure_metadata() -> Optional[AzureInstanceMetadata]:
+    # Documentation: https://docs.microsoft.com/en-us/azure/virtual-machines/linux/instance-metadata-service?tabs=linux
     response = send_request(
         "http://169.254.169.254/metadata/instance/compute/?api-version=2019-08-15", headers={"Metadata": "true"}
     )
