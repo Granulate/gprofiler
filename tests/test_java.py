@@ -55,6 +55,7 @@ def test_java_async_profiler_stopped(
         inner_output_directory,
         "--no-php",
         "--no-python",
+        "--no-ruby",
         "--perf-mode=none",
     ] + runtime_specific_args
 

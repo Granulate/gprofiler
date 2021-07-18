@@ -143,7 +143,7 @@ python3 -m gprofiler [options]
 ```
 
 # Theory of operation
-Each profiling interval, gProfiler invokes `perf` in system wide mode, collecting profiling data for all running processes.
+gProfiler invokes `perf` in system wide mode, collecting profiling data for all running processes.
 Alongside `perf`, gProfiler invokes runtime-specific profilers for processes based on these environments:
 * Java runtimes (version 7+) based on the HotSpot JVM, including the Oracle JDK and other builds of OpenJDK like AdoptOpenJDK and Azul Zulu.
   * Uses async-profiler.
