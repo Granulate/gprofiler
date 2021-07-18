@@ -1,55 +1,90 @@
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import requests
 from requests import Response
 
 from gprofiler.exceptions import BadResponseCode
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.metadata_type import Metadata
 
 METADATA_REQUEST_TIMEOUT = 5
 
 logger = get_logger_adapter(__name__)
 
 
-@dataclass
 class InstanceMetadataBase:
-    provider: str
+    def __init__(self, provider: str):
+        self.provider = provider
 
 
-@dataclass()
 class AwsInstanceMetadata(InstanceMetadataBase):
-    region: str
-    zone: str
-    instance_type: str
-    life_cycle: str
-    account_id: str
-    image_id: str
-    instance_id: str
+    def __init__(
+        self,
+        provider: str,
+        region: str,
+        zone: str,
+        instance_type: str,
+        life_cycle: str,
+        account_id: str,
+        image_id: str,
+        instance_id: str,
+    ):
+        super().__init__(provider)
+        self.region = region
+        self.zone = zone
+        self.instance_type = instance_type
+        self.life_cycle = life_cycle
+        self.account_id = account_id
+        self.image_id = image_id
+        self.instance_id = instance_id
 
 
-@dataclass
 class GcpInstanceMetadata(InstanceMetadataBase):
-    zone: str
-    instance_type: str
-    preempted: bool
-    preemptible: bool
-    instance_id: str
-    image_id: str
-    name: str
+    def __init__(
+        self,
+        provider: str,
+        zone: str,
+        instance_type: str,
+        preempted: bool,
+        preemptible: bool,
+        instance_id: str,
+        image_id: str,
+        name: str,
+    ):
+        super().__init__(provider)
+        self.zone = zone
+        self.instance_type = instance_type
+        self.preempted = preempted
+        self.preemptible = preemptible
+        self.instance_id = instance_id
+        self.image_id = image_id
+        self.name = name
 
 
-@dataclass
 class AzureInstanceMetadata(InstanceMetadataBase):
-    instance_type: str
-    zone: str
-    region: str
-    subscription_id: str
-    resource_group_name: str
-    resource_id: str
-    instance_id: str
-    name: str
-    image_info: Optional[Dict[str, str]]
+    def __init__(
+        self,
+        provider: str,
+        instance_type: str,
+        zone: str,
+        region: str,
+        subscription_id: str,
+        resource_group_name: str,
+        resource_id: str,
+        instance_id: str,
+        name: str,
+        image_info: Optional[Dict[str, str]],
+    ):
+        super().__init__(provider)
+        self.instance_type = instance_type
+        self.zone = zone
+        self.region = region
+        self.subscription_id = subscription_id
+        self.resource_group_name = resource_group_name
+        self.resource_id = resource_id
+        self.instance_id = instance_id
+        self.name = name
+        self.image_info = image_info
 
 
 def get_aws_metadata() -> Optional[AwsInstanceMetadata]:
@@ -147,7 +182,7 @@ def send_request(url: str, headers: Dict[str, str] = None) -> Optional[Response]
     return response
 
 
-def get_cloud_instance_metadata() -> Optional[Dict[str, Union[str, bool, int]]]:
+def get_static_cloud_instance_metadata() -> Optional[Metadata]:
     cloud_metadata_fetchers = [get_aws_metadata, get_gcp_metadata, get_azure_metadata]
     raised_exceptions: List[Exception] = []
     for fetcher in cloud_metadata_fetchers:

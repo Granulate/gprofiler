@@ -20,11 +20,13 @@ from requests import RequestException, Timeout
 
 from gprofiler import __version__, merge
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
-from gprofiler.cloud_metadata import get_cloud_instance_metadata
 from gprofiler.docker_client import DockerClient
 from gprofiler.java import JavaProfiler
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
+from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
+from gprofiler.metadata.metadata_type import Metadata
+from gprofiler.metadata.system_metadata import get_hostname, get_run_mode_and_deployment_type
 from gprofiler.perf import SystemProfiler
 from gprofiler.php import PHPSpyProfiler
 from gprofiler.profiler_base import NoopProfiler
@@ -37,10 +39,7 @@ from gprofiler.utils import (
     CpuUsageLogger,
     TemporaryDirectoryWithMode,
     atomically_symlink,
-    get_hostname,
     get_iso8601_format_time,
-    get_run_mode,
-    get_system_info,
     grab_gprofiler_mutex,
     is_root,
     is_running_in_init_pid,
@@ -102,8 +101,10 @@ class GProfiler:
         runtimes: Dict[str, bool],
         client: APIClient,
         collect_metrics: bool,
+        collect_metadata: bool,
         state: State,
         cpu_usage_logger: CpuUsageLogger,
+        run_args: Dict,
         include_container_names=True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         php_process_filter: str = PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
@@ -117,8 +118,13 @@ class GProfiler:
         self._client = client
         self._state = state
         self._remote_logs_handler = remote_logs_handler
+        self._collect_metrics = collect_metrics
+        self._collect_metadata = collect_metadata
         self._stop_event = Event()
+        self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
+        if collect_metadata:
+            self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=run_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
         # 1. accessible by everyone - for profilers that run code in target processes, like async-profiler
@@ -243,19 +249,6 @@ class GProfiler:
             lines.append(line[line.find(';') + 1 :])
         return '\n'.join(lines)
 
-    def send_metadata(self):
-        cloud_metadata = get_cloud_instance_metadata()
-        system_metadata = get_system_info()
-        metadata_dict = {
-            "cloud_provider": cloud_metadata.pop("provider") or "unknown",
-            "version": __version__,
-            "start_time": round(self._spawn_time),
-        }
-        metadata_dict.update(system_metadata.get_dict())
-        if cloud_metadata is not None:
-            metadata_dict["cloud_info_wrapped"] = cloud_metadata
-        self._client.submit_metadata(metadata_dict)
-
     def start(self):
         self._stop_event.clear()
         self._system_metrics_monitor.start()
@@ -313,18 +306,22 @@ class GProfiler:
         except Exception:
             logger.error("Running perf failed; consider running gProfiler with '--perf-mode none' to avoid using perf")
             raise
-
+        metadata = (
+            get_current_metadata(self._static_metadata) if self._collect_metadata else {"hostname": get_hostname()}
+        )
         if self._runtimes["system"]:
             merged_result, total_samples = merge.merge_profiles(
                 system_result,
                 process_profiles,
                 self._docker_client,
+                metadata,
             )
         else:
             assert system_result == {}, system_result  # should be empty!
             merged_result, total_samples = merge.concatenate_profiles(
                 process_profiles,
                 self._docker_client,
+                metadata,
             )
 
         if self._output_dir:
@@ -335,7 +332,13 @@ class GProfiler:
             mem_avg = self._system_metrics_monitor.get_average_memory_utilization()
             try:
                 self._client.submit_profile(
-                    local_start_time, local_end_time, merged_result, total_samples, cpu_avg, mem_avg, self._spawn_time
+                    local_start_time,
+                    local_end_time,
+                    merged_result,
+                    total_samples,
+                    self._spawn_time,
+                    cpu_avg,
+                    mem_avg,
                 )
             except Timeout:
                 logger.error("Upload of profile to server timed out.")
@@ -579,7 +582,23 @@ def parse_cmd_args():
         action="store_false",
         default=True,
         dest="collect_metrics",
-        help="Disable sending metrics and cloud metadata to the Performance Studio",
+        help="Disable sending system metrics to the performance studio",
+    )
+
+    parser.add_argument(
+        "--disable-metadata-collection",
+        action="store_false",
+        default=True,
+        dest="collect_metadata",
+        help="Disable sending system and cloud metadata to the Performance Studio",
+    )
+
+    parser.add_argument(
+        "--disable-argument-uploading",
+        action="store_false",
+        default=True,
+        dest="send_args",
+        help="Disable sending the gProfiler arguments to the performance studio",
     )
 
     args = parser.parse_args()
@@ -625,7 +644,7 @@ def verify_preconditions(args):
         print("Could not acquire gProfiler's lock. Is it already running?", file=sys.stderr)
         sys.exit(1)
 
-    if args.log_cpu_usage and get_run_mode() not in ("k8s", "container"):
+    if args.log_cpu_usage and get_run_mode_and_deployment_type()[0] not in ("k8s", "container"):
         # TODO: we *can* move into another cpuacct cgroup, to let this work also when run as a standalone
         # executable.
         print("--log-cpu-usage is available only when run as a container!")
@@ -721,16 +740,15 @@ def main():
             runtimes,
             client,
             args.collect_metrics,
+            args.collect_metadata,
             state,
             cpu_usage_logger,
+            args.__dict__ if args.send_args and args.collect_metadata else None,
             not args.disable_container_names,
             remote_logs_handler,
             args.php_process_filter,
         )
         logger.info("gProfiler initialized and ready to start profiling")
-
-        if args.collect_metrics and args.upload_results:
-            gprofiler.send_metadata()
         if args.continuous:
             gprofiler.run_continuous(args.continuous_profiling_interval)
         else:

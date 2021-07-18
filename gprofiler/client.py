@@ -126,9 +126,9 @@ class APIClient:
         end_time: datetime.datetime,
         profile: str,
         total_samples: int,
+        spawn_time: float,
         cpu_avg: Optional[float],
         mem_avg: Optional[float],
-        spawn_time: float,
     ) -> Dict:
         return self.post(
             "profiles",
@@ -144,12 +144,4 @@ class APIClient:
             timeout=self._upload_timeout,
             api_version="v2",
             params={"samples": str(total_samples), "version": __version__},
-        )
-
-    def submit_metadata(self, metadata: Dict):
-        return self.post(
-            "agent-metadata",
-            metadata,
-            timeout=self._upload_timeout,
-            api_version="v1",
         )

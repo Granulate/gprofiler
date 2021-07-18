@@ -8,25 +8,20 @@ import errno
 import fcntl
 import logging
 import os
-import platform
 import random
 import re
 import shutil
 import socket
 import string
 import subprocess
-import sys
 import time
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Union
 
-import distro  # type: ignore
-import getmac
 import importlib_resources
 import psutil
 from psutil import Process
@@ -38,13 +33,13 @@ from gprofiler.exceptions import (
     StopEventSetException,
 )
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.system_metadata import get_static_system_info
 
 logger = get_logger_adapter(__name__)
 
 TEMPORARY_STORAGE_PATH = "/tmp/gprofiler_tmp"
 
 gprofiler_mutex: Optional[socket.socket]
-hostname: Optional[str] = None
 
 
 def resource_path(relative_path: str = "") -> str:
@@ -298,44 +293,6 @@ def assert_program_installed(program: str):
         raise ProgramMissingException(program)
 
 
-def get_libc_version() -> Tuple[str, str]:
-    # platform.libc_ver fails for musl, sadly (produces empty results).
-    # so we'll run "ldd --version" and extract the version string from it.
-    # not passing "encoding"/"text" - this runs in a different mount namespace, and Python fails to
-    # load the files it needs for those encodings (getting LookupError: unknown encoding: ascii)
-    def decode_libc_version(version: bytes) -> str:
-        return version.decode("utf-8", errors="replace")
-
-    ldd_version = run_process(
-        ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, suppress_log=True, check=False
-    ).stdout
-    # catches GLIBC & EGLIBC
-    m = re.search(br"GLIBC (.*?)\)", ldd_version)
-    if m is not None:
-        return "glibc", decode_libc_version(m.group(1))
-    # catches GNU libc
-    m = re.search(br"\(GNU libc\) (.*?)\n", ldd_version)
-    if m is not None:
-        return "glibc", decode_libc_version(m.group(1))
-    # musl
-    m = re.search(br"musl libc.*?\nVersion (.*?)\n", ldd_version, re.M)
-    if m is not None:
-        return "musl", decode_libc_version(m.group(1))
-
-    return "unknown", decode_libc_version(ldd_version)
-
-
-def get_run_mode() -> str:
-    if os.getenv("GPROFILER_IN_K8S") is not None:  # set in k8s/gprofiler.yaml
-        return "k8s"
-    elif os.getenv("GPROFILER_IN_CONTAINER") is not None:  # set by our Dockerfile
-        return "container"
-    elif os.getenv("STATICX_BUNDLE_DIR") is not None:  # set by staticx
-        return "standalone_executable"
-    else:
-        return "local_python"
-
-
 def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int = 1) -> None:
     """
     Runs a callback in a new thread, switching to a set of the namespaces of a target process before
@@ -377,124 +334,16 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
     t.join()
 
 
-def _initialize_system_info():
-    # initialized first
-    global hostname
-    hostname = "<unknown>"
-    distribution = ("unknown", "unknown", "unknown")
-    libc_version = ("unknown", "unknown")
-    mac_address = "unknown"
-    boot_time_ms = 0
-
-    # move to host mount NS for distro & ldd.
-    # now, distro will read the files on host.
-    # also move to host UTS NS for the hostname.
-    def get_infos():
-        nonlocal distribution, libc_version, boot_time_ms, mac_address
-        global hostname
-
-        try:
-            distribution = distro.linux_distribution()
-        except Exception:
-            logger.exception("Failed to get distribution")
-
-        try:
-            libc_version = get_libc_version()
-        except Exception:
-            logger.exception("Failed to get libc version")
-
-        try:
-            hostname = socket.gethostname()
-        except Exception:
-            logger.exception("Failed to get hostname")
-
-        try:
-            boot_time_ms = round(time.monotonic() * 1000)
-        except Exception:
-            logger.exception("Failed to get the system boot time")
-
-        try:
-            mac_address = getmac.get_mac_address()
-        except Exception:
-            logger.exception("Failed to get MAC address")
-
-    run_in_ns(["mnt", "uts"], get_infos)
-
-    return hostname, distribution, libc_version, boot_time_ms, mac_address
-
-
-@dataclass
-class LibcVersion:
-    type: str
-    version: str
-
-
-@dataclass
-class LinuxDistribution:
-    id_name: str
-    version: str
-    codename: str
-
-
-@dataclass
-class SystemInfo:
-    python_version: str
-    run_mode: str
-    kernel_release: str
-    kernel_version: str
-    release_name: str
-    cpu_count: int
-    memory_capacity_mb: int
-    hostname: str
-    linux_distribution: LinuxDistribution
-    libc: LibcVersion
-    architecture: str
-    pid: int
-    spawn_uptime_ms: int
-    mac_address: str
-
-    def get_dict(self):
-        sys_info_dict = self.__dict__.copy()
-        sys_info_dict["libc"] = sys_info_dict["libc"].__dict__
-        sys_info_dict["linux_distribution"] = sys_info_dict["linux_distribution"].__dict__
-        return sys_info_dict
-
-
-def get_system_info() -> SystemInfo:
-    hostname, distribution, libc_tuple, boot_time_ms, mac_address = _initialize_system_info()
-    libc_type, libc_version = libc_tuple
-    id_name, version, codename = distribution
-    uname = platform.uname()
-    cpu_count = os.cpu_count()
-    cpu_count = cpu_count if cpu_count is not None else 0
-    return SystemInfo(
-        sys.version,
-        get_run_mode(),
-        uname.release,
-        uname.version,
-        uname.system,
-        cpu_count,
-        round(psutil.virtual_memory().total / 1024),
-        hostname,
-        LinuxDistribution(id_name, version, codename),
-        LibcVersion(type=libc_type, version=libc_version),
-        uname.machine,
-        os.getpid(),
-        boot_time_ms,
-        mac_address,
-    )
-
-
 def log_system_info() -> None:
-    system_info = get_system_info()
+    system_info = get_static_system_info()
     logger.info(f"gProfiler Python version: {system_info.python_version}")
-    logger.info(f"gProfiler run mode: {system_info.run_mode}")
+    logger.info(f"gProfiler deployment mode: {system_info.run_mode}")
     logger.info(f"Kernel uname release: {system_info.kernel_release}")
     logger.info(f"Kernel uname version: {system_info.kernel_version}")
-    logger.info(f"Total CPUs: {system_info.cpu_count}")
+    logger.info(f"Total CPUs: {system_info.processors}")
     logger.info(f"Total RAM: {system_info.memory_capacity_mb / (1 << 20):.2f} GB")
-    logger.info(f"Linux distribution: {system_info.linux_distribution}")
-    logger.info(f"libc version: {system_info.libc.type}-{system_info.libc.version}")
+    logger.info(f"Linux distribution: {system_info.os_name} | {system_info.os_release} | {system_info.os_codename}")
+    logger.info(f"libc version: {system_info.libc_type}-{system_info.libc_version}")
     logger.info(f"Hostname: {system_info.hostname}")
 
 
@@ -585,11 +434,6 @@ def limit_frequency(limit: Optional[int], requested: int, msg_header: str, runti
         return limit
 
     return requested
-
-
-def get_hostname() -> str:
-    assert hostname is not None, "hostname not initialized!"
-    return hostname
 
 
 def random_prefix() -> str:
