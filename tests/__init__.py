@@ -9,4 +9,4 @@ PARENT = HERE.parent
 CONTAINERS_DIRECTORY = HERE / "containers"
 RESOURCES_DIRECTORY = PARENT / "gprofiler" / "resources"
 
-PHPSPY_DURATION = 3  # seconds
+PHPSPY_DURATION = 5  # seconds
