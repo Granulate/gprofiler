@@ -6,6 +6,10 @@ function fibonacci(n) {
     return n <= 1 ? n : fibonacci(n - 1) + fibonacci(n - 2);
 }
 
+function call_fib(n) {
+    call_fib(n);
+}
+
 while (true) {
-    fibonacci(30);
+    call_fib(30);
 }
