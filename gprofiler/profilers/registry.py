@@ -51,9 +51,10 @@ def register_profiler(
     profiler_arguments: Optional[List[ProfilerArgument]] = None,
     disablement_help: Optional[str] = None,
 ):
+    # NOTE: Currently, the default_mode value is used as the default "enabled" mode in the default help string.
     if profiler_mode_argument_help is None:
         profiler_mode_argument_help = (
-            f"Choose the mode for profiling {profiler_name} processes. 'enabled'"
+            f"Choose the mode for profiling {profiler_name} processes. '{default_mode}'"
             f" to profile them with the default method, or 'disabled' to disable {profiler_name}-specific profiling"
         )
     if possible_modes is None:

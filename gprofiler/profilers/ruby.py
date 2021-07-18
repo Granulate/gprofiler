@@ -19,7 +19,7 @@ from gprofiler.utils import pgrep_maps, random_prefix, resource_path, run_proces
 logger = get_logger_adapter(__name__)
 
 
-@register_profiler("Ruby")
+@register_profiler("Ruby", possible_modes=["rbspy", "disabled"], default_mode="rbspy")
 class RbSpyProfiler(ProcessProfilerBase):
     RESOURCE_PATH = "ruby/rbspy"
     MAX_FREQUENCY = 100

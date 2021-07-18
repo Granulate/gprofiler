@@ -24,6 +24,8 @@ DEFAULT_PROCESS_FILTER = "php-fpm"
 
 @register_profiler(
     "PHP",
+    possible_modes=["phpspy", "disabled"],
+    default_mode="phpspy",
     profiler_arguments=[
         ProfilerArgument(
             "--php-proc-filter",

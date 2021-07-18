@@ -240,7 +240,7 @@ class AsyncProfiledProcess:
             raise
 
 
-@register_profiler("Java")
+@register_profiler("Java", possible_modes=["ap", "disabled"], default_mode="ap")
 class JavaProfiler(ProcessProfilerBase):
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
     SKIP_VERSION_CHECK_BINARIES = ["jsvc"]
