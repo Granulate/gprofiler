@@ -527,8 +527,8 @@ def _add_profilers_arguments(parser):
             default=True,
             help=config.disablement_help,
         )
-        for profiler_argument in config.profiler_arguments:
-            arg_group.add_argument(profiler_argument.name, **profiler_argument.get_dict())
+        for arg in config.profiler_args:
+            arg_group.add_argument(arg.name, **arg.get_dict())
 
 
 def verify_preconditions(args):

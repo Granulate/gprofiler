@@ -36,7 +36,7 @@ class ProfilerConfig:
         self.profiler_mode_help: str = profiler_mode_help
         self.possible_modes: Optional[List[str]] = possible_modes
         self.default_mode: str = default_mode
-        self.profiler_arguments: List[ProfilerArgument] = arguments if arguments is not None else []
+        self.profiler_args: List[ProfilerArgument] = arguments if arguments is not None else []
         self.disablement_help = disablement_help
 
 
