@@ -21,13 +21,7 @@ class ProfilerArgument:
         self.type = type
 
     def get_dict(self) -> Dict[str, Any]:
-        dict_argument_names = ["help", "default", "action", "choices", "dest", "type"]
-        argument_dict = {}
-        for argument_name in dict_argument_names:
-            argument_value = getattr(self, argument_name)
-            if argument_value is not None:
-                argument_dict[argument_name] = argument_value
-        return argument_dict
+        return {key: value for key, value in self.__dict__.items() if value is not None}
 
 
 class ProfilerConfig:
