@@ -582,7 +582,7 @@ def parse_cmd_args():
         action="store_false",
         default=True,
         dest="collect_metrics",
-        help="Disable sending system metrics to the performance studio",
+        help="Disable sending system metrics to the Performance Studio",
     )
 
     parser.add_argument(
@@ -598,7 +598,7 @@ def parse_cmd_args():
         action="store_false",
         default=True,
         dest="send_args",
-        help="Disable sending the gProfiler arguments to the performance studio",
+        help="Disable sending the gProfiler arguments to the Performance Studio",
     )
 
     args = parser.parse_args()
