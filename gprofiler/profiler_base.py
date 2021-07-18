@@ -3,11 +3,15 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
+import concurrent.futures
 from threading import Event
-from typing import Optional
+from typing import List, Optional
 
+from psutil import NoSuchProcess, Process
+
+from gprofiler.exceptions import StopEventSetException
 from gprofiler.log import get_logger_adapter
-from gprofiler.types import ProcessToStackSampleCounters
+from gprofiler.types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.utils import limit_frequency
 
 logger = get_logger_adapter(__name__)
@@ -75,3 +79,46 @@ class NoopProfiler(ProfilerInterface):
 
     def snapshot(self) -> ProcessToStackSampleCounters:
         return {}
+
+
+class ProcessProfilerBase(ProfilerBase):
+    """
+    Base class for process-based profilers: those that operate on each process separately, thus need
+    to be invoked for each PID.
+    This class implements snapshot() for them - creates a thread that runs _profile_process() for each
+    process that we wish to profile; then waits for all and returns the result.
+    """
+
+    def _select_processes_to_profile(self) -> List[Process]:
+        raise NotImplementedError
+
+    def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
+        raise NotImplementedError
+
+    def snapshot(self) -> ProcessToStackSampleCounters:
+        processes_to_profile = self._select_processes_to_profile()
+        if not processes_to_profile:
+            return {}
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes_to_profile)) as executor:
+            futures = {}
+            for process in processes_to_profile:
+                futures[executor.submit(self._profile_process, process)] = process.pid
+
+            results = {}
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    result = future.result()
+                    if result is not None:
+                        results[futures[future]] = result
+                except StopEventSetException:
+                    raise
+                except NoSuchProcess:
+                    logger.debug(
+                        f"{self.__class__.__name__}: process went down during profiling {futures[future]}",
+                        exc_info=True,
+                    )
+                except Exception:
+                    logger.exception(f"{self.__class__.__name__}: failed to profile process {futures[future]}")
+
+        return results

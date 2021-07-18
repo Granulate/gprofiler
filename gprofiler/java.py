@@ -2,14 +2,13 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import concurrent.futures
 import errno
 import functools
 import os
 import shutil
 from pathlib import Path
 from threading import Event
-from typing import Dict, List, Mapping, Optional
+from typing import List, Optional
 
 import psutil
 from psutil import Process
@@ -17,8 +16,8 @@ from psutil import Process
 from gprofiler.exceptions import CalledProcessError, StopEventSetException
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
-from gprofiler.profiler_base import ProfilerBase
-from gprofiler.types import ProcessToStackSampleCounters
+from gprofiler.profiler_base import ProcessProfilerBase
+from gprofiler.types import StackToSampleCount
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     get_process_nspid,
@@ -56,6 +55,11 @@ def jattach_path() -> str:
     return resource_path("java/jattach")
 
 
+@functools.lru_cache(maxsize=1)
+def get_ap_version() -> str:
+    return Path(resource_path("java/async-profiler-version")).read_text()
+
+
 class AsyncProfiledProcess:
     """
     Represents a process profiled with async-profiler.
@@ -74,7 +78,9 @@ class AsyncProfiledProcess:
         # multiple times into the process)
         # without depending on storage_dir here, we maintain the same path even if gProfiler is re-run,
         # because storage_dir changes between runs.
-        self._ap_dir = os.path.join(TEMPORARY_STORAGE_PATH, "async-profiler")
+        # we embed the async-profiler version in the path, so future gprofiler versions which use another version
+        # of AP case use it (will be loaded as a different DSO)
+        self._ap_dir = os.path.join(TEMPORARY_STORAGE_PATH, f"async-profiler-{get_ap_version()}")
         self._ap_dir_host = resolve_proc_root_links(self._process_root, self._ap_dir)
 
         self._libap_path_host = os.path.join(self._ap_dir_host, "libasyncProfiler.so")
@@ -233,7 +239,7 @@ class AsyncProfiledProcess:
             raise
 
 
-class JavaProfiler(ProfilerBase):
+class JavaProfiler(ProcessProfilerBase):
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
     SKIP_VERSION_CHECK_BINARIES = ["jsvc"]
 
@@ -287,7 +293,7 @@ class JavaProfiler(ProfilerBase):
         # Version is printed to stderr
         return java_version_cmd_output.stderr.decode()
 
-    def _profile_process(self, process: Process) -> Optional[Mapping[str, int]]:
+    def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
         logger.info(f"Profiling java process {process.pid}...")
 
         # Get Java version
@@ -299,7 +305,7 @@ class JavaProfiler(ProfilerBase):
         with AsyncProfiledProcess(process, self._storage_dir) as ap_proc:
             return self._profile_ap_process(ap_proc)
 
-    def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[Mapping[str, int]]:
+    def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[StackToSampleCount]:
         started = ap_proc.start_async_profiler(self._interval)
         if not started:
             logger.info(f"Found async-profiler already started on {ap_proc.process.pid}, trying to stop it...")
@@ -322,7 +328,7 @@ class JavaProfiler(ProfilerBase):
         if ap_proc.process.is_running():
             ap_proc.stop_async_profiler(True)
         else:
-            logger.info(f"Profiled process {ap_proc.process.pid} exited before stopping async-profiler")
+            logger.debug(f"Profiled process {ap_proc.process.pid} exited before stopping async-profiler")
             # no output in this case :/
             return None
 
@@ -340,25 +346,5 @@ class JavaProfiler(ProfilerBase):
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
             return parse_one_collapsed(output, comm)
 
-    def snapshot(self) -> ProcessToStackSampleCounters:
-        processes = list(pgrep_exe(r"^.+/(java|jsvc)$"))
-        if not processes:
-            return {}
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes)) as executor:
-            futures: Dict[concurrent.futures.Future, int] = {}
-            for process in processes:
-                futures[executor.submit(self._profile_process, process)] = process.pid
-
-            results = {}
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    result = future.result()
-                    if result is not None:
-                        results[futures[future]] = result
-                except StopEventSetException:
-                    raise
-                except Exception:
-                    logger.exception(f"Failed to profile Java process {futures[future]}")
-
-        return results
+    def _select_processes_to_profile(self) -> List[Process]:
+        return pgrep_exe(r"^.+/(java|jsvc)$")
