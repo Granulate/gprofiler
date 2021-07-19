@@ -46,8 +46,18 @@ def test_java_async_profiler_stopped(
     volumes = {
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
     }
-    # run Java only (just so initialization is faster w/o Python/PHP) for 1000 seconds
-    args = ["-v", "-d", "1000", "-o", inner_output_directory, "--no-php", "--no-python"] + runtime_specific_args
+    # run Java only (just so initialization is faster w/o others) for 1000 seconds
+    args = [
+        "-v",
+        "-d",
+        "1000",
+        "-o",
+        inner_output_directory,
+        "--no-php",
+        "--no-python",
+        "--no-ruby",
+        "--perf-mode=none",
+    ] + runtime_specific_args
 
     container = None
     try:
