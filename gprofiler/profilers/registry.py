@@ -47,23 +47,19 @@ profilers_config: Dict[str, ProfilerConfig] = {}
 
 def register_profiler(
     profiler_name: str,
-    possible_modes: Optional[List] = None,
-    default_mode="enabled",
+    default_mode: str,
+    possible_modes: List,
     profiler_mode_argument_help: Optional[str] = None,
     profiler_arguments: Optional[List[ProfilerArgument]] = None,
     disablement_help: Optional[str] = None,
 ):
-    # NOTE: Currently, the default_mode value is used as the default "enabled" mode in the default help string.
     if profiler_mode_argument_help is None:
         profiler_mode_argument_help = (
             f"Choose the mode for profiling {profiler_name} processes. '{default_mode}'"
             f" to profile them with the default method, or 'disabled' to disable {profiler_name}-specific profiling"
         )
-    if possible_modes is None:
-        possible_modes = ["enabled", "disabled", "none"]  # none is a legacy option
-    else:
-        # Add the legacy "none" value, which is replaced by "disabled"
-        possible_modes.append("none")
+    # Add the legacy "none" value, which is replaced by "disabled"
+    possible_modes.append("none")
     if disablement_help is None:
         disablement_help = f"Disable the runtime-profiling of {profiler_name} processes"
 
