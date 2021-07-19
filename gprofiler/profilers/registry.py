@@ -2,6 +2,8 @@ from typing import Any, Dict, List, Optional, Type
 
 
 class ProfilerArgument:
+    # It would have been better to replace with a dataclass, but since we want to support Python 3.6 this is the best
+    # alternative as we still need the get_dict method (which is not convenient to do with a namedtuple)
     def __init__(
         self,
         name: str,
@@ -21,19 +23,14 @@ class ProfilerArgument:
         self.type = type
 
     def get_dict(self) -> Dict[str, Any]:
-        dict_argument_names = ["help", "default", "action", "choices", "dest", "type"]
-        argument_dict = {}
-        for argument_name in dict_argument_names:
-            argument_value = getattr(self, argument_name)
-            if argument_value is not None:
-                argument_dict[argument_name] = argument_value
-        return argument_dict
+        return {key: value for key, value in self.__dict__.items() if value is not None}
 
 
 class ProfilerConfig:
     def __init__(
         self,
         profiler_mode_help: str,
+        disablement_help: str,
         profiler_class,
         possible_modes: List[str] = None,
         default_mode: str = "enabled",
@@ -42,7 +39,8 @@ class ProfilerConfig:
         self.profiler_mode_help: str = profiler_mode_help
         self.possible_modes: Optional[List[str]] = possible_modes
         self.default_mode: str = default_mode
-        self.profiler_arguments: List[ProfilerArgument] = arguments if arguments is not None else []
+        self.profiler_args: List[ProfilerArgument] = arguments if arguments is not None else []
+        self.disablement_help = disablement_help
         self.profiler_class = profiler_class
 
 
@@ -51,26 +49,26 @@ profilers_config: Dict[str, ProfilerConfig] = {}
 
 def register_profiler(
     profiler_name: str,
-    possible_modes: Optional[List] = None,
-    default_mode="enabled",
+    default_mode: str,
+    possible_modes: List,
     profiler_mode_argument_help: Optional[str] = None,
     profiler_arguments: Optional[List[ProfilerArgument]] = None,
+    disablement_help: Optional[str] = None,
 ):
     if profiler_mode_argument_help is None:
         profiler_mode_argument_help = (
-            f"Choose the mode for profiling {profiler_name} processes. 'enabled'"
-            f" to profile them with the default method, or 'disabled' to disable {profiler_name} profiling"
+            f"Choose the mode for profiling {profiler_name} processes. '{default_mode}'"
+            f" to profile them with the default method, or 'disabled' to disable {profiler_name}-specific profiling"
         )
-    if possible_modes is None:
-        possible_modes = ["enabled", "disabled"]
-    elif "none" not in possible_modes:
-        # Add the legacy "none" value, which is replaced by "disabled"
-        possible_modes.append("none")
+    # Add the legacy "none" value, which is replaced by "disabled"
+    possible_modes.append("none")
+    if disablement_help is None:
+        disablement_help = f"Disable the runtime-profiling of {profiler_name} processes"
 
     def profiler_decorator(profiler_class):
         assert profiler_name not in profilers_config, f"{profiler_name} is already registered!"
         profilers_config[profiler_name] = ProfilerConfig(
-            profiler_mode_argument_help, profiler_class, possible_modes, default_mode, profiler_arguments
+            profiler_mode_argument_help, disablement_help, profiler_class, possible_modes, default_mode, profiler_arguments
         )
         profiler_class.name = profiler_name
         return profiler_class

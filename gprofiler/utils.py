@@ -6,6 +6,7 @@ import ctypes
 import datetime
 import errno
 import fcntl
+import glob
 import logging
 import os
 import platform
@@ -126,6 +127,16 @@ def poll_process(process, timeout: float, stop_event: Event):
     except StopEventSetException:
         process.kill()
         raise
+
+
+def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> Path:
+    glob_pattern = f"{prefix}*"
+    wait_event(timeout, stop_event, lambda: len(glob.glob(glob_pattern)) > 0)
+
+    output_files = glob.glob(glob_pattern)
+    # All the snapshot samples should be in one file
+    assert len(output_files) == 1, "expected single file but got: " + str(output_files)
+    return Path(output_files[0])
 
 
 def run_process(
