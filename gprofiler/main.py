@@ -511,7 +511,9 @@ def _add_profilers_arguments(parser):
             help=config.disablement_help,
         )
         for arg in config.profiler_args:
-            arg_group.add_argument(arg.name, **arg.get_dict())
+            profiler_arg_kwargs = arg.get_dict()
+            name = profiler_arg_kwargs.pop("name")
+            arg_group.add_argument(name, **profiler_arg_kwargs)
 
 
 def verify_preconditions(args):
