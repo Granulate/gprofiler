@@ -68,7 +68,12 @@ def register_profiler(
     def profiler_decorator(profiler_class):
         assert profiler_name not in profilers_config, f"{profiler_name} is already registered!"
         profilers_config[profiler_name] = ProfilerConfig(
-            profiler_mode_argument_help, disablement_help, profiler_class, possible_modes, default_mode, profiler_arguments
+            profiler_mode_argument_help,
+            disablement_help,
+            profiler_class,
+            possible_modes,
+            default_mode,
+            profiler_arguments,
         )
         profiler_class.name = profiler_name
         return profiler_class
