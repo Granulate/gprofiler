@@ -612,7 +612,7 @@ def main():
             remote_logs_handler.init_api_client(client)
 
         runtimes = {
-            profiler_name: getattr(args, f"{profiler_name.lower()}_mode") not in ["none", "disabled"]
+            profiler_name.lower(): getattr(args, f"{profiler_name.lower()}_mode") not in ["none", "disabled"]
             for profiler_name in get_profilers_registry()
         }
         gprofiler = GProfiler(
