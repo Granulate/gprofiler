@@ -9,6 +9,13 @@ FROM pyspy-rbspy-builder-common AS pyspy-builder
 COPY scripts/pyspy_build.sh .
 RUN ./pyspy_build.sh
 
+# phpspy
+# ubuntu:20.04
+FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93 as phpspy-builder
+RUN apt update && apt install -y git wget make gcc
+COPY scripts/phpspy_build.sh .
+RUN ./phpspy_build.sh
+
 # rbspy
 FROM pyspy-rbspy-builder-common AS rbspy-builder
 COPY scripts/rbspy_build.sh .
@@ -36,13 +43,6 @@ WORKDIR /bcc
 
 COPY ./scripts/pyperf_build.sh .
 RUN ./pyperf_build.sh
-
-# phpspy
-# ubuntu:20.04
-FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93 as phpspy-builder
-RUN apt update && apt install -y git wget make gcc
-COPY scripts/phpspy_build.sh .
-RUN ./phpspy_build.sh
 
 # async-profiler
 # requires CentOS 6, so the built DSO can be loaded into machines running with old glibc.
