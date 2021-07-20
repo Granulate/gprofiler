@@ -7,7 +7,7 @@ set -euo pipefail
 
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y curl git build-essential iperf llvm-9-dev libclang-9-dev \
-  cmake python3 flex bison libelf-dev libz-dev liblzma-dev
+  cmake python3 flex bison libelf-dev libz-dev
 
 cd /tmp
 
