@@ -5,7 +5,7 @@
 #
 set -e
 
-git clone --shallow-since="Tue Jun 29 02:14:37 2021 +0000" --single-branch -b feature/show-native-stacks https://github.com/Granulate/bcc.git && cd bcc && git reset --hard b3335b39ed1f28f5dd8b3c325cf94e2f87f0906b
+git clone --depth 1 -b v1.0.8 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 3d45543714db67172a08d1dffaa84d7c5eb83808
 mkdir build
 cd build
 cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root ..
