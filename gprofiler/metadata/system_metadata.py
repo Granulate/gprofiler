@@ -19,14 +19,6 @@ from gprofiler.log import get_logger_adapter
 logger = get_logger_adapter(__name__)
 hostname: Optional[str] = None
 
-IS_64BIT = sys.maxsize > 2 ** 32
-IFNAMSIZ = 16
-IFF_LOOPBACK = 8
-MAC_BYTES_LEN = 6
-SIZE_OF_SHORT = struct.calcsize('H')
-SIZE_OF_STUCT_ifreq = 40 if IS_64BIT else 32
-MAX_BYTE_COUNT = 1024
-
 
 def get_libc_version() -> Tuple[str, str]:
     # platform.libc_ver fails for musl, sadly (produces empty results).
@@ -85,6 +77,16 @@ def get_local_ip() -> str:
 
 
 def get_mac_address() -> str:
+    # This way is used to ensure consistency
+
+    IS_64BIT = sys.maxsize > 2 ** 32
+    IFNAMSIZ = 16
+    IFF_LOOPBACK = 8
+    MAC_BYTES_LEN = 6
+    SIZE_OF_SHORT = struct.calcsize('H')
+    SIZE_OF_STUCT_ifreq = 40 if IS_64BIT else 32
+    MAX_BYTE_COUNT = 1024
+
     buf = array.array('B', b'\0' * MAX_BYTE_COUNT)
     ifc = struct.pack('iL', MAX_BYTE_COUNT, buf.buffer_info()[0])
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
