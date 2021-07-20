@@ -123,7 +123,7 @@ class GProfiler:
         self._stop_event = Event()
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
-        if collect_metadata:
+        if collect_metadata and self._client is not None:
             self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=run_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
@@ -307,7 +307,9 @@ class GProfiler:
             logger.error("Running perf failed; consider running gProfiler with '--perf-mode none' to avoid using perf")
             raise
         metadata = (
-            get_current_metadata(self._static_metadata) if self._collect_metadata else {"hostname": get_hostname()}
+            get_current_metadata(self._static_metadata)
+            if self._collect_metadata and self._client
+            else {"hostname": get_hostname()}
         )
         if self._runtimes["system"]:
             merged_result, total_samples = merge.merge_profiles(
