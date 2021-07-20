@@ -21,9 +21,6 @@ FROM ubuntu@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa
 COPY scripts/perf_env.sh .
 RUN ./perf_env.sh
 
-COPY scripts/libunwind_build.sh .
-RUN ./libunwind_build.sh
-
 COPY scripts/perf_build.sh .
 RUN ./perf_build.sh
 
@@ -31,12 +28,8 @@ RUN ./perf_build.sh
 # ubuntu 20.04
 FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93 AS bcc-builder
 
-RUN apt-get update
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y git curl build-essential iperf llvm-9-dev libclang-9-dev \
-  cmake python3 flex bison libelf-dev libz-dev liblzma-dev
-
-COPY ./scripts/libunwind_build.sh .
-RUN ./libunwind_build.sh
+COPY ./scripts/pyperf_env.sh .
+RUN ./pyperf_env.sh
 
 
 WORKDIR /bcc
