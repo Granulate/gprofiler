@@ -20,7 +20,7 @@ def get_static_metadata(spawn_time: Optional[float], run_args: Dict[str, Union[b
         "agent_version": __version__,
         "spawn_time": formatted_spawn_time,
     }
-    metadata_dict.update(static_system_metadata.get_dict())
+    metadata_dict.update(static_system_metadata.__dict__)
     if cloud_metadata is not None:
         metadata_dict["cloud_info_wrapped"] = cloud_metadata
     if run_args is not None:
