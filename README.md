@@ -88,7 +88,6 @@ If the `--upload-results`/`-u` is not enabled, then the metrics and metadata col
 Otherwise, you can disable metrics and metadata by using the following parameters:
 * Use `--disable-metrics-collection` to disable metrics collection
 * Use `--disable-metadata-collection` to disable metadata collection
-* Use `--disable-argument-uploading` to prevent the gProfiler from uploading of the execution arguments to the Performance Studio
 
 ### Continuous mode
 gProfiler can be run in a continuous mode, profiling periodically, using the `--continuous`/`-c` flag.

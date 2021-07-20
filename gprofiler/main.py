@@ -593,14 +593,6 @@ def parse_cmd_args():
         help="Disable sending system and cloud metadata to the Performance Studio",
     )
 
-    parser.add_argument(
-        "--disable-argument-uploading",
-        action="store_false",
-        default=True,
-        dest="send_args",
-        help="Disable sending the gProfiler arguments to the Performance Studio",
-    )
-
     args = parser.parse_args()
 
     if args.upload_results:
@@ -743,7 +735,7 @@ def main():
             args.collect_metadata,
             state,
             cpu_usage_logger,
-            args.__dict__ if args.send_args and args.collect_metadata else None,
+            args.__dict__ if args.collect_metadata else None,
             not args.disable_container_names,
             remote_logs_handler,
             args.php_process_filter,
