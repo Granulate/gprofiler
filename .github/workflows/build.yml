@@ -110,12 +110,6 @@ jobs:
           java-package: jdk
           architecture: x64
 
-      - name: Setup PHP Action
-        uses: shivammathur/setup-php@2.12.0
-        with:
-          # pin the same version as tests/containers/php/Dockerfile
-          php-version: '7.4'
-
       - name: Checkout Code
         uses: actions/checkout@v2
 
