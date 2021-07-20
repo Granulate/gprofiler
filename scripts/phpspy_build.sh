@@ -7,7 +7,7 @@ set -euo pipefail
 
 # First build phpspy
 pushd /
-git clone --depth=1 -b v0.6.0-g3 --recursive https://github.com/Granulate/phpspy.git && git -C phpspy reset --hard fe361c557c648616c644c4968e4efe485753f3e7
+git clone --depth=1 -b v0.6.0-g4 --recursive https://github.com/Granulate/phpspy.git && git -C phpspy reset --hard af1d74ebd4f9c27486e82397eafde1c450f06510
 cd /phpspy
 make
 popd
