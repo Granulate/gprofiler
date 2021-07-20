@@ -93,15 +93,17 @@ def get_aws_metadata() -> Optional[AwsInstanceMetadata]:
     life_cycle_response = send_request("http://169.254.169.254/latest/meta-data/instance-life-cycle")
     if life_cycle_response is None or metadata_response is None:
         return None
-    instance_metadata = metadata_response.json()
-    region = instance_metadata["region"]
-    zone = instance_metadata["availabilityZone"]
-    instance_type = instance_metadata["instanceType"]
-    account_id = instance_metadata["accountId"]
-    image_id = instance_metadata["imageId"]
-    instance_id = instance_metadata["instanceId"]
-    life_cycle = life_cycle_response.text
-    return AwsInstanceMetadata("aws", region, zone, instance_type, life_cycle, account_id, image_id, instance_id)
+    instance = metadata_response.json()
+    return AwsInstanceMetadata(
+        provider="aws",
+        region=instance["region"],
+        zone=instance["availabilityZone"],
+        instance_type=instance["instanceType"],
+        life_cycle=life_cycle_response.text,
+        account_id=instance["accountId"],
+        image_id=instance["imageId"],
+        instance_id=instance["instanceId"],
+    )
 
 
 def get_gcp_metadata() -> Optional[GcpInstanceMetadata]:
@@ -112,23 +114,16 @@ def get_gcp_metadata() -> Optional[GcpInstanceMetadata]:
     )
     if response is None:
         return None
-    instance_metadata = response.json()
-    availability_zone = instance_metadata["zone"]
-    instance_type = instance_metadata["machineType"]
-    preempted = instance_metadata["preempted"] == "TRUE"
-    preemptible = instance_metadata["scheduling"]["preemptible"] == "TRUE"
-    instance_id = str(instance_metadata["id"])
-    image_id = instance_metadata["image"]
-    name = instance_metadata["name"]
+    instance = response.json()
     return GcpInstanceMetadata(
         provider="gcp",
-        zone=availability_zone,
-        instance_type=instance_type,
-        preemptible=preemptible,
-        preempted=preempted,
-        instance_id=instance_id,
-        image_id=image_id,
-        name=name,
+        zone=instance["zone"],
+        instance_type=instance["machineType"],
+        preemptible=instance["scheduling"]["preemptible"] == "TRUE",
+        preempted=instance["preempted"] == "TRUE",
+        instance_id=str(instance["id"]),
+        image_id=instance["image"],
+        name=instance["name"],
     )
 
 
@@ -139,17 +134,9 @@ def get_azure_metadata() -> Optional[AzureInstanceMetadata]:
     )
     if response is None:
         return None
-    instance_metadata = response.json()
-    instance_type = instance_metadata["vmSize"]
-    zone = instance_metadata["zone"]
-    region = instance_metadata["location"]
-    subscription_id = instance_metadata["subscriptionId"]
-    resource_group_name = instance_metadata["resourceGroupName"]
-    resource_id = instance_metadata["resourceId"]
-    instance_id = instance_metadata["vmId"]
-    name = instance_metadata["name"]
+    instance = response.json()
     image_info = None
-    storage_profile = instance_metadata.get("storageProfile")
+    storage_profile = instance.get("storageProfile")
     if isinstance(storage_profile, dict):
         image_reference = storage_profile.get("imageReference")
         if isinstance(image_reference, dict):
@@ -162,16 +149,16 @@ def get_azure_metadata() -> Optional[AzureInstanceMetadata]:
             }
 
     return AzureInstanceMetadata(
-        "azure",
-        instance_type,
-        zone,
-        region,
-        subscription_id,
-        resource_group_name,
-        resource_id,
-        instance_id,
-        name,
-        image_info,
+        provider="azure",
+        instance_type=instance["vmSize"],
+        zone=instance["zone"],
+        region=instance["location"],
+        subscription_id=instance["subscriptionId"],
+        resource_group_name=instance["resourceGroupName"],
+        resource_id=instance["resourceId"],
+        instance_id=instance["vmId"],
+        name=instance["name"],
+        image_info=image_info,
     )
 
 
