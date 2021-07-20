@@ -12,6 +12,7 @@ from docker.models.images import Image
 
 from gprofiler.java import JavaProfiler
 from gprofiler.merge import parse_one_collapsed
+from gprofiler.perf import SystemProfiler
 from gprofiler.php import PHPSpyProfiler
 from gprofiler.python import PySpyProfiler, PythonEbpfProfiler
 from gprofiler.ruby import RbSpyProfiler
@@ -63,6 +64,21 @@ def test_rbspy(
     runtime: str,
 ) -> None:
     with RbSpyProfiler(1000, 3, Event(), str(tmp_path)) as profiler:
+        process_collapsed = profiler.snapshot().get(application_pid)
+        assert_collapsed(process_collapsed, check_comm=True)
+
+
+@pytest.mark.parametrize("runtime", ["nodejs"])
+def test_nodejs(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed,
+    gprofiler_docker_image: Image,
+    runtime: str,
+) -> None:
+    with SystemProfiler(
+        1000, 6, Event(), str(tmp_path), perf_mode="fp", inject_jit=True, dwarf_stack_size=0
+    ) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
 

@@ -62,6 +62,12 @@ def command_line(tmp_path: Path, runtime: str) -> List:
         "python": ["python3", CONTAINERS_DIRECTORY / "python/lister.py"],
         "php": ["php", CONTAINERS_DIRECTORY / "php/fibonacci.php"],
         "ruby": ["ruby", CONTAINERS_DIRECTORY / "ruby/fibonacci.rb"],
+        "nodejs": [
+            "node",
+            "--perf-prof",
+            "--interpreted-frames-native-stack",
+            CONTAINERS_DIRECTORY / "nodejs/fibonacci.js",
+        ],
     }[runtime]
 
 
@@ -82,6 +88,12 @@ def gprofiler_exe(request, tmp_path: Path) -> Path:
     return tmp_path / "gprofiler"
 
 
+def _print_process_output(popen: subprocess.Popen) -> None:
+    stdout, stderr = popen.communicate()
+    print(f"stdout: {stdout.decode()}")
+    print(f"stderr: {stderr.decode()}")
+
+
 @fixture
 def application_process(in_container: bool, command_line: List):
     if in_container:
@@ -93,20 +105,31 @@ def application_process(in_container: bool, command_line: List):
             os.setgid(1000)
             os.setuid(1000)
 
-        popen = subprocess.Popen(command_line, preexec_fn=lower_privs, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        popen = subprocess.Popen(
+            command_line, preexec_fn=lower_privs, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd="/tmp"
+        )
         try:
             # wait 2 seconds to ensure it starts
             popen.wait(2)
         except subprocess.TimeoutExpired:
             pass
         else:
+            _print_process_output(popen)
             raise Exception(f"Command {command_line} exited unexpectedly with {popen.returncode}")
 
         yield popen
+
+        # ensure, again, that it still alive (if it exited prematurely it might provide bad data for the tests)
+        try:
+            popen.wait(0)
+        except subprocess.TimeoutExpired:
+            pass
+        else:
+            _print_process_output(popen)
+            raise Exception(f"Command {command_line} exited unexpectedly during the test with {popen.returncode}")
+
         popen.kill()
-        stdout, stderr = popen.communicate()
-        print(f"stdout: {stdout.decode()}")
-        print(f"stderr: {stderr.decode()}")
+        _print_process_output(popen)
 
 
 @fixture(scope="session")
@@ -169,6 +192,7 @@ def runtime_specific_args(runtime: str) -> List[str]:
     return {
         "php": ["--php-proc-filter", "php", "-d", str(PHPSPY_DURATION)],  # phpspy needs a little more time to warm-up
         "python": ["-d", "3"],  # Burner python tests make syscalls and we want to record python + kernel stacks
+        "nodejs": ["--nodejs-mode", "perf"],  # enable NodeJS profiling
     }.get(runtime, [])
 
 
@@ -179,6 +203,7 @@ def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int], bool], None]:
         "python": "burner",
         "php": "fibonacci",
         "ruby": "fibonacci",
+        "nodejs": "fibonacci",
     }[runtime]
 
     return partial(assert_function_in_collapsed, function_name, runtime)

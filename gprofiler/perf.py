@@ -4,6 +4,7 @@
 #
 import os
 import signal
+from pathlib import Path
 from threading import Event
 from typing import List, Optional
 
@@ -18,21 +19,34 @@ from gprofiler.utils import resource_path, run_process, start_process, wait_even
 logger = get_logger_adapter(__name__)
 
 
+def perf_path() -> str:
+    return resource_path("perf")
+
+
 class PerfProcess:
     _dump_timeout_s = 5
     _poll_timeout_s = 5
 
-    def __init__(self, frequency: int, stop_event: Event, output_path: str, is_dwarf: bool, extra_args: List[str]):
+    def __init__(
+        self,
+        frequency: int,
+        stop_event: Event,
+        output_path: str,
+        is_dwarf: bool,
+        inject_jit: bool,
+        extra_args: List[str],
+    ):
         self._frequency = frequency
         self._stop_event = stop_event
         self._output_path = output_path
-        self._extra_args = extra_args
         self._type = "dwarf" if is_dwarf else "fp"
+        self._inject_jit = inject_jit
+        self._extra_args = extra_args + (["-k", "1"] if self._inject_jit else [])
         self._process: Optional[psutil.Process] = None
 
     def _get_perf_cmd(self) -> List[str]:
         return [
-            resource_path("perf"),
+            perf_path(),
             "record",
             "-F",
             str(self._frequency),
@@ -76,8 +90,16 @@ class PerfProcess:
         assert self._process is not None
         logger.debug(f"perf stderr: {self._process.stderr.read1(4096)}")
 
+        if self._inject_jit:
+            inject_data = Path(f"{str(perf_data)}.inject")
+            run_process(
+                [perf_path(), "inject", "--jit", "-o", str(inject_data), "-i", str(perf_data)],
+            )
+            perf_data.unlink()
+            perf_data = inject_data
+
         perf_script_proc = run_process(
-            [resource_path("perf"), "script", "-F", "+pid", "-i", str(perf_data)],
+            [perf_path(), "script", "-F", "+pid", "-i", str(perf_data)],
             suppress_log=True,
         )
         perf_data.unlink()
@@ -93,13 +115,26 @@ class SystemProfiler(ProfilerBase):
     """
 
     def __init__(
-        self, frequency: int, duration: int, stop_event: Event, storage_dir: str, perf_mode: str, dwarf_stack_size
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Event,
+        storage_dir: str,
+        perf_mode: str,
+        inject_jit: bool,
+        dwarf_stack_size: int,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
         self._perfs: List[PerfProcess] = []
+
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
-                self._frequency, self._stop_event, os.path.join(self._storage_dir, "perf.fp"), False, []
+                self._frequency,
+                self._stop_event,
+                os.path.join(self._storage_dir, "perf.fp"),
+                False,
+                inject_jit,
+                [],
             )
             self._perfs.append(self._perf_fp)
         else:
@@ -111,6 +146,7 @@ class SystemProfiler(ProfilerBase):
                 self._stop_event,
                 os.path.join(self._storage_dir, "perf.dwarf"),
                 True,
+                False,  # no inject in dwarf mode, yet
                 ["--call-graph", f"dwarf,{dwarf_stack_size}"],
             )
             self._perfs.append(self._perf_dwarf)
