@@ -77,7 +77,7 @@ def test_nodejs(
     runtime: str,
 ) -> None:
     with SystemProfiler(
-        1000, 3, Event(), str(tmp_path), perf_mode="fp", inject_jit=True, dwarf_stack_size=0
+        1000, 6, Event(), str(tmp_path), perf_mode="fp", inject_jit=True, dwarf_stack_size=0
     ) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
