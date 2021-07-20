@@ -6,6 +6,7 @@ import ctypes
 import datetime
 import errno
 import fcntl
+import glob
 import logging
 import os
 import platform
@@ -22,7 +23,7 @@ from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
-from typing import Callable, Iterator, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import distro  # type: ignore
 import importlib_resources
@@ -128,6 +129,16 @@ def poll_process(process, timeout: float, stop_event: Event):
         raise
 
 
+def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> Path:
+    glob_pattern = f"{prefix}*"
+    wait_event(timeout, stop_event, lambda: len(glob.glob(glob_pattern)) > 0)
+
+    output_files = glob.glob(glob_pattern)
+    # All the snapshot samples should be in one file
+    assert len(output_files) == 1, "expected single file but got: " + str(output_files)
+    return Path(output_files[0])
+
+
 def run_process(
     cmd: Union[str, List[str]],
     stop_event: Event = None,
@@ -167,14 +178,16 @@ def run_process(
     return result
 
 
-def pgrep_exe(match: str) -> Iterator[Process]:
+def pgrep_exe(match: str) -> List[Process]:
     pattern = re.compile(match)
+    procs = []
     for process in psutil.process_iter():
         try:
             if pattern.match(process.exe()):
-                yield process
+                procs.append(process)
         except psutil.NoSuchProcess:  # process might have died meanwhile
             continue
+    return procs
 
 
 def pgrep_maps(match: str) -> List[Process]:
@@ -199,7 +212,10 @@ def pgrep_maps(match: str) -> List[Process]:
 
     error_lines = []
     for line in result.stderr.splitlines():
-        if not (line.startswith(b"grep: /proc/") and line.endswith(b"/maps: No such file or directory")):
+        if not (
+            line.startswith(b"grep: /proc/")
+            and (line.endswith(b"/maps: No such file or directory") or line.endswith(b"/maps: No such process"))
+        ):
             error_lines.append(line)
     if error_lines:
         logger.error(f"Unexpected 'grep' error output (first 10 lines): {error_lines[:10]}")
@@ -507,3 +523,62 @@ def get_hostname() -> str:
 
 def random_prefix() -> str:
     return ''.join(random.choice(string.ascii_letters) for _ in range(16))
+
+
+class CpuUsageLogger:
+    NSEC_PER_SEC = 1000000000
+
+    def __init__(self, logger: logging.LoggerAdapter, cgroup: str, enabled: bool):
+        self._logger = logger
+        self._cpuacct_usage = Path(f"/sys/fs/cgroup/{cgroup}cpuacct/cpuacct.usage")
+        self._enabled = enabled
+        self._last_usage: Optional[int] = None
+        self._last_ts: Optional[float] = None
+
+    def _read_cgroup_cpu_usage(self) -> int:
+        """
+        Reads the current snapshot of cpuacct.usage for a cgroup.
+        """
+        assert self._enabled, "shouldn't reach here!"
+        return int(self._cpuacct_usage.read_text())
+
+    def init_cycles(self):
+        if not self._enabled:
+            return
+
+        self._last_usage = self._read_cgroup_cpu_usage()
+        self._last_ts = time.monotonic()
+
+    def log_cycle(self):
+        if not self._enabled:
+            return
+
+        assert self._last_usage is not None and self._last_ts is not None, "didn't call init_cycles()?"
+
+        now_usage = self._read_cgroup_cpu_usage()
+        now_ts = time.monotonic()
+
+        diff_usage = now_usage - self._last_usage
+        diff_usage_s = diff_usage / self.NSEC_PER_SEC
+        diff_ts = now_ts - self._last_ts
+
+        self._logger.debug(
+            f"CPU usage this cycle: {diff_usage_s:.3f}"
+            f" seconds {diff_usage_s / diff_ts * 100:.2f}% ({diff_usage} cgroup time)"
+        )
+
+        self._last_usage = now_usage
+        self._last_ts = now_ts
+
+    def log_run(self):
+        if not self._enabled:
+            return
+
+        total_usage = self._read_cgroup_cpu_usage()
+        total_usage_s = total_usage / self.NSEC_PER_SEC
+        total_ts = time.time() - psutil.Process().create_time()  # uptime of this process
+
+        self._logger.debug(
+            f"Total CPU usage this run: {total_usage / self.NSEC_PER_SEC:.3f} seconds"
+            f" {total_usage_s / total_ts * 100:.2f}% ({total_usage} cgroup time)"
+        )

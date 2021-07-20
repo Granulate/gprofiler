@@ -8,7 +8,7 @@ To upload results, you will have to register and generate a token on the website
 
 gProfiler runs on Linux.
 
-![Granulate Performance Studio example view](https://github.com/Granulate/gprofiler/blob/master/images/studio.gif?raw=true)
+![Granulate Performance Studio example view](https://user-images.githubusercontent.com/58514213/124375504-36b0b200-dcab-11eb-8d64-caf20687a29f.gif)
 
 # Running
 
@@ -41,11 +41,10 @@ the results.
 ## Profiling options
 * `--profiling-frequency`: The sampling frequency of the profiling, in *hertz*.
 * `--profiling-duration`: The duration of the each profiling session, in *seconds*.
-* `--profiling-interval`: The interval between each profiling session, in *seconds*.
 
 The default profiling frequency is *11 hertz*. Using higher frequency will lead to more accurate results, but will create greater overhead on the profiled system & programs.
 
-The default duration is *60 seconds*, and the default interval matches it. So gProfiler runs the profiling sessions back-to-back - the next session starts as soon as the previous session is done.
+For each profiling session (each profiling duration), gProfiler produces outputs (writing local files and/or uploading the results to the Granulate Performance Studio).
 
 ### Java profiling options
 
@@ -139,7 +138,7 @@ python3 -m gprofiler [options]
 ```
 
 # Theory of operation
-Each profiling interval, gProfiler invokes `perf` in system wide mode, collecting profiling data for all running processes.
+gProfiler invokes `perf` in system wide mode, collecting profiling data for all running processes.
 Alongside `perf`, gProfiler invokes runtime-specific profilers for processes based on these environments:
 * Java runtimes (version 7+) based on the HotSpot JVM, including the Oracle JDK and other builds of OpenJDK like AdoptOpenJDK and Azul Zulu.
   * Uses async-profiler.

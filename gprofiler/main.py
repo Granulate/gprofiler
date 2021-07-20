@@ -32,10 +32,12 @@ from gprofiler.ruby import RbSpyProfiler
 from gprofiler.state import State, init_state
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
+    CpuUsageLogger,
     TemporaryDirectoryWithMode,
     atomically_symlink,
     get_hostname,
     get_iso8601_format_time,
+    get_run_mode,
     grab_gprofiler_mutex,
     is_root,
     is_running_in_init_pid,
@@ -53,8 +55,7 @@ DEFAULT_LOG_BACKUP_COUNT = 1
 
 DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 11
-# by default - these match
-DEFAULT_CONTINUOUS_MODE_INTERVAL = DEFAULT_PROFILING_DURATION
+
 # 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
 SIGINT_RATELIMIT = 0.5
 
@@ -97,6 +98,7 @@ class GProfiler:
         runtimes: Dict[str, bool],
         client: APIClient,
         state: State,
+        cpu_usage_logger: CpuUsageLogger,
         include_container_names=True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         php_process_filter: str = PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
@@ -162,6 +164,7 @@ class GProfiler:
             self._docker_client: Optional[DockerClient] = DockerClient()
         else:
             self._docker_client = None
+        self._cpu_usage_logger = cpu_usage_logger
 
     def __enter__(self):
         self.start()
@@ -283,7 +286,9 @@ class GProfiler:
         try:
             system_result = system_future.result()
         except Exception:
-            logger.error("Running perf failed; consider running gProfiler with '--perf-mode none' to avoid using perf")
+            logger.exception(
+                "Running perf failed; consider running gProfiler with '--perf-mode none' to avoid using perf"
+            )
             raise
 
         if self._runtimes["system"]:
@@ -336,19 +341,20 @@ class GProfiler:
             finally:
                 self._send_remote_logs()  # function is safe, wrapped with try/except block inside
 
-    def run_continuous(self, interval):
+    def run_continuous(self):
         with self:
+            self._cpu_usage_logger.init_cycles()
+
             while not self._stop_event.is_set():
-                start_time = time.monotonic()
                 self._state.init_new_cycle()
+
                 try:
                     self._snapshot()
                 except Exception:
                     logger.exception("Profiling run failed!")
                 finally:
                     self._send_remote_logs()  # function is safe, wrapped with try/except block inside
-                time_spent = time.monotonic() - start_time
-                self._stop_event.wait(max(interval - time_spent, 0))
+                self._cpu_usage_logger.log_cycle()
 
 
 def parse_cmd_args():
@@ -390,6 +396,13 @@ def parse_cmd_args():
 
     parser.add_argument(
         "--rotating-output", action="store_true", default=False, help="Keep only the last profile result"
+    )
+
+    parser.add_argument(
+        "--log-cpu-usage",
+        action="store_true",
+        default=False,
+        help="Log CPU usage (per cgroup) on each profiling iteration. Works only when gProfiler runs as a container",
     )
 
     java_options = parser.add_argument_group("Java")
@@ -514,15 +527,6 @@ def parse_cmd_args():
     continuous_command_parser.add_argument(
         "--continuous", "-c", action="store_true", dest="continuous", help="Run in continuous mode"
     )
-    continuous_command_parser.add_argument(
-        "-i",
-        "--profiling-interval",
-        type=int,
-        dest="continuous_profiling_interval",
-        default=DEFAULT_CONTINUOUS_MODE_INTERVAL,
-        help="Time between each profiling sessions in seconds (default: %(default)s). Note: this is the time between"
-        " session starts, not between the end of one session to the beginning of the next one.",
-    )
 
     parser.add_argument(
         "--disable-pidns-check",
@@ -539,11 +543,6 @@ def parse_cmd_args():
             parser.error("Must provide --token when --upload-results is passed")
         if not args.service_name:
             parser.error("Must provide --service-name when --upload-results is passed")
-
-    if args.continuous and args.duration > args.continuous_profiling_interval:
-        parser.error(
-            "--profiling-duration must be lower or equal to --profiling-interval when profiling in continuous mode"
-        )
 
     if not args.upload_results and not args.output_dir:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
@@ -575,6 +574,12 @@ def verify_preconditions(args):
         print("Could not acquire gProfiler's lock. Is it already running?", file=sys.stderr)
         sys.exit(1)
 
+    if args.log_cpu_usage and get_run_mode() not in ("k8s", "container"):
+        # TODO: we *can* move into another cpuacct cgroup, to let this work also when run as a standalone
+        # executable.
+        print("--log-cpu-usage is available only when run as a container!")
+        sys.exit(1)
+
 
 def setup_signals() -> None:
     # When we run under staticx & PyInstaller, both of them forward (some of the) signals to gProfiler.
@@ -604,6 +609,8 @@ def main():
 
     setup_signals()
     reset_umask()
+    # assume we run in the root cgroup (when containerized, that's our view)
+    cpu_usage_logger = CpuUsageLogger(logger, "/", args.log_cpu_usage)
 
     try:
         logger.info(f"Running gprofiler (version {__version__}), commandline: {' '.join(sys.argv[1:])!r}")
@@ -663,6 +670,7 @@ def main():
             runtimes,
             client,
             state,
+            cpu_usage_logger,
             not args.disable_container_names,
             remote_logs_handler,
             args.php_process_filter,
@@ -670,7 +678,7 @@ def main():
         logger.info("gProfiler initialized and ready to start profiling")
 
         if args.continuous:
-            gprofiler.run_continuous(args.continuous_profiling_interval)
+            gprofiler.run_continuous()
         else:
             gprofiler.run_single()
 
@@ -678,6 +686,8 @@ def main():
         pass
     except Exception:
         logger.exception("Unexpected error occurred")
+
+    cpu_usage_logger.log_run()
 
 
 if __name__ == "__main__":
