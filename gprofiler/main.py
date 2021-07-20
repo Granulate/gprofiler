@@ -13,7 +13,7 @@ import sys
 import time
 from pathlib import Path
 from threading import Event
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Union
 
 import configargparse
 from requests import RequestException, Timeout
@@ -104,7 +104,7 @@ class GProfiler:
         collect_metadata: bool,
         state: State,
         cpu_usage_logger: CpuUsageLogger,
-        run_args: Dict,
+        run_args: Dict[str, Union[bool, str, int]],
         include_container_names=True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         php_process_filter: str = PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
