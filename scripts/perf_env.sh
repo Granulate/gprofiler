@@ -15,6 +15,7 @@ apt-get install -y --no-install-recommends \
     ca-certificates \
     lbzip2 \
     unzip \
+    patch \
     python3 \
     autoconf \
     libssl-dev \
@@ -44,12 +45,3 @@ pushd elfutils-0.179
 popd
 rm -r elfutils-0.179
 rm elfutils-0.179.tar.bz2
-
-# & libunwind
-curl -L http://download.savannah.nongnu.org/releases/libunwind/libunwind-1.4.0.tar.gz -o libunwind-1.4.0.tar.gz
-tar -xf libunwind-1.4.0.tar.gz
-pushd libunwind-1.4.0
-./configure --prefix=/usr && make install
-popd
-rm -r libunwind-1.4.0
-rm libunwind-1.4.0.tar.gz

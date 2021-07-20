@@ -98,6 +98,9 @@ def test_python_ebpf(
         assert_function_in_collapsed(
             "do_syscall_64_[k]", "python", process_collapsed, True
         )  # ensure kernels stacks exist
+        assert_function_in_collapsed(
+            "_PyEval_EvalFrameDefault_[pn]", "python", process_collapsed, True
+        )  # ensure native user stacks exist
 
 
 @pytest.mark.parametrize("runtime", ["java", "python", "php", "ruby"])
@@ -117,7 +120,12 @@ def test_from_container(
         "/lib/modules": {"bind": "/lib/modules", "mode": "ro"},
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
     }
-    args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args
+
+    # Execute only the tested profiler
+    flags = ["--no-java", "--no-python", "--no-php", "--no-ruby"]
+    flags.remove(f"--no-{runtime}")
+
+    args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args + flags
     run_gprofiler_in_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
 
     collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())

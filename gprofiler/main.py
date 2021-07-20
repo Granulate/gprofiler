@@ -84,6 +84,13 @@ def create_profiler_or_noop(runtimes: Dict[str, bool], profiler_constructor_call
         return NoopProfiler()
 
 
+def positive_integer(value):
+    value = int(value)
+    if value <= 0:
+        raise configargparse.ArgumentTypeError("invalid positive integer value: {!r}".format(value))
+    return value
+
+
 class GProfiler:
     def __init__(
         self,
@@ -96,6 +103,7 @@ class GProfiler:
         nodejs_mode: str,
         dwarf_stack_size: int,
         python_mode: str,
+        pyperf_user_stacks_pages: Optional[int],
         runtimes: Dict[str, bool],
         client: APIClient,
         state: State,
@@ -147,6 +155,7 @@ class GProfiler:
                 self._stop_event,
                 self._temp_storage_dir.name,
                 python_mode,
+                pyperf_user_stacks_pages,
             ),
             "python",
         )
@@ -371,7 +380,7 @@ def parse_cmd_args():
     parser.add_argument(
         "-f",
         "--profiling-frequency",
-        type=int,
+        type=positive_integer,
         dest="frequency",
         default=DEFAULT_SAMPLING_FREQUENCY,
         help="Profiler frequency in Hz (default: %(default)s)",
@@ -379,7 +388,7 @@ def parse_cmd_args():
     parser.add_argument(
         "-d",
         "--profiling-duration",
-        type=int,
+        type=positive_integer,
         dest="duration",
         default=DEFAULT_PROFILING_DURATION,
         help="Profiler duration per session in seconds (default: %(default)s)",
@@ -433,6 +442,12 @@ def parse_cmd_args():
         const="none",
         help="Do not invoke runtime-specific profilers for Python processes (legacy option for '--python-mode none')",
     )
+    python_options.add_argument(
+        "--pyperf-user-stacks-pages",
+        dest="pyperf_user_stacks_pages",
+        default=None,
+        type=positive_integer,
+    )
 
     php_options = parser.add_argument_group("PHP")
     php_options.add_argument(
@@ -482,7 +497,7 @@ def parse_cmd_args():
         "--perf-dwarf-stack-size",
         dest="dwarf_stack_size",
         default=8192,
-        type=int,
+        type=positive_integer,
         help="The max stack size for the Dwarf perf, in bytes. Must be <=65528."
         " Relevant for --perf-mode dwarf|smart. Default: %(default)s",
     )
@@ -497,7 +512,7 @@ def parse_cmd_args():
     parser.add_argument("--server-host", default=GRANULATE_SERVER_HOST, help="Server host (default: %(default)s)")
     parser.add_argument(
         "--server-upload-timeout",
-        type=int,
+        type=positive_integer,
         default=DEFAULT_UPLOAD_TIMEOUT,
         help="Timeout for upload requests to the server in seconds (default: %(default)s)",
     )
@@ -510,12 +525,16 @@ def parse_cmd_args():
     logging_options = parser.add_argument_group("logging")
     logging_options.add_argument("--log-file", action="store", type=str, dest="log_file", default=DEFAULT_LOG_FILE)
     logging_options.add_argument(
-        "--log-rotate-max-size", action="store", type=int, dest="log_rotate_max_size", default=DEFAULT_LOG_MAX_SIZE
+        "--log-rotate-max-size",
+        action="store",
+        type=positive_integer,
+        dest="log_rotate_max_size",
+        default=DEFAULT_LOG_MAX_SIZE,
     )
     logging_options.add_argument(
         "--log-rotate-backup-count",
         action="store",
-        type=int,
+        type=positive_integer,
         dest="log_rotate_backup_count",
         default=DEFAULT_LOG_BACKUP_COUNT,
     )
@@ -683,6 +702,7 @@ def main():
             args.nodejs_mode,
             args.dwarf_stack_size,
             args.python_mode,
+            args.pyperf_user_stacks_pages,
             runtimes,
             client,
             state,
