@@ -12,6 +12,12 @@ DEFAULT_POLLING_INTERVAL_SECONDS = 5
 STOP_TIMEOUT_SECONDS = 30
 
 
+class Metrics:
+    def __init__(self, cpu_avg: Optional[float], mem_avg: Optional[float]):
+        self.cpu_avg = cpu_avg
+        self.mem_avg = mem_avg
+
+
 class SystemMetricsMonitorBase(metaclass=ABCMeta):
     @abstractmethod
     def start(self):
@@ -22,15 +28,18 @@ class SystemMetricsMonitorBase(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get_average_memory_utilization(self) -> Optional[float]:
+    def _get_average_memory_utilization(self) -> Optional[float]:
         raise NotImplementedError
 
     @abstractmethod
-    def get_cpu_utilization(self) -> Optional[float]:
+    def _get_cpu_utilization(self) -> Optional[float]:
         """
         Returns the CPU utilization percentage since the last time this method was called.
         """
         raise NotImplementedError
+
+    def get_metrics(self) -> Metrics:
+        return Metrics(self._get_cpu_utilization(), self._get_average_memory_utilization())
 
 
 class SystemMetricsMonitor(SystemMetricsMonitorBase):
@@ -44,7 +53,7 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
         self._thread = None
         self._lock = RLock()
 
-        self.get_cpu_utilization()  # Call this once to set the necessary data
+        self._get_cpu_utilization()  # Call this once to set the necessary data
 
     def start(self):
         assert self._thread is None, "SystemMetricsMonitor is already running"
@@ -68,7 +77,7 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
             elapsed = time.monotonic() - start_time
             self._stop_event.wait(timeout=polling_rate_seconds - elapsed)
 
-    def get_average_memory_utilization(self) -> Optional[float]:
+    def _get_average_memory_utilization(self) -> Optional[float]:
         with self._lock:
             # Make sure there's only one thread that takes out the values
             current_length = len(self._mem_percentages)
@@ -78,7 +87,7 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
             self._mem_percentages[:current_length] = []
             return average_memory
 
-    def get_cpu_utilization(self) -> Optional[float]:
+    def _get_cpu_utilization(self) -> Optional[float]:
         """
         Returns the CPU utilization percentage since the last time this method was called.
         Based on the psutil.cpu_percent method.
@@ -112,8 +121,8 @@ class NoopSystemMetricsMonitor(SystemMetricsMonitorBase):
     def stop(self):
         pass
 
-    def get_average_memory_utilization(self) -> Optional[float]:
+    def _get_average_memory_utilization(self) -> Optional[float]:
         return None
 
-    def get_cpu_utilization(self) -> Optional[float]:
+    def _get_cpu_utilization(self) -> Optional[float]:
         return None

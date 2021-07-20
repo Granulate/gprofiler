@@ -328,8 +328,7 @@ class GProfiler:
             self._generate_output_files(merged_result, local_start_time, local_end_time)
 
         if self._client:
-            cpu_avg = self._system_metrics_monitor.get_cpu_utilization()
-            mem_avg = self._system_metrics_monitor.get_average_memory_utilization()
+            metrics = self._system_metrics_monitor.get_metrics()
             try:
                 self._client.submit_profile(
                     local_start_time,
@@ -337,8 +336,7 @@ class GProfiler:
                     merged_result,
                     total_samples,
                     self._spawn_time,
-                    cpu_avg,
-                    mem_avg,
+                    metrics,
                 )
             except Timeout:
                 logger.error("Upload of profile to server timed out.")

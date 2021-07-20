@@ -6,7 +6,7 @@ import datetime
 import gzip
 import json
 from io import BytesIO
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import requests
 from requests import Session
@@ -15,6 +15,9 @@ from gprofiler import __version__
 from gprofiler.exceptions import APIError
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import get_iso8601_format_time, get_iso8601_format_time_from_epoch_time
+
+if TYPE_CHECKING:
+    from gprofiler.system_metrics import Metrics
 
 logger = get_logger_adapter(__name__)
 
@@ -127,8 +130,7 @@ class APIClient:
         profile: str,
         total_samples: int,
         spawn_time: float,
-        cpu_avg: Optional[float],
-        mem_avg: Optional[float],
+        metrics: 'Metrics',
     ) -> Dict:
         return self.post(
             "profiles",
@@ -137,8 +139,8 @@ class APIClient:
                 "end_time": get_iso8601_format_time(end_time),
                 "hostname": self._hostname,
                 "profile": profile,
-                "cpu_avg": cpu_avg,
-                "mem_avg": mem_avg,
+                "cpu_avg": metrics.cpu_avg,
+                "mem_avg": metrics.mem_avg,
                 "spawn_time": get_iso8601_format_time_from_epoch_time(spawn_time),
             },
             timeout=self._upload_timeout,
