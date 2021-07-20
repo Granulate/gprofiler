@@ -132,9 +132,8 @@ class SystemInfo:
 
 def get_static_system_info() -> SystemInfo:
     hostname, distribution, libc_tuple, mac_address, local_ip = _initialize_system_info()
-    clock_boottime_type = getattr(time, "CLOCK_BOOTTIME", None)
-    assert clock_boottime_type is not None, "The gProfiler only supports Unix with a kernel version of >=2.6.39"
-    spawn_uptime_ms = time.clock_gettime(clock_boottime_type)
+    clock = getattr(time, "CLOCK_BOOTTIME", time.CLOCK_MONOTONIC)
+    spawn_uptime_ms = time.clock_gettime(clock)
     libc_type, libc_version = libc_tuple
     os_name, os_release, os_codename = distribution
     uname = platform.uname()
