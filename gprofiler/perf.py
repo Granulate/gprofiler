@@ -2,7 +2,6 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import functools
 import os
 import signal
 from pathlib import Path
@@ -20,7 +19,6 @@ from gprofiler.utils import resource_path, run_process, start_process, wait_even
 logger = get_logger_adapter(__name__)
 
 
-@functools.lru_cache(maxsize=1)
 def perf_path() -> str:
     return resource_path("perf")
 
