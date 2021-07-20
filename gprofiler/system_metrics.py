@@ -45,7 +45,7 @@ class SystemMetricsMonitorBase(metaclass=ABCMeta):
 class SystemMetricsMonitor(SystemMetricsMonitorBase):
     def __init__(self, polling_rate_seconds: int = DEFAULT_POLLING_INTERVAL_SECONDS):
         self._polling_rate_seconds = polling_rate_seconds
-        self._cpu_count = psutil.cpu_count() or 1
+        self._cpu_count = psutil.cpu_count() or 0
         self._mem_percentages: List[float] = []
         self._last_cpu_poll_time: Optional[float] = None
         self._last_cpu_times: Optional[Tuple[float, float]] = None
