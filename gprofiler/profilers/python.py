@@ -17,7 +17,7 @@ from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampl
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_and_remove_one_collapsed, parse_many_collapsed
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
-from gprofiler.profilers.registry import register_profiler, ProfilerArgument
+from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     pgrep_maps,
     poll_process,
@@ -298,11 +298,19 @@ class PythonProfiler(ProfilerInterface):
             self._pyspy_profiler = None
 
     def _create_ebpf_profiler(
-        self, frequency: int, duration: int, stop_event: Event, storage_dir: str, user_stacks_pages: Optional[int], **profiler_kwargs
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Event,
+        storage_dir: str,
+        user_stacks_pages: Optional[int],
+        **profiler_kwargs,
     ) -> Optional[PythonEbpfProfiler]:
         try:
             PythonEbpfProfiler.test(storage_dir, stop_event)
-            return PythonEbpfProfiler(frequency, duration, stop_event, storage_dir, user_stacks_pages, **profiler_kwargs)
+            return PythonEbpfProfiler(
+                frequency, duration, stop_event, storage_dir, user_stacks_pages, **profiler_kwargs
+            )
         except Exception as e:
             logger.debug(f"eBPF profiler error: {str(e)}")
             logger.info("Python eBPF profiler initialization failed")
