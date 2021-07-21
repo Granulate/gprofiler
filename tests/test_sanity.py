@@ -11,6 +11,7 @@ from docker import DockerClient
 from docker.models.images import Image
 
 from gprofiler.merge import parse_one_collapsed
+from gprofiler.perf import SystemProfiler
 from gprofiler.profilers.java import JavaProfiler
 from gprofiler.profilers.php import PHPSpyProfiler
 from gprofiler.profilers.python import PySpyProfiler, PythonEbpfProfiler
@@ -67,6 +68,21 @@ def test_rbspy(
         assert_collapsed(process_collapsed, check_comm=True)
 
 
+@pytest.mark.parametrize("runtime", ["nodejs"])
+def test_nodejs(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed,
+    gprofiler_docker_image: Image,
+    runtime: str,
+) -> None:
+    with SystemProfiler(
+        1000, 6, Event(), str(tmp_path), perf_mode="fp", inject_jit=True, dwarf_stack_size=0
+    ) as profiler:
+        process_collapsed = profiler.snapshot().get(application_pid)
+        assert_collapsed(process_collapsed, check_comm=True)
+
+
 @pytest.mark.parametrize("runtime", ["python"])
 def test_python_ebpf(
     tmp_path: Path,
@@ -82,6 +98,9 @@ def test_python_ebpf(
         assert_function_in_collapsed(
             "do_syscall_64_[k]", "python", process_collapsed, True
         )  # ensure kernels stacks exist
+        assert_function_in_collapsed(
+            "_PyEval_EvalFrameDefault_[pn]", "python", process_collapsed, True
+        )  # ensure native user stacks exist
 
 
 @pytest.mark.parametrize("runtime", ["java", "python", "php", "ruby"])
@@ -101,7 +120,12 @@ def test_from_container(
         "/lib/modules": {"bind": "/lib/modules", "mode": "ro"},
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
     }
-    args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args
+
+    # Execute only the tested profiler
+    flags = ["--no-java", "--no-python", "--no-php", "--no-ruby"]
+    flags.remove(f"--no-{runtime}")
+
+    args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args + flags
     run_gprofiler_in_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
 
     collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
