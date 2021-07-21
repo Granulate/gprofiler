@@ -85,8 +85,6 @@ gProfiler can be run in a continuous mode, profiling periodically, using the `--
 Note that when using `--continuous` with `--output-dir`, a new file will be created during *each* sampling interval.
 Aggregations are only available when uploading to the Granulate Performance Studio.
 
-### Legacy profile upload mode
-In some cases, using the old V1 profile upload endpoint is useful. If that's the case, you may use the `--legacy-profile-api-version v1` flag to enable the legacy mode.
 
 ## Running as a Docker container
 Run the following to have gProfiler running continuously, uploading to Granulate Performance Studio:
