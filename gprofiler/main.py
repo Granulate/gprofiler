@@ -297,7 +297,7 @@ class GProfiler:
             )
             raise
 
-        if self._runtimes["system"]:
+        if self._runtimes["perf"]:
             merged_result, total_samples = merge.merge_profiles(
                 system_result,
                 process_profiles,
