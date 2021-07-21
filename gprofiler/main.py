@@ -413,6 +413,25 @@ def parse_cmd_args():
 
     _add_profilers_arguments(parser)
 
+    nodejs_options = parser.add_argument_group("NodeJS")
+    nodejs_options.add_argument(
+        "--nodejs-mode",
+        dest="nodejs_mode",
+        default="none",
+        choices=["perf", "disabled", "none"],
+        help="Select the NodeJS profiling mode: perf (run 'perf inject --jit' on perf results, to augment them"
+             " with jitdump files of NodeJS processes, if present) or none (no runtime-specific profilers for NodeJS)",
+    )
+
+    nodejs_options.add_argument(
+        "--no-nodejs",
+        dest="nodejs_mode",
+        action="store_const",
+        const="disabled",
+        default=True,
+        help="Disable the runtime-profiling of NodeJS processes",
+    )
+
     parser.add_argument(
         "--log-cpu-usage",
         action="store_true",
