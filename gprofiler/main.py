@@ -31,6 +31,7 @@ from gprofiler.profilers.python import PythonProfiler
 from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.profilers.ruby import RbSpyProfiler
 from gprofiler.state import State, init_state
+from gprofiler.types import positive_integer
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     CpuUsageLogger,
@@ -83,13 +84,6 @@ def create_profiler_or_noop(runtimes: Dict[str, bool], profiler_constructor_call
     except Exception:
         logger.exception(f"Couldn't create {runtime_name} profiler, continuing without this runtime profiler")
         return NoopProfiler()
-
-
-def positive_integer(value):
-    value = int(value)
-    if value <= 0:
-        raise configargparse.ArgumentTypeError("invalid positive integer value: {!r}".format(value))
-    return value
 
 
 class GProfiler:
