@@ -28,6 +28,7 @@ from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.profiler_base import ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.state import State, init_state
+from gprofiler.types import positive_integer
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     CpuUsageLogger,
@@ -296,13 +297,12 @@ def parse_cmd_args():
         add_config_file_help=True,
         add_env_var_help=False,
         default_config_files=["/etc/gprofiler/config.ini"],
-        conflict_handler='resolve',
     )
     parser.add_argument("--config", is_config_file=True, help="Config file path")
     parser.add_argument(
         "-f",
         "--profiling-frequency",
-        type=int,
+        type=positive_integer,
         dest="frequency",
         default=DEFAULT_SAMPLING_FREQUENCY,
         help="Profiler frequency in Hz (default: %(default)s)",
@@ -310,7 +310,7 @@ def parse_cmd_args():
     parser.add_argument(
         "-d",
         "--profiling-duration",
-        type=int,
+        type=positive_integer,
         dest="duration",
         default=DEFAULT_PROFILING_DURATION,
         help="Profiler duration per session in seconds (default: %(default)s)",
@@ -333,6 +333,25 @@ def parse_cmd_args():
 
     _add_profilers_arguments(parser)
 
+    nodejs_options = parser.add_argument_group("NodeJS")
+    nodejs_options.add_argument(
+        "--nodejs-mode",
+        dest="nodejs_mode",
+        default="none",
+        choices=["perf", "disabled", "none"],
+        help="Select the NodeJS profiling mode: perf (run 'perf inject --jit' on perf results, to augment them"
+        " with jitdump files of NodeJS processes, if present) or none (no runtime-specific profilers for NodeJS)",
+    )
+
+    nodejs_options.add_argument(
+        "--no-nodejs",
+        dest="nodejs_mode",
+        action="store_const",
+        const="disabled",
+        default=True,
+        help="Disable the runtime-profiling of NodeJS processes",
+    )
+
     parser.add_argument(
         "--log-cpu-usage",
         action="store_true",
@@ -350,7 +369,7 @@ def parse_cmd_args():
     parser.add_argument("--server-host", default=GRANULATE_SERVER_HOST, help="Server host (default: %(default)s)")
     parser.add_argument(
         "--server-upload-timeout",
-        type=int,
+        type=positive_integer,
         default=DEFAULT_UPLOAD_TIMEOUT,
         help="Timeout for upload requests to the server in seconds (default: %(default)s)",
     )
@@ -363,12 +382,16 @@ def parse_cmd_args():
     logging_options = parser.add_argument_group("logging")
     logging_options.add_argument("--log-file", action="store", type=str, dest="log_file", default=DEFAULT_LOG_FILE)
     logging_options.add_argument(
-        "--log-rotate-max-size", action="store", type=int, dest="log_rotate_max_size", default=DEFAULT_LOG_MAX_SIZE
+        "--log-rotate-max-size",
+        action="store",
+        type=positive_integer,
+        dest="log_rotate_max_size",
+        default=DEFAULT_LOG_MAX_SIZE,
     )
     logging_options.add_argument(
         "--log-rotate-backup-count",
         action="store",
-        type=int,
+        type=positive_integer,
         dest="log_rotate_backup_count",
         default=DEFAULT_LOG_BACKUP_COUNT,
     )
@@ -416,7 +439,10 @@ def parse_cmd_args():
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
 
     if args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
-        parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode smart|dwarf")
+        parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode 'smart' or 'dwarf'")
+
+    if args.nodejs_mode == "perf" and args.perf_mode not in ("fp", "smart"):
+        parser.error("--nodejs-mode perf requires --perf-mode 'fp' or 'smart'")
 
     return args
 

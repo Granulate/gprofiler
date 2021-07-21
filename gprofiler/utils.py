@@ -46,6 +46,7 @@ gprofiler_mutex: Optional[socket.socket]
 hostname: Optional[str] = None
 
 
+@lru_cache(maxsize=None)
 def resource_path(relative_path: str = "") -> str:
     *relative_directory, basename = relative_path.split("/")
     package = ".".join(["gprofiler", "resources"] + relative_directory)
