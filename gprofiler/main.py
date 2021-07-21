@@ -376,7 +376,6 @@ def parse_cmd_args():
         add_config_file_help=True,
         add_env_var_help=False,
         default_config_files=["/etc/gprofiler/config.ini"],
-        conflict_handler='resolve',
     )
     parser.add_argument("--config", is_config_file=True, help="Config file path")
     parser.add_argument(
