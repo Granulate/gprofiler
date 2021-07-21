@@ -13,7 +13,8 @@ import psutil
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import ProcessToStackSampleCounters, merge_global_perfs
-from gprofiler.profiler_base import ProfilerBase
+from gprofiler.profilers.profiler_base import ProfilerBase
+from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import resource_path, run_process, start_process, wait_event, wait_for_file_by_prefix
 
 logger = get_logger_adapter(__name__)
@@ -106,6 +107,27 @@ class PerfProcess:
         return perf_script_proc.stdout.decode('utf8')
 
 
+@register_profiler(
+    "Perf",
+    possible_modes=["fp", "dwarf", "smart", "disabled"],
+    default_mode="fp",
+    profiler_mode_argument_help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge"
+    " them by choosing the best result per process. If 'disabled' is chosen, do not invoke"
+    " 'perf' at all. The output, in that case, is the concatenation of the results from all"
+    " of the runtime profilers.",
+    profiler_arguments=[
+        ProfilerArgument(
+            "--perf-dwarf-stack-size",
+            help="The max stack size for the Dwarf perf, in bytes. Must be <=65528."
+            " Relevant for --perf-mode dwarf|smart. Default: %(default)s",
+            type=int,
+            default=8192,
+            dest="dwarf_stack_size",
+        )
+    ],
+    disablement_help="Disable the global perf of processes,"
+    " and instead only concatenate runtime-specific profilers results",
+)
 class SystemProfiler(ProfilerBase):
     """
     We are running 2 perfs in parallel - one with DWARF and one with FP, and then we merge their results.

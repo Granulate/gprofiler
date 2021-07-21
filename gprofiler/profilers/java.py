@@ -16,7 +16,8 @@ from psutil import Process
 from gprofiler.exceptions import CalledProcessError, StopEventSetException
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
-from gprofiler.profiler_base import ProcessProfilerBase
+from gprofiler.profilers.profiler_base import ProcessProfilerBase
+from gprofiler.profilers.registry import register_profiler
 from gprofiler.types import StackToSampleCount
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
@@ -239,6 +240,7 @@ class AsyncProfiledProcess:
             raise
 
 
+@register_profiler("Java", possible_modes=["ap", "disabled"], default_mode="ap")
 class JavaProfiler(ProcessProfilerBase):
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
     SKIP_VERSION_CHECK_BINARIES = ["jsvc"]

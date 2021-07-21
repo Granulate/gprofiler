@@ -15,8 +15,9 @@ from psutil import Process
 from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_and_remove_one_collapsed, parse_many_collapsed
-from gprofiler.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
-from gprofiler.types import ProcessToStackSampleCounters, StackToSampleCount
+from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
+from gprofiler.profilers.registry import ProfilerArgument, register_profiler
+from gprofiler.types import ProcessToStackSampleCounters, StackToSampleCount, positive_integer
 from gprofiler.utils import (
     pgrep_maps,
     poll_process,
@@ -251,6 +252,19 @@ class PythonEbpfProfiler(ProfilerBase):
             logger.info("Finished profiling Python processes with PyPerf")
 
 
+@register_profiler(
+    "Python",
+    possible_modes=["auto", "pyperf", "pyspy", "disabed"],
+    default_mode="auto",
+    profiler_mode_argument_help="Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), "
+    "pyspy (always use py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails)"
+    " or disabled (no runtime profilers for Python).",
+    profiler_arguments=[
+        ProfilerArgument(
+            "--pyperf-user-stacks-pages", dest="pyperf_user_stacks_pages", default=None, type=positive_integer
+        )
+    ],
+)
 class PythonProfiler(ProfilerInterface):
     """
     Controls PySpyProfiler & PythonEbpfProfiler as needed, providing a clean interface

@@ -48,24 +48,24 @@ For each profiling session (each profiling duration), gProfiler produces outputs
 
 ### Java profiling options
 
-* `--no-java`: Disable profilers for Java.
+* `--no-java` or `--java-mode disabled`: Disable profilers for Java.
 
 ### Python profiling options
-* `--no-python`: Alias of `--python-mode none`.
+* `--no-python`: Alias of `--python-mode disabled`.
 * `--python-mode`: Controls which profiler is used for Python.
     * `auto` - (default) try with PyPerf (eBPF), fall back to py-spy.
     * `pyperf` - Use PyPerf with no py-spy fallback.
     * `pyspy` - Use py-spy.
-    * `none` - Disable profilers for Python.
+    * `disabled` - Disable profilers for Python.
 
 Profiling using eBPF incurs lower overhead & provides kernel stacks. This (currently) requires kernel headers to be installed.
 
 ### PHP profiling options
-* `--no-php`: Disable profilers for PHP.
+* `--no-php` or `--php-mode disabled`: Disable profilers for PHP.
 * `--php-proc-filter`: Process filter (`pgrep`) to select PHP processes for profiling (this is phpspy's `-P` option)
 
 ### Ruby profiling options
-* `--no-ruby`: Disable profilers for Ruby.
+* `--no-ruby` or `--ruby-mode disabled`: Disable profilers for Ruby.
 
 ### NodeJS profiling options
 * `--nodejs-mode`: Controls which profiler is used for NodeJS.
@@ -78,7 +78,7 @@ Profiling using eBPF incurs lower overhead & provides kernel stacks. This (curre
     * `fp` - Use Frame Pointers for the call graph
     * `dwarf` - Use DWARF for the call graph (adds the `--call-graph dwarf` argument to the `perf` command)
     * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process.
-    * `none` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
+    * `disabled` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
 
 ## Other options
 ### Sending logs to server
@@ -162,7 +162,7 @@ The runtime stacks are then merged into the data collected by `perf`, substituti
 
 ## perf-less mode
 
-It is possible to run gProfiler without using `perf` - this is useful where `perf` can't be used, for whatever reason (e.g permissions). This mode is enabled by `--perf-mode none`.
+It is possible to run gProfiler without using `perf` - this is useful where `perf` can't be used, for whatever reason (e.g permissions). This mode is enabled by `--perf-mode disabled`.
 
 In this mode, gProfiler uses runtime-specific profilers only, and their results are concatenated (instead of scaled into the results collected by `perf`). This means that, although the results from different profilers are viewed on the same graph, they are not necessarily of the same scale: so you can compare the samples count of Java to Java, but not Java to Python.
 
