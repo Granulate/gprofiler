@@ -140,7 +140,7 @@ class GProfiler:
                 nodejs_mode == "perf",
                 dwarf_stack_size,
             ),
-            "system",
+            "perf",
         )
         self.python_profiler = create_profiler_or_noop(
             self._runtimes,
