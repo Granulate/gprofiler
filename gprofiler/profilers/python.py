@@ -14,9 +14,10 @@ from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
 from gprofiler.log import get_logger_adapter
+from gprofiler.main import positive_integer
 from gprofiler.merge import parse_and_remove_one_collapsed, parse_many_collapsed
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
-from gprofiler.profilers.registry import register_profiler
+from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.utils import (
     pgrep_maps,
@@ -259,6 +260,11 @@ class PythonEbpfProfiler(ProfilerBase):
     profiler_mode_argument_help="Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), "
     "pyspy (always use py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails)"
     " or disabled (no runtime profilers for Python).",
+    profiler_arguments=[
+        ProfilerArgument(
+            "--pyperf-user-stacks-pages", dest="pyperf_user_stacks_pages", default=None, type=positive_integer
+        )
+    ],
 )
 class PythonProfiler(ProfilerInterface):
     """

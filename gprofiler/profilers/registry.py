@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 
 class ProfilerArgument:
@@ -8,11 +8,11 @@ class ProfilerArgument:
         self,
         name: str,
         dest: str,
-        help: str,
+        help: Optional[str] = None,
         default: Any = None,
         action: Optional[str] = None,
         choices: List[Any] = None,
-        type: Type = None,
+        type: Union[Type, Callable[[str], Any]] = None,
     ):
         self.name = name
         self.dest = dest
