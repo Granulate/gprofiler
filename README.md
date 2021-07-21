@@ -85,7 +85,6 @@ gProfiler can be run in a continuous mode, profiling periodically, using the `--
 Note that when using `--continuous` with `--output-dir`, a new file will be created during *each* sampling interval.
 Aggregations are only available when uploading to the Granulate Performance Studio.
 
-
 ## Running as a Docker container
 Run the following to have gProfiler running continuously, uploading to Granulate Performance Studio:
 ```bash
