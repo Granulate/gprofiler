@@ -420,7 +420,7 @@ def parse_cmd_args():
         default="none",
         choices=["perf", "disabled", "none"],
         help="Select the NodeJS profiling mode: perf (run 'perf inject --jit' on perf results, to augment them"
-             " with jitdump files of NodeJS processes, if present) or none (no runtime-specific profilers for NodeJS)",
+        " with jitdump files of NodeJS processes, if present) or none (no runtime-specific profilers for NodeJS)",
     )
 
     nodejs_options.add_argument(
