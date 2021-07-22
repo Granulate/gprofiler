@@ -115,8 +115,7 @@ class GProfiler:
 
     @property
     def all_profilers(self) -> Iterable[ProfilerInterface]:
-        for process_profiler in self.process_profilers:
-            yield process_profiler
+        yield from self.process_profilers
         yield self.system_profiler
 
     def __enter__(self):
@@ -515,7 +514,7 @@ def setup_signals() -> None:
 
 def main():
     args = parse_cmd_args()
-    # verify_preconditions(args)
+    verify_preconditions(args)
     state = init_state()
 
     remote_logs_handler = RemoteLogsHandler() if args.log_to_server and args.upload_results else None
