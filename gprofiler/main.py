@@ -25,7 +25,7 @@ from gprofiler.gprofiler_types import positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.profilers.factory import get_profilers
-from gprofiler.profilers.profiler_base import ProfilerInterface
+from gprofiler.profilers.profiler_base import NoopProfiler, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.state import State, init_state
 from gprofiler.utils import (
@@ -37,7 +37,6 @@ from gprofiler.utils import (
     get_iso8601_format_time,
     get_run_mode,
     grab_gprofiler_mutex,
-    is_noop_profiler,
     is_root,
     is_running_in_init_pid,
     log_system_info,
@@ -226,7 +225,7 @@ class GProfiler:
             )
             raise
 
-        if is_noop_profiler(self.system_profiler):
+        if NoopProfiler.is_noop_profiler(self.system_profiler):
             assert system_result == {}, system_result  # should be empty!
             merged_result, total_samples = merge.concatenate_profiles(
                 process_profiles,

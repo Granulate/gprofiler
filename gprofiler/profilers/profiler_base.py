@@ -76,6 +76,10 @@ class NoopProfiler(ProfilerInterface):
     def snapshot(self) -> ProcessToStackSampleCounters:
         return {}
 
+    @classmethod
+    def is_noop_profiler(cls, profile_instance: ProfilerInterface) -> bool:
+        return isinstance(profile_instance, cls)
+
 
 class ProcessProfilerBase(ProfilerBase):
     """
