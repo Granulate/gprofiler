@@ -28,7 +28,7 @@ def get_profilers(
                 **profiler_init_kwargs, **user_args, profiler_mode=profiler_mode
             )
         except Exception:
-            logger.exception(f"Couldn't create {profiler_name} profiler, continuing without this runtime profiler")
+            logger.exception(f"Couldn't create the {profiler_name} profiler, continuing without it")
         else:
             if isinstance(profiler_instance, SystemProfiler):
                 system_profiler = profiler_instance
