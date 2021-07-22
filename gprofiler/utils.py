@@ -37,6 +37,7 @@ from gprofiler.exceptions import (
     StopEventSetException,
 )
 from gprofiler.log import get_logger_adapter
+from gprofiler.profilers.profiler_base import NoopProfiler, ProfilerInterface
 
 logger = get_logger_adapter(__name__)
 
@@ -583,3 +584,7 @@ class CpuUsageLogger:
             f"Total CPU usage this run: {total_usage / self.NSEC_PER_SEC:.3f} seconds"
             f" {total_usage_s / total_ts * 100:.2f}% ({total_usage} cgroup time)"
         )
+
+
+def is_noop_profiler(profile_instance: ProfilerInterface) -> bool:
+    return isinstance(profile_instance, NoopProfiler)
