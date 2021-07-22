@@ -113,7 +113,12 @@ class APIClient:
         return self.get("health_check")
 
     def submit_profile(
-        self, start_time: datetime.datetime, end_time: datetime.datetime, profile: str, total_samples: int
+        self,
+        start_time: datetime.datetime,
+        end_time: datetime.datetime,
+        profile: str,
+        total_samples: int,
+        profile_api_version: Optional[str],
     ) -> Dict:
         return self.post(
             "profiles",
@@ -124,6 +129,6 @@ class APIClient:
                 "profile": profile,
             },
             timeout=self._upload_timeout,
-            api_version="v2",
+            api_version="v2" if profile_api_version is None else profile_api_version,
             params={"samples": str(total_samples), "version": __version__},
         )

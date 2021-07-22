@@ -104,6 +104,7 @@ class GProfiler:
         state: State,
         cpu_usage_logger: CpuUsageLogger,
         include_container_names=True,
+        profile_api_version: Optional[str] = None,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         php_process_filter: str = DEFAULT_PROCESS_FILTER,
     ):
@@ -116,6 +117,7 @@ class GProfiler:
         self._client = client
         self._state = state
         self._remote_logs_handler = remote_logs_handler
+        self._profile_api_version = profile_api_version
         self._stop_event = Event()
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
@@ -166,7 +168,7 @@ class GProfiler:
             lambda: RbSpyProfiler(self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name),
             "ruby",
         )
-        if include_container_names:
+        if include_container_names and profile_api_version != "v1":
             self._docker_client: Optional[DockerClient] = DockerClient()
         else:
             self._docker_client = None
@@ -302,12 +304,14 @@ class GProfiler:
                 system_result,
                 process_profiles,
                 self._docker_client,
+                self._profile_api_version != "v1",
             )
         else:
             assert system_result == {}, system_result  # should be empty!
             merged_result, total_samples = merge.concatenate_profiles(
                 process_profiles,
                 self._docker_client,
+                self._profile_api_version != "v1",
             )
 
         if self._output_dir:
@@ -315,7 +319,9 @@ class GProfiler:
 
         if self._client:
             try:
-                self._client.submit_profile(local_start_time, local_end_time, merged_result, total_samples)
+                self._client.submit_profile(
+                    local_start_time, local_end_time, merged_result, total_samples, self._profile_api_version
+                )
             except Timeout:
                 logger.error("Upload of profile to server timed out.")
             except APIError as e:
@@ -490,6 +496,15 @@ def parse_cmd_args():
     )
 
     parser.add_argument(
+        "--profile-api-version",
+        action="store",
+        dest="profile_api_version",
+        default=None,
+        choices=["v1"],
+        help="Use a legacy API version to upload profiles to the Performance Studio",
+    )
+
+    parser.add_argument(
         "--disable-pidns-check",
         action="store_false",
         default=True,
@@ -661,6 +676,7 @@ def main():
             state,
             cpu_usage_logger,
             not args.disable_container_names,
+            args.profile_api_version,
             remote_logs_handler,
             args.php_process_filter,
         )
