@@ -21,7 +21,7 @@ def get_profilers(
     system_profiler: Union['SystemProfiler', 'NoopProfiler'] = NoopProfiler()
     for profiler_name, profiler_config in profilers_registry.items():
         profiler_mode = user_args.get(f"{profiler_name.lower()}_mode")
-        if profiler_mode in ("none", "disabled") or not user_args.get(profiler_name.lower(), True):
+        if profiler_mode in ("none", "disabled"):
             continue
         try:
             profiler_instance = profiler_config.profiler_class(
