@@ -101,7 +101,10 @@ class GProfiler:
         # files unnecessarily.
         self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
         self.system_profiler, self.process_profilers = get_profilers(
-            user_args, storage_dir=self._temp_storage_dir.name, stop_event=self._stop_event
+            user_args,
+            storage_dir=self._temp_storage_dir.name,
+            stop_event=self._stop_event,
+            inject_jit=user_args["nodejs_mode"] == "perf",
         )
 
         if include_container_names:
