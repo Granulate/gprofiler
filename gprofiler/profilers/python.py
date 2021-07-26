@@ -35,7 +35,7 @@ logger = get_logger_adapter(__name__)
 class PySpyProfiler(ProcessProfilerBase):
     MAX_FREQUENCY = 50
     _BLACKLISTED_PYTHON_PROCS = ["unattended-upgrades", "networkd-dispatcher", "supervisord", "tuned"]
-    _EXTRA_TIMEOUT = 5  # give py-spy 5 seconds to run (added to the duration)
+    _EXTRA_TIMEOUT = 10  # give py-spy some seconds to run (added to the duration)
 
     def _make_command(self, pid: int, output_path: str):
         return [
