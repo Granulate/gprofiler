@@ -1,5 +1,5 @@
 # flake8: noqa
-# TODO: Make sure to import any new process profilers to load it
+# NOTE: Make sure to import any new process profilers to load it
 from gprofiler.profilers.java import JavaProfiler
 from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.php import PHPSpyProfiler
