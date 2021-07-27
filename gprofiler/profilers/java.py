@@ -22,7 +22,7 @@ from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     get_process_nspid,
-    pgrep_exe,
+    pgrep_maps,
     remove_path,
     remove_prefix,
     resolve_proc_root_links,
@@ -243,7 +243,6 @@ class AsyncProfiledProcess:
 @register_profiler("Java", possible_modes=["ap", "disabled"], default_mode="ap")
 class JavaProfiler(ProcessProfilerBase):
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
-    SKIP_VERSION_CHECK_BINARIES = ["jsvc"]
 
     def __init__(self, frequency: int, duration: int, stop_event: Event, storage_dir: str, **profiler_kwargs):
         super().__init__(frequency, duration, stop_event, storage_dir, **profiler_kwargs)
@@ -299,7 +298,9 @@ class JavaProfiler(ProcessProfilerBase):
         logger.info(f"Profiling java process {process.pid}...")
 
         # Get Java version
-        if os.path.basename(process.exe()) not in self.SKIP_VERSION_CHECK_BINARIES:
+        # TODO we can get the "java" binary by extracting the java home from the libjvm path,
+        # then check with that instead (if exe isn't java)
+        if os.path.basename(process.exe()) == "java":
             if not self._is_jdk_version_supported(self._get_java_version(process)):
                 logger.warning(f"Process {process.pid} running unsupported Java version, skipping...")
                 return None
@@ -349,4 +350,4 @@ class JavaProfiler(ProcessProfilerBase):
             return parse_one_collapsed(output, comm)
 
     def _select_processes_to_profile(self) -> List[Process]:
-        return pgrep_exe(r"^.+/(java|jsvc)$")
+        return pgrep_maps(r"^.+/libjvm\.so$")
