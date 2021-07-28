@@ -85,6 +85,7 @@ class APIClient:
                 try:
                     json.dump(data, gzip_file, ensure_ascii=False)  # type: ignore
                 except TypeError:
+                    # This should only happen while in development, and is used to get a more indicative error.
                     bad_json = str(data)
                     if len(bad_json) > MAX_BAD_JSON_STRING_LENGTH:
                         bad_json = bad_json[:MAX_BAD_JSON_STRING_LENGTH]
