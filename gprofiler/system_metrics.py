@@ -1,6 +1,7 @@
 import statistics
 import time
 from abc import ABCMeta, abstractmethod
+from dataclasses import dataclass
 from threading import Event, RLock, Thread
 from typing import List, Optional, Tuple
 
@@ -12,10 +13,10 @@ DEFAULT_POLLING_INTERVAL_SECONDS = 5
 STOP_TIMEOUT_SECONDS = 30
 
 
+@dataclass
 class Metrics:
-    def __init__(self, cpu_avg: Optional[float], mem_avg: Optional[float]):
-        self.cpu_avg = cpu_avg
-        self.mem_avg = mem_avg
+    cpu_avg: Optional[float]
+    mem_avg: Optional[float]
 
 
 class SystemMetricsMonitorBase(metaclass=ABCMeta):
