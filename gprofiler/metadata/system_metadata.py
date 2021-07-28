@@ -61,19 +61,19 @@ def get_run_mode_and_deployment_type() -> Tuple[str, str]:
         return "local_python", "instances"
 
 
-def get_local_ip() -> str:
+def get_private_ip() -> str:
     try:
-        local_ips = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")]
+        private_ips = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")]
     except Exception:
-        local_ips = []
-    if not local_ips:
+        private_ips = []
+    if not private_ips:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             s.connect(("8.8.8.8", 53))
-            local_ips.append(s.getsockname()[0])
+            private_ips.append(s.getsockname()[0])
         finally:
             s.close()
-    return local_ips[0] if local_ips else "unknown"
+    return private_ips[0] if private_ips else "unknown"
 
 
 def get_mac_address() -> str:
@@ -131,7 +131,7 @@ class SystemInfo:
 
 
 def get_static_system_info() -> SystemInfo:
-    hostname, distribution, libc_tuple, mac_address, local_ip = _initialize_system_info()
+    hostname, distribution, libc_tuple, mac_address, private_ip = _initialize_system_info()
     clock = getattr(time, "CLOCK_BOOTTIME", time.CLOCK_MONOTONIC)
     spawn_uptime_ms = time.clock_gettime(clock)
     libc_type, libc_version = libc_tuple
@@ -158,7 +158,7 @@ def get_static_system_info() -> SystemInfo:
         hardware_type=uname.machine,
         pid=os.getpid(),
         mac_address=mac_address,
-        private_ip=local_ip,
+        private_ip=private_ip,
         spawn_uptime_ms=spawn_uptime_ms,
     )
 
@@ -175,13 +175,13 @@ def _initialize_system_info():
     distribution = ("unknown", "unknown", "unknown")
     libc_version = ("unknown", "unknown")
     mac_address = "unknown"
-    local_ip = "unknown"
+    private_ip = "unknown"
 
     # move to host mount NS for distro & ldd.
     # now, distro will read the files on host.
     # also move to host UTS NS for the hostname.
     def get_infos():
-        nonlocal distribution, libc_version, mac_address, local_ip
+        nonlocal distribution, libc_version, mac_address, private_ip
         global hostname
 
         try:
@@ -206,7 +206,7 @@ def _initialize_system_info():
             logger.exception("Failed to get MAC address")
 
         try:
-            local_ip = get_local_ip()
+            private_ip = get_private_ip()
         except Exception:
             logger.exception("Failed to get the local IP")
 
@@ -215,4 +215,4 @@ def _initialize_system_info():
 
     run_in_ns(["mnt", "uts", "net"], get_infos)
 
-    return hostname, distribution, libc_version, mac_address, local_ip
+    return hostname, distribution, libc_version, mac_address, private_ip
