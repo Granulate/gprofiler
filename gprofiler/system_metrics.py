@@ -58,7 +58,7 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
     def start(self):
         assert self._thread is None, "SystemMetricsMonitor is already running"
         self._stop_event.clear()
-        self._thread = Thread(target=self._continuously_polling_memory, args=(self._polling_rate_seconds,))
+        self._thread = Thread(target=self._continuously_poll_memory, args=(self._polling_rate_seconds,))
         self._thread.start()
 
     def stop(self):
@@ -69,7 +69,7 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
             raise ThreadStopTimeoutError("Timed out while waiting for the SystemMetricsMonitor internal thread to stop")
         self._thread = None
 
-    def _continuously_polling_memory(self, polling_rate_seconds: int):
+    def _continuously_poll_memory(self, polling_rate_seconds: int):
         while not self._stop_event.is_set():
             start_time = time.monotonic()
             current_ram_percent = psutil.virtual_memory().percent
