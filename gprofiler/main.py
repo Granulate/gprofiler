@@ -185,7 +185,7 @@ class GProfiler:
             self._docker_client = None
         self._cpu_usage_logger = cpu_usage_logger
         if collect_metrics:
-            self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor()
+            self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
 
