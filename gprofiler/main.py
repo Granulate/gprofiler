@@ -21,19 +21,21 @@ from requests import RequestException, Timeout
 from gprofiler import __version__, merge
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
 from gprofiler.docker_client import DockerClient
-from gprofiler.java import JavaProfiler
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode_and_deployment_type
-from gprofiler.perf import SystemProfiler
-from gprofiler.php import PHPSpyProfiler
-from gprofiler.profiler_base import NoopProfiler
-from gprofiler.python import PythonProfiler
-from gprofiler.ruby import RbSpyProfiler
+from gprofiler.profilers.java import JavaProfiler
+from gprofiler.profilers.perf import SystemProfiler
+from gprofiler.profilers.php import DEFAULT_PROCESS_FILTER, PHPSpyProfiler
+from gprofiler.profilers.profiler_base import NoopProfiler
+from gprofiler.profilers.python import PythonProfiler
+from gprofiler.profilers.registry import get_profilers_registry
+from gprofiler.profilers.ruby import RbSpyProfiler
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
+from gprofiler.types import positive_integer
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     CpuUsageLogger,
@@ -57,8 +59,7 @@ DEFAULT_LOG_BACKUP_COUNT = 1
 
 DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 11
-# by default - these match
-DEFAULT_CONTINUOUS_MODE_INTERVAL = DEFAULT_PROFILING_DURATION
+
 # 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
 SIGINT_RATELIMIT = 0.5
 
@@ -96,8 +97,10 @@ class GProfiler:
         flamegraph: bool,
         rotating_output: bool,
         perf_mode: str,
+        nodejs_mode: str,
         dwarf_stack_size: int,
         python_mode: str,
+        pyperf_user_stacks_pages: Optional[int],
         runtimes: Dict[str, bool],
         client: APIClient,
         collect_metrics: bool,
@@ -106,8 +109,9 @@ class GProfiler:
         cpu_usage_logger: CpuUsageLogger,
         run_args: Dict[str, Union[bool, str, int]],
         include_container_names=True,
+        profile_api_version: Optional[str] = None,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
-        php_process_filter: str = PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
+        php_process_filter: str = DEFAULT_PROCESS_FILTER,
     ):
         self._frequency = frequency
         self._duration = duration
@@ -118,6 +122,7 @@ class GProfiler:
         self._client = client
         self._state = state
         self._remote_logs_handler = remote_logs_handler
+        self._profile_api_version = profile_api_version
         self._collect_metrics = collect_metrics
         self._collect_metadata = collect_metadata
         self._stop_event = Event()
@@ -145,9 +150,10 @@ class GProfiler:
                 self._stop_event,
                 self._temp_storage_dir.name,
                 perf_mode,
+                nodejs_mode == "perf",
                 dwarf_stack_size,
             ),
-            "system",
+            "perf",
         )
         self.python_profiler = create_profiler_or_noop(
             self._runtimes,
@@ -157,6 +163,7 @@ class GProfiler:
                 self._stop_event,
                 self._temp_storage_dir.name,
                 python_mode,
+                pyperf_user_stacks_pages,
             ),
             "python",
         )
@@ -172,7 +179,7 @@ class GProfiler:
             lambda: RbSpyProfiler(self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name),
             "ruby",
         )
-        if include_container_names:
+        if include_container_names and profile_api_version != "v1":
             self._docker_client: Optional[DockerClient] = DockerClient()
         else:
             self._docker_client = None
@@ -304,18 +311,21 @@ class GProfiler:
         try:
             system_result = system_future.result()
         except Exception:
-            logger.error("Running perf failed; consider running gProfiler with '--perf-mode none' to avoid using perf")
+            logger.exception(
+                "Running perf failed; consider running gProfiler with '--perf-mode disabled' to avoid using perf"
+            )
             raise
         metadata = (
             get_current_metadata(self._static_metadata)
             if self._collect_metadata and self._client
             else {"hostname": get_hostname()}
         )
-        if self._runtimes["system"]:
+        if self._runtimes["perf"]:
             merged_result, total_samples = merge.merge_profiles(
                 system_result,
                 process_profiles,
                 self._docker_client,
+                self._profile_api_version != "v1",
                 metadata,
             )
         else:
@@ -323,6 +333,7 @@ class GProfiler:
             merged_result, total_samples = merge.concatenate_profiles(
                 process_profiles,
                 self._docker_client,
+                self._profile_api_version != "v1",
                 metadata,
             )
 
@@ -337,6 +348,7 @@ class GProfiler:
                     local_end_time,
                     merged_result,
                     total_samples,
+                    self._profile_api_version,
                     self._spawn_time,
                     metrics,
                 )
@@ -371,21 +383,19 @@ class GProfiler:
             finally:
                 self._send_remote_logs()  # function is safe, wrapped with try/except block inside
 
-    def run_continuous(self, interval):
+    def run_continuous(self):
         with self:
             self._cpu_usage_logger.init_cycles()
 
             while not self._stop_event.is_set():
-                start_time = time.monotonic()
                 self._state.init_new_cycle()
+
                 try:
                     self._snapshot()
                 except Exception:
                     logger.exception("Profiling run failed!")
                 finally:
                     self._send_remote_logs()  # function is safe, wrapped with try/except block inside
-                time_spent = time.monotonic() - start_time
-                self._stop_event.wait(max(interval - time_spent, 0))
                 self._cpu_usage_logger.log_cycle()
 
 
@@ -401,7 +411,7 @@ def parse_cmd_args():
     parser.add_argument(
         "-f",
         "--profiling-frequency",
-        type=int,
+        type=positive_integer,
         dest="frequency",
         default=DEFAULT_SAMPLING_FREQUENCY,
         help="Profiler frequency in Hz (default: %(default)s)",
@@ -409,7 +419,7 @@ def parse_cmd_args():
     parser.add_argument(
         "-d",
         "--profiling-duration",
-        type=int,
+        type=positive_integer,
         dest="duration",
         default=DEFAULT_PROFILING_DURATION,
         help="Profiler duration per session in seconds (default: %(default)s)",
@@ -430,81 +440,32 @@ def parse_cmd_args():
         "--rotating-output", action="store_true", default=False, help="Keep only the last profile result"
     )
 
+    _add_profilers_arguments(parser)
+
+    nodejs_options = parser.add_argument_group("NodeJS")
+    nodejs_options.add_argument(
+        "--nodejs-mode",
+        dest="nodejs_mode",
+        default="none",
+        choices=["perf", "disabled", "none"],
+        help="Select the NodeJS profiling mode: perf (run 'perf inject --jit' on perf results, to augment them"
+        " with jitdump files of NodeJS processes, if present) or none (no runtime-specific profilers for NodeJS)",
+    )
+
+    nodejs_options.add_argument(
+        "--no-nodejs",
+        dest="nodejs_mode",
+        action="store_const",
+        const="disabled",
+        default=True,
+        help="Disable the runtime-profiling of NodeJS processes",
+    )
+
     parser.add_argument(
         "--log-cpu-usage",
         action="store_true",
         default=False,
         help="Log CPU usage (per cgroup) on each profiling iteration. Works only when gProfiler runs as a container",
-    )
-
-    java_options = parser.add_argument_group("Java")
-    java_options.add_argument(
-        "--no-java",
-        dest="java",
-        action="store_false",
-        default=True,
-        help="Do not invoke runtime-specific profilers for Java processes",
-    )
-
-    python_options = parser.add_argument_group("Python")
-    python_options.add_argument(
-        "--python-mode",
-        dest="python_mode",
-        default="auto",
-        choices=["auto", "pyspy", "pyperf", "none"],
-        help="Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), pyspy (always use"
-        " py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails) or none (no runtime profilers"
-        " for Python).",
-    )
-    python_options.add_argument(
-        "--no-python",
-        dest="python_mode",
-        action="store_const",
-        const="none",
-        help="Do not invoke runtime-specific profilers for Python processes (legacy option for '--python-mode none')",
-    )
-
-    php_options = parser.add_argument_group("PHP")
-    php_options.add_argument(
-        "--no-php",
-        dest="php",
-        action="store_false",
-        default=True,
-        help="Do not invoke runtime-specific profilers for PHP processes",
-    )
-    php_options.add_argument(
-        "--php-proc-filter",
-        dest="php_process_filter",
-        default=PHPSpyProfiler.DEFAULT_PROCESS_FILTER,
-        help="Process filter for php processes (default: %(default)s)",
-    )
-
-    ruby_options = parser.add_argument_group("Ruby")
-    ruby_options.add_argument(
-        "--no-ruby",
-        dest="ruby",
-        action="store_false",
-        default=True,
-        help="Do not invoke runtime-specific profilers for Ruby processes",
-    )
-
-    perf_options = parser.add_argument_group("perf")
-    perf_options.add_argument(
-        "--perf-mode",
-        dest="perf_mode",
-        default="fp",
-        choices=["fp", "dwarf", "smart", "none"],
-        help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge them "
-        "by choosing the best result per process. If 'none' is chosen, do not invoke 'perf' at all. The "
-        "output, in that case, is the concatenation of the results from all of the runtime profilers.",
-    )
-    perf_options.add_argument(
-        "--perf-dwarf-stack-size",
-        dest="dwarf_stack_size",
-        default=8192,
-        type=int,
-        help="The max stack size for the Dwarf perf, in bytes. Must be <=65528."
-        " Relevant for --perf-mode dwarf|smart. Default: %(default)s",
     )
 
     parser.add_argument(
@@ -517,7 +478,7 @@ def parse_cmd_args():
     parser.add_argument("--server-host", default=GRANULATE_SERVER_HOST, help="Server host (default: %(default)s)")
     parser.add_argument(
         "--server-upload-timeout",
-        type=int,
+        type=positive_integer,
         default=DEFAULT_UPLOAD_TIMEOUT,
         help="Timeout for upload requests to the server in seconds (default: %(default)s)",
     )
@@ -530,12 +491,16 @@ def parse_cmd_args():
     logging_options = parser.add_argument_group("logging")
     logging_options.add_argument("--log-file", action="store", type=str, dest="log_file", default=DEFAULT_LOG_FILE)
     logging_options.add_argument(
-        "--log-rotate-max-size", action="store", type=int, dest="log_rotate_max_size", default=DEFAULT_LOG_MAX_SIZE
+        "--log-rotate-max-size",
+        action="store",
+        type=positive_integer,
+        dest="log_rotate_max_size",
+        default=DEFAULT_LOG_MAX_SIZE,
     )
     logging_options.add_argument(
         "--log-rotate-backup-count",
         action="store",
-        type=int,
+        type=positive_integer,
         dest="log_rotate_backup_count",
         default=DEFAULT_LOG_BACKUP_COUNT,
     )
@@ -559,14 +524,14 @@ def parse_cmd_args():
     continuous_command_parser.add_argument(
         "--continuous", "-c", action="store_true", dest="continuous", help="Run in continuous mode"
     )
-    continuous_command_parser.add_argument(
-        "-i",
-        "--profiling-interval",
-        type=int,
-        dest="continuous_profiling_interval",
-        default=DEFAULT_CONTINUOUS_MODE_INTERVAL,
-        help="Time between each profiling sessions in seconds (default: %(default)s). Note: this is the time between"
-        " session starts, not between the end of one session to the beginning of the next one.",
+
+    parser.add_argument(
+        "--profile-api-version",
+        action="store",
+        dest="profile_api_version",
+        default=None,
+        choices=["v1"],
+        help="Use a legacy API version to upload profiles to the Performance Studio",
     )
 
     parser.add_argument(
@@ -601,11 +566,6 @@ def parse_cmd_args():
         if not args.service_name:
             parser.error("Must provide --service-name when --upload-results is passed")
 
-    if args.continuous and args.duration > args.continuous_profiling_interval:
-        parser.error(
-            "--profiling-duration must be lower or equal to --profiling-interval when profiling in continuous mode"
-        )
-
     if not args.upload_results and not args.output_dir:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
 
@@ -613,9 +573,38 @@ def parse_cmd_args():
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
 
     if args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
-        parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode smart|dwarf")
+        parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode 'smart' or 'dwarf'")
+
+    if args.nodejs_mode == "perf" and args.perf_mode not in ("fp", "smart"):
+        parser.error("--nodejs-mode perf requires --perf-mode 'fp' or 'smart'")
 
     return args
+
+
+def _add_profilers_arguments(parser):
+    registry = get_profilers_registry()
+    for name, config in registry.items():
+        arg_group = parser.add_argument_group(name)
+        mode_var = f"{name.lower()}_mode"
+        arg_group.add_argument(
+            f"--{name.lower()}-mode",
+            dest=mode_var,
+            default=config.default_mode,
+            help=config.profiler_mode_help,
+            choices=config.possible_modes,
+        )
+        arg_group.add_argument(
+            f"--no-{name.lower()}",
+            action="store_const",
+            const="disabled",
+            dest=mode_var,
+            default=True,
+            help=config.disablement_help,
+        )
+        for arg in config.profiler_args:
+            profiler_arg_kwargs = arg.get_dict()
+            name = profiler_arg_kwargs.pop("name")
+            arg_group.add_argument(name, **profiler_arg_kwargs)
 
 
 def verify_preconditions(args):
@@ -714,11 +703,8 @@ def main():
             remote_logs_handler.init_api_client(client)
 
         runtimes = {
-            "system": args.perf_mode != "none",
-            "java": args.java,
-            "python": args.python_mode != "none",
-            "php": args.php,
-            "ruby": args.ruby,
+            profiler_name.lower(): getattr(args, f"{profiler_name.lower()}_mode") not in ["none", "disabled"]
+            for profiler_name in get_profilers_registry()
         }
         gprofiler = GProfiler(
             args.frequency,
@@ -727,8 +713,10 @@ def main():
             args.flamegraph,
             args.rotating_output,
             args.perf_mode,
+            args.nodejs_mode,
             args.dwarf_stack_size,
             args.python_mode,
+            args.pyperf_user_stacks_pages,
             runtimes,
             client,
             args.collect_metrics,
@@ -737,12 +725,13 @@ def main():
             cpu_usage_logger,
             args.__dict__ if args.collect_metadata else None,
             not args.disable_container_names,
+            args.profile_api_version,
             remote_logs_handler,
             args.php_process_filter,
         )
         logger.info("gProfiler initialized and ready to start profiling")
         if args.continuous:
-            gprofiler.run_continuous(args.continuous_profiling_interval)
+            gprofiler.run_continuous()
         else:
             gprofiler.run_single()
 

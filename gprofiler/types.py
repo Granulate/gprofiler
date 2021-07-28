@@ -6,5 +6,14 @@
 from collections import Counter
 from typing import MutableMapping
 
+import configargparse
+
 StackToSampleCount = Counter
 ProcessToStackSampleCounters = MutableMapping[int, StackToSampleCount]
+
+
+def positive_integer(value):
+    value = int(value)
+    if value <= 0:
+        raise configargparse.ArgumentTypeError("invalid positive integer value: {!r}".format(value))
+    return value

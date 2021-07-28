@@ -129,6 +129,7 @@ class APIClient:
         end_time: datetime.datetime,
         profile: str,
         total_samples: int,
+        profile_api_version: Optional[str],
         spawn_time: float,
         metrics: 'Metrics',
     ) -> Dict:
@@ -144,6 +145,6 @@ class APIClient:
                 "spawn_time": get_iso8601_format_time_from_epoch_time(spawn_time),
             },
             timeout=self._upload_timeout,
-            api_version="v2",
+            api_version="v2" if profile_api_version is None else profile_api_version,
             params={"samples": str(total_samples), "version": __version__},
         )

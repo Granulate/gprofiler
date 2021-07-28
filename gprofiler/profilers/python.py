@@ -15,8 +15,9 @@ from psutil import Process
 from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_and_remove_one_collapsed, parse_many_collapsed
-from gprofiler.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
-from gprofiler.types import ProcessToStackSampleCounters, StackToSampleCount
+from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
+from gprofiler.profilers.registry import ProfilerArgument, register_profiler
+from gprofiler.types import ProcessToStackSampleCounters, StackToSampleCount, positive_integer
 from gprofiler.utils import (
     pgrep_maps,
     poll_process,
@@ -25,6 +26,7 @@ from gprofiler.utils import (
     run_process,
     start_process,
     wait_event,
+    wait_for_file_by_prefix,
 )
 
 logger = get_logger_adapter(__name__)
@@ -117,10 +119,12 @@ class PythonEbpfProfiler(ProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
+        user_stacks_pages: Optional[int] = None,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
         self.process = None
         self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
+        self.user_stacks_pages = user_stacks_pages
 
     @classmethod
     def _check_missing_headers(cls, stdout) -> bool:
@@ -188,6 +192,10 @@ class PythonEbpfProfiler(ProfilerBase):
             str(self.symbols_map_size),
             # Duration is irrelevant here, we want to run continuously.
         ]
+
+        if self.user_stacks_pages is not None:
+            cmd.extend(["--user-stacks-pages", self.user_stacks_pages])
+
         process = start_process(cmd, via_staticx=True)
         # wait until the transient data file appears - because once returning from here, PyPerf may
         # be polled via snapshot() and we need it to finish installing its signal handler.
@@ -200,24 +208,13 @@ class PythonEbpfProfiler(ProfilerBase):
         else:
             self.process = process
 
-    def _glob_output(self) -> List[str]:
-        # important to not grab the transient data file
-        return glob.glob(f"{str(self.output_path)}.*")
-
-    def _wait_for_output_file(self, timeout: float) -> Path:
-        wait_event(timeout, self._stop_event, lambda: len(self._glob_output()) > 0)
-
-        output_files = self._glob_output()
-        # All the snapshot samples should be in one file
-        assert len(output_files) == 1, "expected single file but got: " + str(output_files)
-        return Path(output_files[0])
-
     def _dump(self) -> Path:
         assert self.process is not None, "profiling not started!"
         self.process.send_signal(self.dump_signal)
 
         try:
-            output = self._wait_for_output_file(self.dump_timeout)
+            # important to not grab the transient data file - hence the following '.'
+            output = wait_for_file_by_prefix(f"{self.output_path}.", self.dump_timeout, self._stop_event)
             # PyPerf outputs sampling & error counters every interval (after writing the output file), print them.
             # also, makes sure its output pipe doesn't fill up.
             # using read1() which performs just a single read() call and doesn't read until EOF
@@ -255,6 +252,19 @@ class PythonEbpfProfiler(ProfilerBase):
             logger.info("Finished profiling Python processes with PyPerf")
 
 
+@register_profiler(
+    "Python",
+    possible_modes=["auto", "pyperf", "pyspy", "disabed"],
+    default_mode="auto",
+    profiler_mode_argument_help="Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), "
+    "pyspy (always use py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails)"
+    " or disabled (no runtime profilers for Python).",
+    profiler_arguments=[
+        ProfilerArgument(
+            "--pyperf-user-stacks-pages", dest="pyperf_user_stacks_pages", default=None, type=positive_integer
+        )
+    ],
+)
 class PythonProfiler(ProfilerInterface):
     """
     Controls PySpyProfiler & PythonEbpfProfiler as needed, providing a clean interface
@@ -268,10 +278,13 @@ class PythonProfiler(ProfilerInterface):
         stop_event: Event,
         storage_dir: str,
         python_mode: str,
+        pyperf_user_stacks_pages: Optional[int] = None,
     ):
         assert python_mode in ("auto", "pyperf", "pyspy"), f"unexpected mode: {python_mode}"
         if python_mode in ("auto", "pyperf"):
-            self._ebpf_profiler = self._create_ebpf_profiler(frequency, duration, stop_event, storage_dir)
+            self._ebpf_profiler = self._create_ebpf_profiler(
+                frequency, duration, stop_event, storage_dir, pyperf_user_stacks_pages
+            )
         else:
             self._ebpf_profiler = None
 
@@ -281,11 +294,11 @@ class PythonProfiler(ProfilerInterface):
             self._pyspy_profiler = None
 
     def _create_ebpf_profiler(
-        self, frequency: int, duration: int, stop_event: Event, storage_dir: str
+        self, frequency: int, duration: int, stop_event: Event, storage_dir: str, user_stacks_pages: Optional[int]
     ) -> Optional[PythonEbpfProfiler]:
         try:
             PythonEbpfProfiler.test(storage_dir, stop_event)
-            return PythonEbpfProfiler(frequency, duration, stop_event, storage_dir)
+            return PythonEbpfProfiler(frequency, duration, stop_event, storage_dir, user_stacks_pages)
         except Exception as e:
             logger.debug(f"eBPF profiler error: {str(e)}")
             logger.info("Python eBPF profiler initialization failed")
