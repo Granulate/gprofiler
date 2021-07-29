@@ -15,6 +15,7 @@ import distro  # type: ignore
 import psutil
 
 from gprofiler.log import get_logger_adapter
+from gprofiler.utils import run_in_ns, run_process
 
 logger = get_logger_adapter(__name__)
 hostname: Optional[str] = None
@@ -27,9 +28,6 @@ def get_libc_version() -> Tuple[str, str]:
     # load the files it needs for those encodings (getting LookupError: unknown encoding: ascii)
     def decode_libc_version(version: bytes) -> str:
         return version.decode("utf-8", errors="replace")
-
-    # Avoid circular imports
-    from gprofiler.utils import run_process
 
     ldd_version = run_process(
         ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, suppress_log=True, check=False
@@ -209,9 +207,6 @@ def _initialize_system_info():
             private_ip = get_private_ip()
         except Exception:
             logger.exception("Failed to get the local IP")
-
-    # Avoid circular imports
-    from gprofiler.utils import run_in_ns
 
     run_in_ns(["mnt", "uts", "net"], get_infos)
 

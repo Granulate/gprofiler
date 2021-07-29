@@ -3,7 +3,7 @@ import time
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from threading import Event, RLock, Thread
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import psutil
 

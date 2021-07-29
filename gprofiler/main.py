@@ -25,7 +25,7 @@ from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.metadata_type import Metadata
-from gprofiler.metadata.system_metadata import get_hostname, get_run_mode_and_deployment_type
+from gprofiler.metadata.system_metadata import get_hostname, get_run_mode_and_deployment_type, get_static_system_info
 from gprofiler.profilers.java import JavaProfiler
 from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.php import DEFAULT_PROCESS_FILTER, PHPSpyProfiler
@@ -45,7 +45,6 @@ from gprofiler.utils import (
     grab_gprofiler_mutex,
     is_root,
     is_running_in_init_pid,
-    log_system_info,
     reset_umask,
     resource_path,
     run_process,
@@ -641,6 +640,19 @@ def setup_signals() -> None:
     # handle SIGTERM in the same manner - gracefully stop gProfiler.
     # SIGTERM is also forwarded by staticx & PyInstaller, so we need to ratelimit it.
     signal.signal(signal.SIGTERM, sigint_handler)
+
+
+def log_system_info() -> None:
+    system_info = get_static_system_info()
+    logger.info(f"gProfiler Python version: {system_info.python_version}")
+    logger.info(f"gProfiler deployment mode: {system_info.run_mode}")
+    logger.info(f"Kernel uname release: {system_info.kernel_release}")
+    logger.info(f"Kernel uname version: {system_info.kernel_version}")
+    logger.info(f"Total CPUs: {system_info.processors}")
+    logger.info(f"Total RAM: {system_info.memory_capacity_mb / (1 << 20):.2f} GB")
+    logger.info(f"Linux distribution: {system_info.os_name} | {system_info.os_release} | {system_info.os_codename}")
+    logger.info(f"libc version: {system_info.libc_type}-{system_info.libc_version}")
+    logger.info(f"Hostname: {system_info.hostname}")
 
 
 def main():

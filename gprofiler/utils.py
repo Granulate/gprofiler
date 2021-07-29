@@ -34,7 +34,6 @@ from gprofiler.exceptions import (
     StopEventSetException,
 )
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata.system_metadata import get_static_system_info
 
 logger = get_logger_adapter(__name__)
 
@@ -344,19 +343,6 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
     t = Thread(target=_switch_and_run)
     t.start()
     t.join()
-
-
-def log_system_info() -> None:
-    system_info = get_static_system_info()
-    logger.info(f"gProfiler Python version: {system_info.python_version}")
-    logger.info(f"gProfiler deployment mode: {system_info.run_mode}")
-    logger.info(f"Kernel uname release: {system_info.kernel_release}")
-    logger.info(f"Kernel uname version: {system_info.kernel_version}")
-    logger.info(f"Total CPUs: {system_info.processors}")
-    logger.info(f"Total RAM: {system_info.memory_capacity_mb / (1 << 20):.2f} GB")
-    logger.info(f"Linux distribution: {system_info.os_name} | {system_info.os_release} | {system_info.os_codename}")
-    logger.info(f"libc version: {system_info.libc_type}-{system_info.libc_version}")
-    logger.info(f"Hostname: {system_info.hostname}")
 
 
 def grab_gprofiler_mutex() -> bool:
