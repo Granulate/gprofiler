@@ -62,7 +62,8 @@ def get_run_mode_and_deployment_type() -> Tuple[str, str]:
 def get_private_ip() -> str:
     try:
         private_ips = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")]
-    except Exception:
+    except socket.error:
+        # Could happen when a network is unavailable
         private_ips = []
     if not private_ips:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
