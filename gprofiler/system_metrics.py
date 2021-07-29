@@ -78,8 +78,10 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
             self._stop_event.wait(timeout=polling_rate_seconds - elapsed)
 
     def _get_average_memory_utilization(self) -> Optional[float]:
+        # Make sure there's only one thread that takes out the values
+        # NOTE - Since there's currently only a single consumer, this is not necessary but is done to support multiple
+        # consumers.
         with self._lock:
-            # Make sure there's only one thread that takes out the values
             current_length = len(self._mem_percentages)
             if current_length == 0:
                 return None

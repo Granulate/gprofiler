@@ -135,8 +135,7 @@ def get_static_system_info() -> SystemInfo:
     libc_type, libc_version = libc_tuple
     os_name, os_release, os_codename = distribution
     uname = platform.uname()
-    cpu_count = os.cpu_count()
-    cpu_count = cpu_count if cpu_count is not None else 0
+    cpu_count = os.cpu_count() or 0
     run_mode, deployment_type = get_run_mode_and_deployment_type()
     return SystemInfo(
         python_version=sys.version,
