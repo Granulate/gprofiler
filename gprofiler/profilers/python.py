@@ -6,7 +6,7 @@ import glob
 import os
 import signal
 from pathlib import Path
-from subprocess import Popen
+from subprocess import Popen, TimeoutExpired
 from threading import Event
 from typing import List, Optional
 
@@ -34,7 +34,8 @@ logger = get_logger_adapter(__name__)
 
 class PySpyProfiler(ProcessProfilerBase):
     MAX_FREQUENCY = 50
-    BLACKLISTED_PYTHON_PROCS = ["unattended-upgrades", "networkd-dispatcher", "supervisord", "tuned"]
+    _BLACKLISTED_PYTHON_PROCS = ["unattended-upgrades", "networkd-dispatcher", "supervisord", "tuned"]
+    _EXTRA_TIMEOUT = 10  # give py-spy some seconds to run (added to the duration)
 
     def _make_command(self, pid: int, output_path: str):
         return [
@@ -62,9 +63,17 @@ class PySpyProfiler(ProcessProfilerBase):
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
         try:
-            run_process(self._make_command(process.pid, local_output_path), stop_event=self._stop_event)
+            run_process(
+                self._make_command(process.pid, local_output_path),
+                stop_event=self._stop_event,
+                timeout=self._duration + self._EXTRA_TIMEOUT,
+                kill_signal=signal.SIGINT,
+            )
         except ProcessStoppedException:
             raise StopEventSetException
+        except TimeoutExpired:
+            logger.error(f"Profiling with py-spy timed out on process {process.pid}")
+            raise
 
         logger.info(f"Finished profiling process {process.pid} with py-spy")
         return parse_and_remove_one_collapsed(Path(local_output_path), comm)
@@ -79,7 +88,7 @@ class PySpyProfiler(ProcessProfilerBase):
                     continue
 
                 cmdline = process.cmdline()
-                if any(item in cmdline for item in self.BLACKLISTED_PYTHON_PROCS):
+                if any(item in cmdline for item in self._BLACKLISTED_PYTHON_PROCS):
                     continue
 
                 # PyPy is called pypy3 or pypy (for 2)
