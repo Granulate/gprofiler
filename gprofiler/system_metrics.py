@@ -48,10 +48,7 @@ class SystemMetricsMonitorBase(metaclass=ABCMeta):
 class SystemMetricsMonitor(SystemMetricsMonitorBase):
     def __init__(self, stop_event: Event, polling_rate_seconds: int = DEFAULT_POLLING_INTERVAL_SECONDS):
         self._polling_rate_seconds = polling_rate_seconds
-        self._cpu_count = psutil.cpu_count() or 0
         self._mem_percentages: List[float] = []
-        self._last_cpu_poll_time: Optional[float] = None
-        self._last_cpu_times: Optional[Tuple[float, float]] = None
         self._stop_event = stop_event
         self._thread = None
         self._lock = RLock()
@@ -90,31 +87,10 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
             self._mem_percentages[:current_length] = []
             return average_memory
 
-    def _get_cpu_utilization(self) -> Optional[float]:
-        """
-        Returns the CPU utilization percentage since the last time this method was called.
-        Based on the psutil.cpu_percent method.
-        """
-        last_user, last_system = self._last_cpu_times or (None, None)
-        current_cpu_times = psutil.cpu_times()
-        current_user, current_system = current_cpu_times.user, current_cpu_times.system
-        self._last_cpu_times = (current_user, current_system)
-        last_time = self._last_cpu_poll_time
-        current_time = self._last_cpu_poll_time = time.monotonic() * self._cpu_count
-
-        if None in (last_user, last_system):
-            return 0.0
-        assert last_time is not None
-        delta_cpu = (current_user - last_user) + (current_system - last_system)
-        delta_time = current_time - last_time
-
-        try:
-            overall_cpu_percent = (delta_cpu / delta_time) * 100
-        except ZeroDivisionError:
-            # There was no interval between calls
-            return 0.0
-        else:
-            return round(overall_cpu_percent, 1)
+    def _get_cpu_utilization(self) -> float:
+        # None-blocking call. Must be called at least once before attempting to get a meaningful value.
+        # See `psutil.cpu_percent` documentation.
+        return psutil.cpu_percent(interval=None)
 
 
 class NoopSystemMetricsMonitor(SystemMetricsMonitorBase):
