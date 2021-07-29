@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from http.client import NOT_FOUND
 from typing import Dict, List, Optional
 
 import requests
@@ -132,7 +133,10 @@ def get_azure_metadata() -> Optional[AzureInstanceMetadata]:
 
 def send_request(url: str, headers: Dict[str, str] = None) -> Optional[Response]:
     response = requests.get(url, headers=headers or {}, timeout=METADATA_REQUEST_TIMEOUT)
-    if not response.ok:
+    if response.status_code == NOT_FOUND:
+        # It's most likely the wrong cloud provider
+        return None
+    elif not response.ok:
         raise BadResponseCode(response.status_code)
     return response
 
@@ -149,6 +153,7 @@ def get_static_cloud_instance_metadata() -> Optional[Metadata]:
             raised_exceptions.append(exception)
     formatted_exceptions = ', '.join([repr(exception) for exception in raised_exceptions])
     logger.debug(
-        f"Could not get any cloud instance metadata because of the following exceptions: {formatted_exceptions}"
+        f"Could not get any cloud instance metadata because of the following exceptions: {formatted_exceptions}."
+        " The most likely reason is that the gProfiler is not installed on a an AWS, GCP or Azure instance."
     )
     return None
