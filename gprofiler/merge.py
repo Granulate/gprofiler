@@ -2,7 +2,6 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-
 import json
 import math
 import random
@@ -225,7 +224,6 @@ def _make_profile_metadata(docker_client: Optional[DockerClient], add_container_
     }
     profile_metadata["metadata"] = metadata
     formatted_profile_metadata = "# " + json.dumps(profile_metadata)
-    formatted_profile_metadata = formatted_profile_metadata.replace('\n', ' ')
     return formatted_profile_metadata
 
 
