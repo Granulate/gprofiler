@@ -1,6 +1,5 @@
 import datetime
-import time
-from typing import Dict, Optional, Union
+from typing import Dict, Union
 
 from gprofiler import __version__
 from gprofiler.metadata.cloud_metadata import get_static_cloud_instance_metadata
@@ -8,9 +7,7 @@ from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.metadata.system_metadata import get_static_system_info
 
 
-def get_static_metadata(spawn_time: Optional[float], run_args: Dict[str, Union[bool, str, int]] = None) -> Metadata:
-    if spawn_time is None:
-        spawn_time = time.time()
+def get_static_metadata(spawn_time: float, run_args: Dict[str, Union[bool, str, int]] = None) -> Metadata:
     formatted_spawn_time = datetime.datetime.utcfromtimestamp(spawn_time).replace(microsecond=0).isoformat()
     static_system_metadata = get_static_system_info()
     cloud_metadata = get_static_cloud_instance_metadata()
@@ -22,7 +19,7 @@ def get_static_metadata(spawn_time: Optional[float], run_args: Dict[str, Union[b
     }
     metadata_dict.update(static_system_metadata.__dict__)
     if cloud_metadata is not None:
-        metadata_dict["cloud_info_wrapped"] = cloud_metadata
+        metadata_dict["cloud_info"] = cloud_metadata
     if run_args is not None:
         metadata_dict["run_arguments"] = run_args
     return metadata_dict

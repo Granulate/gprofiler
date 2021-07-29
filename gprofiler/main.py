@@ -25,7 +25,7 @@ from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.metadata_type import Metadata
-from gprofiler.metadata.system_metadata import get_hostname, get_run_mode_and_deployment_type, get_static_system_info
+from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
 from gprofiler.profilers.java import JavaProfiler
 from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.php import DEFAULT_PROCESS_FILTER, PHPSpyProfiler
@@ -624,7 +624,7 @@ def verify_preconditions(args):
         print("Could not acquire gProfiler's lock. Is it already running?", file=sys.stderr)
         sys.exit(1)
 
-    if args.log_cpu_usage and get_run_mode_and_deployment_type()[0] not in ("k8s", "container"):
+    if args.log_cpu_usage and get_run_mode() not in ("k8s", "container"):
         # TODO: we *can* move into another cpuacct cgroup, to let this work also when run as a standalone
         # executable.
         print("--log-cpu-usage is available only when run as a container!")

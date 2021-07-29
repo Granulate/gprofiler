@@ -88,7 +88,7 @@ This behavior can be disabled by passing `--dont-send-logs` or the setting envir
 ### Metrics and metadata collection
 By default, the gProfiler agent sends system metrics (CPU and RAM usage) and metadata to the Performance Studio.
 The metadata includes system metadata like the kernel version and CPU count, and cloud metadata like the type of the instance you are running on.
-If the `--upload-results`/`-u` is not enabled, then the metrics and metadata collection is disabled.
+The metrics collection will not be enabled if the `--upload-results`/`-u` flag is not set.
 Otherwise, you can disable metrics and metadata by using the following parameters:
 * Use `--disable-metrics-collection` to disable metrics collection
 * Use `--disable-metadata-collection` to disable metadata collection

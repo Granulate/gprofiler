@@ -1,5 +1,4 @@
 import statistics
-import time
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from threading import Event, RLock, Thread
@@ -71,11 +70,9 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
 
     def _continuously_poll_memory(self, polling_rate_seconds: int):
         while not self._stop_event.is_set():
-            start_time = time.monotonic()
             current_ram_percent = psutil.virtual_memory().percent
             self._mem_percentages.append(current_ram_percent)
-            elapsed = time.monotonic() - start_time
-            self._stop_event.wait(timeout=polling_rate_seconds - elapsed)
+            self._stop_event.wait(timeout=polling_rate_seconds)
 
     def _get_average_memory_utilization(self) -> Optional[float]:
         # Make sure there's only one thread that takes out the values

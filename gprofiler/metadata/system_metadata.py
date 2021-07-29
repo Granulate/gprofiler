@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import distro  # type: ignore
 import psutil
@@ -19,6 +19,12 @@ from gprofiler.utils import run_in_ns, run_process
 
 logger = get_logger_adapter(__name__)
 hostname: Optional[str] = None
+RUN_MODE_TO_DEPLOYMENT_TYPE: Dict[str, str] = {
+    "k8s": "k8s",
+    "container": "containers",
+    "standalone_executable": "instances",
+    "local_python": "instances",
+}
 
 
 def get_libc_version() -> Tuple[str, str]:
@@ -48,18 +54,24 @@ def get_libc_version() -> Tuple[str, str]:
     return "unknown", decode_libc_version(ldd_version)
 
 
-def get_run_mode_and_deployment_type() -> Tuple[str, str]:
+def get_run_mode() -> str:
     if os.getenv("GPROFILER_IN_K8S") is not None:  # set in k8s/gprofiler.yaml
-        return "k8s", "k8s"
+        return "k8s"
     elif os.getenv("GPROFILER_IN_CONTAINER") is not None:  # set by our Dockerfile
-        return "container", "containers"
+        return "container"
     elif os.getenv("STATICX_BUNDLE_DIR") is not None:  # set by staticx
-        return "standalone_executable", "instances"
+        return "standalone_executable"
     else:
-        return "local_python", "instances"
+        return "local_python"
+
+
+def get_deployment_type(run_mode: str) -> str:
+    return RUN_MODE_TO_DEPLOYMENT_TYPE.get(run_mode, "unknown")
 
 
 def get_private_ip() -> str:
+    # Fetches the local IP. Attempts to get it locally. If it fails, it will attempt to fetch it by connecting to
+    # Google's DNS servers (8.8.8.8) and getting the local IP address of the interface it connected with.
     try:
         private_ips = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")]
     except socket.error:
@@ -137,7 +149,8 @@ def get_static_system_info() -> SystemInfo:
     os_name, os_release, os_codename = distribution
     uname = platform.uname()
     cpu_count = os.cpu_count() or 0
-    run_mode, deployment_type = get_run_mode_and_deployment_type()
+    run_mode = get_run_mode()
+    deployment_type = get_deployment_type(run_mode)
     return SystemInfo(
         python_version=sys.version,
         run_mode=run_mode,
