@@ -88,33 +88,43 @@ def get_private_ip() -> str:
 
 
 def get_mac_address() -> str:
-    # This way is used to ensure consistency
+    """
+    Gets the MAC address of the first non-loopback interface.
+    """
 
-    IS_64BIT = sys.maxsize > 2 ** 32
+    assert sys.maxsize > 2 ** 32, "expected to run on 64-bit!"
+    SIZE_OF_STUCT_ifreq = 40  # correct for 64-bit
+
     IFNAMSIZ = 16
     IFF_LOOPBACK = 8
     MAC_BYTES_LEN = 6
     SIZE_OF_SHORT = struct.calcsize('H')
-    SIZE_OF_STUCT_ifreq = 40 if IS_64BIT else 32
-    MAX_BYTE_COUNT = 1024
+    MAX_BYTE_COUNT = 4096
 
-    buf = array.array('B', b'\0' * MAX_BYTE_COUNT)
-    ifc = struct.pack('iL', MAX_BYTE_COUNT, buf.buffer_info()[0])
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
-    outbytes = struct.unpack('iL', fcntl.ioctl(s.fileno(), 0x8912, ifc))[0]  # SIOCGIFCONF
+
+    # run SIOCGIFCONF to get all interface names
+    buf = array.array('B', b'\0' * MAX_BYTE_COUNT)
+    ifconf = struct.pack('iL', MAX_BYTE_COUNT, buf.buffer_info()[0])
+    outbytes = struct.unpack('iL', fcntl.ioctl(s.fileno(), 0x8912, ifconf))[0]  # SIOCGIFCONF
     data = buf.tobytes()[:outbytes]
     for index in range(0, len(data), SIZE_OF_STUCT_ifreq):
         iface = data[index : index + SIZE_OF_STUCT_ifreq]
+
+        # iface is now a struct ifreq which starts with the interface name.
+        # we can use it for further calls.
         res = fcntl.ioctl(s.fileno(), 0x8913, iface)  # SIOCGIFFLAGS
         ifr_flags = struct.unpack(f'{IFNAMSIZ}sH', res[: IFNAMSIZ + SIZE_OF_SHORT])[1]
-        is_loopback = ifr_flags & IFF_LOOPBACK
-        if is_loopback:
+        if ifr_flags & IFF_LOOPBACK:
             continue
+
+        # okay, not loopback, get its MAC address.
         res = fcntl.ioctl(s.fileno(), 0x8927, iface)  # SIOCGIFHWADDR
         address = struct.unpack(f'{IFNAMSIZ}sH{MAC_BYTES_LEN}s', res[: IFNAMSIZ + SIZE_OF_SHORT + MAC_BYTES_LEN])[2]
         mac = struct.unpack(f'{MAC_BYTES_LEN}B', address)
         address = ":".join(['%02X' % i for i in mac])
         return address
+
     return "unknown"
 
 
