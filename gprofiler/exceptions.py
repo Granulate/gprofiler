@@ -46,3 +46,7 @@ class UninitializedStateException(Exception):
 
 class StateAlreadyInitializedException(Exception):
     pass
+
+
+class SystemProfilerInitFailure(Exception):
+    pass

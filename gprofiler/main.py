@@ -21,6 +21,7 @@ from requests import RequestException, Timeout
 from gprofiler import __version__, merge
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
 from gprofiler.docker_client import DockerClient
+from gprofiler.exceptions import SystemProfilerInitFailure
 from gprofiler.gprofiler_types import positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
@@ -101,12 +102,15 @@ class GProfiler:
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
         self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
-        self.system_profiler, self.process_profilers = get_profilers(
-            user_args,
-            storage_dir=self._temp_storage_dir.name,
-            stop_event=self._stop_event,
-        )
-
+        try:
+            self.system_profiler, self.process_profilers = get_profilers(
+                user_args,
+                storage_dir=self._temp_storage_dir.name,
+                stop_event=self._stop_event,
+            )
+        except SystemProfilerInitFailure:
+            logger.exception("System profiler initialization has failed, exiting...")
+            sys.exit(1)
         if include_container_names and profile_api_version != "v1":
             self._docker_client: Optional[DockerClient] = DockerClient()
         else:

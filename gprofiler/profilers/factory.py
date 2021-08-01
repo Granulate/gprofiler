@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any, List, Tuple, Union
 
+from gprofiler.exceptions import SystemProfilerInitFailure
 from gprofiler.log import get_logger_adapter
 from gprofiler.profilers.profiler_base import NoopProfiler
 
@@ -32,6 +33,8 @@ def get_profilers(
                     profiler_kwargs[key] = value
             profiler_instance = profiler_config.profiler_class(**profiler_kwargs)
         except Exception:
+            if profiler_config.profiler_class == SystemProfiler:
+                raise SystemProfilerInitFailure("Could not create the system profiler")
             logger.exception(f"Couldn't create the {profiler_name} profiler, continuing without it")
         else:
             if isinstance(profiler_instance, SystemProfiler):
