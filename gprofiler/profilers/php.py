@@ -59,10 +59,9 @@ class PHPSpyProfiler(ProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
-        php_process_filter: str = DEFAULT_PROCESS_FILTER,
-        **profiler_kwargs,
+        php_process_filter: str,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, **profiler_kwargs)
+        super().__init__(frequency, duration, stop_event, storage_dir)
         self._process: Optional[Popen] = None
         self._output_path = Path(self._storage_dir) / f"phpspy.{random_prefix()}.col"
         self._process_filter = php_process_filter

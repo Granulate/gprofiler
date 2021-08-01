@@ -11,6 +11,7 @@ from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.registry import get_profilers_registry
 
 logger = get_logger_adapter(__name__)
+COMMON_PROFILER_ARGUMENT_NAMES = ["frequency", "duration"]
 
 
 def get_profilers(
@@ -20,13 +21,16 @@ def get_profilers(
     process_profilers_instances: List['ProcessProfilerBase'] = []
     system_profiler: Union['SystemProfiler', 'NoopProfiler'] = NoopProfiler()
     for profiler_name, profiler_config in profilers_registry.items():
-        profiler_mode = user_args.get(f"{profiler_name.lower()}_mode")
+        lower_profiler_name = profiler_name.lower()
+        profiler_mode = user_args.get(f"{lower_profiler_name}_mode")
         if profiler_mode in ("none", "disabled"):
             continue
         try:
-            profiler_instance = profiler_config.profiler_class(
-                **profiler_init_kwargs, **user_args, profiler_mode=profiler_mode
-            )
+            profiler_kwargs = profiler_init_kwargs.copy()
+            for key, value in user_args.items():
+                if key.startswith(lower_profiler_name) or key in COMMON_PROFILER_ARGUMENT_NAMES:
+                    profiler_kwargs[key] = value
+            profiler_instance = profiler_config.profiler_class(**profiler_kwargs)
         except Exception:
             logger.exception(f"Couldn't create the {profiler_name} profiler, continuing without it")
         else:

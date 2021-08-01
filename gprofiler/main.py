@@ -105,7 +105,6 @@ class GProfiler:
             user_args,
             storage_dir=self._temp_storage_dir.name,
             stop_event=self._stop_event,
-            inject_jit=user_args["nodejs_mode"] == "perf",
         )
 
         if include_container_names and profile_api_version != "v1":
@@ -344,7 +343,7 @@ def parse_cmd_args():
     nodejs_options = parser.add_argument_group("NodeJS")
     nodejs_options.add_argument(
         "--nodejs-mode",
-        dest="nodejs_mode",
+        dest="perf_nodejs_mode",
         default="none",
         choices=["perf", "disabled", "none"],
         help="Select the NodeJS profiling mode: perf (run 'perf inject --jit' on perf results, to augment them"
@@ -353,7 +352,7 @@ def parse_cmd_args():
 
     nodejs_options.add_argument(
         "--no-nodejs",
-        dest="nodejs_mode",
+        dest="perf_nodejs_mode",
         action="store_const",
         const="disabled",
         default=True,
@@ -452,13 +451,13 @@ def parse_cmd_args():
     if not args.upload_results and not args.output_dir:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
 
-    if args.dwarf_stack_size > 65528:
+    if args.perf_dwarf_stack_size > 65528:
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
 
     if args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
         parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode 'smart' or 'dwarf'")
 
-    if args.nodejs_mode == "perf" and args.perf_mode not in ("fp", "smart"):
+    if args.perf_nodejs_mode == "perf" and args.perf_mode not in ("fp", "smart"):
         parser.error("--nodejs-mode perf requires --perf-mode 'fp' or 'smart'")
 
     return args

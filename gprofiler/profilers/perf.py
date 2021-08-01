@@ -122,7 +122,7 @@ class PerfProcess:
             " Relevant for --perf-mode dwarf|smart. Default: %(default)s",
             type=int,
             default=8192,
-            dest="dwarf_stack_size",
+            dest="perf_dwarf_stack_size",
         )
     ],
     disablement_help="Disable the global perf of processes,"
@@ -143,11 +143,10 @@ class SystemProfiler(ProfilerBase):
         stop_event: Event,
         storage_dir: str,
         perf_mode: str,
-        dwarf_stack_size: int,
-        inject_jit: bool,
-        **profiler_kwargs,
+        perf_dwarf_stack_size: int,
+        perf_nodejs_mode: str,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, **profiler_kwargs)
+        super().__init__(frequency, duration, stop_event, storage_dir)
         self._perfs: List[PerfProcess] = []
 
         if perf_mode in ("fp", "smart"):
@@ -156,7 +155,7 @@ class SystemProfiler(ProfilerBase):
                 self._stop_event,
                 os.path.join(self._storage_dir, "perf.fp"),
                 False,
-                inject_jit,
+                perf_nodejs_mode == "perf",
                 [],
             )
             self._perfs.append(self._perf_fp)
@@ -170,7 +169,7 @@ class SystemProfiler(ProfilerBase):
                 os.path.join(self._storage_dir, "perf.dwarf"),
                 True,
                 False,  # no inject in dwarf mode, yet
-                ["--call-graph", f"dwarf,{dwarf_stack_size}"],
+                ["--call-graph", f"dwarf,{perf_dwarf_stack_size}"],
             )
             self._perfs.append(self._perf_dwarf)
         else:

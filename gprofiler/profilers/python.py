@@ -120,9 +120,8 @@ class PythonEbpfProfiler(ProfilerBase):
         stop_event: Optional[Event],
         storage_dir: str,
         user_stacks_pages: Optional[int] = None,
-        **profiler_kwargs,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, **profiler_kwargs)
+        super().__init__(frequency, duration, stop_event, storage_dir)
         self.process = None
         self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
         self.user_stacks_pages = user_stacks_pages
@@ -262,7 +261,7 @@ class PythonEbpfProfiler(ProfilerBase):
     " or disabled (no runtime profilers for Python).",
     profiler_arguments=[
         ProfilerArgument(
-            "--pyperf-user-stacks-pages", dest="pyperf_user_stacks_pages", default=None, type=positive_integer
+            "--pyperf-user-stacks-pages", dest="python_pyperf_user_stacks_pages", default=None, type=positive_integer
         )
     ],
 )
@@ -279,21 +278,18 @@ class PythonProfiler(ProfilerInterface):
         stop_event: Event,
         storage_dir: str,
         python_mode: str,
-        pyperf_user_stacks_pages: Optional[int] = None,
-        **profiler_kwargs,
+        python_pyperf_user_stacks_pages: Optional[int],
     ):
         assert python_mode in ("auto", "pyperf", "pyspy"), f"unexpected mode: {python_mode}"
         if python_mode in ("auto", "pyperf"):
             self._ebpf_profiler = self._create_ebpf_profiler(
-                frequency, duration, stop_event, storage_dir, pyperf_user_stacks_pages, **profiler_kwargs
+                frequency, duration, stop_event, storage_dir, python_pyperf_user_stacks_pages
             )
         else:
             self._ebpf_profiler = None
 
         if python_mode in ("auto", "pyspy"):
-            self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(
-                frequency, duration, stop_event, storage_dir, **profiler_kwargs
-            )
+            self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(frequency, duration, stop_event, storage_dir)
         else:
             self._pyspy_profiler = None
 
@@ -304,13 +300,10 @@ class PythonProfiler(ProfilerInterface):
         stop_event: Event,
         storage_dir: str,
         user_stacks_pages: Optional[int],
-        **profiler_kwargs,
     ) -> Optional[PythonEbpfProfiler]:
         try:
             PythonEbpfProfiler.test(storage_dir, stop_event)
-            return PythonEbpfProfiler(
-                frequency, duration, stop_event, storage_dir, user_stacks_pages, **profiler_kwargs
-            )
+            return PythonEbpfProfiler(frequency, duration, stop_event, storage_dir, user_stacks_pages)
         except Exception as e:
             logger.debug(f"eBPF profiler error: {str(e)}")
             logger.info("Python eBPF profiler initialization failed")
