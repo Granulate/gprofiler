@@ -10,7 +10,7 @@ from subprocess import Popen, TimeoutExpired
 from threading import Event
 from typing import List, Optional
 
-from psutil import Process
+from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
 from gprofiler.log import get_logger_adapter
@@ -58,8 +58,11 @@ class PySpyProfiler(ProcessProfilerBase):
         ]
 
     def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
-        logger.info(f"Profiling process {process.pid}", cmdline=process.cmdline(), no_extra_to_server=True)
-        comm = process.name()
+        try:
+            logger.info(f"Profiling process {process.pid}", cmdline=process.cmdline(), no_extra_to_server=True)
+            comm = process.name()
+        except NoSuchProcess:
+            return None
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
         try:
