@@ -26,7 +26,7 @@ def test_java_from_host(
     application_pid: int,
     assert_collapsed,
 ) -> None:
-    with JavaProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
+    with JavaProfiler(1000, 1, Event(), str(tmp_path), "ap") as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
 
@@ -50,7 +50,9 @@ def test_phpspy(
     assert_collapsed,
     runtime: str,
 ) -> None:
-    with PHPSpyProfiler(1000, PHPSPY_DURATION, Event(), str(tmp_path), php_process_filter="php") as profiler:
+    with PHPSpyProfiler(
+        1000, PHPSPY_DURATION, Event(), str(tmp_path), php_process_filter="php", php_mode="phpspy"
+    ) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
 
@@ -63,7 +65,7 @@ def test_rbspy(
     gprofiler_docker_image: Image,
     runtime: str,
 ) -> None:
-    with RbSpyProfiler(1000, 3, Event(), str(tmp_path)) as profiler:
+    with RbSpyProfiler(1000, 3, Event(), str(tmp_path), "rbspy") as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
 

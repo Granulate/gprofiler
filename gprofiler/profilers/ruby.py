@@ -4,7 +4,8 @@
 #
 import os
 from pathlib import Path
-from typing import List
+from threading import Event
+from typing import List, Optional
 
 from psutil import Process
 
@@ -23,6 +24,10 @@ logger = get_logger_adapter(__name__)
 class RbSpyProfiler(ProcessProfilerBase):
     RESOURCE_PATH = "ruby/rbspy"
     MAX_FREQUENCY = 100
+
+    def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str, ruby_mode: str):
+        super().__init__(frequency, duration, stop_event, storage_dir)
+        self._ruby_mode = ruby_mode  # Not currently in use
 
     def _make_command(self, pid: int, output_path: str):
         return [
