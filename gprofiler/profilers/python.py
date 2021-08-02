@@ -57,7 +57,7 @@ class PySpyProfiler(ProcessProfilerBase):
             "--full-filenames",
         ]
 
-    def _profile_process(self, process: Process) -> StackToSampleCount:
+    def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
         logger.info(f"Profiling process {process.pid}", cmdline=process.cmdline(), no_extra_to_server=True)
         comm = process.name()
 
@@ -73,6 +73,14 @@ class PySpyProfiler(ProcessProfilerBase):
             raise StopEventSetException
         except TimeoutExpired:
             logger.error(f"Profiling with py-spy timed out on process {process.pid}")
+            raise
+        except CalledProcessError as e:
+            if (
+                b"Error: Failed to get process executable name. Check that the process is running.\n" in e.stderr
+                and not process.is_running()
+            ):
+                logger.debug(f"Profiled process {process.pid} exited before py-spy could start")
+                return None
             raise
 
         logger.info(f"Finished profiling process {process.pid} with py-spy")
