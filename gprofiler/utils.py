@@ -137,7 +137,23 @@ def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> P
 
     output_files = glob.glob(glob_pattern)
     # All the snapshot samples should be in one file
-    assert len(output_files) == 1, "expected single file but got: " + str(output_files)
+    if len(output_files) != 1:
+        # this can happen if:
+        # * the profiler generating those files is erroneous
+        # * the profiler received many signals (and it generated files based on signals)
+        # * errors in gProfiler led to previous output fails remain not removed
+        # in any case, we remove all old files, and assume the last one (after sorting by timestamp)
+        # is the one we want.
+        logger.warning(
+            f"One output file expected, but found {len(output_files)}."
+            f" Removing all and using the last one. {output_files}"
+        )
+        # timestamp format guarantees alphabetical order == chronological order.
+        output_files.sort()
+        for f in output_files[:-1]:
+            os.unlink(f)
+        output_files = output_files[-1:]
+
     return Path(output_files[0])
 
 
