@@ -249,10 +249,10 @@ class AsyncProfiledProcess:
     default_mode="ap",
     profiler_arguments=[
         ProfilerArgument(
-            "--no-java-async-profiler-buildids",
+            "--java-async-profiler-buildids",
             dest="java_async_profiler_buildids",
-            action="store_false",
-            help="Do not embed buildid+offset in async-profiler native frames (by default, they are added)."
+            action="store_true",
+            help="Embed buildid+offset in async-profiler native frames."
             " The added buildid+offset can be resolved & symbolicated in the Performance Studio."
             " This is useful if debug symbols are unavailable for the relevant DSOs (libjvm, libc, ...).",
         ),
