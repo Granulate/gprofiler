@@ -70,8 +70,8 @@ def get_deployment_type(run_mode: str) -> str:
 
 
 def get_private_ip() -> str:
-    # Fetches the local IP. Attempts to get it locally. If it fails, it will attempt to fetch it by connecting to
-    # Google's DNS servers (8.8.8.8) and getting the local IP address of the interface it connected with.
+    # Fetches the local IP. Attempts to get it locally. If it fails, it will attempt to fetch it by seeing which local
+    # IP is used to connect to Google's DNS servers (8.8.8.8). No packet will be sent either way.
     try:
         private_ips = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")]
     except socket.error:
