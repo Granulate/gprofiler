@@ -56,14 +56,11 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
 
     def start(self):
         assert self._thread is None, "SystemMetricsMonitor is already running"
-        assert (
-            not self._stop_event.is_set()
-        ), "Stop condition is already set (perhaps gProfiler was already stopped?)"
+        assert not self._stop_event.is_set(), "Stop condition is already set (perhaps gProfiler was already stopped?)"
         self._thread = Thread(target=self._continuously_poll_memory, args=(self._polling_rate_seconds,))
         self._thread.start()
 
     def stop(self):
-        self._stop_event.set()
         assert self._thread is not None, "SystemMetricsMonitor is not running"
         self._thread.join(STOP_TIMEOUT_SECONDS)
         if self._thread.is_alive():
