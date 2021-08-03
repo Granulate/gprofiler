@@ -86,7 +86,7 @@ Profiling using eBPF incurs lower overhead & provides kernel stacks. This (curre
 This behavior can be disabled by passing `--dont-send-logs` or the setting environment variable `GPROFILER_DONT_SEND_LOGS=1`.
 
 ### Metrics and metadata collection
-By default, the gProfiler agent sends system metrics (CPU and RAM usage) and metadata to the Performance Studio.
+By default, gProfiler agent sends system metrics (CPU and RAM usage) and metadata to the Performance Studio.
 The metadata includes system metadata like the kernel version and CPU count, and cloud metadata like the type of the instance you are running on.
 The metrics collection will not be enabled if the `--upload-results`/`-u` flag is not set.
 Otherwise, you can disable metrics and metadata by using the following parameters:

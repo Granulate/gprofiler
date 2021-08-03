@@ -154,6 +154,6 @@ def get_static_cloud_instance_metadata() -> Optional[Metadata]:
     formatted_exceptions = ', '.join([repr(exception) for exception in raised_exceptions])
     logger.debug(
         f"Could not get any cloud instance metadata because of the following exceptions: {formatted_exceptions}."
-        " The most likely reason is that the gProfiler is not installed on a an AWS, GCP or Azure instance."
+        " The most likely reason is that gProfiler is not installed on a an AWS, GCP or Azure instance."
     )
     return None
