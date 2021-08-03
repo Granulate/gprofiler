@@ -36,9 +36,12 @@ def get_libc_version() -> Tuple[str, str]:
     def decode_libc_version(version: bytes) -> str:
         return version.decode("utf-8", errors="replace")
 
-    ldd_version = run_process(
-        ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, suppress_log=True, check=False
-    ).stdout
+    try:
+        ldd_version = run_process(
+            ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, suppress_log=True, check=False
+        ).stdout
+    except FileNotFoundError:
+        ldd_version = "ldd not found"
     # catches GLIBC & EGLIBC
     m = re.search(br"GLIBC (.*?)\)", ldd_version)
     if m is not None:
