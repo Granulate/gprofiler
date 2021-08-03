@@ -9,7 +9,7 @@ import psutil
 from gprofiler.exceptions import ThreadStopTimeoutError
 
 DEFAULT_POLLING_INTERVAL_SECONDS = 5
-STOP_TIMEOUT_SECONDS = 30
+STOP_TIMEOUT_SECONDS = 2
 
 
 @dataclass
