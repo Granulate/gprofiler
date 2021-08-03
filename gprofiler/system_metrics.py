@@ -62,6 +62,7 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
 
     def stop(self):
         assert self._thread is not None, "SystemMetricsMonitor is not running"
+        assert self._stop_event.is_set(), "Stop event was not set before stopping the SystemMetricsMonitor"
         self._thread.join(STOP_TIMEOUT_SECONDS)
         if self._thread.is_alive():
             raise ThreadStopTimeoutError("Timed out while waiting for the SystemMetricsMonitor internal thread to stop")
