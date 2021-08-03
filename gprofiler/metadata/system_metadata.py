@@ -221,7 +221,6 @@ def _initialize_system_info():
             logger.exception("Failed to get hostname")
 
         try:
-
             mac_address = get_mac_address()
         except Exception:
             logger.exception("Failed to get MAC address")
