@@ -148,6 +148,7 @@ def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> P
             f"One output file expected, but found {len(output_files)}."
             f" Removing all and using the last one. {output_files}"
         )
+        # timestamp format guarantees alphabetical order == chronological order.
         output_files.sort()
         for f in output_files[:-1]:
             os.unlink(f)
