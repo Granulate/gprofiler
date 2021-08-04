@@ -6,7 +6,7 @@ import datetime
 import gzip
 import json
 from io import BytesIO
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import requests
 from requests import Session
@@ -14,7 +14,10 @@ from requests import Session
 from gprofiler import __version__
 from gprofiler.exceptions import APIError
 from gprofiler.log import get_logger_adapter
-from gprofiler.utils import get_iso8601_format_time
+from gprofiler.utils import get_iso8601_format_time, get_iso8601_format_time_from_epoch_time
+
+if TYPE_CHECKING:
+    from gprofiler.system_metrics import Metrics
 
 logger = get_logger_adapter(__name__)
 
@@ -78,7 +81,13 @@ class APIClient:
             opts["headers"]["Content-type"] = "application/json"
             buffer = BytesIO()
             with gzip.open(buffer, mode="wt", encoding="utf-8") as gzip_file:
-                json.dump(data, gzip_file, ensure_ascii=False)  # type: ignore
+                try:
+                    json.dump(data, gzip_file, ensure_ascii=False)  # type: ignore
+                except TypeError:
+                    # This should only happen while in development, and is used to get a more indicative error.
+                    bad_json = str(data)
+                    logger.exception("Given data is not a valid JSON!", bad_json=bad_json)
+                    raise
             opts["data"] = buffer.getvalue()
 
         opts["params"] = self._get_query_params() + [(k, v) for k, v in params.items()]
@@ -119,6 +128,8 @@ class APIClient:
         profile: str,
         total_samples: int,
         profile_api_version: Optional[str],
+        spawn_time: float,
+        metrics: 'Metrics',
     ) -> Dict:
         return self.post(
             "profiles",
@@ -127,6 +138,9 @@ class APIClient:
                 "end_time": get_iso8601_format_time(end_time),
                 "hostname": self._hostname,
                 "profile": profile,
+                "cpu_avg": metrics.cpu_avg,
+                "mem_avg": metrics.mem_avg,
+                "spawn_time": get_iso8601_format_time_from_epoch_time(spawn_time),
             },
             timeout=self._upload_timeout,
             api_version="v2" if profile_api_version is None else profile_api_version,
