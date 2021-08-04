@@ -49,6 +49,7 @@ For each profiling session (each profiling duration), gProfiler produces outputs
 ### Java profiling options
 
 * `--no-java` or `--java-mode disabled`: Disable profilers for Java.
+* `--no-java-async-profiler-buildids`: Disable embedding of buildid+offset in async-profiler native frames (used when debug symbols are unavailable).
 
 ### Python profiling options
 * `--no-python`: Alias of `--python-mode disabled`.

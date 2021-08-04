@@ -99,6 +99,7 @@ class GProfiler:
         dwarf_stack_size: int,
         python_mode: str,
         pyperf_user_stacks_pages: Optional[int],
+        java_async_profiler_buildids: bool,
         runtimes: Dict[str, bool],
         client: APIClient,
         state: State,
@@ -128,7 +129,13 @@ class GProfiler:
         self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
         self.java_profiler = create_profiler_or_noop(
             self._runtimes,
-            lambda: JavaProfiler(self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name),
+            lambda: JavaProfiler(
+                self._frequency,
+                self._duration,
+                self._stop_event,
+                self._temp_storage_dir.name,
+                java_async_profiler_buildids,
+            ),
             "java",
         )
         self.system_profiler = create_profiler_or_noop(
@@ -671,6 +678,7 @@ def main():
             args.dwarf_stack_size,
             args.python_mode,
             args.pyperf_user_stacks_pages,
+            args.java_async_profiler_buildids,
             runtimes,
             client,
             state,
