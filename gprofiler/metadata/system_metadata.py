@@ -1,4 +1,5 @@
 import array
+import errno
 import fcntl
 import os
 import platform
@@ -149,7 +150,12 @@ class SystemInfo:
 def get_static_system_info() -> SystemInfo:
     hostname, distribution, libc_tuple, mac_address, private_ip = _initialize_system_info()
     clock = getattr(time, "CLOCK_BOOTTIME", time.CLOCK_MONOTONIC)
-    spawn_uptime_ms = time.clock_gettime(clock)
+    try:
+        spawn_uptime_ms = time.clock_gettime(clock)
+    except OSError as error:
+        if error.errno != errno.EINVAL:
+            raise
+        spawn_uptime_ms = time.clock_gettime(time.CLOCK_MONOTONIC)
     libc_type, libc_version = libc_tuple
     os_name, os_release, os_codename = distribution
     uname = platform.uname()
