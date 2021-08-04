@@ -70,21 +70,16 @@ def get_deployment_type(run_mode: str) -> str:
 
 
 def get_private_ip() -> str:
-    # Fetches the local IP. Attempts to get it locally. If it fails, it will attempt to fetch it by seeing which local
-    # IP is used to connect to Google's DNS servers (8.8.8.8). No packet will be sent either way.
+    # Fetches the local IP. Attempts to fetch it by seeing which local IP is used to connect to Google's DNS
+    # servers (8.8.8.8). No packet will be sent.
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        private_ips = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")]
+        s.connect(("8.8.8.8", 53))
+        return s.getsockname()[0]
     except socket.error:
-        # Could happen when a network is unavailable
-        private_ips = []
-    if not private_ips:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            s.connect(("8.8.8.8", 53))
-            private_ips.append(s.getsockname()[0])
-        finally:
-            s.close()
-    return private_ips[0] if private_ips else "unknown"
+        return "unknown"
+    finally:
+        s.close()
 
 
 def get_mac_address() -> str:
