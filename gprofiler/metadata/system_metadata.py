@@ -70,7 +70,7 @@ def get_deployment_type(run_mode: str) -> str:
     return RUN_MODE_TO_DEPLOYMENT_TYPE.get(run_mode, "unknown")
 
 
-def get_private_ip() -> str:
+def get_local_ip() -> str:
     # Fetches the local IP. Attempts to fetch it by seeing which local IP is used to connect to Google's DNS
     # servers (8.8.8.8). No packet will be sent.
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -148,7 +148,7 @@ class SystemInfo:
 
 
 def get_static_system_info() -> SystemInfo:
-    hostname, distribution, libc_tuple, mac_address, private_ip = _initialize_system_info()
+    hostname, distribution, libc_tuple, mac_address, local_ip = _initialize_system_info()
     clock = getattr(time, "CLOCK_BOOTTIME", time.CLOCK_MONOTONIC)
     try:
         spawn_uptime_ms = time.clock_gettime(clock)
@@ -180,7 +180,7 @@ def get_static_system_info() -> SystemInfo:
         hardware_type=uname.machine,
         pid=os.getpid(),
         mac_address=mac_address,
-        private_ip=private_ip,
+        private_ip=local_ip,  # We want to stay consistent with our backend names
         spawn_uptime_ms=spawn_uptime_ms,
     )
 
@@ -197,13 +197,13 @@ def _initialize_system_info():
     distribution = ("unknown", "unknown", "unknown")
     libc_version = ("unknown", "unknown")
     mac_address = "unknown"
-    private_ip = "unknown"
+    local_ip = "unknown"
 
     # move to host mount NS for distro & ldd.
     # now, distro will read the files on host.
     # also move to host UTS NS for the hostname.
     def get_infos():
-        nonlocal distribution, libc_version, mac_address, private_ip
+        nonlocal distribution, libc_version, mac_address, local_ip
         global hostname
 
         try:
@@ -227,10 +227,10 @@ def _initialize_system_info():
             logger.exception("Failed to get MAC address")
 
         try:
-            private_ip = get_private_ip()
+            local_ip = get_local_ip()
         except Exception:
             logger.exception("Failed to get the local IP")
 
     run_in_ns(["mnt", "uts", "net"], get_infos)
 
-    return hostname, distribution, libc_version, mac_address, private_ip
+    return hostname, distribution, libc_version, mac_address, local_ip
