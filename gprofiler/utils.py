@@ -386,7 +386,7 @@ def grab_gprofiler_mutex() -> bool:
     """
     GPROFILER_LOCK = "\x00gprofiler_lock"
 
-    def _take_lock() -> Tuple[bool, Optional[socket.socket]]:  # like Rust's Result :(
+    def _take_lock() -> Tuple[bool, Optional[socket.socket]]:  # like Rust's Result<Option> :(
         s = socket.socket(socket.AF_UNIX)
 
         try:
