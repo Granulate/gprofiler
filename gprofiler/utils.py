@@ -419,7 +419,11 @@ def grab_gprofiler_mutex() -> bool:
         gprofiler_mutex = res[1]
         return True
     else:
-        print("Could not acquire gProfiler's lock. Is it already running?", file=sys.stderr)
+        print(
+            "Could not acquire gProfiler's lock. Is it already running?"
+            " Try 'sudo netstat -xp | grep gprofiler' to see which process holds the lock.",
+            file=sys.stderr,
+        )
         return False
 
 
