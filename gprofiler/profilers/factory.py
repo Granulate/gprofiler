@@ -26,11 +26,12 @@ def get_profilers(
         profiler_mode = user_args.get(f"{lower_profiler_name}_mode")
         if profiler_mode in ("none", "disabled"):
             continue
+
+        profiler_kwargs = profiler_init_kwargs.copy()
+        for key, value in user_args.items():
+            if key.startswith(lower_profiler_name) or key in COMMON_PROFILER_ARGUMENT_NAMES:
+                profiler_kwargs[key] = value
         try:
-            profiler_kwargs = profiler_init_kwargs.copy()
-            for key, value in user_args.items():
-                if key.startswith(lower_profiler_name) or key in COMMON_PROFILER_ARGUMENT_NAMES:
-                    profiler_kwargs[key] = value
             profiler_instance = profiler_config.profiler_class(**profiler_kwargs)
         except Exception:
             if profiler_config.profiler_class is SystemProfiler:
