@@ -41,7 +41,7 @@ def get_libc_version() -> Tuple[str, str]:
             ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, suppress_log=True, check=False
         ).stdout
     except FileNotFoundError:
-        ldd_version = "ldd not found"
+        ldd_version = b"ldd not found"
     # catches GLIBC & EGLIBC
     m = re.search(br"GLIBC (.*?)\)", ldd_version)
     if m is not None:
