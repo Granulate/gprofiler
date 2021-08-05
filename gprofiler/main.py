@@ -13,7 +13,7 @@ import sys
 import time
 from pathlib import Path
 from threading import Event
-from typing import Callable, Dict, Optional, Union
+from typing import Iterable, Optional
 
 import configargparse
 from requests import RequestException, Timeout
@@ -21,21 +21,18 @@ from requests import RequestException, Timeout
 from gprofiler import __version__, merge
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
 from gprofiler.docker_client import DockerClient
+from gprofiler.exceptions import SystemProfilerInitFailure
+from gprofiler.gprofiler_types import UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
-from gprofiler.profilers.java import JavaProfiler
-from gprofiler.profilers.perf import SystemProfiler
-from gprofiler.profilers.php import DEFAULT_PROCESS_FILTER, PHPSpyProfiler
-from gprofiler.profilers.profiler_base import NoopProfiler
-from gprofiler.profilers.python import PythonProfiler
+from gprofiler.profilers.factory import get_profilers
+from gprofiler.profilers.profiler_base import NoopProfiler, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
-from gprofiler.profilers.ruby import RbSpyProfiler
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
-from gprofiler.types import positive_integer
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     CpuUsageLogger,
@@ -75,49 +72,24 @@ def sigint_handler(sig, frame):
         raise KeyboardInterrupt
 
 
-def create_profiler_or_noop(runtimes: Dict[str, bool], profiler_constructor_callback: Callable, runtime_name: str):
-    # disabled?
-    if not runtimes[runtime_name]:
-        return NoopProfiler()
-
-    try:
-        return profiler_constructor_callback()
-    except Exception:
-        logger.exception(f"Couldn't create {runtime_name} profiler, continuing without this runtime profiler")
-        return NoopProfiler()
-
-
 class GProfiler:
     def __init__(
         self,
-        frequency: int,
-        duration: int,
         output_dir: str,
         flamegraph: bool,
         rotating_output: bool,
-        perf_mode: str,
-        nodejs_mode: str,
-        dwarf_stack_size: int,
-        python_mode: str,
-        pyperf_user_stacks_pages: Optional[int],
-        java_async_profiler_buildids: bool,
-        runtimes: Dict[str, bool],
         client: APIClient,
         collect_metrics: bool,
         collect_metadata: bool,
         state: State,
         cpu_usage_logger: CpuUsageLogger,
-        run_args: Dict[str, Union[bool, str, int]],
+        user_args: UserArgs,
         include_container_names=True,
         profile_api_version: Optional[str] = None,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
-        php_process_filter: str = DEFAULT_PROCESS_FILTER,
     ):
-        self._frequency = frequency
-        self._duration = duration
         self._output_dir = output_dir
         self._flamegraph = flamegraph
-        self._runtimes = runtimes
         self._rotating_output = rotating_output
         self._client = client
         self._state = state
@@ -129,7 +101,7 @@ class GProfiler:
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
         if collect_metadata and self._client is not None:
-            self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=run_args)
+            self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
         # 1. accessible by everyone - for profilers that run code in target processes, like async-profiler
@@ -137,54 +109,15 @@ class GProfiler:
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
         self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
-        self.java_profiler = create_profiler_or_noop(
-            self._runtimes,
-            lambda: JavaProfiler(
-                self._frequency,
-                self._duration,
-                self._stop_event,
-                self._temp_storage_dir.name,
-                java_async_profiler_buildids,
-            ),
-            "java",
-        )
-        self.system_profiler = create_profiler_or_noop(
-            self._runtimes,
-            lambda: SystemProfiler(
-                self._frequency,
-                self._duration,
-                self._stop_event,
-                self._temp_storage_dir.name,
-                perf_mode,
-                nodejs_mode == "perf",
-                dwarf_stack_size,
-            ),
-            "perf",
-        )
-        self.python_profiler = create_profiler_or_noop(
-            self._runtimes,
-            lambda: PythonProfiler(
-                self._frequency,
-                self._duration,
-                self._stop_event,
-                self._temp_storage_dir.name,
-                python_mode,
-                pyperf_user_stacks_pages,
-            ),
-            "python",
-        )
-        self.php_profiler = create_profiler_or_noop(
-            self._runtimes,
-            lambda: PHPSpyProfiler(
-                self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name, php_process_filter
-            ),
-            "php",
-        )
-        self.ruby_profiler = create_profiler_or_noop(
-            self._runtimes,
-            lambda: RbSpyProfiler(self._frequency, self._duration, self._stop_event, self._temp_storage_dir.name),
-            "ruby",
-        )
+        try:
+            self.system_profiler, self.process_profilers = get_profilers(
+                user_args,
+                storage_dir=self._temp_storage_dir.name,
+                stop_event=self._stop_event,
+            )
+        except SystemProfilerInitFailure:
+            logger.exception("System profiler initialization has failed, exiting...")
+            sys.exit(1)
         if include_container_names and profile_api_version != "v1":
             self._docker_client: Optional[DockerClient] = DockerClient()
         else:
@@ -194,6 +127,11 @@ class GProfiler:
             self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
+
+    @property
+    def all_profilers(self) -> Iterable[ProfilerInterface]:
+        yield from self.process_profilers
+        yield self.system_profiler
 
     def __enter__(self):
         self.start()
@@ -266,13 +204,7 @@ class GProfiler:
         self._stop_event.clear()
         self._system_metrics_monitor.start()
 
-        for prof in (
-            self.python_profiler,
-            self.java_profiler,
-            self.system_profiler,
-            self.php_profiler,
-            self.ruby_profiler,
-        ):
+        for prof in self.all_profilers:
             prof.start()
 
     def stop(self):
@@ -280,32 +212,22 @@ class GProfiler:
         self._stop_event.set()
         self._system_metrics_monitor.stop()
 
-        for prof in (
-            self.python_profiler,
-            self.java_profiler,
-            self.system_profiler,
-            self.php_profiler,
-            self.ruby_profiler,
-        ):
+        for prof in self.all_profilers:
             prof.stop()
 
     def _snapshot(self):
         local_start_time = datetime.datetime.utcnow()
         monotonic_start_time = time.monotonic()
-
-        java_future = self._executor.submit(self.java_profiler.snapshot)
-        java_future.name = "java"
-        python_future = self._executor.submit(self.python_profiler.snapshot)
-        python_future.name = "python"
-        php_future = self._executor.submit(self.php_profiler.snapshot)
-        php_future.name = "php"
-        ruby_future = self._executor.submit(self.ruby_profiler.snapshot)
-        ruby_future.name = "ruby"
+        process_profilers_futures = []
+        for prof in self.process_profilers:
+            prof_future = self._executor.submit(prof.snapshot)
+            prof_future.name = prof.name
+            process_profilers_futures.append(prof_future)
         system_future = self._executor.submit(self.system_profiler.snapshot)
         system_future.name = "system"
 
         process_profiles: ProcessToStackSampleCounters = {}
-        for future in concurrent.futures.as_completed([java_future, python_future, php_future, ruby_future]):
+        for future in concurrent.futures.as_completed(process_profilers_futures):
             # if either of these fail - log it, and continue.
             try:
                 process_profiles.update(future.result())
@@ -326,17 +248,18 @@ class GProfiler:
             if self._collect_metadata and self._client
             else {"hostname": get_hostname()}
         )
-        if self._runtimes["perf"]:
-            merged_result, total_samples = merge.merge_profiles(
-                system_result,
+        if NoopProfiler.is_noop_profiler(self.system_profiler):
+            assert system_result == {}, system_result  # should be empty!
+            merged_result, total_samples = merge.concatenate_profiles(
                 process_profiles,
                 self._docker_client,
                 self._profile_api_version != "v1",
                 metadata,
             )
+
         else:
-            assert system_result == {}, system_result  # should be empty!
-            merged_result, total_samples = merge.concatenate_profiles(
+            merged_result, total_samples = merge.merge_profiles(
+                system_result,
                 process_profiles,
                 self._docker_client,
                 self._profile_api_version != "v1",
@@ -452,10 +375,10 @@ def parse_cmd_args():
     nodejs_options.add_argument(
         "--nodejs-mode",
         dest="nodejs_mode",
-        default="none",
+        default="disabled",
         choices=["perf", "disabled", "none"],
         help="Select the NodeJS profiling mode: perf (run 'perf inject --jit' on perf results, to augment them"
-        " with jitdump files of NodeJS processes, if present) or none (no runtime-specific profilers for NodeJS)",
+        " with jitdump files of NodeJS processes, if present) or disabled (no runtime-specific profilers for NodeJS)",
     )
 
     nodejs_options.add_argument(
@@ -566,6 +489,8 @@ def parse_cmd_args():
 
     args = parser.parse_args()
 
+    args.perf_inject = args.nodejs_mode == "perf"
+
     if args.upload_results:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
@@ -575,7 +500,7 @@ def parse_cmd_args():
     if not args.upload_results and not args.output_dir:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
 
-    if args.dwarf_stack_size > 65528:
+    if args.perf_dwarf_stack_size > 65528:
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
 
     if args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
@@ -721,33 +646,19 @@ def main():
         if client is not None and remote_logs_handler is not None:
             remote_logs_handler.init_api_client(client)
 
-        runtimes = {
-            profiler_name.lower(): getattr(args, f"{profiler_name.lower()}_mode") not in ["none", "disabled"]
-            for profiler_name in get_profilers_registry()
-        }
         gprofiler = GProfiler(
-            args.frequency,
-            args.duration,
             args.output_dir,
             args.flamegraph,
             args.rotating_output,
-            args.perf_mode,
-            args.nodejs_mode,
-            args.dwarf_stack_size,
-            args.python_mode,
-            args.pyperf_user_stacks_pages,
-            args.java_async_profiler_buildids,
-            runtimes,
             client,
             args.collect_metrics,
             args.collect_metadata,
             state,
             cpu_usage_logger,
-            args.__dict__ if args.collect_metadata else None,
+            args.__dict__,
             not args.disable_container_names,
             args.profile_api_version,
             remote_logs_handler,
-            args.php_process_filter,
         )
         logger.info("gProfiler initialized and ready to start profiling")
         if args.continuous:

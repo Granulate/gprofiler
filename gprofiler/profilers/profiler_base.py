@@ -10,8 +10,8 @@ from typing import List, Optional
 from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import StopEventSetException
+from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.log import get_logger_adapter
-from gprofiler.types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.utils import limit_frequency
 
 logger = get_logger_adapter(__name__)
@@ -21,6 +21,8 @@ class ProfilerInterface:
     """
     Interface class for all profilers
     """
+
+    name: str
 
     def start(self) -> None:
         pass
@@ -50,13 +52,7 @@ class ProfilerBase(ProfilerInterface):
     MAX_FREQUENCY: Optional[int] = None
     MIN_DURATION: Optional[int] = None
 
-    def __init__(
-        self,
-        frequency: int,
-        duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
-    ):
+    def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str):
         self._frequency = limit_frequency(self.MAX_FREQUENCY, frequency, self.__class__.__name__, logger)
         if self.MIN_DURATION is not None and duration < self.MIN_DURATION:
             raise ValueError(
@@ -79,6 +75,10 @@ class NoopProfiler(ProfilerInterface):
 
     def snapshot(self) -> ProcessToStackSampleCounters:
         return {}
+
+    @classmethod
+    def is_noop_profiler(cls, profile_instance: ProfilerInterface) -> bool:
+        return isinstance(profile_instance, cls)
 
 
 class ProcessProfilerBase(ProfilerBase):

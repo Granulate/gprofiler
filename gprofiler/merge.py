@@ -11,9 +11,9 @@ from pathlib import Path
 from typing import Iterable, Optional, Tuple
 
 from gprofiler.docker_client import DockerClient
+from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.metadata_type import Metadata
-from gprofiler.types import ProcessToStackSampleCounters, StackToSampleCount
 
 logger = get_logger_adapter(__name__)
 

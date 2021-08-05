@@ -55,3 +55,7 @@ class BadResponseCode(Exception):
 
 class ThreadStopTimeoutError(Exception):
     pass
+
+
+class SystemProfilerInitFailure(Exception):
+    pass

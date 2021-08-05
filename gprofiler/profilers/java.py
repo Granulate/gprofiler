@@ -14,11 +14,11 @@ import psutil
 from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError, StopEventSetException
+from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.types import StackToSampleCount
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     get_process_nspid,
@@ -261,12 +261,21 @@ class AsyncProfiledProcess:
 class JavaProfiler(ProcessProfilerBase):
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
 
-    def __init__(self, frequency: int, duration: int, stop_event: Event, storage_dir: str, buildids: bool):
+    def __init__(
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Event,
+        storage_dir: str,
+        java_async_profiler_buildids: bool,
+        java_mode: str,
+    ):
+        assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
         super().__init__(frequency, duration, stop_event, storage_dir)
 
         # async-profiler accepts interval between samples (nanoseconds)
         self._interval = int((1 / frequency) * 1000_000_000)
-        self._buildids = buildids
+        self._buildids = java_async_profiler_buildids
 
     def _is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)

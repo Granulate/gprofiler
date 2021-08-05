@@ -36,7 +36,7 @@ def test_python_select_by_libpython(
     (for example, uwsgi). We expect to select these because they have "libpython" in their "/proc/pid/maps".
     This test runs a Python named "shmython".
     """
-    with PythonProfiler(1000, 1, Event(), str(tmp_path), "pyspy") as profiler:
+    with PythonProfiler(1000, 1, Event(), str(tmp_path), "pyspy", None) as profiler:
         process_collapsed = profiler.snapshot()
     collapsed = process_collapsed.get(application_docker_container.attrs["State"]["Pid"])
     assert_collapsed(collapsed)

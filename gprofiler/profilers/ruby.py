@@ -4,16 +4,17 @@
 #
 import os
 from pathlib import Path
-from typing import List
+from threading import Event
+from typing import List, Optional
 
 from psutil import Process
 
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
+from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_and_remove_one_collapsed
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
-from gprofiler.types import StackToSampleCount
 from gprofiler.utils import pgrep_maps, random_prefix, resource_path, run_process
 
 logger = get_logger_adapter(__name__)
@@ -23,6 +24,10 @@ logger = get_logger_adapter(__name__)
 class RbSpyProfiler(ProcessProfilerBase):
     RESOURCE_PATH = "ruby/rbspy"
     MAX_FREQUENCY = 100
+
+    def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str, ruby_mode: str):
+        super().__init__(frequency, duration, stop_event, storage_dir)
+        assert ruby_mode == "rbspy", "Ruby profiler should not be initialized, wrong ruby_mode value given"
 
     def _make_command(self, pid: int, output_path: str):
         return [

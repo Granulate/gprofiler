@@ -13,11 +13,11 @@ from typing import List, Optional
 from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
+from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, positive_integer
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_and_remove_one_collapsed, parse_many_collapsed
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.types import ProcessToStackSampleCounters, StackToSampleCount, positive_integer
 from gprofiler.utils import (
     pgrep_maps,
     poll_process,
@@ -284,7 +284,7 @@ class PythonEbpfProfiler(ProfilerBase):
     " or disabled (no runtime profilers for Python).",
     profiler_arguments=[
         ProfilerArgument(
-            "--pyperf-user-stacks-pages", dest="pyperf_user_stacks_pages", default=None, type=positive_integer
+            "--pyperf-user-stacks-pages", dest="python_pyperf_user_stacks_pages", default=None, type=positive_integer
         )
     ],
 )
@@ -301,12 +301,12 @@ class PythonProfiler(ProfilerInterface):
         stop_event: Event,
         storage_dir: str,
         python_mode: str,
-        pyperf_user_stacks_pages: Optional[int] = None,
+        python_pyperf_user_stacks_pages: Optional[int],
     ):
         assert python_mode in ("auto", "pyperf", "pyspy"), f"unexpected mode: {python_mode}"
         if python_mode in ("auto", "pyperf"):
             self._ebpf_profiler = self._create_ebpf_profiler(
-                frequency, duration, stop_event, storage_dir, pyperf_user_stacks_pages
+                frequency, duration, stop_event, storage_dir, python_pyperf_user_stacks_pages
             )
         else:
             self._ebpf_profiler = None
@@ -317,7 +317,12 @@ class PythonProfiler(ProfilerInterface):
             self._pyspy_profiler = None
 
     def _create_ebpf_profiler(
-        self, frequency: int, duration: int, stop_event: Event, storage_dir: str, user_stacks_pages: Optional[int]
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Event,
+        storage_dir: str,
+        user_stacks_pages: Optional[int],
     ) -> Optional[PythonEbpfProfiler]:
         try:
             PythonEbpfProfiler.test(storage_dir, stop_event)

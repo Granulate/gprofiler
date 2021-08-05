@@ -1,13 +1,13 @@
 import datetime
-from typing import Dict, Union
 
 from gprofiler import __version__
+from gprofiler.gprofiler_types import UserArgs
 from gprofiler.metadata.cloud_metadata import get_static_cloud_instance_metadata
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.metadata.system_metadata import get_static_system_info
 
 
-def get_static_metadata(spawn_time: float, run_args: Dict[str, Union[bool, str, int]] = None) -> Metadata:
+def get_static_metadata(spawn_time: float, run_args: UserArgs = None) -> Metadata:
     formatted_spawn_time = datetime.datetime.utcfromtimestamp(spawn_time).replace(microsecond=0).isoformat()
     static_system_metadata = get_static_system_info()
     cloud_metadata = get_static_cloud_instance_metadata()
