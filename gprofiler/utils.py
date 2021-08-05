@@ -22,7 +22,7 @@ from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
-from typing import Callable, List, Optional, Union
+from typing import Callable, List, Optional, TypeVar, Union
 
 import importlib_resources
 import psutil
@@ -35,6 +35,8 @@ from gprofiler.exceptions import (
     StopEventSetException,
 )
 from gprofiler.log import get_logger_adapter
+
+T = TypeVar("T")
 
 logger = get_logger_adapter(__name__)
 
@@ -327,7 +329,7 @@ def assert_program_installed(program: str):
         raise ProgramMissingException(program)
 
 
-def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int = 1) -> None:
+def run_in_ns(nstypes: List[str], callback: Callable[[], T], target_pid: int = 1) -> Optional[T]:
     """
     Runs a callback in a new thread, switching to a set of the namespaces of a target process before
     doing so.
@@ -343,6 +345,8 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
 
     # make sure "mnt" is last, once we change it our /proc is gone
     nstypes = sorted(nstypes, key=lambda ns: 1 if ns == "mnt" else 0)
+
+    ret: Optional[T] = None
 
     def _switch_and_run():
         libc = ctypes.CDLL("libc.so.6")
@@ -361,11 +365,14 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
                     if libc.setns(nsf.fileno(), flag) != 0:
                         raise ValueError(f"Failed to setns({nstype}) (to pid {target_pid})")
 
-        callback()
+        nonlocal ret
+        ret = callback()
 
     t = Thread(target=_switch_and_run)
     t.start()
     t.join()
+
+    return ret
 
 
 def grab_gprofiler_mutex() -> bool:
