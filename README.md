@@ -49,6 +49,7 @@ For each profiling session (each profiling duration), gProfiler produces outputs
 ### Java profiling options
 
 * `--no-java` or `--java-mode disabled`: Disable profilers for Java.
+* `--no-java-async-profiler-buildids`: Disable embedding of buildid+offset in async-profiler native frames (used when debug symbols are unavailable).
 
 ### Python profiling options
 * `--no-python`: Alias of `--python-mode disabled`.
@@ -84,6 +85,14 @@ Profiling using eBPF incurs lower overhead & provides kernel stacks. This (curre
 ### Sending logs to server
 **By default, gProfiler sends logs to Granulate Performance Studio** (when using `--upload-results`/`-u` flag)
 This behavior can be disabled by passing `--dont-send-logs` or the setting environment variable `GPROFILER_DONT_SEND_LOGS=1`.
+
+### Metrics and metadata collection
+By default, gProfiler agent sends system metrics (CPU and RAM usage) and metadata to the Performance Studio.
+The metadata includes system metadata like the kernel version and CPU count, and cloud metadata like the type of the instance you are running on.
+The metrics collection will not be enabled if the `--upload-results`/`-u` flag is not set.
+Otherwise, you can disable metrics and metadata by using the following parameters:
+* Use `--disable-metrics-collection` to disable metrics collection
+* Use `--disable-metadata-collection` to disable metadata collection
 
 ### Continuous mode
 gProfiler can be run in a continuous mode, profiling periodically, using the `--continuous`/`-c` flag.

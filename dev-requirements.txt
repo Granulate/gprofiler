@@ -4,3 +4,4 @@ black==21.5b2
 mypy==0.901
 isort==5.8.0
 types-requests==0.1.9
+types-dataclasses==0.1.5

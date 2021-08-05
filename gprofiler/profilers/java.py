@@ -18,7 +18,7 @@ from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
-from gprofiler.profilers.registry import register_profiler
+from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     get_process_nspid,
@@ -71,7 +71,7 @@ class AsyncProfiledProcess:
     OUTPUT_FORMAT = "collapsed"
     OUTPUTS_MODE = 0o622  # readable by root, writable by all
 
-    def __init__(self, process: Process, storage_dir: str):
+    def __init__(self, process: Process, storage_dir: str, buildids: bool):
         self.process = process
         self._process_root = f"/proc/{process.pid}/root"
         # not using storage_dir for AP itself on purpose: this path should remain constant for the lifetime
@@ -95,6 +95,8 @@ class AsyncProfiledProcess:
         self._output_path_process = remove_prefix(self._output_path_host, self._process_root)
         self._log_path_host = os.path.join(self._storage_dir_host, f"async-profiler-{self.process.pid}.log")
         self._log_path_process = remove_prefix(self._log_path_host, self._process_root)
+
+        self._buildids = buildids
 
     def __enter__(self):
         os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
@@ -176,7 +178,8 @@ class AsyncProfiledProcess:
     def _get_start_cmd(self, interval: int) -> List[str]:
         return self._get_base_cmd() + [
             f"start,event={self.AP_EVENT_TYPE},file={self._output_path_process},{self.OUTPUT_FORMAT},"
-            f"{self.FORMAT_PARAMS},interval={interval},framebuf=2000000,log={self._log_path_process}",
+            f"{self.FORMAT_PARAMS},interval={interval},framebuf=2000000,log={self._log_path_process}"
+            f"{',buildids' if self._buildids else ''}",
         ]
 
     def _get_stop_cmd(self, with_output: bool) -> List[str]:
@@ -240,16 +243,33 @@ class AsyncProfiledProcess:
             raise
 
 
-@register_profiler("Java", possible_modes=["ap", "disabled"], default_mode="ap")
+@register_profiler(
+    "Java",
+    possible_modes=["ap", "disabled"],
+    default_mode="ap",
+    profiler_arguments=[
+        ProfilerArgument(
+            "--java-async-profiler-buildids",
+            dest="java_async_profiler_buildids",
+            action="store_true",
+            help="Embed buildid+offset in async-profiler native frames."
+            " The added buildid+offset can be resolved & symbolicated in the Performance Studio."
+            " This is useful if debug symbols are unavailable for the relevant DSOs (libjvm, libc, ...).",
+        ),
+    ],
+)
 class JavaProfiler(ProcessProfilerBase):
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
 
-    def __init__(self, frequency: int, duration: int, stop_event: Event, storage_dir: str, java_mode: str):
+    def __init__(
+        self, frequency: int, duration: int, stop_event: Event, storage_dir: str, buildids: bool, java_mode: str
+    ):
         self._java_mode = java_mode  # Not currently in use
         super().__init__(frequency, duration, stop_event, storage_dir)
 
         # async-profiler accepts interval between samples (nanoseconds)
         self._interval = int((1 / frequency) * 1000_000_000)
+        self._buildids = buildids
 
     def _is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -306,7 +326,7 @@ class JavaProfiler(ProcessProfilerBase):
                 logger.warning(f"Process {process.pid} running unsupported Java version, skipping...")
                 return None
 
-        with AsyncProfiledProcess(process, self._storage_dir) as ap_proc:
+        with AsyncProfiledProcess(process, self._storage_dir, self._buildids) as ap_proc:
             return self._profile_ap_process(ap_proc)
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[StackToSampleCount]:

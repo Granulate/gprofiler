@@ -243,8 +243,11 @@ class PythonEbpfProfiler(ProfilerBase):
         if self._stop_event.wait(self._duration):
             raise StopEventSetException()
         collapsed_path = self._dump()
-        collapsed_text = collapsed_path.read_text()
-        collapsed_path.unlink()
+        try:
+            collapsed_text = collapsed_path.read_text()
+        finally:
+            # always remove, even if we get read/decode errors
+            collapsed_path.unlink()
         return parse_many_collapsed(collapsed_text)
 
     def _terminate(self) -> Optional[int]:

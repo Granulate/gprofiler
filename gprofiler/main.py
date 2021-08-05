@@ -25,22 +25,23 @@ from gprofiler.exceptions import SystemProfilerInitFailure
 from gprofiler.gprofiler_types import positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
+from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
+from gprofiler.metadata.metadata_type import Metadata
+from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.state import State, init_state
+from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     CpuUsageLogger,
     TemporaryDirectoryWithMode,
     atomically_symlink,
-    get_hostname,
     get_iso8601_format_time,
-    get_run_mode,
     grab_gprofiler_mutex,
     is_root,
     is_running_in_init_pid,
-    log_system_info,
     reset_umask,
     resource_path,
     run_process,
@@ -80,6 +81,8 @@ class GProfiler:
         flamegraph: bool,
         rotating_output: bool,
         client: APIClient,
+        collect_metrics: bool,
+        collect_metadata: bool,
         state: State,
         cpu_usage_logger: CpuUsageLogger,
         user_args: UserArgs,
@@ -94,7 +97,13 @@ class GProfiler:
         self._state = state
         self._remote_logs_handler = remote_logs_handler
         self._profile_api_version = profile_api_version
+        self._collect_metrics = collect_metrics
+        self._collect_metadata = collect_metadata
         self._stop_event = Event()
+        self._static_metadata: Optional[Metadata] = None
+        self._spawn_time = time.time()
+        if collect_metadata and self._client is not None:
+            self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
         # 1. accessible by everyone - for profilers that run code in target processes, like async-profiler
@@ -116,6 +125,10 @@ class GProfiler:
         else:
             self._docker_client = None
         self._cpu_usage_logger = cpu_usage_logger
+        if collect_metrics:
+            self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
+        else:
+            self._system_metrics_monitor = NoopSystemMetricsMonitor()
 
     @property
     def all_profilers(self) -> Iterable[ProfilerInterface]:
@@ -191,6 +204,7 @@ class GProfiler:
 
     def start(self):
         self._stop_event.clear()
+        self._system_metrics_monitor.start()
 
         for prof in self.all_profilers:
             prof.start()
@@ -198,6 +212,8 @@ class GProfiler:
     def stop(self):
         logger.info("Stopping ...")
         self._stop_event.set()
+        self._system_metrics_monitor.stop()
+
         for prof in self.all_profilers:
             prof.stop()
 
@@ -229,13 +245,18 @@ class GProfiler:
                 "Running perf failed; consider running gProfiler with '--perf-mode disabled' to avoid using perf"
             )
             raise
-
+        metadata = (
+            get_current_metadata(self._static_metadata)
+            if self._collect_metadata and self._client
+            else {"hostname": get_hostname()}
+        )
         if NoopProfiler.is_noop_profiler(self.system_profiler):
             assert system_result == {}, system_result  # should be empty!
             merged_result, total_samples = merge.concatenate_profiles(
                 process_profiles,
                 self._docker_client,
                 self._profile_api_version != "v1",
+                metadata,
             )
 
         else:
@@ -244,15 +265,23 @@ class GProfiler:
                 process_profiles,
                 self._docker_client,
                 self._profile_api_version != "v1",
+                metadata,
             )
 
         if self._output_dir:
             self._generate_output_files(merged_result, local_start_time, local_end_time)
 
         if self._client:
+            metrics = self._system_metrics_monitor.get_metrics()
             try:
                 self._client.submit_profile(
-                    local_start_time, local_end_time, merged_result, total_samples, self._profile_api_version
+                    local_start_time,
+                    local_end_time,
+                    merged_result,
+                    total_samples,
+                    self._profile_api_version,
+                    self._spawn_time,
+                    metrics,
                 )
             except Timeout:
                 logger.error("Upload of profile to server timed out.")
@@ -444,6 +473,22 @@ def parse_cmd_args():
         help="Disable host PID NS check on startup",
     )
 
+    parser.add_argument(
+        "--disable-metrics-collection",
+        action="store_false",
+        default=True,
+        dest="collect_metrics",
+        help="Disable sending system metrics to the Performance Studio",
+    )
+
+    parser.add_argument(
+        "--disable-metadata-collection",
+        action="store_false",
+        default=True,
+        dest="collect_metadata",
+        help="Disable sending system and cloud metadata to the Performance Studio",
+    )
+
     args = parser.parse_args()
 
     if args.upload_results:
@@ -529,6 +574,19 @@ def setup_signals() -> None:
     signal.signal(signal.SIGTERM, sigint_handler)
 
 
+def log_system_info() -> None:
+    system_info = get_static_system_info()
+    logger.info(f"gProfiler Python version: {system_info.python_version}")
+    logger.info(f"gProfiler deployment mode: {system_info.run_mode}")
+    logger.info(f"Kernel uname release: {system_info.kernel_release}")
+    logger.info(f"Kernel uname version: {system_info.kernel_version}")
+    logger.info(f"Total CPUs: {system_info.processors}")
+    logger.info(f"Total RAM: {system_info.memory_capacity_mb / (1 << 20):.2f} GB")
+    logger.info(f"Linux distribution: {system_info.os_name} | {system_info.os_release} | {system_info.os_codename}")
+    logger.info(f"libc version: {system_info.libc_type}-{system_info.libc_version}")
+    logger.info(f"Hostname: {system_info.hostname}")
+
+
 def main():
     args = parse_cmd_args()
     verify_preconditions(args)
@@ -593,6 +651,8 @@ def main():
             args.flamegraph,
             args.rotating_output,
             client,
+            args.collect_metrics,
+            args.collect_metadata,
             state,
             cpu_usage_logger,
             args.__dict__,
@@ -601,7 +661,6 @@ def main():
             remote_logs_handler,
         )
         logger.info("gProfiler initialized and ready to start profiling")
-
         if args.continuous:
             gprofiler.run_continuous()
         else:

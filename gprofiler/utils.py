@@ -9,7 +9,6 @@ import fcntl
 import glob
 import logging
 import os
-import platform
 import random
 import re
 import shutil
@@ -17,16 +16,14 @@ import signal
 import socket
 import string
 import subprocess
-import sys
 import time
 from functools import lru_cache
 from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Union
 
-import distro  # type: ignore
 import importlib_resources
 import psutil
 from psutil import Process
@@ -44,7 +41,6 @@ logger = get_logger_adapter(__name__)
 TEMPORARY_STORAGE_PATH = "/tmp/gprofiler_tmp"
 
 gprofiler_mutex: Optional[socket.socket]
-hostname: Optional[str] = None
 
 
 @lru_cache(maxsize=None)
@@ -137,7 +133,23 @@ def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> P
 
     output_files = glob.glob(glob_pattern)
     # All the snapshot samples should be in one file
-    assert len(output_files) == 1, "expected single file but got: " + str(output_files)
+    if len(output_files) != 1:
+        # this can happen if:
+        # * the profiler generating those files is erroneous
+        # * the profiler received many signals (and it generated files based on signals)
+        # * errors in gProfiler led to previous output fails remain not removed
+        # in any case, we remove all old files, and assume the last one (after sorting by timestamp)
+        # is the one we want.
+        logger.warning(
+            f"One output file expected, but found {len(output_files)}."
+            f" Removing all and using the last one. {output_files}"
+        )
+        # timestamp format guarantees alphabetical order == chronological order.
+        output_files.sort()
+        for f in output_files[:-1]:
+            os.unlink(f)
+        output_files = output_files[-1:]
+
     return Path(output_files[0])
 
 
@@ -240,6 +252,10 @@ def pgrep_maps(match: str) -> List[Process]:
     return processes
 
 
+def get_iso8601_format_time_from_epoch_time(time: float) -> str:
+    return get_iso8601_format_time(datetime.datetime.utcfromtimestamp(time))
+
+
 def get_iso8601_format_time(time: datetime.datetime) -> str:
     return time.replace(microsecond=0).isoformat()
 
@@ -311,41 +327,6 @@ def assert_program_installed(program: str):
         raise ProgramMissingException(program)
 
 
-def get_libc_version() -> Tuple[str, bytes]:
-    # platform.libc_ver fails for musl, sadly (produces empty results).
-    # so we'll run "ldd --version" and extract the version string from it.
-    # not passing "encoding"/"text" - this runs in a different mount namespace, and Python fails to
-    # load the files it needs for those encodings (getting LookupError: unknown encoding: ascii)
-    ldd_version = run_process(
-        ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, suppress_log=True, check=False
-    ).stdout
-    # catches GLIBC & EGLIBC
-    m = re.search(br"GLIBC (.*?)\)", ldd_version)
-    if m is not None:
-        return ("glibc", m.group(1))
-    # catches GNU libc
-    m = re.search(br"\(GNU libc\) (.*?)\n", ldd_version)
-    if m is not None:
-        return ("glibc", m.group(1))
-    # musl
-    m = re.search(br"musl libc.*?\nVersion (.*?)\n", ldd_version, re.M)
-    if m is not None:
-        return ("musl", m.group(1))
-
-    return ("unknown", ldd_version)
-
-
-def get_run_mode() -> str:
-    if os.getenv("GPROFILER_IN_K8S") is not None:  # set in k8s/gprofiler.yaml
-        return "k8s"
-    elif os.getenv("GPROFILER_IN_CONTAINER") is not None:  # set by our Dockerfile
-        return "container"
-    elif os.getenv("STATICX_BUNDLE_DIR") is not None:  # set by staticx
-        return "standalone_executable"
-    else:
-        return "local_python"
-
-
 def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int = 1) -> None:
     """
     Runs a callback in a new thread, switching to a set of the namespaces of a target process before
@@ -385,54 +366,6 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
     t = Thread(target=_switch_and_run)
     t.start()
     t.join()
-
-
-def _initialize_system_info():
-    # initialized first
-    global hostname
-    hostname = "<unknown>"
-    distribution = "unknown"
-    libc_version = "unknown"
-
-    # move to host mount NS for distro & ldd.
-    # now, distro will read the files on host.
-    # also move to host UTS NS for the hostname.
-    def get_infos():
-        nonlocal distribution, libc_version
-        global hostname
-
-        try:
-            distribution = distro.linux_distribution()
-        except Exception:
-            logger.exception("Failed to get distribution")
-
-        try:
-            libc_version = get_libc_version()
-        except Exception:
-            logger.exception("Failed to get libc version")
-
-        try:
-            hostname = socket.gethostname()
-        except Exception:
-            logger.exception("Failed to get hostname")
-
-    run_in_ns(["mnt", "uts"], get_infos)
-
-    return hostname, distribution, libc_version
-
-
-def log_system_info() -> None:
-    uname = platform.uname()
-    logger.info(f"gProfiler Python version: {sys.version}")
-    logger.info(f"gProfiler run mode: {get_run_mode()}")
-    logger.info(f"Kernel uname release: {uname.release}")
-    logger.info(f"Kernel uname version: {uname.version}")
-    logger.info(f"Total CPUs: {os.cpu_count()}")
-    logger.info(f"Total RAM: {psutil.virtual_memory().total / (1 << 30):.2f} GB")
-    hostname, distribution, libc_version = _initialize_system_info()
-    logger.info(f"Linux distribution: {distribution}")
-    logger.info(f"libc version: {libc_version}")
-    logger.info(f"Hostname: {hostname}")
 
 
 def grab_gprofiler_mutex() -> bool:
@@ -522,11 +455,6 @@ def limit_frequency(limit: Optional[int], requested: int, msg_header: str, runti
         return limit
 
     return requested
-
-
-def get_hostname() -> str:
-    assert hostname is not None, "hostname not initialized!"
-    return hostname
 
 
 def random_prefix() -> str:
