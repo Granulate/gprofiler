@@ -16,13 +16,14 @@ import signal
 import socket
 import string
 import subprocess
+import sys
 import time
 from functools import lru_cache
 from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
-from typing import Callable, List, Optional, Union
+from typing import Callable, List, Optional, Tuple, TypeVar, Union
 
 import importlib_resources
 import psutil
@@ -36,11 +37,13 @@ from gprofiler.exceptions import (
 )
 from gprofiler.log import get_logger_adapter
 
+T = TypeVar("T")
+
 logger = get_logger_adapter(__name__)
 
 TEMPORARY_STORAGE_PATH = "/tmp/gprofiler_tmp"
 
-gprofiler_mutex: Optional[socket.socket]
+gprofiler_mutex: Optional[socket.socket] = None
 
 
 @lru_cache(maxsize=None)
@@ -327,7 +330,7 @@ def assert_program_installed(program: str):
         raise ProgramMissingException(program)
 
 
-def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int = 1) -> None:
+def run_in_ns(nstypes: List[str], callback: Callable[[], T], target_pid: int = 1) -> Optional[T]:
     """
     Runs a callback in a new thread, switching to a set of the namespaces of a target process before
     doing so.
@@ -343,6 +346,8 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
 
     # make sure "mnt" is last, once we change it our /proc is gone
     nstypes = sorted(nstypes, key=lambda ns: 1 if ns == "mnt" else 0)
+
+    ret: Optional[T] = None
 
     def _switch_and_run():
         libc = ctypes.CDLL("libc.so.6")
@@ -361,11 +366,14 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], None], target_pid: int 
                     if libc.setns(nsf.fileno(), flag) != 0:
                         raise ValueError(f"Failed to setns({nstype}) (to pid {target_pid})")
 
-        callback()
+        nonlocal ret
+        ret = callback()
 
     t = Thread(target=_switch_and_run)
     t.start()
     t.join()
+
+    return ret
 
 
 def grab_gprofiler_mutex() -> bool:
@@ -378,28 +386,45 @@ def grab_gprofiler_mutex() -> bool:
     """
     GPROFILER_LOCK = "\x00gprofiler_lock"
 
-    global gprofiler_mutex
-    gprofiler_mutex = None
-
-    def _take_lock():
-        global gprofiler_mutex
-
+    def _take_lock() -> Tuple[bool, Optional[socket.socket]]:  # like Rust's Result<Option> :(
         s = socket.socket(socket.AF_UNIX)
+
         try:
             s.bind(GPROFILER_LOCK)
         except OSError as e:
             if e.errno != errno.EADDRINUSE:
                 raise
+
+            # already taken :/
+            return False, None
         else:
             # don't let child programs we execute inherit it.
             fcntl.fcntl(s, fcntl.F_SETFD, fcntl.fcntl(s, fcntl.F_GETFD) | fcntl.FD_CLOEXEC)
 
-            # hold the reference so lock remains taken
-            gprofiler_mutex = s
+            return True, s
 
-    run_in_ns(["net"], _take_lock)
+    res = run_in_ns(["net"], _take_lock)
+    if res is None:
+        # exception in run_in_ns
+        print(
+            "Could not acquire gProfiler's lock due to an error. Are you running gProfiler in privileged mode?",
+            file=sys.stderr,
+        )
+        return False
+    elif res[0]:
+        assert res[1] is not None
 
-    return gprofiler_mutex is not None
+        global gprofiler_mutex
+        # hold the reference so lock remains taken
+        gprofiler_mutex = res[1]
+        return True
+    else:
+        print(
+            "Could not acquire gProfiler's lock. Is it already running?"
+            " Try 'sudo netstat -xp | grep gprofiler' to see which process holds the lock.",
+            file=sys.stderr,
+        )
+        return False
 
 
 def atomically_symlink(target: str, link_node: str) -> None:
