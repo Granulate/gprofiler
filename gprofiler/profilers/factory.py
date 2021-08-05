@@ -5,7 +5,7 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.profilers.profiler_base import NoopProfiler
 
 if TYPE_CHECKING:
-    from gprofiler.main import UserArgs
+    from gprofiler.gprofiler_types import UserArgs
     from gprofiler.profilers.profiler_base import ProcessProfilerBase
 
 from gprofiler.profilers.perf import SystemProfiler

@@ -13,7 +13,7 @@ import sys
 import time
 from pathlib import Path
 from threading import Event
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Iterable, Optional
 
 import configargparse
 from requests import RequestException, Timeout
@@ -22,7 +22,7 @@ from gprofiler import __version__, merge
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
 from gprofiler.docker_client import DockerClient
 from gprofiler.exceptions import SystemProfilerInitFailure
-from gprofiler.gprofiler_types import positive_integer
+from gprofiler.gprofiler_types import UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
@@ -46,8 +46,6 @@ from gprofiler.utils import (
     resource_path,
     run_process,
 )
-
-UserArgs = Dict[str, Tuple[int, bool, str]]
 
 logger: logging.LoggerAdapter
 

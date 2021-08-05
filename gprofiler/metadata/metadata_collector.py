@@ -1,7 +1,7 @@
 import datetime
 
 from gprofiler import __version__
-from gprofiler.main import UserArgs
+from gprofiler.gprofiler_types import UserArgs
 from gprofiler.metadata.cloud_metadata import get_static_cloud_instance_metadata
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.metadata.system_metadata import get_static_system_info
