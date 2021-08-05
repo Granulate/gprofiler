@@ -10,7 +10,7 @@ from subprocess import Popen, TimeoutExpired
 from threading import Event
 from typing import List, Optional
 
-from psutil import Process
+from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
 from gprofiler.log import get_logger_adapter
@@ -57,9 +57,12 @@ class PySpyProfiler(ProcessProfilerBase):
             "--full-filenames",
         ]
 
-    def _profile_process(self, process: Process) -> StackToSampleCount:
-        logger.info(f"Profiling process {process.pid}", cmdline=process.cmdline(), no_extra_to_server=True)
-        comm = process.name()
+    def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
+        try:
+            logger.info(f"Profiling process {process.pid}", cmdline=process.cmdline(), no_extra_to_server=True)
+            comm = process.name()
+        except NoSuchProcess:
+            return None
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
         try:
@@ -73,6 +76,14 @@ class PySpyProfiler(ProcessProfilerBase):
             raise StopEventSetException
         except TimeoutExpired:
             logger.error(f"Profiling with py-spy timed out on process {process.pid}")
+            raise
+        except CalledProcessError as e:
+            if (
+                b"Error: Failed to get process executable name. Check that the process is running.\n" in e.stderr
+                and not process.is_running()
+            ):
+                logger.debug(f"Profiled process {process.pid} exited before py-spy could start")
+                return None
             raise
 
         logger.info(f"Finished profiling process {process.pid} with py-spy")
