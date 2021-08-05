@@ -42,7 +42,7 @@ logger = get_logger_adapter(__name__)
 
 TEMPORARY_STORAGE_PATH = "/tmp/gprofiler_tmp"
 
-gprofiler_mutex: Optional[socket.socket]
+gprofiler_mutex: Optional[socket.socket] = None
 
 
 @lru_cache(maxsize=None)
@@ -385,28 +385,30 @@ def grab_gprofiler_mutex() -> bool:
     """
     GPROFILER_LOCK = "\x00gprofiler_lock"
 
-    global gprofiler_mutex
-    gprofiler_mutex = None
-
-    def _take_lock():
-        global gprofiler_mutex
-
+    def _take_lock() -> Optional[socket.socket]:
         s = socket.socket(socket.AF_UNIX)
+
         try:
             s.bind(GPROFILER_LOCK)
         except OSError as e:
             if e.errno != errno.EADDRINUSE:
                 raise
+
+            # already taken :/
+            return None
         else:
             # don't let child programs we execute inherit it.
             fcntl.fcntl(s, fcntl.F_SETFD, fcntl.fcntl(s, fcntl.F_GETFD) | fcntl.FD_CLOEXEC)
 
-            # hold the reference so lock remains taken
-            gprofiler_mutex = s
+            return s
 
-    run_in_ns(["net"], _take_lock)
+    s = run_in_ns(["net"], _take_lock)
 
-    return gprofiler_mutex is not None
+    global gprofiler_mutex
+    # hold the reference so lock remains taken
+    gprofiler_mutex = s
+
+    return s is not None
 
 
 def atomically_symlink(target: str, link_node: str) -> None:
