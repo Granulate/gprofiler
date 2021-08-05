@@ -374,16 +374,16 @@ def parse_cmd_args():
     nodejs_options = parser.add_argument_group("NodeJS")
     nodejs_options.add_argument(
         "--nodejs-mode",
-        dest="perf_nodejs_mode",
-        default="none",
+        dest="nodejs_mode",
+        default="disabled",
         choices=["perf", "disabled", "none"],
         help="Select the NodeJS profiling mode: perf (run 'perf inject --jit' on perf results, to augment them"
-        " with jitdump files of NodeJS processes, if present) or none (no runtime-specific profilers for NodeJS)",
+        " with jitdump files of NodeJS processes, if present) or disabled (no runtime-specific profilers for NodeJS)",
     )
 
     nodejs_options.add_argument(
         "--no-nodejs",
-        dest="perf_nodejs_mode",
+        dest="nodejs_mode",
         action="store_const",
         const="disabled",
         default=True,
@@ -489,6 +489,8 @@ def parse_cmd_args():
 
     args = parser.parse_args()
 
+    args.perf_inject = args.nodejs_mode == "perf"
+
     if args.upload_results:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
@@ -504,7 +506,7 @@ def parse_cmd_args():
     if args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
         parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode 'smart' or 'dwarf'")
 
-    if args.perf_nodejs_mode == "perf" and args.perf_mode not in ("fp", "smart"):
+    if args.nodejs_mode == "perf" and args.perf_mode not in ("fp", "smart"):
         parser.error("--nodejs-mode perf requires --perf-mode 'fp' or 'smart'")
 
     return args

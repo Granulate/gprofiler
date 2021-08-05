@@ -144,7 +144,7 @@ class SystemProfiler(ProfilerBase):
         storage_dir: str,
         perf_mode: str,
         perf_dwarf_stack_size: int,
-        perf_nodejs_mode: str,
+        perf_inject: bool,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
         self._perfs: List[PerfProcess] = []
@@ -155,7 +155,7 @@ class SystemProfiler(ProfilerBase):
                 self._stop_event,
                 os.path.join(self._storage_dir, "perf.fp"),
                 False,
-                perf_nodejs_mode == "perf",
+                perf_inject,
                 [],
             )
             self._perfs.append(self._perf_fp)
