@@ -580,7 +580,7 @@ def log_system_info() -> None:
     logger.info(f"Kernel uname release: {system_info.kernel_release}")
     logger.info(f"Kernel uname version: {system_info.kernel_version}")
     logger.info(f"Total CPUs: {system_info.processors}")
-    logger.info(f"Total RAM: {system_info.memory_capacity_mb / (1 << 20):.2f} GB")
+    logger.info(f"Total RAM: {system_info.memory_capacity_mb / 1024:.2f} GB")
     logger.info(f"Linux distribution: {system_info.os_name} | {system_info.os_release} | {system_info.os_codename}")
     logger.info(f"libc version: {system_info.libc_type}-{system_info.libc_version}")
     logger.info(f"Hostname: {system_info.hostname}")
