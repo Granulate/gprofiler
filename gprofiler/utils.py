@@ -16,13 +16,14 @@ import signal
 import socket
 import string
 import subprocess
+import sys
 import time
 from functools import lru_cache
 from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
-from typing import Callable, List, Optional, TypeVar, Union
+from typing import Callable, List, Optional, Tuple, TypeVar, Union
 
 import importlib_resources
 import psutil
@@ -385,7 +386,7 @@ def grab_gprofiler_mutex() -> bool:
     """
     GPROFILER_LOCK = "\x00gprofiler_lock"
 
-    def _take_lock() -> Optional[socket.socket]:
+    def _take_lock() -> Tuple[bool, Optional[socket.socket]]:  # like Rust's Result :(
         s = socket.socket(socket.AF_UNIX)
 
         try:
@@ -395,20 +396,28 @@ def grab_gprofiler_mutex() -> bool:
                 raise
 
             # already taken :/
-            return None
+            return False, None
         else:
             # don't let child programs we execute inherit it.
             fcntl.fcntl(s, fcntl.F_SETFD, fcntl.fcntl(s, fcntl.F_GETFD) | fcntl.FD_CLOEXEC)
 
-            return s
+            return True, s
 
-    s = run_in_ns(["net"], _take_lock)
+    res = run_in_ns(["net"], _take_lock)
+    if res is None:
+        # exception in run_in_ns
+        print("Could not acquire gProfiler's lock due to an error. Are you running gProfiler in privileged mode?")
+        return False
+    elif res[0]:
+        assert res[1] is not None
 
-    global gprofiler_mutex
-    # hold the reference so lock remains taken
-    gprofiler_mutex = s
-
-    return s is not None
+        global gprofiler_mutex
+        # hold the reference so lock remains taken
+        gprofiler_mutex = res[1]
+        return True
+    else:
+        print("Could not acquire gProfiler's lock. Is it already running?", file=sys.stderr)
+        return False
 
 
 def atomically_symlink(target: str, link_node: str) -> None:

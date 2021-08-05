@@ -553,7 +553,6 @@ def verify_preconditions(args):
         sys.exit(1)
 
     if not grab_gprofiler_mutex():
-        print("Could not acquire gProfiler's lock. Is it already running?", file=sys.stderr)
         sys.exit(1)
 
     if args.log_cpu_usage and get_run_mode() not in ("k8s", "container"):
