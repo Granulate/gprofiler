@@ -33,7 +33,7 @@ def get_profilers(
                     profiler_kwargs[key] = value
             profiler_instance = profiler_config.profiler_class(**profiler_kwargs)
         except Exception:
-            if profiler_config.profiler_class == SystemProfiler:
+            if profiler_config.profiler_class is SystemProfiler:
                 raise SystemProfilerInitFailure("Could not create the system profiler")
             logger.exception(f"Couldn't create the {profiler_name} profiler, continuing without it")
         else:
