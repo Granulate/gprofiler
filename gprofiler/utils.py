@@ -406,7 +406,10 @@ def grab_gprofiler_mutex() -> bool:
     res = run_in_ns(["net"], _take_lock)
     if res is None:
         # exception in run_in_ns
-        print("Could not acquire gProfiler's lock due to an error. Are you running gProfiler in privileged mode?")
+        print(
+            "Could not acquire gProfiler's lock due to an error. Are you running gProfiler in privileged mode?",
+            file=sys.stderr,
+        )
         return False
     elif res[0]:
         assert res[1] is not None
