@@ -62,11 +62,11 @@ class PHPSpyProfiler(ProfilerBase):
         php_process_filter: str,
         php_mode: str,
     ):
+        assert php_mode == "phpspy", "PHP profiler should not be initialized, wrong php_mode value given"
         super().__init__(frequency, duration, stop_event, storage_dir)
         self._process: Optional[Popen] = None
         self._output_path = Path(self._storage_dir) / f"phpspy.{random_prefix()}.col"
         self._process_filter = php_process_filter
-        self._php_mode = php_mode  # Not currently in use
 
     def start(self):
         logger.info("Starting profiling of PHP processes with phpspy")

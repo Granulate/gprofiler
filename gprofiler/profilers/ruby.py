@@ -27,7 +27,7 @@ class RbSpyProfiler(ProcessProfilerBase):
 
     def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str, ruby_mode: str):
         super().__init__(frequency, duration, stop_event, storage_dir)
-        self._ruby_mode = ruby_mode  # Not currently in use
+        assert ruby_mode == "rubyspy", "Ruby profiler should not be initialized, wrong ruby_mode value given"
 
     def _make_command(self, pid: int, output_path: str):
         return [

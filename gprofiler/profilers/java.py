@@ -270,7 +270,7 @@ class JavaProfiler(ProcessProfilerBase):
         java_async_profiler_buildids: bool,
         java_mode: str,
     ):
-        self._java_mode = java_mode  # Not currently in use
+        assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
         super().__init__(frequency, duration, stop_event, storage_dir)
 
         # async-profiler accepts interval between samples (nanoseconds)
