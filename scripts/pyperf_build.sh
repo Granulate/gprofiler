@@ -5,7 +5,7 @@
 #
 set -e
 
-git clone --depth 1 -b v1.1.0 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 443f511d2c1da6b71a992f7f741c47f249cbd4bf
+git clone --depth 1 -b fix-memory-leak https://github.com/Granulate/bcc.git && cd bcc && git reset --hard ee733ff77afc15e3837a64ab097a213472747763
 mkdir build
 cd build
 cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root ..
