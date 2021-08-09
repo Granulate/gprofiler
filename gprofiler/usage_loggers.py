@@ -7,8 +7,9 @@ import logging
 import os
 import time
 from pathlib import Path
-import psutil
 from typing import Optional, Tuple
+
+import psutil
 
 CGROUPFS_ROOT = "/sys/fs/cgroup"  # TODO extract from /proc/mounts, this may change
 

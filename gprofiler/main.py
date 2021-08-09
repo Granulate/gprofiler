@@ -394,7 +394,7 @@ def parse_cmd_args():
         "--log-usage",
         action="store_true",
         default=False,
-        help="Log CPU & memory usage (per my cgroup) on each profiling iteration."
+        help="Log CPU & memory usage of gProfiler on each profiling iteration."
         " Currently works only if gProfiler runs as a container",
     )
 
