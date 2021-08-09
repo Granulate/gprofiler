@@ -122,6 +122,7 @@ class MemoryUsageLogger(UsageLoggerInterface):
 
 class CgroupsUsageLogger(UsageLoggerInterface):
     def __init__(self, logger: logging.LoggerAdapter, cgroup: str):
+        assert cgroup.startswith("/"), f"cgroup {cgroup} must start with a /"
         self._cpu_logger = CpuUsageLogger(logger, cgroup)
         self._memory_logger = MemoryUsageLogger(logger, cgroup)
 
