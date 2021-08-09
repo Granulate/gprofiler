@@ -33,9 +33,9 @@ from gprofiler.profilers.profiler_base import NoopProfiler, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
+from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLoggerInterface
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
-    CgroupsUsageLogger,
     TemporaryDirectoryWithMode,
     atomically_symlink,
     get_iso8601_format_time,
@@ -82,7 +82,7 @@ class GProfiler:
         collect_metrics: bool,
         collect_metadata: bool,
         state: State,
-        usage_logger: CgroupsUsageLogger,
+        usage_logger: UsageLoggerInterface,
         user_args: UserArgs,
         include_container_names=True,
         profile_api_version: Optional[str] = None,
@@ -605,7 +605,7 @@ def main():
     setup_signals()
     reset_umask()
     # assume we run in the root cgroup (when containerized, that's our view)
-    usage_logger = CgroupsUsageLogger(logger, "/", args.log_usage)
+    usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
 
     try:
         logger.info(f"Running gprofiler (version {__version__}), commandline: {' '.join(sys.argv[1:])!r}")
