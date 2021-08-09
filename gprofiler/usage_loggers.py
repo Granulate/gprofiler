@@ -30,7 +30,7 @@ class CpuUsageLogger(UsageLoggerInterface):
 
     def __init__(self, logger: logging.LoggerAdapter, cgroup: str):
         self._logger = logger
-        self._cpuacct_usage = Path(f"{CGROUPFS_ROOT}/{cgroup}cpuacct/cpuacct.usage")
+        self._cpuacct_usage = Path(f"{CGROUPFS_ROOT}{cgroup}cpuacct/cpuacct.usage")
         self._last_usage: Optional[int] = None
         self._last_ts: Optional[float] = None
 
@@ -47,20 +47,20 @@ class CpuUsageLogger(UsageLoggerInterface):
     def log_cycle(self):
         assert self._last_usage is not None and self._last_ts is not None, "didn't call init_cycles()?"
 
-        now_usage = self._read_cgroup_cpu_usage()
-        now_ts = time.monotonic()
+        current_usage = self._read_cgroup_cpu_usage()
+        current_ts = time.monotonic()
 
-        diff_usage = now_usage - self._last_usage
+        diff_usage = current_usage - self._last_usage
         diff_usage_s = diff_usage / self.NSEC_PER_SEC
-        diff_ts = now_ts - self._last_ts
+        diff_ts = current_ts - self._last_ts
 
         self._logger.debug(
             f"CPU usage this cycle: {diff_usage_s:.3f}"
             f" seconds {diff_usage_s / diff_ts * 100:.2f}% ({diff_usage} cgroup time)"
         )
 
-        self._last_usage = now_usage
-        self._last_ts = now_ts
+        self._last_usage = current_usage
+        self._last_ts = current_ts
 
     def log_run(self):
         total_usage = self._read_cgroup_cpu_usage()
@@ -78,45 +78,45 @@ class MemoryUsageLogger(UsageLoggerInterface):
 
     def __init__(self, logger: logging.LoggerAdapter, cgroup: str):
         self._logger = logger
-        memory_root = f"{CGROUPFS_ROOT}/{cgroup}memory"
+        memory_root = f"{CGROUPFS_ROOT}{cgroup}memory"
         self._memory_usage = Path(os.path.join(memory_root, "memory.usage_in_bytes"))
-        self._memory_wm = Path(os.path.join(memory_root, "memory.max_usage_in_bytes"))
+        self._memory_watermark = Path(os.path.join(memory_root, "memory.max_usage_in_bytes"))
         self._last_usage: Optional[int] = None
-        self._last_wm: Optional[float] = None
+        self._last_watermark: Optional[float] = None
 
     def _read_cgroup_memory_usage(self) -> Tuple[int, int]:
         """
         Reads the current usage & max_usage for a cgroup.
         """
-        return int(self._memory_usage.read_text()), int(self._memory_wm.read_text())
+        return int(self._memory_usage.read_text()), int(self._memory_watermark.read_text())
 
     def init_cycles(self):
-        self._last_usage, self._last_wm = self._read_cgroup_memory_usage()
+        self._last_usage, self._last_watermark = self._read_cgroup_memory_usage()
 
     def log_cycle(self):
-        assert self._last_usage is not None and self._last_wm is not None, "didn't call init_cycles()?"
+        assert self._last_usage is not None and self._last_watermark is not None, "didn't call init_cycles()?"
 
-        now_usage, now_wm = self._read_cgroup_memory_usage()
+        current_usage, current_watermark = self._read_cgroup_memory_usage()
 
-        diff_usage = (now_usage - self._last_usage) / self.BYTES_PER_MB
+        diff_usage = (current_usage - self._last_usage) / self.BYTES_PER_MB
         diff_usage_str = f"diff {diff_usage:+.3f} MB" if diff_usage != 0 else "no diff"
-        diff_wm = (now_wm - self._last_wm) / self.BYTES_PER_MB
-        diff_wm_str = f"diff {diff_wm:+.3f} MB" if diff_wm != 0 else "no diff"
+        diff_watermark = (current_watermark - self._last_watermark) / self.BYTES_PER_MB
+        diff_watermark_str = f"diff {diff_watermark:+.3f} MB" if diff_watermark != 0 else "no diff"
 
         self._logger.debug(
-            f"Memory usage: {now_usage / self.BYTES_PER_MB:.3f} MB ({diff_usage_str}),"
-            f" watermark is {now_wm / self.BYTES_PER_MB:.3f} MB ({diff_wm_str})"
+            f"Memory usage: {current_usage / self.BYTES_PER_MB:.3f} MB ({diff_usage_str}),"
+            f" watermark is {current_watermark / self.BYTES_PER_MB:.3f} MB ({diff_watermark_str})"
         )
 
-        self._last_usage = now_usage
-        self._last_wm = now_wm
+        self._last_usage = current_usage
+        self._last_watermark = current_watermark
 
     def log_run(self):
-        now_usage, now_wm = self._read_cgroup_memory_usage()
+        current_usage, current_watermark = self._read_cgroup_memory_usage()
 
         self._logger.debug(
-            f"Final memory usage this run: {now_usage / self.BYTES_PER_MB:.3f} MB,"
-            f" watermark is {now_wm / self.BYTES_PER_MB:.3f} MB"
+            f"Final memory usage this run: {current_usage / self.BYTES_PER_MB:.3f} MB,"
+            f" watermark is {current_watermark / self.BYTES_PER_MB:.3f} MB"
         )
 
 
