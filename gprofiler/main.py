@@ -33,9 +33,9 @@ from gprofiler.profilers.profiler_base import NoopProfiler, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
+from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLoggerInterface
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
-    CpuUsageLogger,
     TemporaryDirectoryWithMode,
     atomically_symlink,
     get_iso8601_format_time,
@@ -82,7 +82,7 @@ class GProfiler:
         collect_metrics: bool,
         collect_metadata: bool,
         state: State,
-        cpu_usage_logger: CpuUsageLogger,
+        usage_logger: UsageLoggerInterface,
         user_args: UserArgs,
         include_container_names=True,
         profile_api_version: Optional[str] = None,
@@ -122,7 +122,7 @@ class GProfiler:
             self._docker_client: Optional[DockerClient] = DockerClient()
         else:
             self._docker_client = None
-        self._cpu_usage_logger = cpu_usage_logger
+        self._usage_logger = usage_logger
         if collect_metrics:
             self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
         else:
@@ -314,7 +314,7 @@ class GProfiler:
 
     def run_continuous(self):
         with self:
-            self._cpu_usage_logger.init_cycles()
+            self._usage_logger.init_cycles()
 
             while not self._stop_event.is_set():
                 self._state.init_new_cycle()
@@ -325,7 +325,7 @@ class GProfiler:
                     logger.exception("Profiling run failed!")
                 finally:
                     self._send_remote_logs()  # function is safe, wrapped with try/except block inside
-                self._cpu_usage_logger.log_cycle()
+                self._usage_logger.log_cycle()
 
 
 def parse_cmd_args():
@@ -391,10 +391,11 @@ def parse_cmd_args():
     )
 
     parser.add_argument(
-        "--log-cpu-usage",
+        "--log-usage",
         action="store_true",
         default=False,
-        help="Log CPU usage (per cgroup) on each profiling iteration. Works only when gProfiler runs as a container",
+        help="Log CPU & memory usage of gProfiler on each profiling iteration."
+        " Currently works only if gProfiler runs as a container",
     )
 
     parser.add_argument(
@@ -555,10 +556,10 @@ def verify_preconditions(args):
     if not grab_gprofiler_mutex():
         sys.exit(1)
 
-    if args.log_cpu_usage and get_run_mode() not in ("k8s", "container"):
+    if args.log_usage and get_run_mode() not in ("k8s", "container"):
         # TODO: we *can* move into another cpuacct cgroup, to let this work also when run as a standalone
         # executable.
-        print("--log-cpu-usage is available only when run as a container!")
+        print("--log-usage is available only when run as a container!")
         sys.exit(1)
 
 
@@ -604,7 +605,7 @@ def main():
     setup_signals()
     reset_umask()
     # assume we run in the root cgroup (when containerized, that's our view)
-    cpu_usage_logger = CpuUsageLogger(logger, "/", args.log_cpu_usage)
+    usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
 
     try:
         logger.info(f"Running gprofiler (version {__version__}), commandline: {' '.join(sys.argv[1:])!r}")
@@ -653,7 +654,7 @@ def main():
             args.collect_metrics,
             args.collect_metadata,
             state,
-            cpu_usage_logger,
+            usage_logger,
             args.__dict__,
             not args.disable_container_names,
             args.profile_api_version,
@@ -670,7 +671,7 @@ def main():
     except Exception:
         logger.exception("Unexpected error occurred")
 
-    cpu_usage_logger.log_run()
+    usage_logger.log_run()
 
 
 if __name__ == "__main__":
