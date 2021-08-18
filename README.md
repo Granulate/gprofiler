@@ -103,7 +103,7 @@ Aggregations are only available when uploading to the Granulate Performance Stud
 Run the following to have gProfiler running continuously, uploading to Granulate Performance Studio:
 ```bash
 docker pull granulate/gprofiler:latest
-docker run --name gprofiler -d --restart=always \
+docker run --name granulate-gprofiler -d --restart=always \
     --pid=host --userns=host --privileged \
     -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro \
     -v /var/run/docker.sock:/var/run/docker.sock \
