@@ -554,7 +554,7 @@ def verify_preconditions(args):
         sys.exit(1)
 
     if not grab_gprofiler_mutex():
-        sys.exit(1)
+        sys.exit(0)
 
     if args.log_usage and get_run_mode() not in ("k8s", "container"):
         # TODO: we *can* move into another cpuacct cgroup, to let this work also when run as a standalone
