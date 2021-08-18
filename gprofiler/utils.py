@@ -484,3 +484,10 @@ def limit_frequency(limit: Optional[int], requested: int, msg_header: str, runti
 
 def random_prefix() -> str:
     return ''.join(random.choice(string.ascii_letters) for _ in range(16))
+
+
+def process_comm(process: Process) -> str:
+    comm = Path(f"/proc/{process.pid}/comm").read_text()
+    # the kernel always adds \n
+    assert comm.endswith('\n'), f"unexpected comm: {comm!r}"
+    return comm[:-1]

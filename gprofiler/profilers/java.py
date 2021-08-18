@@ -23,6 +23,7 @@ from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     get_process_nspid,
     pgrep_maps,
+    process_comm,
     remove_path,
     remove_prefix,
     resolve_proc_root_links,
@@ -351,8 +352,6 @@ class JavaProfiler(ProcessProfilerBase):
                     f"async-profiler is still running in {ap_proc.process.pid}, even after trying to stop it!"
                 )
 
-        comm = ap_proc.process.name()
-
         self._stop_event.wait(self._duration)
 
         if ap_proc.process.is_running():
@@ -374,7 +373,7 @@ class JavaProfiler(ProcessProfilerBase):
             return None
         else:
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
-            return parse_one_collapsed(output, comm)
+            return parse_one_collapsed(output, process_comm(ap_proc.process))
 
     def _select_processes_to_profile(self) -> List[Process]:
         return pgrep_maps(r"^.+/libjvm\.so$")
