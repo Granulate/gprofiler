@@ -35,7 +35,7 @@ spec:
         runAsGroup: 0
       restartPolicy: Always
       containers:
-        - name: gprofiler
+        - name: granulate-gprofiler
           securityContext:
             privileged: true
           resources:
