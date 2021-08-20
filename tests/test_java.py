@@ -75,7 +75,7 @@ def test_java_async_profiler_stopped(
 
     # run "status"
     proc = psutil.Process(application_pid)
-    with AsyncProfiledProcessForTests(proc, tmp_path, False) as ap_proc:
+    with AsyncProfiledProcessForTests(proc, tmp_path, False, "cpu") as ap_proc:
         ap_proc.status_async_profiler()
     # printed the process' stdout, see ACTION_STATUS case in async-profiler/profiler.cpp
     expected_message = b"Profiling is running for "
