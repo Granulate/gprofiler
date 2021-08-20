@@ -164,13 +164,23 @@ def run_process(
     check: bool = True,
     timeout: int = None,
     kill_signal: signal.Signals = signal.SIGKILL,
+    communicate: bool = True,
     **kwargs,
 ) -> CompletedProcess:
+    stdout = None
+    stderr = None
     with start_process(cmd, via_staticx, **kwargs) as process:
         try:
             if stop_event is None:
-                stdout, stderr = process.communicate(timeout=timeout)
+                assert timeout is None
+                if communicate:
+                    # wait for stderr & stdout to be closed
+                    stdout, stderr = process.communicate(timeout=timeout)
+                else:
+                    # just wait for the process to exit
+                    process.wait()
             else:
+                assert communicate
                 end_time = (time.monotonic() + timeout) if timeout is not None else None
                 while True:
                     try:
