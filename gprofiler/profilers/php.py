@@ -100,6 +100,8 @@ class PHPSpyProfiler(ProfilerBase):
             wait_event(self.poll_timeout, self._stop_event, lambda: os.path.exists(self._output_path))
         except TimeoutError:
             process.kill()
+            assert process.stdout is not None and process.stderr is not None
+            logger.error(f"phpspy failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
             raise
         else:
             self._process = process
