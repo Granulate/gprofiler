@@ -15,7 +15,7 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_and_remove_one_collapsed
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
-from gprofiler.utils import pgrep_maps, random_prefix, resource_path, run_process
+from gprofiler.utils import pgrep_maps, process_comm, random_prefix, resource_path, run_process
 
 logger = get_logger_adapter(__name__)
 
@@ -51,7 +51,6 @@ class RbSpyProfiler(ProcessProfilerBase):
 
     def _profile_process(self, process: Process) -> StackToSampleCount:
         logger.info(f"Profiling process {process.pid}", cmdline=' '.join(process.cmdline()), no_extra_to_server=True)
-        comm = process.name()
 
         local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
         try:
@@ -60,7 +59,7 @@ class RbSpyProfiler(ProcessProfilerBase):
             raise StopEventSetException
 
         logger.info(f"Finished profiling process {process.pid} with rbspy")
-        return parse_and_remove_one_collapsed(Path(local_output_path), comm)
+        return parse_and_remove_one_collapsed(Path(local_output_path), process_comm(process))
 
     def _select_processes_to_profile(self) -> List[Process]:
         return pgrep_maps(r"(?:^.+/ruby[^/]*$)")

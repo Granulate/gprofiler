@@ -21,6 +21,7 @@ from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     pgrep_maps,
     poll_process,
+    process_comm,
     random_prefix,
     resource_path,
     run_process,
@@ -60,7 +61,6 @@ class PySpyProfiler(ProcessProfilerBase):
     def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
         try:
             logger.info(f"Profiling process {process.pid}", cmdline=process.cmdline(), no_extra_to_server=True)
-            comm = process.name()
         except NoSuchProcess:
             return None
 
@@ -87,7 +87,7 @@ class PySpyProfiler(ProcessProfilerBase):
             raise
 
         logger.info(f"Finished profiling process {process.pid} with py-spy")
-        return parse_and_remove_one_collapsed(Path(local_output_path), comm)
+        return parse_and_remove_one_collapsed(Path(local_output_path), process_comm(process))
 
     def _select_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
