@@ -5,6 +5,13 @@
 #
 set -euo pipefail
 
+# TODO support aarch64
+if [ $(uname -m) != "x86_64" ]; then
+    mkdir -p /py-spy/target/x86_64-unknown-linux-musl/release
+    touch /py-spy/target/x86_64-unknown-linux-musl/release/py-spy
+    exit 0
+fi
+
 git clone --depth 1 -b v0.3.7g3 https://github.com/Granulate/py-spy.git && git -C py-spy reset --hard 0aa5adace9c5d59cbf46b9c5b59ac92fb23b3e5a
 cd py-spy
 cargo build --release --target=x86_64-unknown-linux-musl

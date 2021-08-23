@@ -6,6 +6,15 @@
 set -e
 
 git clone --depth 1 -b v1.1.1 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 9da70cdbbb2ddb0c364c9ad167764b11104eed08
+
+# (after clone, because we copy the licenses)
+# TODO support aarch64
+if [ $(uname -m) != "x86_64" ]; then
+    mkdir -p /bcc/root/share/bcc/examples/cpp/
+    touch /bcc/root/share/bcc/examples/cpp/PyPerf
+    exit 0
+fi
+
 mkdir build
 cd build
 cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root ..

@@ -5,6 +5,13 @@
 #
 set -euo pipefail
 
+# TODO support aarch64
+if [ $(uname -m) != "x86_64" ]; then
+    mkdir -p /rbspy/target/x86_64-unknown-linux-musl/release
+    touch /rbspy/target/x86_64-unknown-linux-musl/release/rbspy
+    exit 0
+fi
+
 git clone --depth 1 -b v0.7.0g1 https://github.com/Granulate/rbspy.git && git -C rbspy reset --hard 5f27dc892e70973bc1d6430b1c208ec152448e18
 cd rbspy
 cargo build --release --target=x86_64-unknown-linux-musl

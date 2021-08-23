@@ -5,6 +5,11 @@
 #
 set -euo pipefail
 
+# TODO support aarch64
+if [ $(uname -m) != "x86_64" ]; then
+    exit 0
+fi
+
 # prepares the environment for building py-spy:
 # 1. installs the rust target x86_64-unknown-linux-musl - this can build static binaries
 # 2. downloads, builds & installs libunwind with musl
