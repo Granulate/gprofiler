@@ -258,8 +258,8 @@ class AsyncProfiledProcess:
         ),
         ProfilerArgument(
             "--java-no-version-check",
-            dest="java_no_version_check",
-            action="store_true",
+            dest="java_version_check",
+            action="store_false",
             help="Skip the JDK version check (that is done before invoking async-profiler)",
         ),
     ],
@@ -274,7 +274,7 @@ class JavaProfiler(ProcessProfilerBase):
         stop_event: Event,
         storage_dir: str,
         java_async_profiler_buildids: bool,
-        java_no_version_check: bool,
+        java_version_check: bool,
         java_mode: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
@@ -283,7 +283,7 @@ class JavaProfiler(ProcessProfilerBase):
         # async-profiler accepts interval between samples (nanoseconds)
         self._interval = int((1 / frequency) * 1000_000_000)
         self._buildids = java_async_profiler_buildids
-        self._version_check = not java_no_version_check
+        self._version_check = java_version_check
 
     def _is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
