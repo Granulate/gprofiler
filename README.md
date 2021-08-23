@@ -6,7 +6,7 @@ across native programs<sup id="a1">[1](#perf-native)</sup> (includes Golang), Ja
 gProfiler can upload its results to the [Granulate Performance Studio](https://profiler.granulate.io/), which aggregates the results from different instances over different periods of time and can give you a holistic view of what is happening on your entire cluster.
 To upload results, you will have to register and generate a token on the website.
 
-gProfiler runs on Linux.
+gProfiler runs on Linux (on x86_64; Aarch64 support is not complete yet and not all runtime profilers are supported).
 
 ![Granulate Performance Studio example view](https://user-images.githubusercontent.com/58514213/124375504-36b0b200-dcab-11eb-8d64-caf20687a29f.gif)
 
@@ -100,6 +100,8 @@ Note that when using `--continuous` with `--output-dir`, a new file will be crea
 Aggregations are only available when uploading to the Granulate Performance Studio.
 
 ## Running as a Docker container
+Supported both for x86_64 and Aarch64.
+
 Run the following to have gProfiler running continuously, uploading to Granulate Performance Studio:
 ```bash
 docker pull granulate/gprofiler:latest
@@ -115,6 +117,8 @@ For profiling with eBPF, kernel headers must be accessible from within the conta
 The command above mounts both of these directories.
 
 ## Running as an executable
+Supported only on x86_64!
+
 Run the following to have gprofiler running continuously, uploading to Granulate Performance Studio:
 ```bash
 wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler
@@ -155,16 +159,16 @@ python3 -m gprofiler [options]
 gProfiler invokes `perf` in system wide mode, collecting profiling data for all running processes.
 Alongside `perf`, gProfiler invokes runtime-specific profilers for processes based on these environments:
 * Java runtimes (version 7+) based on the HotSpot JVM, including the Oracle JDK and other builds of OpenJDK like AdoptOpenJDK and Azul Zulu.
-  * Uses async-profiler.
+  * Uses async-profiler (supports x86_64 and Aarch64)
 * The CPython interpreter, versions 2.7 and 3.5-3.9.
-  * eBPF profiling (based on PyPerf) requires Linux 4.14 or higher; see [Python profiling options](#python-profiling-options) for more info.
-  * If eBPF is not available for whatever reason, py-spy is used.
+  * eBPF profiling (based on PyPerf) requires Linux 4.14 or higher; see [Python profiling options](#python-profiling-options) for more info (currently supports only x86_64).
+  * If eBPF is not available for whatever reason, py-spy is used (currently supports only x86_64).
 * PHP (Zend Engine), versions 7.0-8.0.
-  * Uses [Granulate's fork](https://github.com/Granulate/phpspy/) of the phpspy project.
+  * Uses [Granulate's fork](https://github.com/Granulate/phpspy/) of the phpspy project (currently supports only x86_64).
 * Ruby versions (versions 1.9.1 to 3.0.1)
-  * Uses [Granulate's fork](https://github.com/Granulate/rbspy) of the [rbspy](https://github.com/rbspy/rbspy) profiler.
+  * Uses [Granulate's fork](https://github.com/Granulate/rbspy) of the [rbspy](https://github.com/rbspy/rbspy) profiler (currently supports only x86_64).
 * NodeJS (version >= 10 for functioning `--perf-prof`):
-  * Uses `perf inject --jit` and NodeJS's ability to generate jitdump files. See [NodeJS profiling options](#nodejs-profiling-options).
+  * Uses `perf inject --jit` and NodeJS's ability to generate jitdump files. See [NodeJS profiling options](#nodejs-profiling-options) (supports x86_64 and Aarch64).
 
 The runtime-specific profilers produce stack traces that include runtime information (i.e, stacks of Java/Python functions), unlike `perf` which produces native stacks of the JVM / CPython interpreter.
 The runtime stacks are then merged into the data collected by `perf`, substituting the *native* stacks `perf` has collected for those processes.
