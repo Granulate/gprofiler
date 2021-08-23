@@ -204,8 +204,18 @@ class GProfiler:
         self._stop_event.clear()
         self._system_metrics_monitor.start()
 
-        for prof in self.all_profilers:
-            prof.start()
+        for prof in list(self.all_profilers):
+            try:
+                prof.start()
+            except Exception:
+                # the SystemProfiler is handled separately - let the user run with '--perf-mode none' if they
+                # wish so.
+                if prof is self.system_profiler:
+                    raise
+
+                # others - are ignored, with a warning.
+                logger.warning(f"Failed to start {prof.__class__.__name__}, continuing without it")
+                self.process_profilers.remove(prof)
 
     def stop(self):
         logger.info("Stopping ...")
