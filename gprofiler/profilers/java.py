@@ -248,6 +248,7 @@ class AsyncProfiledProcess:
     "Java",
     possible_modes=["ap", "disabled"],
     default_mode="ap",
+    supported_archs=["x86_64", "aarch64"],
     profiler_arguments=[
         ProfilerArgument(
             "--java-async-profiler-buildids",

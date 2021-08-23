@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from gprofiler.gprofiler_types import UserArgs
     from gprofiler.profilers.profiler_base import ProcessProfilerBase
 
+from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.registry import get_profilers_registry
 
@@ -18,6 +19,7 @@ COMMON_PROFILER_ARGUMENT_NAMES = ["frequency", "duration"]
 def get_profilers(
     user_args: 'UserArgs', **profiler_init_kwargs: Any
 ) -> Tuple[Union['SystemProfiler', 'NoopProfiler'], List['ProcessProfilerBase']]:
+    arch = get_arch()
     profilers_registry = get_profilers_registry()
     process_profilers_instances: List['ProcessProfilerBase'] = []
     system_profiler: Union['SystemProfiler', 'NoopProfiler'] = NoopProfiler()
@@ -25,6 +27,10 @@ def get_profilers(
         lower_profiler_name = profiler_name.lower()
         profiler_mode = user_args.get(f"{lower_profiler_name}_mode")
         if profiler_mode in ("none", "disabled"):
+            continue
+
+        if arch not in profiler_config.supported_archs:
+            logger.warning(f"Disabling {profiler_name} because it doesn't support this architecture ({arch})")
             continue
 
         profiler_kwargs = profiler_init_kwargs.copy()

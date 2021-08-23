@@ -32,13 +32,15 @@ class ProfilerConfig:
         profiler_mode_help: str,
         disablement_help: str,
         profiler_class,
-        possible_modes: List[str] = None,
+        possible_modes: List[str],
+        supported_archs: List[str],
         default_mode: str = "enabled",
         arguments: List[ProfilerArgument] = None,
     ):
-        self.profiler_mode_help: str = profiler_mode_help
-        self.possible_modes: Optional[List[str]] = possible_modes
-        self.default_mode: str = default_mode
+        self.profiler_mode_help = profiler_mode_help
+        self.possible_modes = possible_modes
+        self.supported_archs = supported_archs
+        self.default_mode = default_mode
         self.profiler_args: List[ProfilerArgument] = arguments if arguments is not None else []
         self.disablement_help = disablement_help
         self.profiler_class = profiler_class
@@ -50,7 +52,8 @@ profilers_config: Dict[str, ProfilerConfig] = {}
 def register_profiler(
     profiler_name: str,
     default_mode: str,
-    possible_modes: List,
+    possible_modes: List[str],
+    supported_archs: List[str],
     profiler_mode_argument_help: Optional[str] = None,
     profiler_arguments: Optional[List[ProfilerArgument]] = None,
     disablement_help: Optional[str] = None,
@@ -72,6 +75,7 @@ def register_profiler(
             disablement_help,
             profiler_class,
             possible_modes,
+            supported_archs,
             default_mode,
             profiler_arguments,
         )
