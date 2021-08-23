@@ -257,6 +257,12 @@ class AsyncProfiledProcess:
             " The added buildid+offset can be resolved & symbolicated in the Performance Studio."
             " This is useful if debug symbols are unavailable for the relevant DSOs (libjvm, libc, ...).",
         ),
+        ProfilerArgument(
+            "--java-no-version-check",
+            dest="java_version_check",
+            action="store_false",
+            help="Skip the JDK version check (that is done before invoking async-profiler)",
+        ),
     ],
 )
 class JavaProfiler(ProcessProfilerBase):
@@ -269,6 +275,7 @@ class JavaProfiler(ProcessProfilerBase):
         stop_event: Event,
         storage_dir: str,
         java_async_profiler_buildids: bool,
+        java_version_check: bool,
         java_mode: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
@@ -277,6 +284,7 @@ class JavaProfiler(ProcessProfilerBase):
         # async-profiler accepts interval between samples (nanoseconds)
         self._interval = int((1 / frequency) * 1000_000_000)
         self._buildids = java_async_profiler_buildids
+        self._version_check = java_version_check
 
     def _is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -328,7 +336,7 @@ class JavaProfiler(ProcessProfilerBase):
         # Get Java version
         # TODO we can get the "java" binary by extracting the java home from the libjvm path,
         # then check with that instead (if exe isn't java)
-        if os.path.basename(process.exe()) == "java":
+        if self._version_check and os.path.basename(process.exe()) == "java":
             if not self._is_jdk_version_supported(self._get_java_version(process)):
                 logger.warning(f"Process {process.pid} running unsupported Java version, skipping...")
                 return None
