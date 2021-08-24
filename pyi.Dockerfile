@@ -121,9 +121,9 @@ COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/strings gprofiler/res
 COPY --from=centos:6 /usr/bin/awk gprofiler/resources/php/awk
 COPY --from=centos:6 /usr/bin/xargs gprofiler/resources/php/xargs
 
-RUN mkdir -p gprofiler/resources/java
-COPY --from=async-profiler-builder /async-profiler/async-profiler-2.0-linux-x64.tar.gz /tmp
-RUN tar -xzf /tmp/async-profiler-2.0-linux-x64.tar.gz -C gprofiler/resources/java --strip-components=2 async-profiler-2.0-linux-x64/build && rm /tmp/async-profiler-2.0-linux-x64.tar.gz
+COPY --from=async-profiler-builder /async-profiler/build/jattach gprofiler/resources/java/jattach
+COPY --from=async-profiler-builder /async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
+COPY --from=async-profiler-builder /async-profiler/build/libasyncProfiler.so gprofiler/resources/java/libasyncProfiler.so
 
 
 COPY gprofiler gprofiler
