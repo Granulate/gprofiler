@@ -16,13 +16,14 @@ ARG GPROFILER_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a5
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
 
-COPY scripts/prepare_x86_64-unknown-linux-musl.sh .
-RUN ./prepare_x86_64-unknown-linux-musl.sh
+COPY scripts/prepare_machine-unknown-linux-musl.sh .
+RUN ./prepare_machine-unknown-linux-musl.sh
 
 # pyspy
 FROM pyspy-rbspy-builder-common AS pyspy-builder
 COPY scripts/pyspy_build.sh .
 RUN ./pyspy_build.sh
+RUN mv /py-spy/target/$(uname -m)-unknown-linux-musl/release/py-spy /py-spy/py-spy
 
 # rbspy
 FROM pyspy-rbspy-builder-common AS rbspy-builder
@@ -94,7 +95,7 @@ COPY --from=bcc-builder /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
 COPY --from=bcc-builder /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
 COPY --from=bcc-builder /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 
-COPY --from=pyspy-builder /py-spy/target/x86_64-unknown-linux-musl/release/py-spy gprofiler/resources/python/py-spy
+COPY --from=pyspy-builder /py-spy/py-spy gprofiler/resources/python/py-spy
 
 COPY --from=perf-builder /perf gprofiler/resources/perf
 

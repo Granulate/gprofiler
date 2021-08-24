@@ -6,7 +6,7 @@ across native programs<sup id="a1">[1](#perf-native)</sup> (includes Golang), Ja
 gProfiler can upload its results to the [Granulate Performance Studio](https://profiler.granulate.io/), which aggregates the results from different instances over different periods of time and can give you a holistic view of what is happening on your entire cluster.
 To upload results, you will have to register and generate a token on the website.
 
-gProfiler runs on Linux (on x86_64; Aarch64 support is not complete yet and not all runtime profilers are supported).
+gProfiler runs on Linux (on x86_64 and Aarch64; Aarch64 support is not complete yet and not all runtime profilers are supported).
 
 ![Granulate Performance Studio example view](https://user-images.githubusercontent.com/58514213/124375504-36b0b200-dcab-11eb-8d64-caf20687a29f.gif)
 
@@ -162,7 +162,7 @@ Alongside `perf`, gProfiler invokes runtime-specific profilers for processes bas
   * Uses async-profiler (supports x86_64 and Aarch64)
 * The CPython interpreter, versions 2.7 and 3.5-3.9.
   * eBPF profiling (based on PyPerf) requires Linux 4.14 or higher; see [Python profiling options](#python-profiling-options) for more info (currently supports only x86_64).
-  * If eBPF is not available for whatever reason, py-spy is used (currently supports only x86_64).
+  * If eBPF is not available for whatever reason, py-spy is used (supports x86_64 and Aarch64).
 * PHP (Zend Engine), versions 7.0-8.0.
   * Uses [Granulate's fork](https://github.com/Granulate/phpspy/) of the phpspy project (currently supports only x86_64).
 * Ruby versions (versions 1.9.1 to 3.0.1)
