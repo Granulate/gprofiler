@@ -6,10 +6,13 @@
 set -euo pipefail
 
 function fix_legacy_repos() {
-    # fix legacy yum repos. slightly adapted from https://stackoverflow.com/a/53848450
-    # this basically comments out all mirrorlist URLs, uncomments all baseurls (all seem to be commented)
-    # and replaces the domain from mirror.centos.org to vault.centos.org.
-    sed -i -e 's|^mirrorlist|#mirrorlist|' -e 's|^# *baseurl|baseurl|' -e 's|mirror.centos.org|vault.centos.org|' /etc/yum.repos.d/*
+    # needed only on x86_64 (which uses CentOS 6)
+    if [ $(uname -m) = "x86_64" ]; then
+        # fix legacy yum repos. slightly adapted from https://stackoverflow.com/a/53848450
+        # this basically comments out all mirrorlist URLs, uncomments all baseurls (all seem to be commented)
+        # and replaces the domain from mirror.centos.org to vault.centos.org.
+        sed -i -e 's|^mirrorlist|#mirrorlist|' -e 's|^# *baseurl|baseurl|' -e 's|mirror.centos.org|vault.centos.org|' /etc/yum.repos.d/*
+    fi
 }
 
 fix_legacy_repos

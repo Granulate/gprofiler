@@ -1,10 +1,25 @@
-# rust:latest 1.52.1
-# using the same builder for both pyspy and rbspy since they share build dependencies
-FROM rust@sha256:9c106c1222abe1450f45774273f36246ebf257623ed51280dbc458632d14c9fc AS pyspy-rbspy-builder-common
+# these need to be defined before any FROM - otherwise, the ARGs expand to empty strings.
+
+# pyspy & rbspy, using the same builder for both pyspy and rbspy since they share build dependencies - rust:latest 1.52.1
+ARG RUST_BUILDER_VERSION=@sha256:9c106c1222abe1450f45774273f36246ebf257623ed51280dbc458632d14c9fc
+# pyperf - ubuntu 20.04
+ARG PYPERF_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
+# perf - ubuntu:16.04
+ARG PERF_BUILDER_UBUNTU=@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c
+# phpspy - ubuntu:20.04
+ARG PHPSPY_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
+# async-profiler, requires CentOS 6, so the built DSO can be loaded into machines running with old glibc - centos:6
+ARG AP_BUILDER_CENTOS=@sha256:dec8f471302de43f4cfcf82f56d99a5227b5ea1aa6d02fa56344986e1f4610e7
+# gprofiler - ubuntu 20.04
+ARG GPROFILER_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
+
+# pyspy & rbspy builder base
+FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
 
 COPY scripts/prepare_x86_64-unknown-linux-musl.sh .
 RUN ./prepare_x86_64-unknown-linux-musl.sh
 
+# pyspy
 FROM pyspy-rbspy-builder-common AS pyspy-builder
 COPY scripts/pyspy_build.sh .
 RUN ./pyspy_build.sh
@@ -15,8 +30,7 @@ COPY scripts/rbspy_build.sh .
 RUN ./rbspy_build.sh
 
 # perf
-# ubuntu:16.04
-FROM ubuntu@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c AS perf-builder
+FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder
 
 COPY scripts/perf_env.sh .
 RUN ./perf_env.sh
@@ -28,15 +42,16 @@ COPY scripts/perf_build.sh .
 RUN ./perf_build.sh
 
 # pyperf (bcc)
-# ubuntu 20.04
-FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93 AS bcc-builder
+FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-builder
 
+COPY scripts/exit_if_not_x86_64.sh .
 RUN apt-get update
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y git curl build-essential iperf llvm-9-dev libclang-9-dev \
+RUN apt-get install -y git
+RUN . ./exit_if_not_x86_64.sh; DEBIAN_FRONTEND=noninteractive apt-get install -y curl build-essential iperf llvm-9-dev libclang-9-dev \
   cmake python3 flex bison libelf-dev libz-dev liblzma-dev
 
 COPY ./scripts/libunwind_build.sh .
-RUN ./libunwind_build.sh
+RUN . ./exit_if_not_x86_64.sh; ./libunwind_build.sh
 
 WORKDIR /bcc
 
@@ -44,16 +59,15 @@ COPY ./scripts/pyperf_build.sh .
 RUN ./pyperf_build.sh
 
 # phpspy
-# ubuntu:20.04
-FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93 as phpspy-builder
-RUN apt update && apt install -y git wget make gcc
+FROM ubuntu${PHPSPY_BUILDER_UBUNTU} AS phpspy-builder
+
+COPY scripts/exit_if_not_x86_64.sh .
+RUN . ./exit_if_not_x86_64.sh; apt update && apt install -y git wget make gcc
 COPY scripts/phpspy_build.sh .
 RUN ./phpspy_build.sh
 
 # async-profiler
-# requires CentOS 6, so the built DSO can be loaded into machines running with old glibc.
-# centos:6
-FROM centos@sha256:dec8f471302de43f4cfcf82f56d99a5227b5ea1aa6d02fa56344986e1f4610e7 AS async-profiler-builder
+FROM centos${AP_BUILDER_CENTOS} AS async-profiler-builder
 COPY scripts/async_profiler_env.sh .
 RUN ./async_profiler_env.sh
 COPY scripts/async_profiler_build.sh .
@@ -61,8 +75,7 @@ RUN ./async_profiler_build.sh
 
 
 # the gProfiler image itself, at last.
-# ubuntu 20.04
-FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
+FROM ubuntu${GPROFILER_BUILDER_UBUNTU}
 
 WORKDIR /app
 
@@ -72,6 +85,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y curl python3-pi
 
 COPY scripts/build.sh scripts/build.sh
 RUN ./scripts/build.sh
+
+# Aarch64 has no .whl file for psutil - so it's trying to build from source.
+RUN if [ $(uname -m) = "aarch64" ]; then apt-get install -y build-essential python3.8-dev; fi
 
 COPY --from=bcc-builder /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
 # copy licenses and notice file.
