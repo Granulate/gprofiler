@@ -70,6 +70,9 @@ WORKDIR /app
 # binutils - for phpspy (uses objdump)
 RUN apt-get update && apt-get install --no-install-recommends -y curl python3-pip kmod binutils
 
+COPY scripts/build.sh scripts/build.sh
+RUN ./scripts/build.sh
+
 COPY --from=bcc-builder /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
 # copy licenses and notice file.
 COPY --from=bcc-builder /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
@@ -89,9 +92,6 @@ RUN tar -xzf /tmp/async-profiler-2.0-linux-x64.tar.gz -C gprofiler/resources/jav
 
 RUN mkdir -p gprofiler/resources/ruby
 COPY --from=rbspy-builder /rbspy/target/x86_64-unknown-linux-musl/release/rbspy gprofiler/resources/ruby/rbspy
-
-COPY scripts/build.sh scripts/build.sh
-RUN ./scripts/build.sh
 
 # done separately from the 'pip3 install -e' below; so we don't reinstall all dependencies on each
 # code change.
