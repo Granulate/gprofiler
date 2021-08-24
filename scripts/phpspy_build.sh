@@ -11,6 +11,7 @@ if [ $(uname -m) != "x86_64" ]; then
     touch /phpspy/phpspy
     mkdir -p /binutils/binutils-2.25/bin/bin/
     touch /binutils/binutils-2.25/bin/bin/objdump
+    touch /binutils/binutils-2.25/bin/bin/strings
     exit 0
 fi
 

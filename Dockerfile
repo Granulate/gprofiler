@@ -101,6 +101,7 @@ COPY --from=perf-builder /perf gprofiler/resources/perf
 
 COPY --from=phpspy-builder /phpspy/phpspy gprofiler/resources/php/phpspy
 COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
+COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/strings gprofiler/resources/php/strings
 
 COPY --from=async-profiler-builder /async-profiler/build/jattach gprofiler/resources/java/jattach
 COPY --from=async-profiler-builder /async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
