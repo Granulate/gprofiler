@@ -41,7 +41,7 @@ cd /tmp
 curl -L ftp://sourceware.org/pub/elfutils/0.179/elfutils-0.179.tar.bz2 -o elfutils-0.179.tar.bz2
 tar -xf elfutils-0.179.tar.bz2
 pushd elfutils-0.179
-./configure --disable-debuginfod --prefix=/usr && make && make install
+./configure --disable-debuginfod --prefix=/usr && make -j 8 && make install
 popd
 rm -r elfutils-0.179
 rm elfutils-0.179.tar.bz2
