@@ -19,5 +19,8 @@ function curl_with_timecond() {
 }
 
 # burn
-curl_with_timecond https://github.com/Granulate/burn/releases/download/v1.0.1g2/burn gprofiler/resources/burn
-chmod +x gprofiler/resources/burn
+# TODO build for Aarch64
+if [ $(uname -m) = "x86_64" ]; then
+    curl_with_timecond https://github.com/Granulate/burn/releases/download/v1.0.1g2/burn gprofiler/resources/burn
+    chmod +x gprofiler/resources/burn
+fi
