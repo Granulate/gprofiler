@@ -70,6 +70,9 @@ WORKDIR /app
 # binutils - for phpspy (uses objdump)
 RUN apt-get update && apt-get install --no-install-recommends -y curl python3-pip kmod binutils
 
+COPY scripts/build.sh scripts/build.sh
+RUN ./scripts/build.sh
+
 COPY --from=bcc-builder /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
 # copy licenses and notice file.
 COPY --from=bcc-builder /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
@@ -83,15 +86,11 @@ COPY --from=perf-builder /perf gprofiler/resources/perf
 COPY --from=phpspy-builder /phpspy/phpspy gprofiler/resources/php/phpspy
 COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
 
-RUN mkdir -p gprofiler/resources/java
-COPY --from=async-profiler-builder /async-profiler/async-profiler-2.0-linux-x64.tar.gz /tmp
-RUN tar -xzf /tmp/async-profiler-2.0-linux-x64.tar.gz -C gprofiler/resources/java --strip-components=2 async-profiler-2.0-linux-x64/build && rm /tmp/async-profiler-2.0-linux-x64.tar.gz
+COPY --from=async-profiler-builder /async-profiler/build/jattach gprofiler/resources/java/jattach
+COPY --from=async-profiler-builder /async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
+COPY --from=async-profiler-builder /async-profiler/build/libasyncProfiler.so gprofiler/resources/java/libasyncProfiler.so
 
-RUN mkdir -p gprofiler/resources/ruby
 COPY --from=rbspy-builder /rbspy/target/x86_64-unknown-linux-musl/release/rbspy gprofiler/resources/ruby/rbspy
-
-COPY scripts/build.sh scripts/build.sh
-RUN ./scripts/build.sh
 
 # done separately from the 'pip3 install -e' below; so we don't reinstall all dependencies on each
 # code change.
