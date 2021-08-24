@@ -4,8 +4,8 @@
 # using the same builder for both pyspy and rbspy since they share build dependencies
 FROM rust@sha256:9c106c1222abe1450f45774273f36246ebf257623ed51280dbc458632d14c9fc AS pyspy-rbspy-builder-common
 
-COPY scripts/prepare_x86_64-unknown-linux-musl.sh .
-RUN ./prepare_x86_64-unknown-linux-musl.sh
+COPY scripts/prepare_machine-unknown-linux-musl.sh .
+RUN ./prepare_machine-unknown-linux-musl.sh
 
 # py-spy
 FROM pyspy-rbspy-builder-common AS pyspy-builder
