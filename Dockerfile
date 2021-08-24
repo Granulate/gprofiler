@@ -80,8 +80,7 @@ FROM ubuntu${GPROFILER_BUILDER_UBUNTU}
 WORKDIR /app
 
 # kmod - for modprobe kheaders if it's available
-# binutils - for phpspy (uses objdump)
-RUN apt-get update && apt-get install --no-install-recommends -y curl python3-pip kmod binutils
+RUN apt-get update && apt-get install --no-install-recommends -y curl python3-pip kmod
 
 COPY scripts/build.sh scripts/build.sh
 RUN ./scripts/build.sh
