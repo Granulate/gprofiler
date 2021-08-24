@@ -90,7 +90,6 @@ RUN mkdir -p gprofiler/resources/java
 COPY --from=async-profiler-builder /async-profiler/async-profiler-2.0-linux-x64.tar.gz /tmp
 RUN tar -xzf /tmp/async-profiler-2.0-linux-x64.tar.gz -C gprofiler/resources/java --strip-components=2 async-profiler-2.0-linux-x64/build && rm /tmp/async-profiler-2.0-linux-x64.tar.gz
 
-RUN mkdir -p gprofiler/resources/ruby
 COPY --from=rbspy-builder /rbspy/target/x86_64-unknown-linux-musl/release/rbspy gprofiler/resources/ruby/rbspy
 
 # done separately from the 'pip3 install -e' below; so we don't reinstall all dependencies on each
