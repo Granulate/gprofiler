@@ -48,10 +48,8 @@ RUN ./perf_build.sh
 # pyperf (bcc)
 FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-builder
 
-RUN apt-get update
-RUN apt-get install -y git
-RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; DEBIAN_FRONTEND=noninteractive apt-get install -y curl build-essential iperf llvm-9-dev libclang-9-dev \
-  cmake python3 flex bison libelf-dev libz-dev liblzma-dev
+RUN apt-get update && apt-get install -y git && if [ $(uname -m) = "aarch64" ]; then exit 0; fi; DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  curl build-essential iperf llvm-9-dev libclang-9-dev cmake python3 flex bison libelf-dev libz-dev liblzma-dev
 
 COPY ./scripts/libunwind_build.sh .
 RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; ./libunwind_build.sh
