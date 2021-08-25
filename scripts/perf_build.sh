@@ -12,7 +12,7 @@ rm linux.zip
 cd linux-*/
 
 # building those plugins on Aarch64's requires some of libc.a's (and other libs) .o files to
-# be built "PIC", and they are not.
+# be built "PIC", and in the default installation, they are not.
 # we don't use those plugins (and we don't even deploy them) so this patch disables their build.
 # (I couldn't find any way to do it with a build config to "make -C tools/perf" sadly)
 if [ $(uname -m) = "aarch64" ]; then
