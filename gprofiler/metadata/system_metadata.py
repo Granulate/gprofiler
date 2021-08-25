@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Dict, Optional, Tuple
 
 import distro  # type: ignore
@@ -237,3 +238,8 @@ def _initialize_system_info():
     run_in_ns(["mnt", "uts", "net"], get_infos)
 
     return hostname, distribution, libc_version, mac_address, local_ip
+
+
+@lru_cache(maxsize=None)
+def get_arch() -> str:
+    return platform.uname().machine

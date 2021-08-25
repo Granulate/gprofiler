@@ -6,7 +6,7 @@ across native programs<sup id="a1">[1](#perf-native)</sup> (includes Golang), Ja
 gProfiler can upload its results to the [Granulate Performance Studio](https://profiler.granulate.io/), which aggregates the results from different instances over different periods of time and can give you a holistic view of what is happening on your entire cluster.
 To upload results, you will have to register and generate a token on the website.
 
-gProfiler runs on Linux.
+gProfiler runs on Linux (on x86_64 and Aarch64; Aarch64 support is not complete yet and not all runtime profilers are supported, see [architecture support](#architecture-support)).
 
 ![Granulate Performance Studio example view](https://user-images.githubusercontent.com/58514213/124375504-36b0b200-dcab-11eb-8d64-caf20687a29f.gif)
 
@@ -100,6 +100,8 @@ Note that when using `--continuous` with `--output-dir`, a new file will be crea
 Aggregations are only available when uploading to the Granulate Performance Studio.
 
 ## Running as a Docker container
+Supported both for x86_64 and Aarch64.
+
 Run the following to have gProfiler running continuously, uploading to Granulate Performance Studio:
 ```bash
 docker pull granulate/gprofiler:latest
@@ -115,6 +117,8 @@ For profiling with eBPF, kernel headers must be accessible from within the conta
 The command above mounts both of these directories.
 
 ## Running as an executable
+Supported only on x86_64!
+
 Run the following to have gprofiler running continuously, uploading to Granulate Performance Studio:
 ```bash
 wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler
@@ -168,6 +172,18 @@ Alongside `perf`, gProfiler invokes runtime-specific profilers for processes bas
 
 The runtime-specific profilers produce stack traces that include runtime information (i.e, stacks of Java/Python functions), unlike `perf` which produces native stacks of the JVM / CPython interpreter.
 The runtime stacks are then merged into the data collected by `perf`, substituting the *native* stacks `perf` has collected for those processes.
+
+## Architecture support
+
+| Runtime                    | x86_64             | Aarch64            |
+|----------------------------|--------------------|--------------------|
+| perf (native, Golang, ...) | :heavy_check_mark: | :heavy_check_mark: |
+| Java (async-profiler)      | :heavy_check_mark: | :heavy_check_mark: |
+| Python (py-spy)            | :heavy_check_mark: | :heavy_check_mark: |
+| Python (PyPerf eBPF)       | :heavy_check_mark: | :x:                |
+| Ruby (rbspy)               | :heavy_check_mark: | :heavy_check_mark: |
+| PHP (phpspy)               | :heavy_check_mark: | :x:                |
+| NodeJS (perf)              | :heavy_check_mark: | :heavy_check_mark: |
 
 ## perf-less mode
 

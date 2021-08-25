@@ -4,8 +4,8 @@
 # using the same builder for both pyspy and rbspy since they share build dependencies
 FROM rust@sha256:9c106c1222abe1450f45774273f36246ebf257623ed51280dbc458632d14c9fc AS pyspy-rbspy-builder-common
 
-COPY scripts/prepare_x86_64-unknown-linux-musl.sh .
-RUN ./prepare_x86_64-unknown-linux-musl.sh
+COPY scripts/prepare_machine-unknown-linux-musl.sh .
+RUN ./prepare_machine-unknown-linux-musl.sh
 
 # py-spy
 FROM pyspy-rbspy-builder-common AS pyspy-builder
@@ -45,6 +45,11 @@ COPY scripts/async_profiler_env.sh .
 RUN ./async_profiler_env.sh
 COPY scripts/async_profiler_build.sh .
 RUN ./async_profiler_build.sh
+
+FROM golang@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d84d66ef25fa345f1 AS burn-builder
+
+COPY scripts/burn_build.sh .
+RUN ./burn_build.sh
 
 
 # Centos 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
@@ -99,9 +104,6 @@ RUN python3 -m pip install -r requirements.txt
 COPY exe-requirements.txt exe-requirements.txt
 RUN python3 -m pip install -r exe-requirements.txt
 
-COPY scripts/build.sh scripts/build.sh
-RUN ./scripts/build.sh
-
 # copy PyPerf and stuff
 RUN mkdir -p gprofiler/resources/ruby
 RUN mkdir -p gprofiler/resources/python/pyperf
@@ -125,6 +127,7 @@ COPY --from=async-profiler-builder /async-profiler/build/jattach gprofiler/resou
 COPY --from=async-profiler-builder /async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
 COPY --from=async-profiler-builder /async-profiler/build/libasyncProfiler.so gprofiler/resources/java/libasyncProfiler.so
 
+COPY --from=burn-builder /go/burn/burn gprofiler/resources/burn
 
 COPY gprofiler gprofiler
 
