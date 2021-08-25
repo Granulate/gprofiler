@@ -48,14 +48,13 @@ RUN ./perf_build.sh
 # pyperf (bcc)
 FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-builder
 
-COPY scripts/exit_if_not_x86_64.sh .
 RUN apt-get update
 RUN apt-get install -y git
-RUN . ./exit_if_not_x86_64.sh; DEBIAN_FRONTEND=noninteractive apt-get install -y curl build-essential iperf llvm-9-dev libclang-9-dev \
+RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; DEBIAN_FRONTEND=noninteractive apt-get install -y curl build-essential iperf llvm-9-dev libclang-9-dev \
   cmake python3 flex bison libelf-dev libz-dev liblzma-dev
 
 COPY ./scripts/libunwind_build.sh .
-RUN . ./exit_if_not_x86_64.sh; ./libunwind_build.sh
+RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; ./libunwind_build.sh
 
 WORKDIR /bcc
 
@@ -65,8 +64,7 @@ RUN ./pyperf_build.sh
 # phpspy
 FROM ubuntu${PHPSPY_BUILDER_UBUNTU} AS phpspy-builder
 
-COPY scripts/exit_if_not_x86_64.sh .
-RUN . ./exit_if_not_x86_64.sh; apt update && apt install -y git wget make gcc
+RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; apt update && apt install -y git wget make gcc
 COPY scripts/phpspy_build.sh .
 RUN ./phpspy_build.sh
 
