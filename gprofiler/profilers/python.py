@@ -280,7 +280,10 @@ class PythonEbpfProfiler(ProfilerBase):
     "Python",
     possible_modes=["auto", "pyperf", "pyspy", "disabed"],
     default_mode="auto",
-    supported_archs=["x86_64", "aarch64"],  # we build pyspy for both, pyperf only for x86_64.
+    # we build pyspy for both, pyperf only for x86_64.
+    # TODO: this inconsistency shows that py-spy and pyperf should have different Profiler classes,
+    # we should split them in the future.
+    supported_archs=["x86_64", "aarch64"],
     profiler_mode_argument_help="Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), "
     "pyspy (always use py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails)"
     " or disabled (no runtime profilers for Python).",
