@@ -29,6 +29,7 @@ RUN mv /py-spy/target/$(uname -m)-unknown-linux-musl/release/py-spy /py-spy/py-s
 FROM pyspy-rbspy-builder-common AS rbspy-builder
 COPY scripts/rbspy_build.sh .
 RUN ./rbspy_build.sh
+RUN mv /rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy /rbspy/rbspy
 
 # perf
 FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder
@@ -107,7 +108,7 @@ COPY --from=async-profiler-builder /async-profiler/build/jattach gprofiler/resou
 COPY --from=async-profiler-builder /async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
 COPY --from=async-profiler-builder /async-profiler/build/libasyncProfiler.so gprofiler/resources/java/libasyncProfiler.so
 
-COPY --from=rbspy-builder /rbspy/target/x86_64-unknown-linux-musl/release/rbspy gprofiler/resources/ruby/rbspy
+COPY --from=rbspy-builder /rbspy/rbspy gprofiler/resources/ruby/rbspy
 
 # done separately from the 'pip3 install -e' below; so we don't reinstall all dependencies on each
 # code change.

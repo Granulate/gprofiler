@@ -23,7 +23,7 @@ logger = get_logger_adapter(__name__)
 @register_profiler(
     "Ruby",
     possible_modes=["rbspy", "disabled"],
-    supported_archs=["x86_64"],  # we don't build rbspy for others yet
+    supported_archs=["x86_64", "aarch64"],
     default_mode="rbspy",
 )
 class RbSpyProfiler(ProcessProfilerBase):
