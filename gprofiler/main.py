@@ -171,28 +171,25 @@ class GProfiler:
         logger.info(f"Saved collapsed stacks to {collapsed_path}")
 
         if self._flamegraph:
-            if os.path.exists(resource_path("burn")):
-                flamegraph_path = base_filename + ".html"
-                flamegraph_data = (
-                    Path(resource_path("flamegraph/flamegraph_template.html"))
-                    .read_text()
-                    .replace(
-                        "{{{JSON_DATA}}}",
-                        run_process(
-                            [resource_path("burn"), "convert", "--type=folded", collapsed_path], suppress_log=True
-                        ).stdout.decode(),
-                    )
-                    .replace("{{{START_TIME}}}", start_ts)
-                    .replace("{{{END_TIME}}}", end_ts)
+            flamegraph_path = base_filename + ".html"
+            flamegraph_data = (
+                Path(resource_path("flamegraph/flamegraph_template.html"))
+                .read_text()
+                .replace(
+                    "{{{JSON_DATA}}}",
+                    run_process(
+                        [resource_path("burn"), "convert", "--type=folded", collapsed_path], suppress_log=True
+                    ).stdout.decode(),
                 )
-                Path(flamegraph_path).write_text(flamegraph_data)
+                .replace("{{{START_TIME}}}", start_ts)
+                .replace("{{{END_TIME}}}", end_ts)
+            )
+            Path(flamegraph_path).write_text(flamegraph_data)
 
-                # point last_flamegraph.html at the new file; and possibly, delete the previous one.
-                self._update_last_output("last_flamegraph.html", flamegraph_path)
+            # point last_flamegraph.html at the new file; and possibly, delete the previous one.
+            self._update_last_output("last_flamegraph.html", flamegraph_path)
 
-                logger.info(f"Saved flamegraph to {flamegraph_path}")
-            else:
-                logger.info("'burn' not available, not writing flamegraph!")
+            logger.info(f"Saved flamegraph to {flamegraph_path}")
 
     @staticmethod
     def _strip_container_data(collapsed_data):
