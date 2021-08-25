@@ -10,6 +10,8 @@ ARG PERF_BUILDER_UBUNTU=@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639
 ARG PHPSPY_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
 # async-profiler, requires CentOS 6, so the built DSO can be loaded into machines running with old glibc - centos:6
 ARG AP_BUILDER_CENTOS=@sha256:dec8f471302de43f4cfcf82f56d99a5227b5ea1aa6d02fa56344986e1f4610e7
+# burn - golang:1.16.3
+ARG BURN_BUILDER_GOLANG=@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d84d66ef25fa345f1
 # gprofiler - ubuntu 20.04
 ARG GPROFILER_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
 
@@ -75,6 +77,12 @@ RUN ./async_profiler_env.sh
 COPY scripts/async_profiler_build.sh .
 RUN ./async_profiler_build.sh
 
+# burn
+FROM golang${BURN_BUILDER_GOLANG} AS burn-builder
+
+COPY scripts/burn_build.sh .
+RUN ./burn_build.sh
+
 
 # the gProfiler image itself, at last.
 FROM ubuntu${GPROFILER_BUILDER_UBUNTU}
@@ -83,9 +91,6 @@ WORKDIR /app
 
 # kmod - for modprobe kheaders if it's available
 RUN apt-get update && apt-get install --no-install-recommends -y curl python3-pip kmod
-
-COPY scripts/build.sh scripts/build.sh
-RUN ./scripts/build.sh
 
 # Aarch64 has no .whl file for psutil - so it's trying to build from source.
 RUN if [ $(uname -m) = "aarch64" ]; then apt-get install -y build-essential python3.8-dev; fi
@@ -109,6 +114,8 @@ COPY --from=async-profiler-builder /async-profiler/build/async-profiler-version 
 COPY --from=async-profiler-builder /async-profiler/build/libasyncProfiler.so gprofiler/resources/java/libasyncProfiler.so
 
 COPY --from=rbspy-builder /rbspy/rbspy gprofiler/resources/ruby/rbspy
+
+COPY --from=burn-builder /go/burn/burn gprofiler/resources/burn
 
 # done separately from the 'pip3 install -e' below; so we don't reinstall all dependencies on each
 # code change.

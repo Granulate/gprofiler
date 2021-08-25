@@ -46,6 +46,11 @@ RUN ./async_profiler_env.sh
 COPY scripts/async_profiler_build.sh .
 RUN ./async_profiler_build.sh
 
+FROM golang@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d84d66ef25fa345f1 AS burn-builder
+
+COPY scripts/burn_build.sh .
+RUN ./burn_build.sh
+
 
 # Centos 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
 # This will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
@@ -99,9 +104,6 @@ RUN python3 -m pip install -r requirements.txt
 COPY exe-requirements.txt exe-requirements.txt
 RUN python3 -m pip install -r exe-requirements.txt
 
-COPY scripts/build.sh scripts/build.sh
-RUN ./scripts/build.sh
-
 # copy PyPerf and stuff
 RUN mkdir -p gprofiler/resources/ruby
 RUN mkdir -p gprofiler/resources/python/pyperf
@@ -125,6 +127,7 @@ COPY --from=async-profiler-builder /async-profiler/build/jattach gprofiler/resou
 COPY --from=async-profiler-builder /async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
 COPY --from=async-profiler-builder /async-profiler/build/libasyncProfiler.so gprofiler/resources/java/libasyncProfiler.so
 
+COPY --from=burn-builder /go/burn/burn gprofiler/resources/burn
 
 COPY gprofiler gprofiler
 
