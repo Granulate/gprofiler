@@ -13,7 +13,7 @@ from typing import List, Optional
 from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
-from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, positive_integer
+from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_and_remove_one_collapsed, parse_many_collapsed
 from gprofiler.metadata.system_metadata import get_arch
@@ -289,7 +289,12 @@ class PythonEbpfProfiler(ProfilerBase):
     " or disabled (no runtime profilers for Python).",
     profiler_arguments=[
         ProfilerArgument(
-            "--pyperf-user-stacks-pages", dest="python_pyperf_user_stacks_pages", default=None, type=positive_integer
+            "--pyperf-user-stacks-pages",
+            dest="python_pyperf_user_stacks_pages",
+            default=None,
+            type=nonnegative_integer,
+            help="Number of user stack-pages that PyPerf will collect, this controls the maximum stack depth of native"
+            " user frames. Pass 0 to disable user native stacks altogether.",
         )
     ],
 )
