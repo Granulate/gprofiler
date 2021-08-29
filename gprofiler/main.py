@@ -214,7 +214,7 @@ class GProfiler:
                     raise
 
                 # others - are ignored, with a warning.
-                logger.warning(f"Failed to start {prof.__class__.__name__}, continuing without it")
+                logger.warning(f"Failed to start {prof.__class__.__name__}, continuing without it", exc_info=True)
                 self.process_profilers.remove(prof)
 
     def stop(self):
