@@ -22,4 +22,4 @@ docker buildx build --platform=linux/arm64 \
     --build-arg AP_BUILDER_CENTOS=$CENTOS_VERSION \
     --build-arg BURN_BUILDER_GOLANG=$GOLANG_VERSION \
     --build-arg GPROFILER_BUILDER_UBUNTU=$UBUNTU_VERSION \
-    .
+    . $@

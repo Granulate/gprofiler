@@ -11,7 +11,15 @@ tar -xf libunwind-1.5.0.tar.gz
 curl https://github.com/libunwind/libunwind/commit/831459ee961e7d673bbd83e40d0823227c66db33.patch | sed s/unw_ltoa/ltoa/g > libunwind-container-support.patch
 pushd libunwind-1.5.0
 patch -p1 < ../libunwind-container-support.patch
-./configure --prefix=/usr --disable-tests --disable-documentation && make install -j
+
+if [ $(uname -m) = "aarch64" ]; then
+    # higher value for make -j kills the GH runner (build gets OOM)
+    nproc=2
+else
+    nproc=
+fi
+
+./configure --prefix=/usr --disable-tests --disable-documentation && make install -j $nproc
 popd
 rm -r libunwind-1.5.0
 rm libunwind-1.5.0.tar.gz
