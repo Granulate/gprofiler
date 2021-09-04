@@ -76,23 +76,18 @@ jobs:
          ./cmp_tags.sh
 
      # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
-     - name: Run Pyinstaller
-       # Not using DOCKER_BUILDKIT=1 since it has another cache mechanism which is not supported by satackey/action-docker-layer-caching@v0.0.11
+     - name: Build gProfiler executable
+       # Using DOCKER_BUILDKIT=1 although it has another cache mechanism which is not supported by satackey/action-docker-layer-caching@v0.0.11
        # We tried to cache using buildx cache (cache-from, cache-to flags) and got strange behavior when caching,
        # decided not to use buildkit here to get nice caches.
-       run: |
-        docker build -t gprofiler-executable-builder -f - . < pyi.Dockerfile
-        # No command specified in "scratch" image so just pass /bin/echo
-        docker container create --name gprofiler-executable-builder gprofiler-executable-builder /bin/echo
-        mkdir -p dist/
-        docker cp gprofiler-executable-builder:/gprofiler dist/gprofiler
-        docker rm gprofiler-executable-builder
+       # if we enable caching again, we can disable DOCKER_BUILDKIT.
+       run: ./scripts/build_x86_64_executable.sh
 
      - name: Upload the executable as job artifact
        uses: actions/upload-artifact@v2
        with:
          name: gprofiler
-         path: dist/
+         path: output/
          retention-days: 1
 
   test-executable:
