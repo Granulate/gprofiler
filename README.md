@@ -121,7 +121,7 @@ Supported only on x86_64!
 
 Run the following to have gprofiler running continuously, uploading to Granulate Performance Studio:
 ```bash
-wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler
+wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler_$(uname -m) -O gprofiler
 sudo chmod +x gprofiler
 sudo ./gprofiler -cu --token <token> --service-name <service> [options]
 ```
