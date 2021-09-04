@@ -5,5 +5,5 @@
 #
 set -euo pipefail
 
-mkdir -p output
-DOCKER_BUILDKIT=1 docker build -f pyi.Dockerfile --output type=local,dest=output/ .
+mkdir -p build/x86_64
+DOCKER_BUILDKIT=1 docker build -f pyi.Dockerfile --output type=local,dest=build/x86_64/ .
