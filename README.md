@@ -143,11 +143,31 @@ See [gprofiler.yaml](deploy/k8s/gprofiler.yaml) for a basic template of a Daemon
 Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in the appropriate location!
 
 ## Running as an ECS (Elastic Container Service) Daemon service
-See [gprofiler_task_definition.json](deploy/ecs/gprofiler_task_definition.json) for a basic template of a Task Definition which runs gProfiler.
-Make sure to replace `<CLIENT TOKEN>` and `<CLIENT SERVICE>` with your appropriate token and service name!
-Also make sure to deploy it as an EC2 launch type, and as a Daemon service type - <img src="https://i.imgur.com/oaDR51w.png" alt="ecs-deployment" width="50%"/> \
-Note - if you wish to see the logs from the gProfiler service, be sure to follow [AWS's guide](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/using_awslogs.html#create_awslogs_loggroups)
-on how to auto-configure logging, or to set it up manually yourself.
+#### Creating the ECS Task Definition
+- Go to ECS, and [create a new task definition](https://console.aws.amazon.com/ecs/home?region=us-east-1#/taskDefinitions/create)
+- Choose EC2, and click `Next Step`
+- Scroll to the bottom of the page, and click `Configure via JSON` \
+<img src="https://i.imgur.com/Fd6u1Ih.png" alt="Configure via JSON button" width="50%"/>
+- Replace the JSON contents with the contents of the [gprofiler_task_definition.json](deploy/ecs/gprofiler_task_definition.json) file and **Make sure you change the following values**:
+  - Replace `<CLIENT TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/) site
+  - Replace `<CLIENT SERVICE>` in the command line with the service name you wish to use
+- **Note** - if you wish to see the logs from the gProfiler service, be sure to follow [AWS's guide](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/using_awslogs.html#create_awslogs_loggroups)
+  on how to auto-configure logging, or to set it up manually yourself.
+- Click `Save`
+- Click `Create`
+
+#### Deploying the gProfiler service
+
+* Go to your [ECS Clusters](https://console.aws.amazon.com/ecs/home?region=us-east-1#/clusters) and enter the relevant cluster
+* Click on `Services`, and choose `Create` \
+  <img src="https://i.imgur.com/oieM7g8.png" alt="Create Service" width="50%"/>
+* Choose the `EC2` launch type and the `granulate-gprofiler` task definition with the latest revision
+* Enter a service name
+* Choose the `DAEMON` service type \
+  This is how it should look like: \
+  <img src="https://i.imgur.com/oaDR51w.png" alt="Configure Service" width="50%"/> \
+* Click `Next step` until you reach the `Review` page, and then click `Create Service` 
+
 
 ## Running from source
 gProfiler requires Python 3.6+ to run.
