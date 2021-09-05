@@ -142,6 +142,13 @@ The following platforms are currently not supported with the gProfiler executabl
 See [gprofiler.yaml](deploy/k8s/gprofiler.yaml) for a basic template of a DaemonSet running gProfiler.
 Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in the appropriate location!
 
+## Running as an ECS (Elastic Container Service) Daemon service
+See [gprofiler_task_definition.json](deploy/ecs/gprofiler_task_definition.json) for a basic template of a Task Definition which runs gProfiler.
+Make sure to replace `<CLIENT TOKEN>` and `<CLIENT SERVICE>` with your appropriate token and service name!
+Also make sure to deploy it as an EC2 launch type, and as a Daemon service type - <img src="https://i.imgur.com/oaDR51w.png" alt="ecs-deployment" width="50%"/> \
+Note - if you wish to see the logs from the gProfiler service, be sure to follow [AWS's guide](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/using_awslogs.html#create_awslogs_loggroups)
+on how to auto-configure logging, or to set it up manually yourself.
+
 ## Running from source
 gProfiler requires Python 3.6+ to run.
 
