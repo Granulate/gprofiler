@@ -109,7 +109,7 @@ RUN if [ $(uname -m) != "aarch64" ]; then source scl_source enable devtoolset-8 
 
 WORKDIR /app
 
-RUN yum update -y && yum install -y epel-release
+RUN yum install -y epel-release
 RUN yum install -y gcc python3 curl python3-pip patchelf python3-devel upx
 # needed for aarch64
 RUN if [ $(uname -m) = "aarch64" ]; then yum install -y glibc-static zlib-devel.aarch64; fi
