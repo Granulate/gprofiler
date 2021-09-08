@@ -199,7 +199,6 @@ In this mode, gProfiler uses runtime-specific profilers only, and their results 
 * x86_64: `./scripts/build_x86_64_executable.sh` will build the executable into `build/x86_64/gprofiler`.
 * Aarch64: `./scripts/build_aarch64_executable.sh` will build the executable into `build/aarch64/gprofiler`. As with the Aarch64 container build - this can be used to cross-compile on x86_64, you just need to set up buildx for that, see notes above.
 
-
 # Contribute
 We welcome all feedback and suggestion through Github Issues:
 * [Submit bugs and feature requests](https://github.com/granulate/gprofiler/issues)
