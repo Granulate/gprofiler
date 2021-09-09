@@ -147,7 +147,7 @@ Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in t
 - Go to ECS, and [create a new task definition](https://console.aws.amazon.com/ecs/home?region=us-east-1#/taskDefinitions/create)
 - Choose EC2, and click `Next Step`
 - Scroll to the bottom of the page, and click `Configure via JSON` \
-<img src="https://i.imgur.com/Fd6u1Ih.png" alt="Configure via JSON button" width="50%"/>
+![Configure via JSON button](images/configure_via_json.jpg)
 - Replace the JSON contents with the contents of the [gprofiler_task_definition.json](deploy/ecs/gprofiler_task_definition.json) file and **Make sure you change the following values**:
   - Replace `<CLIENT TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/) site
   - Replace `<CLIENT SERVICE>` in the command line with the service name you wish to use
@@ -159,13 +159,10 @@ Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in t
 #### Deploying the gProfiler service
 
 * Go to your [ECS Clusters](https://console.aws.amazon.com/ecs/home?region=us-east-1#/clusters) and enter the relevant cluster
-* Click on `Services`, and choose `Create` \
-  <img src="https://i.imgur.com/oieM7g8.png" alt="Create Service" width="50%"/>
+* Click on `Services`, and choose `Create` 
 * Choose the `EC2` launch type and the `granulate-gprofiler` task definition with the latest revision
 * Enter a service name
-* Choose the `DAEMON` service type \
-  This is how it should look like: \
-  <img src="https://i.imgur.com/oaDR51w.png" alt="Configure Service" width="50%"/> \
+* Choose the `DAEMON` service type 
 * Click `Next step` until you reach the `Review` page, and then click `Create Service` 
 
 
