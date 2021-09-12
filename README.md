@@ -147,7 +147,7 @@ Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in t
 - Go to ECS, and [create a new task definition](https://console.aws.amazon.com/ecs/home?region=us-east-1#/taskDefinitions/create)
 - Choose EC2, and click `Next Step`
 - Scroll to the bottom of the page, and click `Configure via JSON` \
-![Configure via JSON button](images/configure_via_json.jpg)
+![Configure via JSON button](https://user-images.githubusercontent.com/74833655/132983629-163fdb87-ec9a-4201-b557-e0ae441e2595.png)
 - Replace the JSON contents with the contents of the [gprofiler_task_definition.json](deploy/ecs/gprofiler_task_definition.json) file and **Make sure you change the following values**:
   - Replace `<TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/) site
   - Replace `<SERVICE NAME>` in the command line with the service name you wish to use
