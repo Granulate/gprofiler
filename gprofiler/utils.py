@@ -332,8 +332,7 @@ def assert_program_installed(program: str):
 
 def run_in_ns(nstypes: List[str], callback: Callable[[], T], target_pid: int = 1) -> Optional[T]:
     """
-    Runs a ca
-    llback in a new thread, switching to a set of the namespaces of a target process before
+    Runs a callback in a new thread, switching to a set of the namespaces of a target process before
     doing so.
 
     Needed initially for switching mount namespaces, because we can't setns(CLONE_NEWNS) in a multithreaded
@@ -345,7 +344,36 @@ def run_in_ns(nstypes: List[str], callback: Callable[[], T], target_pid: int = 1
     By default, run stuff in init NS. You can pass 'target_pid' to run in the namespace of that process.
     """
 
-    return callback()
+    # make sure "mnt" is last, once we change it our /proc is gone
+    nstypes = sorted(nstypes, key=lambda ns: 1 if ns == "mnt" else 0)
+
+    ret: Optional[T] = None
+
+    def _switch_and_run():
+        libc = ctypes.CDLL("libc.so.6")
+        for nstype in nstypes:
+            if not is_same_ns(target_pid, nstype):
+                flag = {
+                    "mnt": 0x00020000,  # CLONE_NEWNS
+                    "net": 0x40000000,  # CLONE_NEWNET
+                    "pid": 0x20000000,  # CLONE_NEWPID
+                    "uts": 0x04000000,  # CLONE_NEWUTS
+                }[nstype]
+                if libc.unshare(flag) != 0:
+                    raise ValueError(f"Failed to unshare({nstype})")
+
+                with open(f"/proc/{target_pid}/ns/{nstype}", "r") as nsf:
+                    if libc.setns(nsf.fileno(), flag) != 0:
+                        raise ValueError(f"Failed to setns({nstype}) (to pid {target_pid})")
+
+        nonlocal ret
+        ret = callback()
+
+    t = Thread(target=_switch_and_run)
+    t.start()
+    t.join()
+
+    return ret
 
 
 def grab_gprofiler_mutex() -> bool:
@@ -461,5 +489,5 @@ def random_prefix() -> str:
 def process_comm(process: Process) -> str:
     status = Path(f"/proc/{process.pid}/status").read_text()
     name_line = status.splitlines()[0]
-    assert name_line.startswith("Name:")
-    return name_line.split("\t")[1]
+    assert name_line.startswith("Name:\t")
+    return name_line.split("\t", 1)[1]
