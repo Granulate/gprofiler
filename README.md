@@ -142,6 +142,43 @@ The following platforms are currently not supported with the gProfiler executabl
 See [gprofiler.yaml](deploy/k8s/gprofiler.yaml) for a basic template of a DaemonSet running gProfiler.
 Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in the appropriate location!
 
+## Running as an ECS (Elastic Container Service) Daemon service
+#### Creating the ECS Task Definition
+- Go to ECS, and [create a new task definition](https://console.aws.amazon.com/ecs/home?region=us-east-1#/taskDefinitions/create)
+- Choose EC2, and click `Next Step`
+- Scroll to the bottom of the page, and click `Configure via JSON` \
+![Configure via JSON button](https://user-images.githubusercontent.com/74833655/132983629-163fdb87-ec9a-4201-b557-e0ae441e2595.png)
+- Replace the JSON contents with the contents of the [gprofiler_task_definition.json](deploy/ecs/gprofiler_task_definition.json) file and **Make sure you change the following values**:
+  - Replace `<TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/) site
+  - Replace `<SERVICE NAME>` in the command line with the service name you wish to use
+- **Note** - if you wish to see the logs from the gProfiler service, be sure to follow [AWS's guide](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/using_awslogs.html#create_awslogs_loggroups)
+  on how to auto-configure logging, or to set it up manually yourself.
+- Click `Save`
+- Click `Create`
+
+#### Deploying the gProfiler service
+
+* Go to your [ECS Clusters](https://console.aws.amazon.com/ecs/home?region=us-east-1#/clusters) and enter the relevant cluster
+* Click on `Services`, and choose `Create` 
+* Choose the `EC2` launch type and the `granulate-gprofiler` task definition with the latest revision
+* Enter a service name
+* Choose the `DAEMON` service type 
+* Click `Next step` until you reach the `Review` page, and then click `Create Service` 
+
+
+## Running as a docker-compose service
+You can run a gProfiler container with `docker-compose` by using the template file in [docker-compose.yml](deploy/docker-compose/docker-compose.yml).
+Start by replacing the `<TOKEN>` and `<SERVICE NAME>` with values in the `command` section -
+* `<TOKEN>` should be replaced with your personal token from the [gProfiler Performance Studio](https://profiler.granulate.io/) site (in the [Install Service](https://profiler.granulate.io/installation) section)
+* The `<SERVICE NAME>` should be replaced with whatever service name you wish to use 
+
+Optionally, you can add more command line arguments to the `command` section. For example, if you wish to use the `py-spy` profiler, you could replace the command with `-cu --token "<TOKEN>" --service-name "<SERVICE NAME>" --python-mode pyspy`.
+
+**To run it, run the following command:** 
+  ```bash
+  docker-compose -f /path/to/docker-compose.yml up -d
+  ```
+
 ## Running from source
 gProfiler requires Python 3.6+ to run.
 

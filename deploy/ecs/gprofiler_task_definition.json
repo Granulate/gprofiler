@@ -1,0 +1,65 @@
+{
+    "requiresCompatibilities": [
+        "EC2"
+    ],
+    "containerDefinitions": [
+        {
+            "name": "granulate-gprofiler",
+            "image": "index.docker.io/granulate/gprofiler:latest",
+            "memory": "1000",
+            "cpu": "500",
+            "essential": true,
+            "command": [
+                "-cu",
+                "--token",
+                "<TOKEN>",
+                "--service-name",
+                "<SERVICE NAME>"
+            ],
+            "mountPoints": [
+                {
+                  "containerPath": "/var/run/docker.sock",
+                  "sourceVolume": "docker-socket"
+                },
+                {
+                  "containerPath": "/usr/src",
+                  "sourceVolume": "usr-src",
+                  "readOnly": true
+                },
+                {
+                  "containerPath": "/lib/modules",
+                  "sourceVolume": "lib-modules",
+                  "readOnly": true
+                }
+            ],
+            "user": "0:0",
+            "privileged": true
+        }
+    ],
+    "volumes": [
+        {
+            "host": {
+                "sourcePath": "/var/run/docker.sock"
+            },
+            "name": "docker-socket"
+        },
+        {
+            "host": {
+                "sourcePath": "/usr/src"
+            },
+            "name": "usr-src"
+        },
+        {
+            "host": {
+                "sourcePath": "/lib/modules"
+            },
+            "name": "lib-modules"
+        }
+    ],
+    "cpu": "500",
+    "memory": "1000",
+    "networkMode": null,
+    "pidMode": "host",
+    "ipcMode": "host",
+    "family": "granulate-gprofiler"
+}
