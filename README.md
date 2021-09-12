@@ -167,7 +167,7 @@ Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in t
 
 
 ## Running as a docker-compose service
-You can run a gProfiler container with `docker-compose` by using the template file in [deploy/docker-compose/docker-compose.yml](deploy/docker-compose/docker-compose.yml).
+You can run a gProfiler container with `docker-compose` by using the template file in [docker-compose.yml](deploy/docker-compose/docker-compose.yml).
 Start by replacing the `<TOKEN>` and `<SERVICE NAME>` with values in the `command` section -
 * `<TOKEN>` should be replaced with your personal token from the [gProfiler Performance Studio](https://profiler.granulate.io/) site (in the [Install Service](https://profiler.granulate.io/installation) section)
 * The `<SERVICE NAME>` should be replaced with whatever service name you wish to use 
