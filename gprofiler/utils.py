@@ -487,7 +487,7 @@ def random_prefix() -> str:
 
 
 def process_comm(process: Process) -> str:
-    comm = Path(f"/proc/{process.pid}/comm").read_text()
-    # the kernel always adds \n
-    assert comm.endswith('\n'), f"unexpected comm: {comm!r}"
-    return comm[:-1]
+    status = Path(f"/proc/{process.pid}/status").read_text()
+    name_line = status.splitlines()[0]
+    assert name_line.startswith("Name:\t")
+    return name_line.split("\t", 1)[1]
