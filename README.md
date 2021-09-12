@@ -176,6 +176,10 @@ So in order to deploy gProfiler, we need to modify a container definition to inc
 
    For example, if your default `command` is `["python", "/path/to/my/app.py"]`, we will now change it to: `"bash", "-c", "(wget -q https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler -O /tmp/gprofiler; chmod +x /tmp/gprofiler; /tmp/gprofiler -cu --token <TOKEN> --service-name <SERVICE NAME> --disable-pidns-check --perf-mode none) > /tmp/gprofiler_log 2>&1 & python /path/to/my/app.py"`. This new command will start the downloading of gProfiler in the background, then run the your application.
 
+    `--disable-pidns-check` is required because, well, we won't run in init PID NS :)
+
+    `--perf-mode none` is required because our container will not have permissions to run system-wide `perf`, so gProfiler will profile only runtime processes. See [perf-less mode](#perf-less-mode) for more information.
+
    This requires your image to have `wget` installed - you can make sure `wget` is installed, or substitute it with `curl` or any other HTTP-downloader you wish.
 2. Add `linuxParameters` to the container definition (this goes directly in your entry in `containerDefinitinos`):
    ```
@@ -189,7 +193,7 @@ So in order to deploy gProfiler, we need to modify a container definition to inc
    ```
    `SYS_PTRACE` is required by  various profilers, and Fargate by default denies it for containers.
 
-Alternatively, you can download gProfiler in your `Dockerfile` to avoid having to download it every time in runtime. Then you just need to invoke it upon container start-up.
+Alternatively, you can download gProfiler in your `Dockerfile` to avoid having to download it every time in run-time. Then you just need to invoke it upon container start-up.
 
 ## Running as a docker-compose service
 You can run a gProfiler container with `docker-compose` by using the template file in [docker-compose.yml](deploy/docker-compose/docker-compose.yml).
