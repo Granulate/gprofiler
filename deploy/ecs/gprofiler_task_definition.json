@@ -12,9 +12,9 @@
             "command": [
                 "-cu",
                 "--token",
-                "<CLIENT TOKEN>",
+                "<TOKEN>",
                 "--service-name",
-                "<CLIENT SERVICE>"
+                "<SERVICE NAME>"
             ],
             "mountPoints": [
                 {

@@ -149,8 +149,8 @@ Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in t
 - Scroll to the bottom of the page, and click `Configure via JSON` \
 ![Configure via JSON button](images/configure_via_json.jpg)
 - Replace the JSON contents with the contents of the [gprofiler_task_definition.json](deploy/ecs/gprofiler_task_definition.json) file and **Make sure you change the following values**:
-  - Replace `<CLIENT TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/) site
-  - Replace `<CLIENT SERVICE>` in the command line with the service name you wish to use
+  - Replace `<TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/) site
+  - Replace `<SERVICE NAME>` in the command line with the service name you wish to use
 - **Note** - if you wish to see the logs from the gProfiler service, be sure to follow [AWS's guide](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/using_awslogs.html#create_awslogs_loggroups)
   on how to auto-configure logging, or to set it up manually yourself.
 - Click `Save`
