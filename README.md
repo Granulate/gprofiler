@@ -174,7 +174,7 @@ Furthermore, Fargate does not allow using `"pidMode": "host"` in the task defini
 So in order to deploy gProfiler, we need to modify a container definition to include running gProfiler alongside the actual application. This can be done with the following steps:
 1. Modify the `command` parameter of your entry in the `containerDefinitions` array. The new command should include downloading of gProfiler & executing it in the background.
 
-   For example, if your default `command` is `["python", "/path/to/my/app.py"]`, we will now change it to: `"bash", "-c", "(wget -q https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler -O /tmp/gprofiler; chmod +x /tmp/gprofiler; /tmp/gprofiler -cu --token <TOKEN> --service-name <SERVICE NAME> --disable-pidns-check --perf-mode none) > /tmp/gprofiler_log 2>&1 & python /path/to/my/app.py"`. This new command will start the downloading of gProfiler in the background, then run the your application.
+   For example, if your default `command` is `["python", "/path/to/my/app.py"]`, we will now change it to: `"bash", "-c", "(wget -q https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler -O /tmp/gprofiler; chmod +x /tmp/gprofiler; /tmp/gprofiler -cu --token <TOKEN> --service-name <SERVICE NAME> --disable-pidns-check --perf-mode none) > /tmp/gprofiler_log 2>&1 & python /path/to/my/app.py"`. This new command will start the downloading of gProfiler in the background, then run your application.
 
     `--disable-pidns-check` is required because, well, we won't run in init PID NS :)
 
