@@ -54,13 +54,11 @@ def parse_one_collapsed(collapsed: str, add_comm: Optional[str] = None) -> Stack
     return stacks
 
 
-def parse_and_remove_one_collapsed(collapsed: Path, add_comm: Optional[str] = None) -> StackToSampleCount:
+def parse_one_collapsed_file(collapsed: Path, add_comm: Optional[str] = None) -> StackToSampleCount:
     """
-    Parse a stack-collapsed file and remove it.
+    Parse a stack-collapsed file.
     """
-    data = collapsed.read_text()
-    collapsed.unlink()
-    return parse_one_collapsed(data, add_comm)
+    return parse_one_collapsed(collapsed.read_text(), add_comm)
 
 
 def parse_many_collapsed(text: str) -> ProcessToStackSampleCounters:
