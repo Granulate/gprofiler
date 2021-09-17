@@ -71,7 +71,7 @@ class PySpyProfiler(ProcessProfilerBase):
                 self._make_command(process.pid, local_output_path),
                 stop_event=self._stop_event,
                 timeout=self._duration + self._EXTRA_TIMEOUT,
-                kill_signal=signal.SIGINT,
+                kill_signal=signal.SIGTERM,
             )
         except ProcessStoppedException:
             raise StopEventSetException
