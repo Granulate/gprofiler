@@ -10,9 +10,9 @@ import setuptools
 
 # ------------------------------------------------------------------------------------------------------------
 # TODO: replace with the actual service name you wish to use
-SERVICE_NAME = "<REPLACE WITH YOUR SERVICE NAME>"
+SERVICE_NAME = "<SERVICE NAME>"
 # TODO: replace with a token you got from the performance studio (https://profiler.granulate.io/installation)
-GPROFILER_TOKEN = "<REPLACE WITH YOUR TOKEN>"
+GPROFILER_TOKEN = "<TOKEN>"
 # ------------------------------------------------------------------------------------------------------------
 
 KEEP_LOGS = True
