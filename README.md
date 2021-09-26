@@ -214,6 +214,18 @@ Replace the values of `SERVICE_NAME` and `GPROFILER_TOKEN` -
   - Replace `<SERVICE NAME>` in the command line with the service name you wish to use
 Whenever you start a Dataflow job, add the `--setup_file /path/to/setup.py` flag with your `setup.py` 
  copy (**PLEASE NOTE** - the flag is `--setup_file` and not `--setup-file`).
+For example, here's a command that starts an example Apache Beam job with gProfiler:
+```shell
+python3 -m apache_beam.examples.complete.top_wikipedia_sessions \
+--region us-central1 \
+--runner DataflowRunner \
+--project my_project \
+--temp_location gs://my-cloud-storage-bucket/temp/ \
+--output gs://my-cloud-storage-bucket/output/ \
+--setup_file /path/to/setup.py
+```
+If you are already using the `--setup_file` flag for your own setup, please contact us or open a new GitHub issue [here](https://github.com/Granulate/gprofiler/issues/new).
+
 
 ## Running from source
 gProfiler requires Python 3.6+ to run.
