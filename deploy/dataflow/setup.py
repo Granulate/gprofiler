@@ -15,6 +15,10 @@ SERVICE_NAME = "<SERVICE NAME>"
 GPROFILER_TOKEN = "<TOKEN>"
 # ------------------------------------------------------------------------------------------------------------
 
+assert SERVICE_NAME != "<SERVICE NAME>", "Please update the SERVICE_NAME value with an appropriate service name"
+assert GPROFILER_TOKEN != "<TOKEN>", "Please update the GPROFILER_TOKEN value with an appropriate " \
+                                     "Performance Studio token"
+
 KEEP_LOGS = True
 
 
