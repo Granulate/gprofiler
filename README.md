@@ -212,7 +212,7 @@ Copy the [Dataflow setup file](./deploy/dataflow/setup.py) over to where you wis
 Replace the values of `SERVICE_NAME` and `GPROFILER_TOKEN` - 
   - Replace `<TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site
   - Replace `<SERVICE NAME>` in the command line with the service name you wish to use
-Whenever you start a Dataflow job, add the `--setup_file /path/to/setup.py` flag with your `setup.py` 
+whenever you start a Dataflow job, add the `--setup_file /path/to/setup.py` flag with your `setup.py` 
  copy (**PLEASE NOTE** - the flag is `--setup_file` and not `--setup-file`).
 For example, here's a command that starts an example Apache Beam job with gProfiler:
 ```shell
