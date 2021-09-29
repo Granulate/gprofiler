@@ -209,7 +209,7 @@ Optionally, you can add more command line arguments to the `command` section. Fo
   ```
 ## Running on Google Dataflow
 Copy the [Dataflow setup file](./deploy/dataflow/setup.py) over to where you wish to start your Dataflow jobs from.
-Replace the values of `SERVICE_NAME` and `GPROFILER_TOKEN` - 
+Replace the values of `SERVICE_NAME` and `GPROFILER_TOKEN`:
   - Replace `<TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site
   - Replace `<SERVICE NAME>` in the command line with the service name you wish to use
 whenever you start a Dataflow job, add the `--setup_file /path/to/setup.py` flag with your `setup.py` 
