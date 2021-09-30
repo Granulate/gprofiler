@@ -208,10 +208,15 @@ Optionally, you can add more command line arguments to the `command` section. Fo
   docker-compose -f /path/to/docker-compose.yml up -d
   ```
 ## Running on Google Dataflow
+**We currently only support Python pipelines**. Java support is coming soon
+
+You can read the official documentation for Apache Beam [here](https://beam.apache.org/documentation/sdks/python-pipeline-dependencies/) on adding non-Python dependencies, which we used to implement this installation method.
+
 Copy the [Dataflow setup file](./deploy/dataflow/setup.py) over to where you wish to start your Dataflow jobs from.
 Replace the values of `SERVICE_NAME` and `GPROFILER_TOKEN`:
   - Replace `<TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site
   - Replace `<SERVICE NAME>` in the command line with the service name you wish to use
+
 whenever you start a Dataflow job, add the `--setup_file /path/to/setup.py` flag with your `setup.py` 
  copy (**PLEASE NOTE** - the flag is `--setup_file` and not `--setup-file`).
 For example, here's a command that starts an example Apache Beam job with gProfiler:
