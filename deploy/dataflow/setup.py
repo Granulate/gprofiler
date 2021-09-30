@@ -30,7 +30,7 @@ class build(_build):
 COMMANDS = [
     "wget -q https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler -O /tmp/gprofiler",
     "sudo chmod +x /tmp/gprofiler",
-    f"sudo nohup setsid /tmp/gprofiler -cu --token {GPROFILER_TOKEN} --service-name {SERVICE_NAME}"
+    f"sudo setsid /tmp/gprofiler -cu --token {GPROFILER_TOKEN} --service-name {SERVICE_NAME}"
     f" --disable-pidns-check > {'/tmp/gprofiler.log' if KEEP_LOGS else '/dev/null'} 2>&1 &",
 ]
 
