@@ -224,7 +224,26 @@ python3 -m apache_beam.examples.complete.top_wikipedia_sessions \
 --output gs://my-cloud-storage-bucket/output/ \
 --setup_file /path/to/setup.py
 ```
-If you are already using the `--setup_file` flag for your own setup, please contact us or open a new GitHub issue [here](https://github.com/Granulate/gprofiler/issues/new).
+If you are already using the `--setup_file` flag for your own setup, you can merge your setup file with the [gProfiler one](./deploy/dataflow/setup.py). 
+Copy over all of the code in the gProfiler setup file **except** the `setuptools.setup` call, and add the following keyword argument to your `setuptools.setup` call:
+```python
+cmdclass={
+        "build": build,
+        "ProfilerInstallationCommands": ProfilerInstallationCommands,
+    }
+```
+For example:
+```python
+setuptools.setup(
+    name="my_custom_package",
+    version="1.5.3",
+    author="MyCompany",
+    cmdclass={
+        "build": build,
+        "ProfilerInstallationCommands": ProfilerInstallationCommands,
+    },
+)
+```
 
 
 ## Running from source
