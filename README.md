@@ -126,6 +126,8 @@ sudo chmod +x gprofiler
 sudo sh -c "setsid ./gprofiler -cu --token <token> --service-name <service> [options] > /dev/null 2>&1 &"
 ```
 
+You can verify that it has started correctly with `pgrep gprofiler`. If that doesn't find any process, try running without `> /dev/null 2>&1 &` so you can inspect the output, and look for errors.
+
 Its logs can then be viewed in their default location (`/var/log/gprofiler`).
 
 gProfiler unpacks executables to `/tmp` by default; if your `/tmp` is marked with `noexec`,
