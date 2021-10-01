@@ -107,6 +107,8 @@ class RemoteLogsHandler(logging.Handler):
     APIClient, while logs are still accumulated from the beginning.
     """
 
+    MAX_BUFFERED_RECORDS = 100 * 1000  # max number of records to buffer locally
+
     def __init__(self, path: str = "logs", api_client: Optional['APIClient'] = None) -> None:
         super().__init__(logging.DEBUG)
         self._api_client = api_client
@@ -125,6 +127,8 @@ class RemoteLogsHandler(logging.Handler):
             return
 
         self._logs.append(self._make_dict_record(record))
+        # trim logs to last N entries
+        self._logs[: -self.MAX_BUFFERED_RECORDS] = []
 
     def _make_dict_record(self, record: LogRecord):
         formatted_timestamp = datetime.datetime.utcfromtimestamp(record.created).isoformat()
