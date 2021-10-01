@@ -119,12 +119,14 @@ The command above mounts both of these directories.
 ## Running as an executable
 Supported only on x86_64!
 
-Run the following to have gprofiler running continuously, uploading to Granulate Performance Studio:
+Run the following to have gprofiler running continuously, in the background, uploading to Granulate Performance Studio:
 ```bash
 wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler
 sudo chmod +x gprofiler
-sudo ./gprofiler -cu --token <token> --service-name <service> [options]
+sudo sh -c "setsid ./gprofiler -cu --token <token> --service-name <service> [options] > /dev/null 2>&1 &"
 ```
+
+Its logs can then be viewed in their default location (`/var/log/gprofiler`).
 
 gProfiler unpacks executables to `/tmp` by default; if your `/tmp` is marked with `noexec`,
 you can add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current working directory.
