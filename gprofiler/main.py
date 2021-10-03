@@ -100,7 +100,7 @@ class GProfiler:
         self._stop_event = Event()
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
-        if collect_metadata and self._client is not None:
+        if collect_metadata:
             self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
@@ -256,9 +256,7 @@ class GProfiler:
             )
             raise
         metadata = (
-            get_current_metadata(self._static_metadata)
-            if self._collect_metadata and self._client
-            else {"hostname": get_hostname()}
+            get_current_metadata(self._static_metadata) if self._collect_metadata else {"hostname": get_hostname()}
         )
         metrics = self._system_metrics_monitor.get_metrics()
         if NoopProfiler.is_noop_profiler(self.system_profiler):
