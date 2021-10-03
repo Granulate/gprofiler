@@ -123,14 +123,18 @@ class RemoteLogsHandler(logging.Handler):
         self._api_client = api_client
 
     def emit(self, record: LogRecord) -> None:
-        if record.gprofiler_adapter_extra.pop(NO_SERVER_LOG_KEY, False):  # type: ignore
+        extra_kwargs = record.gprofiler_adapter_extra  # type: ignore
+        if extra_kwargs.pop(NO_SERVER_LOG_KEY, False):
             return
 
         self._logs.append(self._make_dict_record(record))
         # truncate logs to last N entries
-        if len(self._logs) > self.MAX_BUFFERED_RECORDS:
+        if len(self._logs) > self.MAX_BUFFERED_RECORDS and extra_kwargs.pop("log_buffer_check", True):
             self._logger.warning(
-                f"Truncating log buffer as the maximum number of records ({self.MAX_BUFFERED_RECORDS}) has been reached"
+                f"Truncating log buffer as the maximum number of records ({self.MAX_BUFFERED_RECORDS}) "
+                "has been reached",
+                # avoid recursion
+                log_buffer_check=False,
             )
             self._logs[: -self.MAX_BUFFERED_RECORDS] = []
 
