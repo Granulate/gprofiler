@@ -127,8 +127,12 @@ class RemoteLogsHandler(logging.Handler):
             return
 
         self._logs.append(self._make_dict_record(record))
-        # trim logs to last N entries
-        self._logs[: -self.MAX_BUFFERED_RECORDS] = []
+        # truncate logs to last N entries
+        if len(self._logs) > self.MAX_BUFFERED_RECORDS:
+            self._logger.warn(
+                f"Truncating log buffer as the maximum number of records ({self.MAX_BUFFERED_RECORDS}) has been reached"
+            )
+            self._logs[: -self.MAX_BUFFERED_RECORDS] = []
 
     def _make_dict_record(self, record: LogRecord):
         formatted_timestamp = datetime.datetime.utcfromtimestamp(record.created).isoformat()
