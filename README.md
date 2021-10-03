@@ -62,6 +62,7 @@ For each profiling session (each profiling duration), gProfiler produces outputs
 Profiling using eBPF incurs lower overhead & provides kernel stacks. This (currently) requires kernel headers to be installed.
 
 ### PHP profiling options
+* `--php-mode phpspy`: Enable PHP profiling with phpspy.
 * `--no-php` or `--php-mode disabled`: Disable profilers for PHP.
 * `--php-proc-filter`: Process filter (`pgrep`) to select PHP processes for profiling (this is phpspy's `-P` option)
 
