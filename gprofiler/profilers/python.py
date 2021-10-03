@@ -61,7 +61,9 @@ class PySpyProfiler(ProcessProfilerBase):
 
     def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
         try:
-            logger.info(f"Profiling process {process.pid}", cmdline=process.cmdline(), no_extra_to_server=True)
+            logger.info(
+                f"Profiling process {process.pid} with py-spy", cmdline=process.cmdline(), no_extra_to_server=True
+            )
         except NoSuchProcess:
             return None
 
