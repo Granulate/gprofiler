@@ -284,9 +284,9 @@ class AsyncProfiledProcess:
             "--java-async-profiler-mode",
             dest="java_async_profiler_mode",
             choices=["cpu", "itimer"],
-            default="cpu",
+            default="itimer",
             help="Select async-profiler's mode: 'cpu' (based on perf_events & fdtransfer) or 'itimer' (no perf_events)."
-            " Defaults to 'cpu'.",
+            " Defaults to '%(default)s'.",
         ),
     ],
 )

@@ -5,6 +5,7 @@
 import time
 from pathlib import Path
 from subprocess import Popen
+from threading import Event
 from typing import Callable, List, Mapping, Optional
 
 import psutil
@@ -14,8 +15,8 @@ from docker.models.containers import Container
 from docker.models.images import Image
 
 from gprofiler.merge import parse_one_collapsed
-from gprofiler.profilers.java import AsyncProfiledProcess
-from tests.utils import run_gprofiler_in_container
+from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler
+from tests.utils import assert_function_in_collapsed, run_gprofiler_in_container
 
 
 # adds the "status" command to AsyncProfiledProcess from gProfiler.
@@ -24,7 +25,11 @@ class AsyncProfiledProcessForTests(AsyncProfiledProcess):
         self._run_async_profiler(self._get_base_cmd() + [f"status,log={self._log_path_process}"])
 
 
-@pytest.mark.parametrize("runtime", ["java"])
+@pytest.fixture
+def runtime() -> str:
+    return "java"
+
+
 def test_java_async_profiler_stopped(
     docker_client: DockerClient,
     application_pid: int,
@@ -101,3 +106,20 @@ def test_java_async_profiler_stopped(
 
     collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
     assert_collapsed(collapsed)
+
+
+@pytest.mark.parametrize("in_container", [True])
+def test_java_async_profiler_cpu_mode(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed,
+) -> None:
+    """
+    Run Java in a container and enable async-profiler in CPU mode, make sure we get kernel stacks.
+    """
+    with JavaProfiler(1000, 1, Event(), str(tmp_path), False, True, "cpu", "ap") as profiler:
+        process_collapsed = profiler.snapshot().get(application_pid)
+        assert_collapsed(process_collapsed, check_comm=True)
+        assert_function_in_collapsed(
+            "do_syscall_64_[k]", "java", process_collapsed, True
+        )  # ensure kernels stacks exist
