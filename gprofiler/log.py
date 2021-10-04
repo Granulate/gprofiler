@@ -115,6 +115,7 @@ class RemoteLogsHandler(logging.Handler):
         self._path = path
         self._logs: List[Dict] = []
         self._logger = get_logger_adapter("gprofiler.RemoteLogsHandler")
+        self._truncated = False
 
         # The formatter is needed to format tracebacks
         self.setFormatter(logging.Formatter())
@@ -129,13 +130,8 @@ class RemoteLogsHandler(logging.Handler):
 
         self._logs.append(self._make_dict_record(record))
         # truncate logs to last N entries
-        if len(self._logs) > self.MAX_BUFFERED_RECORDS and extra_kwargs.pop("log_buffer_check", True):
-            self._logger.warning(
-                f"Truncating log buffer as the maximum number of records ({self.MAX_BUFFERED_RECORDS}) "
-                "has been reached",
-                # avoid recursion
-                log_buffer_check=False,
-            )
+        if len(self._logs) > self.MAX_BUFFERED_RECORDS:
+            self._truncated = True
             self._logs[: -self.MAX_BUFFERED_RECORDS] = []
 
     def _make_dict_record(self, record: LogRecord):
@@ -186,6 +182,12 @@ class RemoteLogsHandler(logging.Handler):
         # Snapshot the current num logs because logs list might be extended meanwhile.
         logs_count = len(self._logs)
         try:
+            if self._truncated:
+                self._logger.warning(
+                    f"Log buffer truncation has occured as the maximum number of records ({self.MAX_BUFFERED_RECORDS}) "
+                    "was reached",
+                )
+                self._truncated = False
             self._api_client.post(self._path, data=self._logs[:logs_count], api_version='v1')
         except (APIError, RequestException):
             self._logger.exception("Failed sending logs to server")
