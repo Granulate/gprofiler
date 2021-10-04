@@ -100,7 +100,7 @@ class GProfiler:
         self._stop_event = Event()
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
-        if collect_metadata and self._client is not None:
+        if collect_metadata:
             self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
@@ -163,8 +163,8 @@ class GProfiler:
         base_filename = os.path.join(self._output_dir, "profile_{}".format(end_ts))
 
         collapsed_path = base_filename + ".col"
-        collapsed_data = self._strip_container_data(collapsed_data)
         Path(collapsed_path).write_text(collapsed_data)
+        stripped_collapsed_data = self._strip_container_data(collapsed_data)
 
         # point last_profile.col at the new file; and possibly, delete the previous one.
         self._update_last_output("last_profile.col", collapsed_path)
@@ -178,7 +178,9 @@ class GProfiler:
                 .replace(
                     "{{{JSON_DATA}}}",
                     run_process(
-                        [resource_path("burn"), "convert", "--type=folded", collapsed_path], suppress_log=True
+                        [resource_path("burn"), "convert", "--type=folded"],
+                        suppress_log=True,
+                        stdin=stripped_collapsed_data.encode(),
                     ).stdout.decode(),
                 )
                 .replace("{{{START_TIME}}}", start_ts)
@@ -254,17 +256,13 @@ class GProfiler:
             )
             raise
         metadata = (
-            get_current_metadata(self._static_metadata)
-            if self._collect_metadata and self._client
-            else {"hostname": get_hostname()}
+            get_current_metadata(self._static_metadata) if self._collect_metadata else {"hostname": get_hostname()}
         )
+        metrics = self._system_metrics_monitor.get_metrics()
         if NoopProfiler.is_noop_profiler(self.system_profiler):
             assert system_result == {}, system_result  # should be empty!
             merged_result, total_samples = merge.concatenate_profiles(
-                process_profiles,
-                self._docker_client,
-                self._profile_api_version != "v1",
-                metadata,
+                process_profiles, self._docker_client, self._profile_api_version != "v1", metadata, metrics
             )
 
         else:
@@ -274,13 +272,13 @@ class GProfiler:
                 self._docker_client,
                 self._profile_api_version != "v1",
                 metadata,
+                metrics,
             )
 
         if self._output_dir:
             self._generate_output_files(merged_result, local_start_time, local_end_time)
 
         if self._client:
-            metrics = self._system_metrics_monitor.get_metrics()
             try:
                 self._client.submit_profile(
                     local_start_time,
