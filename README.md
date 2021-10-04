@@ -126,9 +126,11 @@ Run the following to have gprofiler running continuously, in the background, upl
 wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler
 sudo chmod +x gprofiler
 sudo sh -c "setsid ./gprofiler -cu --token <token> --service-name <service> [options] > /dev/null 2>&1 &"
+sleep 1
+pgrep gprofiler # make sure gprofiler has started
 ```
 
-You can verify that it has started correctly with the above `pgrep` command. If that doesn't find any process, try running without `> /dev/null 2>&1 &` so you can inspect the output, and look for errors.
+If the `pgrep` doesn't find any process, try running without `> /dev/null 2>&1 &` so you can inspect the output, and look for errors.
 
 For non-daemon mode runes, you can remove the `setsid` and `> /dev/null 2>&1 &` parts.
 
