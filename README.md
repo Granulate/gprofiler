@@ -120,12 +120,22 @@ The command above mounts both of these directories.
 ## Running as an executable
 Supported only on x86_64!
 
-Run the following to have gprofiler running continuously, uploading to Granulate Performance Studio:
+First, check if gProfiler is already running - run `pgrep gprofiler`. You should see 3 PIDs (staticx bootloader, PyInstaller and gProfiler's Python itself). If no processes match, then gProfiler is not running.
+
+Run the following to have gprofiler running continuously, in the background, uploading to Granulate Performance Studio:
 ```bash
 wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler
 sudo chmod +x gprofiler
-sudo ./gprofiler -cu --token <token> --service-name <service> [options]
+sudo sh -c "setsid ./gprofiler -cu --token <token> --service-name <service> [options] > /dev/null 2>&1 &"
+sleep 1
+pgrep gprofiler # make sure gprofiler has started
 ```
+
+If the `pgrep` doesn't find any process, try running without `> /dev/null 2>&1 &` so you can inspect the output, and look for errors.
+
+For non-daemon mode runes, you can remove the `setsid` and `> /dev/null 2>&1 &` parts.
+
+The logs can then be viewed in their default location (`/var/log/gprofiler`).
 
 gProfiler unpacks executables to `/tmp` by default; if your `/tmp` is marked with `noexec`,
 you can add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current working directory.
