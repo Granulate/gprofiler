@@ -102,6 +102,7 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Po
         cmd,
         stdout=kwargs.pop("stdout", subprocess.PIPE),
         stderr=kwargs.pop("stderr", subprocess.PIPE),
+        stdin=subprocess.PIPE,
         preexec_fn=kwargs.pop("preexec_fn", os.setpgrp),
         env=env,
         **kwargs,
@@ -165,17 +166,19 @@ def run_process(
     timeout: int = None,
     kill_signal: signal.Signals = signal.SIGKILL,
     communicate: bool = True,
+    stdin: bytes = None,
     **kwargs,
 ) -> CompletedProcess:
     stdout = None
     stderr = None
     with start_process(cmd, via_staticx, **kwargs) as process:
         try:
+            communicate_kwargs = dict(input=stdin) if stdin is not None else {}
             if stop_event is None:
                 assert timeout is None
                 if communicate:
                     # wait for stderr & stdout to be closed
-                    stdout, stderr = process.communicate(timeout=timeout)
+                    stdout, stderr = process.communicate(timeout=timeout, **communicate_kwargs)
                 else:
                     # just wait for the process to exit
                     process.wait()
@@ -184,7 +187,7 @@ def run_process(
                 end_time = (time.monotonic() + timeout) if timeout is not None else None
                 while True:
                     try:
-                        stdout, stderr = process.communicate(timeout=1)
+                        stdout, stderr = process.communicate(timeout=1, **communicate_kwargs)
                         break
                     except TimeoutExpired:
                         if stop_event.is_set():

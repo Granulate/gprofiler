@@ -14,6 +14,7 @@ from gprofiler.docker_client import DockerClient
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.metadata_type import Metadata
+from gprofiler.system_metrics import Metrics
 
 logger = get_logger_adapter(__name__)
 
@@ -209,7 +210,9 @@ def _parse_perf_script(script: Optional[str]) -> ProcessToStackSampleCounters:
     return pid_to_collapsed_stacks_counters
 
 
-def _make_profile_metadata(docker_client: Optional[DockerClient], add_container_names: bool, metadata: Metadata) -> str:
+def _make_profile_metadata(
+    docker_client: Optional[DockerClient], add_container_names: bool, metadata: Metadata, metrics: Metrics
+) -> str:
     if docker_client is not None and add_container_names:
         container_names = docker_client.container_names
         docker_client.reset_cache()
@@ -219,10 +222,11 @@ def _make_profile_metadata(docker_client: Optional[DockerClient], add_container_
         enabled = False
 
     profile_metadata = {
-        'containers': container_names,
-        'container_names_enabled': enabled,
+        "containers": container_names,
+        "container_names_enabled": enabled,
+        "metadata": metadata,
+        "metrics": metrics.__dict__,
     }
-    profile_metadata["metadata"] = metadata
     return "# " + json.dumps(profile_metadata)
 
 
@@ -235,10 +239,11 @@ def concatenate_profiles(
     docker_client: Optional[DockerClient],
     add_container_names: bool,
     metadata: Metadata,
+    metrics: Metrics,
 ) -> Tuple[str, int]:
     """
     Concatenate all stacks from all stack mappings in process_profiles.
-    Add "profile metadata" as the first line of the resulting collapsed file. Also,
+    Add "profile metadata" and metrics as the first line of the resulting collapsed file. Also,
     prepend the container name (if requested & available) as the first frame of each
     line.
     """
@@ -251,7 +256,7 @@ def concatenate_profiles(
             total_samples += count
             lines.append(f"{container_name + ';' if add_container_names else ''}{stack} {count}")
 
-    lines.insert(0, _make_profile_metadata(docker_client, add_container_names, metadata))
+    lines.insert(0, _make_profile_metadata(docker_client, add_container_names, metadata, metrics))
     return "\n".join(lines), total_samples
 
 
@@ -261,6 +266,7 @@ def merge_profiles(
     docker_client: Optional[DockerClient],
     add_container_names: bool,
     metadata: Metadata,
+    metrics: Metrics,
 ) -> Tuple[str, int]:
     # merge process profiles into the global perf results.
     for pid, stacks in process_profiles.items():
@@ -286,4 +292,4 @@ def merge_profiles(
         # swap them: use the samples from the runtime profiler.
         perf_pid_to_stacks_counter[pid] = stacks
 
-    return concatenate_profiles(perf_pid_to_stacks_counter, docker_client, add_container_names, metadata)
+    return concatenate_profiles(perf_pid_to_stacks_counter, docker_client, add_container_names, metadata, metrics)
