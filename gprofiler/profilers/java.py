@@ -24,6 +24,7 @@ from gprofiler.utils import (
     get_process_nspid,
     pgrep_maps,
     process_comm,
+    read_perf_event_mlock_kb,
     remove_path,
     remove_prefix,
     resolve_proc_root_links,
@@ -31,6 +32,7 @@ from gprofiler.utils import (
     run_in_ns,
     run_process,
     touch_path,
+    write_perf_event_mlock_kb,
 )
 
 logger = get_logger_adapter(__name__)
@@ -293,6 +295,8 @@ class AsyncProfiledProcess:
 class JavaProfiler(ProcessProfilerBase):
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
 
+    _new_perf_event_mlock_kb = 8192
+
     def __init__(
         self,
         frequency: int,
@@ -312,6 +316,7 @@ class JavaProfiler(ProcessProfilerBase):
         self._buildids = java_async_profiler_buildids
         self._version_check = java_version_check
         self._mode = java_async_profiler_mode
+        self._saved_mlock: Optional[int] = None
 
     def _is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -412,3 +417,33 @@ class JavaProfiler(ProcessProfilerBase):
 
     def _select_processes_to_profile(self) -> List[Process]:
         return pgrep_maps(r"^.+/libjvm\.so$")
+
+    def start(self) -> None:
+        super().start()
+        if self._mode == "cpu":
+            # short tech dive:
+            # perf has this accounting logic when mmaping perf_event_open fds (from kernel/events/core.c:perf_mmap())
+            # 1. if the *user* locked pages have not exceeded the limit of perf_event_mlock_kb, charge from
+            #    that limit.
+            # 2. after exceeding, charge from ulimit (mlock)
+            # 3. if both are expended, fail the mmap unless task is privileged / perf_event_paranoid is
+            #    permissive (-1).
+            #
+            # in our case, we run "perf" alongside and it starts before async-profiler. so its mmaps get charged from
+            # the user (root) locked pages.
+            # then, when async-profiler starts, and we profile a Java process running in a container as root (which is
+            # common), it is treated as the same user, and since its limit is expended, and the container is not
+            # privileged & has low mlock ulimit (Docker defaults to 64) - async-profiler fails to mmap!
+            # instead, we update perf_event_mlock_kb here for the lifetime of gProfiler, leaving some room
+            # for async-profiler (and also make sure "perf" doesn't use it in its entirety)
+            #
+            # (alternatively, we could change async-profiler's fdtransfer to do the mmap as well as the perf_event_open;
+            # this way, the privileged program gets charged, and when async-profiler mmaps it again, it will use the
+            # same pages and won't get charged).
+            self._saved_mlock = read_perf_event_mlock_kb()
+            write_perf_event_mlock_kb(self._new_perf_event_mlock_kb)
+
+    def stop(self) -> None:
+        super().stop()
+        if self._saved_mlock is not None:
+            write_perf_event_mlock_kb(self._saved_mlock)
