@@ -27,6 +27,8 @@ def perf_path() -> str:
 class PerfProcess:
     _dump_timeout_s = 5
     _poll_timeout_s = 5
+    _mmap_size_fp = 129  # default number of pages used by "perf record" when perf_event_mlock_kb=516
+    _mmap_size_dwarf = 257  # doubling the previous
 
     def __init__(
         self,
@@ -56,6 +58,12 @@ class PerfProcess:
             "-o",
             self._output_path,
             "--switch-output=signal",
+            # explicitly pass '-m', otherwise perf defaults to deriving this number from perf_event_mlock_kb,
+            # and it ends up using it entirely (and we want to spare some for async-profiler)
+            # this number scales linearly with the number of active cores (so we don't need to do this calculation
+            # here)
+            "-m",
+            str(self._mmap_size_fp) if self._type == "fp" else str(self._mmap_size_dwarf),
         ] + self._extra_args
 
     def start(self) -> None:
