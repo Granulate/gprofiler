@@ -84,12 +84,14 @@ class PerfProcess:
         self._process.send_signal(signal.SIGUSR2)
 
     def wait_and_script(self) -> str:
-        perf_data = wait_for_file_by_prefix(f"{self._output_path}.", self._dump_timeout_s, self._stop_event)
-
-        # using read1() which performs just a single read() call and doesn't read until EOF
-        # (unlike Popen.communicate())
-        assert self._process is not None
-        logger.debug(f"perf stderr: {self._process.stderr.read1(4096)}")
+        try:
+            perf_data = wait_for_file_by_prefix(f"{self._output_path}.", self._dump_timeout_s, self._stop_event)
+        finally:
+            # always read its stderr
+            # using read1() which performs just a single read() call and doesn't read until EOF
+            # (unlike Popen.communicate())
+            assert self._process is not None
+            logger.debug(f"perf stderr: {self._process.stderr.read1(4096)}")
 
         if self._inject_jit:
             inject_data = Path(f"{str(perf_data)}.inject")
