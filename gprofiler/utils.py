@@ -175,7 +175,7 @@ def run_process(
         try:
             communicate_kwargs = dict(input=stdin) if stdin is not None else {}
             if stop_event is None:
-                assert timeout is None
+                assert timeout is None, f"expected no timeout, got {timeout!r}"
                 if communicate:
                     # wait for stderr & stdout to be closed
                     stdout, stderr = process.communicate(timeout=timeout, **communicate_kwargs)
@@ -183,7 +183,7 @@ def run_process(
                     # just wait for the process to exit
                     process.wait()
             else:
-                assert communicate
+                assert communicate, "expected communicate=True if stop_event is given"
                 end_time = (time.monotonic() + timeout) if timeout is not None else None
                 while True:
                     try:
