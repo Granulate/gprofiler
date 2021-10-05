@@ -501,3 +501,14 @@ def process_comm(process: Process) -> str:
     name_line = status.splitlines()[0]
     assert name_line.startswith("Name:\t")
     return name_line.split("\t", 1)[1]
+
+
+PERF_EVENT_MLOCK_KB = "/proc/sys/kernel/perf_event_mlock_kb"
+
+
+def read_perf_event_mlock_kb() -> int:
+    return int(Path(PERF_EVENT_MLOCK_KB).read_text())
+
+
+def write_perf_event_mlock_kb(value: int) -> None:
+    Path(PERF_EVENT_MLOCK_KB).write_text(str(value))
