@@ -27,8 +27,9 @@ def perf_path() -> str:
 class PerfProcess:
     _dump_timeout_s = 5
     _poll_timeout_s = 5
-    _mmap_size_fp = 129  # default number of pages used by "perf record" when perf_event_mlock_kb=516
-    _mmap_size_dwarf = 257  # doubling the previous
+    # default number of pages used by "perf record" when perf_event_mlock_kb=516
+    # we use double for dwarf.
+    _mmap_sizes = {"fp": 129, "dwarf": 257}
 
     def __init__(
         self,
@@ -63,7 +64,7 @@ class PerfProcess:
             # this number scales linearly with the number of active cores (so we don't need to do this calculation
             # here)
             "-m",
-            str(self._mmap_size_fp) if self._type == "fp" else str(self._mmap_size_dwarf),
+            str(self._mmap_sizes[self._type]),
         ] + self._extra_args
 
     def start(self) -> None:
