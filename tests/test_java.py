@@ -76,6 +76,7 @@ def test_java_async_profiler_stopped(
         container.kill("SIGKILL")
     finally:
         if container is not None:
+            print("gProfiler container logs:", container.logs().decode(), sep="\n")
             container.remove(force=True)
 
     # run "status"
