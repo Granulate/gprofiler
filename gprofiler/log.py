@@ -184,7 +184,7 @@ class RemoteLogsHandler(logging.Handler):
         try:
             if self._truncated:
                 self._logger.warning(
-                    f"Log buffer truncation has occured as the maximum number of records ({self.MAX_BUFFERED_RECORDS}) "
+                    f"Log buffer truncation has occurred as the maximum number of records ({self.MAX_BUFFERED_RECORDS}) "
                     "was reached",
                 )
                 self._truncated = False
