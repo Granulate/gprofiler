@@ -22,7 +22,9 @@ from tests.utils import assert_function_in_collapsed, run_gprofiler_in_container
 # adds the "status" command to AsyncProfiledProcess from gProfiler.
 class AsyncProfiledProcessForTests(AsyncProfiledProcess):
     def status_async_profiler(self):
-        self._run_async_profiler(self._get_base_cmd() + [f"status,log={self._log_path_process}"])
+        self._run_async_profiler(
+            self._get_base_cmd() + [f"status,log={self._log_path_process},file={self._output_path_process}"]
+        )
 
 
 @pytest.fixture
@@ -79,24 +81,15 @@ def test_java_async_profiler_stopped(
             print("gProfiler container logs:", container.logs().decode(), sep="\n")
             container.remove(force=True)
 
-    # run "status"
     proc = psutil.Process(application_pid)
-    with AsyncProfiledProcessForTests(proc, tmp_path, False, "cpu") as ap_proc:
-        ap_proc.status_async_profiler()
-    # printed the process' stdout, see ACTION_STATUS case in async-profiler/profiler.cpp
-    expected_message = b"Profiling is running for "
-
     assert any("libasyncProfiler.so" in m.path for m in proc.memory_maps())
 
-    # container case
-    if application_docker_container is not None:
-        assert expected_message in application_docker_container.logs()
-    # else, process
-    else:
-        assert application_process is not None
-        assert application_process.stdout is not None
-        # mypy complains about read1
-        assert expected_message in application_process.stdout.read1(4096)  # type: ignore
+    # run "status"
+    with AsyncProfiledProcessForTests(proc, tmp_path, False, "itimer") as ap_proc:
+        ap_proc.status_async_profiler()
+
+        # printed the output file, see ACTION_STATUS case in async-profiler/profiler.cpp\
+        assert "Profiling is running for " in ap_proc.read_output()
 
     # then start again, with 1 second
     assert args[2] == "1000"
