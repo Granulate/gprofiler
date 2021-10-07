@@ -15,7 +15,7 @@ from psutil import NoSuchProcess, Process
 from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
-from gprofiler.merge import parse_and_remove_one_collapsed, parse_many_collapsed
+from gprofiler.merge import parse_many_collapsed, parse_one_collapsed_file
 from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
@@ -24,6 +24,7 @@ from gprofiler.utils import (
     poll_process,
     process_comm,
     random_prefix,
+    removed_path,
     resource_path,
     run_process,
     start_process,
@@ -68,29 +69,30 @@ class PySpyProfiler(ProcessProfilerBase):
             return None
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
-        try:
-            run_process(
-                self._make_command(process.pid, local_output_path),
-                stop_event=self._stop_event,
-                timeout=self._duration + self._EXTRA_TIMEOUT,
-                kill_signal=signal.SIGKILL,
-            )
-        except ProcessStoppedException:
-            raise StopEventSetException
-        except TimeoutExpired:
-            logger.error(f"Profiling with py-spy timed out on process {process.pid}")
-            raise
-        except CalledProcessError as e:
-            if (
-                b"Error: Failed to get process executable name. Check that the process is running.\n" in e.stderr
-                and not process.is_running()
-            ):
-                logger.debug(f"Profiled process {process.pid} exited before py-spy could start")
-                return None
-            raise
+        with removed_path(local_output_path):
+            try:
+                run_process(
+                    self._make_command(process.pid, local_output_path),
+                    stop_event=self._stop_event,
+                    timeout=self._duration + self._EXTRA_TIMEOUT,
+                    kill_signal=signal.SIGKILL,
+                )
+            except ProcessStoppedException:
+                raise StopEventSetException
+            except TimeoutExpired:
+                logger.error(f"Profiling with py-spy timed out on process {process.pid}")
+                raise
+            except CalledProcessError as e:
+                if (
+                    b"Error: Failed to get process executable name. Check that the process is running.\n" in e.stderr
+                    and not process.is_running()
+                ):
+                    logger.debug(f"Profiled process {process.pid} exited before py-spy could start")
+                    return None
+                raise
 
-        logger.info(f"Finished profiling process {process.pid} with py-spy")
-        return parse_and_remove_one_collapsed(Path(local_output_path), process_comm(process))
+            logger.info(f"Finished profiling process {process.pid} with py-spy")
+            return parse_one_collapsed_file(Path(local_output_path), process_comm(process))
 
     def _select_processes_to_profile(self) -> List[Process]:
         filtered_procs = []

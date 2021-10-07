@@ -12,10 +12,10 @@ from psutil import Process
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.log import get_logger_adapter
-from gprofiler.merge import parse_and_remove_one_collapsed
+from gprofiler.merge import parse_one_collapsed_file
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
-from gprofiler.utils import pgrep_maps, process_comm, random_prefix, resource_path, run_process
+from gprofiler.utils import pgrep_maps, process_comm, random_prefix, removed_path, resource_path, run_process
 
 logger = get_logger_adapter(__name__)
 
@@ -60,13 +60,14 @@ class RbSpyProfiler(ProcessProfilerBase):
         )
 
         local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
-        try:
-            run_process(self._make_command(process.pid, local_output_path), stop_event=self._stop_event)
-        except ProcessStoppedException:
-            raise StopEventSetException
+        with removed_path(local_output_path):
+            try:
+                run_process(self._make_command(process.pid, local_output_path), stop_event=self._stop_event)
+            except ProcessStoppedException:
+                raise StopEventSetException
 
-        logger.info(f"Finished profiling process {process.pid} with rbspy")
-        return parse_and_remove_one_collapsed(Path(local_output_path), process_comm(process))
+            logger.info(f"Finished profiling process {process.pid} with rbspy")
+            return parse_one_collapsed_file(Path(local_output_path), process_comm(process))
 
     def _select_processes_to_profile(self) -> List[Process]:
         return pgrep_maps(r"(?:^.+/ruby[^/]*$)")
