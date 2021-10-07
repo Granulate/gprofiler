@@ -185,7 +185,7 @@ Furthermore, Fargate does not allow using `"pidMode": "host"` in the task defini
 So in order to deploy gProfiler, we need to modify a container definition to include running gProfiler alongside the actual application. This can be done with the following steps:
 1. Modify the `command` & `entrypoint` parameters of your entry in the `containerDefinitions` array. The new command should include downloading of gProfiler & executing it in the background, and `entrypoint` will be `bash`.
 
-    For example, if your default `command` is `["python", "/path/to/my/app.py"]`, we will now change it to: `["-c", "(wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler -O /tmp/gprofiler; chmod +x /tmp/gprofiler; /tmp/gprofiler -cu --token <TOKEN> --service-name <SERVICE NAME> --disable-pidns-check --perf-mode none) & python /path/to/my/app.py"]`. This new command will start the downloading of gProfiler in the background, then run your application.
+    For example, if your default `command` is `["python", "/path/to/my/app.py"]`, we will now change it to: `["-c", "(wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler -O /tmp/gprofiler; chmod +x /tmp/gprofiler; /tmp/gprofiler -cu --token <TOKEN> --service-name <SERVICE NAME> --disable-pidns-check --perf-mode none) & python /path/to/my/app.py"]`. This new command will start the downloading of gProfiler in the background, then run your application. Make sure to JSON-escape any characters in your command line! For example, `"` are replaced with `\"`.
 
     Additionally, we will set `entrypoint` to `["/bin/bash"]`. If you had used `entrypoint` prior to incorporating gProfiler, make sure to use it in the new `command`.
 
