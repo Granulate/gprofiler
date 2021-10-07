@@ -71,7 +71,7 @@ class PySpyProfiler(ProcessProfilerBase):
             try:
                 run_process(
                     self._make_command(process.pid, local_output_path),
-                    op_event=self._stop_event,
+                    stop_event=self._stop_event,
                     timeout=self._duration + self._EXTRA_TIMEOUT,
                     kill_signal=signal.SIGKILL,
                 )
