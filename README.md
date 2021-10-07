@@ -183,11 +183,11 @@ At the time of this writing, Fargate does not support `DAEMON` tasks (see [this]
 Furthermore, Fargate does not allow using `"pidMode": "host"` in the task definition (see documentation of `pidMode` [here](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_TaskDefinition.html)). Host PID is required for gProfiler to be able to profile processes running in other containers (in case of Fargate, other containers under the same `containerDefinition`).
 
 So in order to deploy gProfiler, we need to modify a container definition to include running gProfiler alongside the actual application. This can be done with the following steps:
-1. Modify the `command` & `entrypoint` parameters of your entry in the `containerDefinitions` array. The new command should include downloading of gProfiler & executing it in the background, and `entrypoint` will be `bash`.
+1. Modify the `command` & `entryPoint` parameters of your entry in the `containerDefinitions` array. The new command should include downloading of gProfiler & executing it in the background, and `entryPoint` will be `["/bin/bash"]`.
 
     For example, if your default `command` is `["python", "/path/to/my/app.py"]`, we will now change it to: `["-c", "(wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler -O /tmp/gprofiler; chmod +x /tmp/gprofiler; /tmp/gprofiler -cu --token <TOKEN> --service-name <SERVICE NAME> --disable-pidns-check --perf-mode none) & python /path/to/my/app.py"]`. This new command will start the downloading of gProfiler in the background, then run your application. Make sure to JSON-escape any characters in your command line! For example, `"` are replaced with `\"`.
 
-    Additionally, we will set `entrypoint` to `["/bin/bash"]`. If you had used `entrypoint` prior to incorporating gProfiler, make sure to use it in the new `command`.
+    Additionally, we will set `entryPoint` to `["/bin/bash"]`. If you had used `entryPoint` prior to incorporating gProfiler, make sure to use it in the new `command`.
 
     `--disable-pidns-check` is required because, well, we won't run in init PID NS :)
 
@@ -195,7 +195,7 @@ So in order to deploy gProfiler, we need to modify a container definition to inc
 
     gProfiler and its installation process will send the outputs to your container's stdout & stderr. After verifying that everything works, you can append `> /tmp/gprofiler_log 2>&1` to the gProfiler command parenthesis (in this example, before the `& python ...`).
 
-    This requires your image to have `wget` installed - you can make sure `wget` is installed, or substitute it with `curl -SL https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler --output /tmp/gprofiler`, or any other HTTP-downloader you wish.
+    This requires your image to have `wget` installed - you can make sure `wget` is installed, or substitute the `wget` command with `curl -SL https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler --output /tmp/gprofiler`, or any other HTTP-downloader you wish.
 2. Add `linuxParameters` to the container definition (this goes directly in your entry in `containerDefinitinos`):
    ```
    "linuxParameters": {
