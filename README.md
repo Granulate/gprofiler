@@ -185,13 +185,15 @@ Furthermore, Fargate does not allow using `"pidMode": "host"` in the task defini
 So in order to deploy gProfiler, we need to modify a container definition to include running gProfiler alongside the actual application. This can be done with the following steps:
 1. Modify the `command` parameter of your entry in the `containerDefinitions` array. The new command should include downloading of gProfiler & executing it in the background.
 
-   For example, if your default `command` is `["python", "/path/to/my/app.py"]`, we will now change it to: `"bash", "-c", "(wget -q https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler -O /tmp/gprofiler; chmod +x /tmp/gprofiler; /tmp/gprofiler -cu --token <TOKEN> --service-name <SERVICE NAME> --disable-pidns-check --perf-mode none) > /tmp/gprofiler_log 2>&1 & python /path/to/my/app.py"`. This new command will start the downloading of gProfiler in the background, then run your application.
+   For example, if your default `command` is `["python", "/path/to/my/app.py"]`, we will now change it to: `"bash", "-c", "(wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler -O /tmp/gprofiler; chmod +x /tmp/gprofiler; /tmp/gprofiler -cu --token <TOKEN> --service-name <SERVICE NAME> --disable-pidns-check --perf-mode none) & python /path/to/my/app.py"`. This new command will start the downloading of gProfiler in the background, then run your application.
 
     `--disable-pidns-check` is required because, well, we won't run in init PID NS :)
 
     `--perf-mode none` is required because our container will not have permissions to run system-wide `perf`, so gProfiler will profile only runtime processes. See [perf-less mode](#perf-less-mode) for more information.
 
-   This requires your image to have `wget` installed - you can make sure `wget` is installed, or substitute it with `curl` or any other HTTP-downloader you wish.
+    gProfiler and its installation process will send the outputs to your container's stdout & stderr. After verifying that everything works, you can append `> /tmp/gprofiler_log 2>&1` to the gProfiler command parenthesis (in this example, before the `& python ...`).
+
+    This requires your image to have `wget` installed - you can make sure `wget` is installed, or substitute it with `curl -SL https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler --output /tmp/gprofiler`, or any other HTTP-downloader you wish.
 2. Add `linuxParameters` to the container definition (this goes directly in your entry in `containerDefinitinos`):
    ```
    "linuxParameters": {
