@@ -190,7 +190,16 @@ def application_pid(in_container: bool, application_process: subprocess.Popen, a
 @fixture
 def runtime_specific_args(runtime: str) -> List[str]:
     return {
-        "php": ["--php-proc-filter", "php", "-d", str(PHPSPY_DURATION)],  # phpspy needs a little more time to warm-up
+        "php": [
+            # not enabled by default
+            "--php-mode",
+            "phpspy",
+            "--php-proc-filter",
+            "php",
+            # phpspy needs a little more time to warm-up
+            "-d",
+            str(PHPSPY_DURATION),
+        ],
         "python": ["-d", "3"],  # Burner python tests make syscalls and we want to record python + kernel stacks
         "nodejs": ["--nodejs-mode", "perf"],  # enable NodeJS profiling
     }.get(runtime, [])

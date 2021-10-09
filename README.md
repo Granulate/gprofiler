@@ -62,6 +62,7 @@ For each profiling session (each profiling duration), gProfiler produces outputs
 Profiling using eBPF incurs lower overhead & provides kernel stacks. This (currently) requires kernel headers to be installed.
 
 ### PHP profiling options
+* `--php-mode phpspy`: Enable PHP profiling with phpspy.
 * `--no-php` or `--php-mode disabled`: Disable profilers for PHP.
 * `--php-proc-filter`: Process filter (`pgrep`) to select PHP processes for profiling (this is phpspy's `-P` option)
 
@@ -115,12 +116,22 @@ For profiling with eBPF, kernel headers must be accessible from within the conta
 The command above mounts both of these directories.
 
 ## Running as an executable
-Run the following to have gprofiler running continuously, uploading to Granulate Performance Studio:
+First, check if gProfiler is already running - run `pgrep gprofiler`. You should see 3 PIDs (staticx bootloader, PyInstaller and gProfiler's Python itself). If no processes match, then gProfiler is not running.
+
+Run the following to have gprofiler running continuously, in the background, uploading to Granulate Performance Studio:
 ```bash
 wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler_$(uname -m) -O gprofiler
 sudo chmod +x gprofiler
-sudo ./gprofiler -cu --token <token> --service-name <service> [options]
+sudo sh -c "setsid ./gprofiler -cu --token <token> --service-name <service> [options] > /dev/null 2>&1 &"
+sleep 1
+pgrep gprofiler # make sure gprofiler has started
 ```
+
+If the `pgrep` doesn't find any process, try running without `> /dev/null 2>&1 &` so you can inspect the output, and look for errors.
+
+For non-daemon mode runes, you can remove the `setsid` and `> /dev/null 2>&1 &` parts.
+
+The logs can then be viewed in their default location (`/var/log/gprofiler`).
 
 gProfiler unpacks executables to `/tmp` by default; if your `/tmp` is marked with `noexec`,
 you can add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current working directory.
@@ -137,6 +148,115 @@ The following platforms are currently not supported with the gProfiler executabl
 ## Running as a Kubernetes DaemonSet
 See [gprofiler.yaml](deploy/k8s/gprofiler.yaml) for a basic template of a DaemonSet running gProfiler.
 Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in the appropriate location!
+
+## Running as an ECS (Elastic Container Service) Daemon service
+#### Creating the ECS Task Definition
+- Go to ECS, and [create a new task definition](https://console.aws.amazon.com/ecs/home?region=us-east-1#/taskDefinitions/create)
+- Choose EC2, and click `Next Step`
+- Scroll to the bottom of the page, and click `Configure via JSON` \
+![Configure via JSON button](https://user-images.githubusercontent.com/74833655/132983629-163fdb87-ec9a-4201-b557-e0ae441e2595.png)
+- Replace the JSON contents with the contents of the [gprofiler_task_definition.json](deploy/ecs/gprofiler_task_definition.json) file and **Make sure you change the following values**:
+  - Replace `<TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/) site
+  - Replace `<SERVICE NAME>` in the command line with the service name you wish to use
+- **Note** - if you wish to see the logs from the gProfiler service, be sure to follow [AWS's guide](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/using_awslogs.html#create_awslogs_loggroups)
+  on how to auto-configure logging, or to set it up manually yourself.
+- Click `Save`
+- Click `Create`
+
+#### Deploying the gProfiler service
+
+* Go to your [ECS Clusters](https://console.aws.amazon.com/ecs/home?region=us-east-1#/clusters) and enter the relevant cluster
+* Click on `Services`, and choose `Create` 
+* Choose the `EC2` launch type and the `granulate-gprofiler` task definition with the latest revision
+* Enter a service name
+* Choose the `DAEMON` service type 
+* Click `Next step` until you reach the `Review` page, and then click `Create Service` 
+
+## Running on an AWS Fargate service
+
+At the time of this writing, Fargate does not support `DAEMON` tasks (see [this](https://github.com/aws/containers-roadmap/issues/971) tracking issue).
+
+Furthermore, Fargate does not allow using `"pidMode": "host"` in the task definition (see documentation of `pidMode` [here](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_TaskDefinition.html)). Host PID is required for gProfiler to be able to profile processes running in other containers (in case of Fargate, other containers under the same `containerDefinition`).
+
+So in order to deploy gProfiler, we need to modify a container definition to include running gProfiler alongside the actual application. This can be done with the following steps:
+1. Modify the `command` parameter of your entry in the `containerDefinitions` array. The new command should include downloading of gProfiler & executing it in the background.
+
+   For example, if your default `command` is `["python", "/path/to/my/app.py"]`, we will now change it to: `"bash", "-c", "(wget -q https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler -O /tmp/gprofiler; chmod +x /tmp/gprofiler; /tmp/gprofiler -cu --token <TOKEN> --service-name <SERVICE NAME> --disable-pidns-check --perf-mode none) > /tmp/gprofiler_log 2>&1 & python /path/to/my/app.py"`. This new command will start the downloading of gProfiler in the background, then run your application.
+
+    `--disable-pidns-check` is required because, well, we won't run in init PID NS :)
+
+    `--perf-mode none` is required because our container will not have permissions to run system-wide `perf`, so gProfiler will profile only runtime processes. See [perf-less mode](#perf-less-mode) for more information.
+
+   This requires your image to have `wget` installed - you can make sure `wget` is installed, or substitute it with `curl` or any other HTTP-downloader you wish.
+2. Add `linuxParameters` to the container definition (this goes directly in your entry in `containerDefinitinos`):
+   ```
+   "linuxParameters": {
+     "capabilities": {
+       "add": [
+         "SYS_PTRACE"
+       ],
+     },
+   },
+   ```
+   `SYS_PTRACE` is required by  various profilers, and Fargate by default denies it for containers.
+
+Alternatively, you can download gProfiler in your `Dockerfile` to avoid having to download it every time in run-time. Then you just need to invoke it upon container start-up.
+
+## Running as a docker-compose service
+You can run a gProfiler container with `docker-compose` by using the template file in [docker-compose.yml](deploy/docker-compose/docker-compose.yml).
+Start by replacing the `<TOKEN>` and `<SERVICE NAME>` with values in the `command` section -
+* `<TOKEN>` should be replaced with your personal token from the [gProfiler Performance Studio](https://profiler.granulate.io/) site (in the [Install Service](https://profiler.granulate.io/installation) section)
+* The `<SERVICE NAME>` should be replaced with whatever service name you wish to use 
+
+Optionally, you can add more command line arguments to the `command` section. For example, if you wish to use the `py-spy` profiler, you could replace the command with `-cu --token "<TOKEN>" --service-name "<SERVICE NAME>" --python-mode pyspy`.
+
+**To run it, run the following command:** 
+  ```bash
+  docker-compose -f /path/to/docker-compose.yml up -d
+  ```
+## Running on Google Dataflow
+**We currently only support Python pipelines**. Java support is coming soon.
+
+You can read the official documentation for Apache Beam [here](https://beam.apache.org/documentation/sdks/python-pipeline-dependencies/) on adding non-Python dependencies, which we used to implement this installation method.
+
+Copy the [Dataflow setup file](./deploy/dataflow/setup.py) over to where you wish to start your Dataflow jobs from.
+Replace the values of `SERVICE_NAME` and `GPROFILER_TOKEN`:
+  - Replace `<TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
+  - Replace `<SERVICE NAME>` in the command line with the service name you wish to use.
+
+whenever you start a Dataflow job, add the `--setup_file /path/to/setup.py` flag with your `setup.py` 
+ copy (**PLEASE NOTE** - the flag is `--setup_file` and not `--setup-file`).
+For example, here's a command that starts an example Apache Beam job with gProfiler:
+```shell
+python3 -m apache_beam.examples.complete.top_wikipedia_sessions \
+--region us-central1 \
+--runner DataflowRunner \
+--project my_project \
+--temp_location gs://my-cloud-storage-bucket/temp/ \
+--output gs://my-cloud-storage-bucket/output/ \
+--setup_file /path/to/setup.py
+```
+If you are already using the `--setup_file` flag for your own setup, you can merge your setup file with the [gProfiler one](./deploy/dataflow/setup.py). 
+Copy over all of the code in the gProfiler setup file **except** the `setuptools.setup` call, and add the following keyword argument to your `setuptools.setup` call:
+```python
+cmdclass={
+        "build": build,
+        "ProfilerInstallationCommands": ProfilerInstallationCommands,
+    }
+```
+For example:
+```python
+setuptools.setup(
+    name="my_custom_package",
+    version="1.5.3",
+    author="MyCompany",
+    cmdclass={
+        "build": build,
+        "ProfilerInstallationCommands": ProfilerInstallationCommands,
+    },
+)
+```
+
 
 ## Running from source
 gProfiler requires Python 3.6+ to run.

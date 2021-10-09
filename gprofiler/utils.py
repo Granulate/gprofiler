@@ -18,12 +18,13 @@ import string
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
-from typing import Callable, List, Optional, Tuple, TypeVar, Union
+from typing import Callable, Iterator, List, Optional, Tuple, TypeVar, Union
 
 import importlib_resources
 import psutil
@@ -102,6 +103,7 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Po
         cmd,
         stdout=kwargs.pop("stdout", subprocess.PIPE),
         stderr=kwargs.pop("stderr", subprocess.PIPE),
+        stdin=subprocess.PIPE,
         preexec_fn=kwargs.pop("preexec_fn", os.setpgrp),
         env=env,
         **kwargs,
@@ -164,17 +166,19 @@ def run_process(
     check: bool = True,
     timeout: int = None,
     kill_signal: signal.Signals = signal.SIGKILL,
+    stdin: bytes = None,
     **kwargs,
 ) -> CompletedProcess:
     with start_process(cmd, via_staticx, **kwargs) as process:
         try:
+            communicate_kwargs = dict(input=stdin) if stdin is not None else {}
             if stop_event is None:
-                stdout, stderr = process.communicate(timeout=timeout)
+                stdout, stderr = process.communicate(timeout=timeout, **communicate_kwargs)
             else:
                 end_time = (time.monotonic() + timeout) if timeout is not None else None
                 while True:
                     try:
-                        stdout, stderr = process.communicate(timeout=1)
+                        stdout, stderr = process.communicate(timeout=1, **communicate_kwargs)
                         break
                     except TimeoutExpired:
                         if stop_event.is_set():
@@ -311,6 +315,14 @@ def remove_path(path: str, missing_ok: bool = False) -> None:
     except FileNotFoundError:
         if not missing_ok:
             raise
+
+
+@contextmanager
+def removed_path(path: str) -> Iterator[None]:
+    try:
+        yield
+    finally:
+        remove_path(path, missing_ok=True)
 
 
 def is_same_ns(pid: int, nstype: str) -> bool:
@@ -487,7 +499,7 @@ def random_prefix() -> str:
 
 
 def process_comm(process: Process) -> str:
-    comm = Path(f"/proc/{process.pid}/comm").read_text()
-    # the kernel always adds \n
-    assert comm.endswith('\n'), f"unexpected comm: {comm!r}"
-    return comm[:-1]
+    status = Path(f"/proc/{process.pid}/status").read_text()
+    name_line = status.splitlines()[0]
+    assert name_line.startswith("Name:\t")
+    return name_line.split("\t", 1)[1]

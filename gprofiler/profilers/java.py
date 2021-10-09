@@ -332,7 +332,7 @@ class JavaProfiler(ProcessProfilerBase):
         return java_version_cmd_output.stderr.decode()
 
     def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
-        logger.info(f"Profiling java process {process.pid}...")
+        logger.info(f"Profiling process {process.pid} with async-profiler")
 
         # Get Java version
         # TODO we can get the "java" binary by extracting the java home from the libjvm path,
