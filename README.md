@@ -193,7 +193,7 @@ So in order to deploy gProfiler, we need to modify a container definition to inc
 
     `--perf-mode none` is required because our container will not have permissions to run system-wide `perf`, so gProfiler will profile only runtime processes. See [perf-less mode](#perf-less-mode) for more information.
 
-    gProfiler and its installation process will send the outputs to your container's stdout & stderr. After verifying that everything works, you can append `> /tmp/gprofiler_log 2>&1` to the gProfiler command parenthesis (in this example, before the `& python ...`).
+    gProfiler and its installation process will send the outputs to your container's stdout & stderr. After verifying that everything works, you can append `> /dev/null 2>&1` to the gProfiler command parenthesis (in this example, before the `& python ...`) to prevent it from spamming your container logs.
 
     This requires your image to have `wget` installed - you can make sure `wget` is installed, or substitute the `wget` command with `curl -SL https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler --output /tmp/gprofiler`, or any other HTTP-downloader you wish.
 2. Add `linuxParameters` to the container definition (this goes directly in your entry in `containerDefinitinos`):
