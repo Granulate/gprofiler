@@ -24,6 +24,7 @@ from gprofiler.utils import (
     get_process_nspid,
     pgrep_maps,
     process_comm,
+    read_perf_event_mlock_kb,
     remove_path,
     remove_prefix,
     resolve_proc_root_links,
@@ -31,6 +32,7 @@ from gprofiler.utils import (
     run_in_ns,
     run_process,
     touch_path,
+    write_perf_event_mlock_kb,
 )
 
 logger = get_logger_adapter(__name__)
@@ -58,6 +60,11 @@ def jattach_path() -> str:
 
 
 @functools.lru_cache(maxsize=1)
+def fdtransfer_path() -> str:
+    return resource_path("java/fdtransfer")
+
+
+@functools.lru_cache(maxsize=1)
 def get_ap_version() -> str:
     return Path(resource_path("java/async-profiler-version")).read_text()
 
@@ -67,12 +74,11 @@ class AsyncProfiledProcess:
     Represents a process profiled with async-profiler.
     """
 
-    AP_EVENT_TYPE = "itimer"
     FORMAT_PARAMS = "ann,sig"
     OUTPUT_FORMAT = "collapsed"
     OUTPUTS_MODE = 0o622  # readable by root, writable by all
 
-    def __init__(self, process: Process, storage_dir: str, buildids: bool):
+    def __init__(self, process: Process, storage_dir: str, buildids: bool, mode: str):
         self.process = process
         self._process_root = f"/proc/{process.pid}/root"
         # not using storage_dir for AP itself on purpose: this path should remain constant for the lifetime
@@ -98,6 +104,8 @@ class AsyncProfiledProcess:
         self._log_path_process = remove_prefix(self._log_path_host, self._process_root)
 
         self._buildids = buildids
+        assert mode in ("cpu", "itimer"), f"unexpected mode: {mode}"
+        self._mode = mode
 
     def __enter__(self):
         os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
@@ -178,9 +186,10 @@ class AsyncProfiledProcess:
 
     def _get_start_cmd(self, interval: int) -> List[str]:
         return self._get_base_cmd() + [
-            f"start,event={self.AP_EVENT_TYPE},file={self._output_path_process},{self.OUTPUT_FORMAT},"
-            f"{self.FORMAT_PARAMS},interval={interval},framebuf=2000000,log={self._log_path_process}"
-            f"{',buildids' if self._buildids else ''}",
+            f"start,event={self._mode},file={self._output_path_process},"
+            f"{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS},interval={interval},framebuf=2000000,"
+            f"log={self._log_path_process}{',buildids' if self._buildids else ''}"
+            f"{',fdtransfer' if self._mode == 'cpu' else ''}",
         ]
 
     def _get_stop_cmd(self, with_output: bool) -> List[str]:
@@ -208,10 +217,19 @@ class AsyncProfiledProcess:
 
             raise JattachException(e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log) from None
 
-    def start_async_profiler(self, interval: int) -> bool:
+    def _run_fdtransfer(self) -> None:
+        """
+        Start fdtransfer; it will fork & exit once ready, so we can continue with jattach.
+        """
+        run_process([fdtransfer_path(), str(self.process.pid)], communicate=False)
+
+    def start_async_profiler(self, interval: int, second_try: bool = False) -> bool:
         """
         Returns True if profiling was started; False if it was already started.
         """
+        if self._mode == "cpu" and not second_try:
+            self._run_fdtransfer()
+
         start_cmd = self._get_start_cmd(interval)
         try:
             self._run_async_profiler(start_cmd)
@@ -264,10 +282,20 @@ class AsyncProfiledProcess:
             action="store_false",
             help="Skip the JDK version check (that is done before invoking async-profiler)",
         ),
+        ProfilerArgument(
+            "--java-async-profiler-mode",
+            dest="java_async_profiler_mode",
+            choices=["cpu", "itimer"],
+            default="itimer",
+            help="Select async-profiler's mode: 'cpu' (based on perf_events & fdtransfer) or 'itimer' (no perf_events)."
+            " Defaults to '%(default)s'.",
+        ),
     ],
 )
 class JavaProfiler(ProcessProfilerBase):
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
+
+    _new_perf_event_mlock_kb = 8192
 
     def __init__(
         self,
@@ -277,6 +305,7 @@ class JavaProfiler(ProcessProfilerBase):
         storage_dir: str,
         java_async_profiler_buildids: bool,
         java_version_check: bool,
+        java_async_profiler_mode: str,
         java_mode: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
@@ -286,6 +315,8 @@ class JavaProfiler(ProcessProfilerBase):
         self._interval = int((1 / frequency) * 1000_000_000)
         self._buildids = java_async_profiler_buildids
         self._version_check = java_version_check
+        self._mode = java_async_profiler_mode
+        self._saved_mlock: Optional[int] = None
 
     def _is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -342,7 +373,7 @@ class JavaProfiler(ProcessProfilerBase):
                 logger.warning(f"Process {process.pid} running unsupported Java version, skipping...")
                 return None
 
-        with AsyncProfiledProcess(process, self._storage_dir, self._buildids) as ap_proc:
+        with AsyncProfiledProcess(process, self._storage_dir, self._buildids, self._mode) as ap_proc:
             return self._profile_ap_process(ap_proc)
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[StackToSampleCount]:
@@ -355,7 +386,7 @@ class JavaProfiler(ProcessProfilerBase):
             # not using the "resume" action because I'm not sure it properly reconfigures all settings; while stop;start
             # surely does.
             ap_proc.stop_async_profiler(with_output=False)
-            started = ap_proc.start_async_profiler(self._interval)
+            started = ap_proc.start_async_profiler(self._interval, second_try=True)
             if not started:
                 raise Exception(
                     f"async-profiler is still running in {ap_proc.process.pid}, even after trying to stop it!"
@@ -386,3 +417,33 @@ class JavaProfiler(ProcessProfilerBase):
 
     def _select_processes_to_profile(self) -> List[Process]:
         return pgrep_maps(r"^.+/libjvm\.so$")
+
+    def start(self) -> None:
+        super().start()
+        if self._mode == "cpu":
+            # short tech dive:
+            # perf has this accounting logic when mmaping perf_event_open fds (from kernel/events/core.c:perf_mmap())
+            # 1. if the *user* locked pages have not exceeded the limit of perf_event_mlock_kb, charge from
+            #    that limit.
+            # 2. after exceeding, charge from ulimit (mlock)
+            # 3. if both are expended, fail the mmap unless task is privileged / perf_event_paranoid is
+            #    permissive (-1).
+            #
+            # in our case, we run "perf" alongside and it starts before async-profiler. so its mmaps get charged from
+            # the user (root) locked pages.
+            # then, when async-profiler starts, and we profile a Java process running in a container as root (which is
+            # common), it is treated as the same user, and since its limit is expended, and the container is not
+            # privileged & has low mlock ulimit (Docker defaults to 64) - async-profiler fails to mmap!
+            # instead, we update perf_event_mlock_kb here for the lifetime of gProfiler, leaving some room
+            # for async-profiler (and also make sure "perf" doesn't use it in its entirety)
+            #
+            # (alternatively, we could change async-profiler's fdtransfer to do the mmap as well as the perf_event_open;
+            # this way, the privileged program gets charged, and when async-profiler mmaps it again, it will use the
+            # same pages and won't get charged).
+            self._saved_mlock = read_perf_event_mlock_kb()
+            write_perf_event_mlock_kb(self._new_perf_event_mlock_kb)
+
+    def stop(self) -> None:
+        super().stop()
+        if self._saved_mlock is not None:
+            write_perf_event_mlock_kb(self._saved_mlock)

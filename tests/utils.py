@@ -36,7 +36,11 @@ def run_privileged_container(
         assert isinstance(container_or_logs, bytes), container_or_logs
         container, logs = None, container_or_logs.decode()
 
-    print("Container logs:", logs)  # print, so failing tests display it
+    # print, so failing tests display it
+    print(
+        "Container logs:",
+        logs if len(logs) > 0 else "(empty, possibly because container was detached and is running now)",
+    )
     return container, logs
 
 

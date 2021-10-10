@@ -5,6 +5,7 @@
 import time
 from pathlib import Path
 from subprocess import Popen
+from threading import Event
 from typing import Callable, List, Mapping, Optional
 
 import psutil
@@ -14,17 +15,23 @@ from docker.models.containers import Container
 from docker.models.images import Image
 
 from gprofiler.merge import parse_one_collapsed
-from gprofiler.profilers.java import AsyncProfiledProcess
-from tests.utils import run_gprofiler_in_container
+from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler
+from tests.utils import assert_function_in_collapsed, run_gprofiler_in_container
 
 
 # adds the "status" command to AsyncProfiledProcess from gProfiler.
 class AsyncProfiledProcessForTests(AsyncProfiledProcess):
     def status_async_profiler(self):
-        self._run_async_profiler(self._get_base_cmd() + [f"status,log={self._log_path_process}"])
+        self._run_async_profiler(
+            self._get_base_cmd() + [f"status,log={self._log_path_process},file={self._output_path_process}"]
+        )
 
 
-@pytest.mark.parametrize("runtime", ["java"])
+@pytest.fixture
+def runtime() -> str:
+    return "java"
+
+
 def test_java_async_profiler_stopped(
     docker_client: DockerClient,
     application_pid: int,
@@ -71,26 +78,18 @@ def test_java_async_profiler_stopped(
         container.kill("SIGKILL")
     finally:
         if container is not None:
+            print("gProfiler container logs:", container.logs().decode(), sep="\n")
             container.remove(force=True)
 
-    # run "status"
     proc = psutil.Process(application_pid)
-    with AsyncProfiledProcessForTests(proc, tmp_path, False) as ap_proc:
-        ap_proc.status_async_profiler()
-    # printed the process' stdout, see ACTION_STATUS case in async-profiler/profiler.cpp
-    expected_message = b"Profiling is running for "
-
     assert any("libasyncProfiler.so" in m.path for m in proc.memory_maps())
 
-    # container case
-    if application_docker_container is not None:
-        assert expected_message in application_docker_container.logs()
-    # else, process
-    else:
-        assert application_process is not None
-        assert application_process.stdout is not None
-        # mypy complains about read1
-        assert expected_message in application_process.stdout.read1(4096)  # type: ignore
+    # run "status"
+    with AsyncProfiledProcessForTests(proc, tmp_path, False, "itimer") as ap_proc:
+        ap_proc.status_async_profiler()
+
+        # printed the output file, see ACTION_STATUS case in async-profiler/profiler.cpp\
+        assert "Profiling is running for " in ap_proc.read_output()
 
     # then start again, with 1 second
     assert args[2] == "1000"
@@ -101,3 +100,20 @@ def test_java_async_profiler_stopped(
 
     collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
     assert_collapsed(collapsed)
+
+
+@pytest.mark.parametrize("in_container", [True])
+def test_java_async_profiler_cpu_mode(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed,
+) -> None:
+    """
+    Run Java in a container and enable async-profiler in CPU mode, make sure we get kernel stacks.
+    """
+    with JavaProfiler(1000, 1, Event(), str(tmp_path), False, True, "cpu", "ap") as profiler:
+        process_collapsed = profiler.snapshot().get(application_pid)
+        assert_collapsed(process_collapsed, check_comm=True)
+        assert_function_in_collapsed(
+            "do_syscall_64_[k]", "java", process_collapsed, True
+        )  # ensure kernels stacks exist
