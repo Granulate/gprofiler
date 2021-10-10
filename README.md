@@ -280,7 +280,7 @@ gProfiler invokes `perf` in system wide mode, collecting profiling data for all 
 Alongside `perf`, gProfiler invokes runtime-specific profilers for processes based on these environments:
 * Java runtimes (version 7+) based on the HotSpot JVM, including the Oracle JDK and other builds of OpenJDK like AdoptOpenJDK and Azul Zulu.
   * Uses async-profiler.
-* The CPython interpreter, versions 2.7 and 3.5-3.9.
+* The CPython interpreter, versions 2.7 and 3.5-3.10.
   * eBPF profiling (based on PyPerf) requires Linux 4.14 or higher; see [Python profiling options](#python-profiling-options) for more info.
   * If eBPF is not available for whatever reason, py-spy is used.
 * PHP (Zend Engine), versions 7.0-8.0.
