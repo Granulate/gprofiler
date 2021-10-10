@@ -126,6 +126,7 @@ COPY --from=centos:6 /usr/bin/xargs gprofiler/resources/php/xargs
 COPY --from=async-profiler-builder /async-profiler/build/jattach gprofiler/resources/java/jattach
 COPY --from=async-profiler-builder /async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
 COPY --from=async-profiler-builder /async-profiler/build/libasyncProfiler.so gprofiler/resources/java/libasyncProfiler.so
+COPY --from=async-profiler-builder /async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
 
 COPY --from=burn-builder /go/burn/burn gprofiler/resources/burn
 

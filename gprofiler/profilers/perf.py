@@ -27,6 +27,9 @@ def perf_path() -> str:
 class PerfProcess:
     _dump_timeout_s = 5
     _poll_timeout_s = 5
+    # default number of pages used by "perf record" when perf_event_mlock_kb=516
+    # we use double for dwarf.
+    _mmap_sizes = {"fp": 129, "dwarf": 257}
 
     def __init__(
         self,
@@ -56,6 +59,12 @@ class PerfProcess:
             "-o",
             self._output_path,
             "--switch-output=signal",
+            # explicitly pass '-m', otherwise perf defaults to deriving this number from perf_event_mlock_kb,
+            # and it ends up using it entirely (and we want to spare some for async-profiler)
+            # this number scales linearly with the number of active cores (so we don't need to do this calculation
+            # here)
+            "-m",
+            str(self._mmap_sizes[self._type]),
         ] + self._extra_args
 
     def start(self) -> None:
@@ -84,12 +93,14 @@ class PerfProcess:
         self._process.send_signal(signal.SIGUSR2)
 
     def wait_and_script(self) -> str:
-        perf_data = wait_for_file_by_prefix(f"{self._output_path}.", self._dump_timeout_s, self._stop_event)
-
-        # using read1() which performs just a single read() call and doesn't read until EOF
-        # (unlike Popen.communicate())
-        assert self._process is not None
-        logger.debug(f"perf stderr: {self._process.stderr.read1(4096)}")
+        try:
+            perf_data = wait_for_file_by_prefix(f"{self._output_path}.", self._dump_timeout_s, self._stop_event)
+        finally:
+            # always read its stderr
+            # using read1() which performs just a single read() call and doesn't read until EOF
+            # (unlike Popen.communicate())
+            assert self._process is not None
+            logger.debug(f"perf stderr: {self._process.stderr.read1(4096)}")
 
         if self._inject_jit:
             inject_data = Path(f"{str(perf_data)}.inject")

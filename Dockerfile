@@ -108,6 +108,7 @@ COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/strings gprofiler/res
 COPY --from=async-profiler-builder /async-profiler/build/jattach gprofiler/resources/java/jattach
 COPY --from=async-profiler-builder /async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
 COPY --from=async-profiler-builder /async-profiler/build/libasyncProfiler.so gprofiler/resources/java/libasyncProfiler.so
+COPY --from=async-profiler-builder /async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
 
 COPY --from=rbspy-builder /rbspy/rbspy gprofiler/resources/ruby/rbspy
 

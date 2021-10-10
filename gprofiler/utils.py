@@ -166,15 +166,25 @@ def run_process(
     check: bool = True,
     timeout: int = None,
     kill_signal: signal.Signals = signal.SIGKILL,
+    communicate: bool = True,
     stdin: bytes = None,
     **kwargs,
 ) -> CompletedProcess:
+    stdout = None
+    stderr = None
     with start_process(cmd, via_staticx, **kwargs) as process:
         try:
             communicate_kwargs = dict(input=stdin) if stdin is not None else {}
             if stop_event is None:
-                stdout, stderr = process.communicate(timeout=timeout, **communicate_kwargs)
+                assert timeout is None, f"expected no timeout, got {timeout!r}"
+                if communicate:
+                    # wait for stderr & stdout to be closed
+                    stdout, stderr = process.communicate(timeout=timeout, **communicate_kwargs)
+                else:
+                    # just wait for the process to exit
+                    process.wait()
             else:
+                assert communicate, "expected communicate=True if stop_event is given"
                 end_time = (time.monotonic() + timeout) if timeout is not None else None
                 while True:
                     try:
@@ -503,3 +513,14 @@ def process_comm(process: Process) -> str:
     name_line = status.splitlines()[0]
     assert name_line.startswith("Name:\t")
     return name_line.split("\t", 1)[1]
+
+
+PERF_EVENT_MLOCK_KB = "/proc/sys/kernel/perf_event_mlock_kb"
+
+
+def read_perf_event_mlock_kb() -> int:
+    return int(Path(PERF_EVENT_MLOCK_KB).read_text())
+
+
+def write_perf_event_mlock_kb(value: int) -> None:
+    Path(PERF_EVENT_MLOCK_KB).write_text(str(value))
