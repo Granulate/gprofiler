@@ -524,3 +524,11 @@ def read_perf_event_mlock_kb() -> int:
 
 def write_perf_event_mlock_kb(value: int) -> None:
     Path(PERF_EVENT_MLOCK_KB).write_text(str(value))
+
+
+def is_pyinstaller() -> bool:
+    """
+    Are we running in PyInstaller?
+    """
+    # https://pyinstaller.readthedocs.io/en/stable/runtime-information.html#run-time-information
+    return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
