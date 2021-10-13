@@ -316,7 +316,7 @@ In this mode, gProfiler uses runtime-specific profilers only, and their results 
 ## Container
 
 * x86_64: `./scripts/build_x86_64_container.sh -t gprofiler` will create a local image `gprofiler`.
-* Aarch64: `./scripts/build_x86_64_container.sh`, you will need to set up buildx for building cross architecture before, if you're building on x86_64.
+* Aarch64: `./scripts/build_aarch64_container.sh`, you will need to set up buildx for building cross architecture before, if you're building on x86_64.
 
 ## Executable
 

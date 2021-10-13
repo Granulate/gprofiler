@@ -75,6 +75,7 @@ FROM centos${GPROFILER_BUILDER} AS build-stage
 
 RUN yum install -y git
 
+# these are needed to build PyPerf, which we don't build on Aarch64, hence not installing them here.
 RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; yum install -y \
     curl \
     cmake \
