@@ -84,14 +84,14 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Po
         cmd = [cmd]
 
     env = kwargs.pop("env", None)
-    staticx_dir = os.getenv("STATICX_BUNDLE_DIR")
+    staticx_dir = get_staticx_dir()
     # are we running under staticx?
     if staticx_dir is not None:
         # if so, if "via_staticx" was requested, then run the binary with the staticx ld.so
         # because it's supposed to be run with it.
         if via_staticx:
-            # STATICX_BUNDLE_DIR is where staticx has extracted all of the libraries it had collected
-            # earlier.
+            # staticx_dir (from STATICX_BUNDLE_DIR) is where staticx has extracted all of the
+            # libraries it had collected earlier.
             # see https://github.com/JonathonReinhart/staticx#run-time-information
             cmd = [f"{staticx_dir}/.staticx.interp", "--library-path", staticx_dir] + cmd
         else:
@@ -532,3 +532,7 @@ def is_pyinstaller() -> bool:
     """
     # https://pyinstaller.readthedocs.io/en/stable/runtime-information.html#run-time-information
     return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
+
+
+def get_staticx_dir() -> Optional[str]:
+    return os.getenv("STATICX_BUNDLE_DIR")
