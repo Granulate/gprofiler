@@ -116,7 +116,7 @@ For profiling with eBPF, kernel headers must be accessible from within the conta
 The command above mounts both of these directories.
 
 ## Running as an executable
-First, check if gProfiler is already running - run `pgrep gprofiler`. You should see 3 PIDs (staticx bootloader, PyInstaller and gProfiler's Python itself). If no processes match, then gProfiler is not running.
+First, check if gProfiler is already running - run `pgrep gprofiler`. You should not see any output, if you do see any PIDs it means that gProfiler is running and it must be stopped before starting it again (you can stop it with `sudo pkill -TERM gprofiler`).
 
 Run the following to have gprofiler running continuously, in the background, uploading to Granulate Performance Studio:
 ```bash
