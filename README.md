@@ -276,8 +276,8 @@ gsutil cp gprofiler_initialization_action.sh gs://<YOUR BUCKET>
 If you don't have a Google Storage bucket, make sure you create one ([documentation](https://cloud.google.com/storage/docs/creating-buckets)).
 Then, create your Dataproc cluster with the `--initialization-actions` flag -
 ```shell
-TOKEN=<TOKEN> \
-SERVICE=<SERVICE NAME> \
+export TOKEN='<TOKEN>' && \
+export SERVICE='<SERVICE NAME>' && \
 gcloud dataproc clusters create <CLUSTER NAME> \
 --initialization-actions gs://<YOUR BUCKET>/gprofiler_initialization_action.sh \
 --metadata gprofiler-token="$TOKEN",gprofiler-service="$SERVICE" --region <REGION>
