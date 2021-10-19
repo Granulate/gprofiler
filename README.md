@@ -265,6 +265,28 @@ setuptools.setup(
 )
 ```
 
+## Running on Google Dataproc
+To run gProfiler on your cluster, you will need to add an [initialization action](https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/init-actions)
+that will install agent on all of your workers when the cluster is created.
+
+First, upload the gProfiler [initialization action script](./deploy/dataproc/gprofiler_initialization_action.sh) file to your Google Cloud Storage bucket -
+```shell
+gsutil cp gprofiler_initialization_action.sh gs://<YOUR BUCKET>
+```
+If you don't have a Google Storage bucket, make sure you create one ([documentation](https://cloud.google.com/storage/docs/creating-buckets)).
+Then, create your Dataproc cluster with the `--initialization-actions` flag -
+```shell
+TOKEN=<TOKEN> \
+SERVICE=<SERVICE NAME> \
+gcloud dataproc clusters create <CLUSTER NAME> \
+--initialization-actions gs://<YOUR BUCKET>/gprofiler_initialization_action.sh \
+--metadata gprofiler-token=$TOKEN,gprofiler-service=$SERVICE --region us-central1
+```
+**Note** - make sure to replace the placeholders with the appropriate values -
+  - Replace `<TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
+  - Replace `<SERVICE NAME>` in the command line with the service name you wish to use.
+  - Replace `<YOUR BUCKET>` with the bucket name you have uploaded the gProfiler initialization action script to.
+  - Replace `<CLUSTER NAME>` with the cluster name you wish to use
 
 ## Running from source
 gProfiler requires Python 3.6+ to run.
