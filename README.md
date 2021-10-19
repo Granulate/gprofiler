@@ -280,7 +280,7 @@ TOKEN=<TOKEN> \
 SERVICE=<SERVICE NAME> \
 gcloud dataproc clusters create <CLUSTER NAME> \
 --initialization-actions gs://<YOUR BUCKET>/gprofiler_initialization_action.sh \
---metadata gprofiler-token=$TOKEN,gprofiler-service=$SERVICE --region <REGION>
+--metadata gprofiler-token="$TOKEN",gprofiler-service="$SERVICE" --region <REGION>
 ```
 **Note** - make sure to replace the placeholders with the appropriate values -
   - Replace `<TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
