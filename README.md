@@ -280,13 +280,14 @@ TOKEN=<TOKEN> \
 SERVICE=<SERVICE NAME> \
 gcloud dataproc clusters create <CLUSTER NAME> \
 --initialization-actions gs://<YOUR BUCKET>/gprofiler_initialization_action.sh \
---metadata gprofiler-token=$TOKEN,gprofiler-service=$SERVICE --region us-central1
+--metadata gprofiler-token=$TOKEN,gprofiler-service=$SERVICE --region <REGION>
 ```
 **Note** - make sure to replace the placeholders with the appropriate values -
   - Replace `<TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
   - Replace `<SERVICE NAME>` in the command line with the service name you wish to use.
   - Replace `<YOUR BUCKET>` with the bucket name you have uploaded the gProfiler initialization action script to.
   - Replace `<CLUSTER NAME>` with the cluster name you wish to use
+  - Replace `<REGION>` with the region you wish to use
 
 ## Running from source
 gProfiler requires Python 3.6+ to run.
