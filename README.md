@@ -267,7 +267,7 @@ setuptools.setup(
 
 ## Running on Google Dataproc
 To run gProfiler on your cluster, you will need to add an [initialization action](https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/init-actions)
-that will install agent on all of your workers when the cluster is created.
+that will install the agent on all of your workers when the cluster is created.
 
 First, upload the gProfiler [initialization action script](./deploy/dataproc/gprofiler_initialization_action.sh) file to your Google Cloud Storage bucket -
 ```shell
