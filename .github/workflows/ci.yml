@@ -61,7 +61,7 @@ jobs:
       # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
       # more nicely. the tests will then be able to use the built image.
     - name: Build gProfiler image
-      run: DOCKER_BUILDKIT=1 docker build -t gprofiler .
+      run: ./scripts/build_x86_64_container.sh -t gprofiler
 
     - name: Copy resources from gProfiler image
       run: ./scripts/copy_resources_from_image.sh gprofiler

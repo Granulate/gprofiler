@@ -1,8 +1,25 @@
 # parts are copied from Dockerfile
 
-# rust:slim 1.52.1
-# using the same builder for both pyspy and rbspy since they share build dependencies
-FROM rust@sha256:9c106c1222abe1450f45774273f36246ebf257623ed51280dbc458632d14c9fc AS pyspy-rbspy-builder-common
+# these need to be defined before any FROM - otherwise, the ARGs expand to empty strings.
+
+# pyspy & rbspy, using the same builder for both pyspy and rbspy since they share build dependencies - rust:latest 1.52.1
+ARG RUST_BUILDER_VERSION=@sha256:9c106c1222abe1450f45774273f36246ebf257623ed51280dbc458632d14c9fc
+# perf - ubuntu:16.04
+ARG PERF_BUILDER_UBUNTU=@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c
+# phpspy - ubuntu:20.04
+ARG PHPSPY_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
+# async-profiler - centos:6
+# requires CentOS 6 so the built DSO can be loaded into machines running with old glibc - centos:6
+ARG AP_BUILDER_CENTOS=@sha256:dec8f471302de43f4cfcf82f56d99a5227b5ea1aa6d02fa56344986e1f4610e7
+# burn - golang:1.16.3
+ARG BURN_BUILDER_GOLANG=@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d84d66ef25fa345f1
+# bcc & gprofiler - centos:7
+# CentOS 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
+# this will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
+ARG GPROFILER_BUILDER=@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e
+
+# pyspy & rbspy builder base
+FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
 
 COPY scripts/prepare_machine-unknown-linux-musl.sh .
 RUN ./prepare_machine-unknown-linux-musl.sh
@@ -11,15 +28,16 @@ RUN ./prepare_machine-unknown-linux-musl.sh
 FROM pyspy-rbspy-builder-common AS pyspy-builder
 COPY scripts/pyspy_build.sh .
 RUN ./pyspy_build.sh
+RUN mv /py-spy/target/$(uname -m)-unknown-linux-musl/release/py-spy /py-spy/py-spy
 
 # rbspy
 FROM pyspy-rbspy-builder-common AS rbspy-builder
 COPY scripts/rbspy_build.sh .
 RUN ./rbspy_build.sh
+RUN mv /rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy /rbspy/rbspy
 
 # perf
-# ubuntu:16.04
-FROM ubuntu@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c AS perf-builder
+FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder
 
 COPY scripts/perf_env.sh .
 RUN ./perf_env.sh
@@ -31,37 +49,34 @@ COPY scripts/perf_build.sh .
 RUN ./perf_build.sh
 
 # phpspy
-# ubuntu:20.04
-FROM ubuntu@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93 as phpspy-builder
-RUN apt update && apt install -y git wget make gcc
+FROM ubuntu${PHPSPY_BUILDER_UBUNTU} as phpspy-builder
+RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; apt update && apt install -y git wget make gcc
 COPY scripts/phpspy_build.sh .
 RUN ./phpspy_build.sh
 
 # async-profiler
-# requires CentOS 6, so the built DSO can be loaded into machines running with old glibc.
-# centos:6
-FROM centos@sha256:dec8f471302de43f4cfcf82f56d99a5227b5ea1aa6d02fa56344986e1f4610e7 AS async-profiler-builder
+FROM centos${AP_BUILDER_CENTOS} AS async-profiler-builder
 COPY scripts/async_profiler_env.sh .
 RUN ./async_profiler_env.sh
 COPY scripts/async_profiler_build.sh .
 RUN ./async_profiler_build.sh
 
-FROM golang@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d84d66ef25fa345f1 AS burn-builder
+FROM golang${BURN_BUILDER_GOLANG} AS burn-builder
 
 COPY scripts/burn_build.sh .
 RUN ./burn_build.sh
 
 
-# Centos 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
-# This will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
-# centos:7
-FROM centos@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e AS build-stage
+# bcc & gprofiler
+FROM centos${GPROFILER_BUILDER} AS build-stage
 
 # bcc part
 # TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
 
-RUN yum install -y \
-    git \
+RUN yum install -y git
+
+# these are needed to build PyPerf, which we don't build on Aarch64, hence not installing them here.
+RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; yum install -y \
     curl \
     cmake \
     patch \
@@ -73,9 +88,9 @@ RUN yum install -y \
     ncurses-devel \
     elfutils-libelf-devel
 
-RUN yum install -y centos-release-scl-rh
+RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; yum install -y centos-release-scl-rh
 # mostly taken from https://github.com/iovisor/bcc/blob/master/INSTALL.md#install-and-compile-llvm
-RUN yum install -y devtoolset-8 \
+RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; yum install -y devtoolset-8 \
     llvm-toolset-7 \
     llvm-toolset-7-llvm-devel \
     llvm-toolset-7-llvm-static \
@@ -83,20 +98,24 @@ RUN yum install -y devtoolset-8 \
     devtoolset-8-elfutils-libelf-devel
 
 COPY ./scripts/libunwind_build.sh .
-RUN ./libunwind_build.sh
+RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; ./libunwind_build.sh
 
 WORKDIR /bcc
 
 COPY ./scripts/pyperf_build.sh .
-RUN source scl_source enable devtoolset-8 llvm-toolset-7 && source ./pyperf_build.sh
+RUN if [ $(uname -m) != "aarch64" ]; then source scl_source enable devtoolset-8 llvm-toolset-7; fi && source ./pyperf_build.sh
 
 
 # gProfiler part
 
 WORKDIR /app
 
-RUN yum update -y && yum install -y epel-release
+RUN yum install -y epel-release
 RUN yum install -y gcc python3 curl python3-pip patchelf python3-devel upx
+# needed for aarch64
+RUN if [ $(uname -m) = "aarch64" ]; then yum install -y glibc-static zlib-devel.aarch64; fi
+# needed for aarch64, scons & wheel are needed to build staticx
+RUN if [ $(uname -m) = "aarch64" ]; then python3 -m pip install 'wheel==0.37.0' 'scons==4.2.0'; fi
 
 COPY requirements.txt requirements.txt
 RUN python3 -m pip install -r requirements.txt
@@ -113,15 +132,16 @@ RUN cp /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
 RUN cp -r /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
 RUN cp /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 
-COPY --from=pyspy-builder /py-spy/target/x86_64-unknown-linux-musl/release/py-spy gprofiler/resources/python/py-spy
-COPY --from=rbspy-builder /rbspy/target/x86_64-unknown-linux-musl/release/rbspy gprofiler/resources/ruby/rbspy
+COPY --from=pyspy-builder /py-spy/py-spy gprofiler/resources/python/py-spy
+COPY --from=rbspy-builder /rbspy/rbspy gprofiler/resources/ruby/rbspy
 COPY --from=perf-builder /perf gprofiler/resources/perf
 
 COPY --from=phpspy-builder /phpspy/phpspy gprofiler/resources/php/phpspy
 COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
 COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/strings gprofiler/resources/php/strings
-COPY --from=centos:6 /usr/bin/awk gprofiler/resources/php/awk
-COPY --from=centos:6 /usr/bin/xargs gprofiler/resources/php/xargs
+# copying from async-profiler-builder as an "old enough" centos.
+COPY --from=async-profiler-builder /usr/bin/awk gprofiler/resources/php/awk
+COPY --from=async-profiler-builder /usr/bin/xargs gprofiler/resources/php/xargs
 
 COPY --from=async-profiler-builder /async-profiler/build/jattach gprofiler/resources/java/jattach
 COPY --from=async-profiler-builder /async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
@@ -148,7 +168,8 @@ COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # we use list_needed_libs.sh to list the dynamic dependencies of *all* of our resources,
 # and make staticx pack them as well.
 # using scl here to get the proper LD_LIBRARY_PATH set
-RUN source scl_source enable devtoolset-8 llvm-toolset-7 && libs=$(./scripts/list_needed_libs.sh) && staticx $libs dist/gprofiler dist/gprofiler
+# TODO: use staticx for aarch64 as well; currently it doesn't generate correct binaries when run over Docker emulation.
+RUN if [ $(uname -m) != "aarch64" ]; then source scl_source enable devtoolset-8 llvm-toolset-7 && libs=$(./scripts/list_needed_libs.sh) && staticx $libs dist/gprofiler dist/gprofiler; fi
 
 FROM scratch AS export-stage
 

@@ -17,7 +17,7 @@ import distro  # type: ignore
 import psutil
 
 from gprofiler.log import get_logger_adapter
-from gprofiler.utils import run_in_ns, run_process
+from gprofiler.utils import is_pyinstaller, run_in_ns, run_process
 
 logger = get_logger_adapter(__name__)
 hostname: Optional[str] = None
@@ -64,7 +64,7 @@ def get_run_mode() -> str:
         return "k8s"
     elif os.getenv("GPROFILER_IN_CONTAINER") is not None:  # set by our Dockerfile
         return "container"
-    elif os.getenv("STATICX_BUNDLE_DIR") is not None:  # set by staticx
+    elif is_pyinstaller():
         return "standalone_executable"
     else:
         return "local_python"

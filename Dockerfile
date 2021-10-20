@@ -61,7 +61,6 @@ RUN ./pyperf_build.sh
 
 # phpspy
 FROM ubuntu${PHPSPY_BUILDER_UBUNTU} AS phpspy-builder
-
 RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; apt update && apt install -y git wget make gcc
 COPY scripts/phpspy_build.sh .
 RUN ./phpspy_build.sh

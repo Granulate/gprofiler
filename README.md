@@ -101,8 +101,6 @@ Note that when using `--continuous` with `--output-dir`, a new file will be crea
 Aggregations are only available when uploading to the Granulate Performance Studio.
 
 ## Running as a Docker container
-Supported both for x86_64 and Aarch64.
-
 Run the following to have gProfiler running continuously, uploading to Granulate Performance Studio:
 ```bash
 docker pull granulate/gprofiler:latest
@@ -118,13 +116,11 @@ For profiling with eBPF, kernel headers must be accessible from within the conta
 The command above mounts both of these directories.
 
 ## Running as an executable
-Supported only on x86_64!
-
-First, check if gProfiler is already running - run `pgrep gprofiler`. You should see 3 PIDs (staticx bootloader, PyInstaller and gProfiler's Python itself). If no processes match, then gProfiler is not running.
+First, check if gProfiler is already running - run `pgrep gprofiler`. You should not see any output, if you do see any PIDs it means that gProfiler is running and it must be stopped before starting it again (you can stop it with `sudo pkill -TERM gprofiler`).
 
 Run the following to have gprofiler running continuously, in the background, uploading to Granulate Performance Studio:
 ```bash
-wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler
+wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler_$(uname -m) -O gprofiler
 sudo chmod +x gprofiler
 sudo sh -c "setsid ./gprofiler -cu --token <token> --service-name <service> [options] > /dev/null 2>&1 &"
 sleep 1
@@ -314,6 +310,18 @@ The runtime stacks are then merged into the data collected by `perf`, substituti
 It is possible to run gProfiler without using `perf` - this is useful where `perf` can't be used, for whatever reason (e.g permissions). This mode is enabled by `--perf-mode disabled`.
 
 In this mode, gProfiler uses runtime-specific profilers only, and their results are concatenated (instead of scaled into the results collected by `perf`). This means that, although the results from different profilers are viewed on the same graph, they are not necessarily of the same scale: so you can compare the samples count of Java to Java, but not Java to Python.
+
+# Building
+
+## Container
+
+* x86_64: `./scripts/build_x86_64_container.sh -t gprofiler` will create a local image `gprofiler`.
+* Aarch64: `./scripts/build_aarch64_container.sh`, you will need to set up buildx for building cross architecture before, if you're building on x86_64.
+
+## Executable
+
+* x86_64: `./scripts/build_x86_64_executable.sh` will build the executable into `build/x86_64/gprofiler`.
+* Aarch64: `./scripts/build_aarch64_executable.sh` will build the executable into `build/aarch64/gprofiler`. As with the Aarch64 container build - this can be used to cross-compile on x86_64, you just need to set up buildx for that, see notes above.
 
 # Contribute
 We welcome all feedback and suggestion through Github Issues:
