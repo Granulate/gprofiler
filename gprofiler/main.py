@@ -100,6 +100,7 @@ class GProfiler:
         self._stop_event = Event()
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
+        self._gpid = ''
         if collect_metadata:
             self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
@@ -280,7 +281,8 @@ class GProfiler:
 
         if self._client:
             try:
-                self._client.submit_profile(
+                # store sid
+                response_dict = self._client.submit_profile(
                     local_start_time,
                     local_end_time,
                     merged_result,
@@ -288,7 +290,9 @@ class GProfiler:
                     self._profile_api_version,
                     self._spawn_time,
                     metrics,
+                    self._gpid
                 )
+                self._gpid = response_dict.get('gpid', '')
             except Timeout:
                 logger.error("Upload of profile to server timed out.")
             except APIError as e:
