@@ -130,6 +130,7 @@ class APIClient:
         profile_api_version: Optional[str],
         spawn_time: float,
         metrics: 'Metrics',
+        gpid: str,
     ) -> Dict:
         return self.post(
             "profiles",
@@ -141,6 +142,7 @@ class APIClient:
                 "cpu_avg": metrics.cpu_avg,
                 "mem_avg": metrics.mem_avg,
                 "spawn_time": get_iso8601_format_time_from_epoch_time(spawn_time),
+                "gpid": gpid,
             },
             timeout=self._upload_timeout,
             api_version="v2" if profile_api_version is None else profile_api_version,
