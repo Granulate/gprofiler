@@ -289,7 +289,7 @@ class GProfiler:
                     self._profile_api_version,
                     self._spawn_time,
                     metrics,
-                    self._gpid
+                    self._gpid,
                 )
                 self._gpid = response_dict.get('gpid', '')
             except Timeout:
