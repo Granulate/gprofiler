@@ -281,7 +281,6 @@ class GProfiler:
 
         if self._client:
             try:
-                # store sid
                 response_dict = self._client.submit_profile(
                     local_start_time,
                     local_end_time,
