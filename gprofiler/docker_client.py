@@ -9,7 +9,7 @@ import docker
 
 from gprofiler.log import get_logger_adapter
 
-DOCKER_SYSTEMD_CGROUPS = [re.compile(r"/system.slice/docker-([a-z0-9]{64})\.scope")]
+DOCKER_CGROUPS = [re.compile(r"/docker-([a-z0-9]{64})\.scope")]
 
 logger = get_logger_adapter(__name__)
 
@@ -100,8 +100,8 @@ class DockerClient:
         for line in cgroup.split():
             if any(s in line for s in (':/docker/', ':/ecs/', ':/kubepods')):
                 return line.split("/")[-1]
-            for p in DOCKER_SYSTEMD_CGROUPS:
-                m = p.match(line)
+            for p in DOCKER_CGROUPS:
+                m = p.search(line)
                 if m is not None:
                     return m.group(1)
         return None
