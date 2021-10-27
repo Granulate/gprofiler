@@ -9,7 +9,7 @@ import docker
 
 from gprofiler.log import get_logger_adapter
 
-DOCKER_SYSTEMD_CGROUPS = [re.compile(r"/system.slice/docker-([a-z0-9]{64})\.scope")]
+CONTAINER_ID_PATTERN = re.compile(r"[a-f0-9]{64}")
 
 logger = get_logger_adapter(__name__)
 
@@ -97,11 +97,10 @@ class DockerClient:
         except FileNotFoundError:
             # The process died before we got to this point
             return None
+
         for line in cgroup.split():
-            if any(s in line for s in (':/docker/', ':/ecs/', ':/kubepods')):
-                return line.split("/")[-1]
-            for p in DOCKER_SYSTEMD_CGROUPS:
-                m = p.match(line)
-                if m is not None:
-                    return m.group(1)
+            found = CONTAINER_ID_PATTERN.findall(line)
+            if found:
+                return found[-1]
+
         return None
