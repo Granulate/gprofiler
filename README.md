@@ -280,7 +280,7 @@ export TOKEN='<TOKEN>' && \
 export SERVICE='<SERVICE NAME>' && \
 gcloud dataproc clusters create <CLUSTER NAME> \
 --initialization-actions gs://<YOUR BUCKET>/gprofiler_initialization_action.sh \
---metadata gprofiler-token="$TOKEN",gprofiler-service="$SERVICE" --region <REGION>
+--metadata gprofiler-token="$TOKEN",gprofiler-service="$SERVICE",enable-stdout="1" --region <REGION>
 ```
 **Note** - make sure to replace the placeholders with the appropriate values -
   - Replace `<TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
@@ -288,6 +288,21 @@ gcloud dataproc clusters create <CLUSTER NAME> \
   - Replace `<YOUR BUCKET>` with the bucket name you have uploaded the gProfiler initialization action script to.
   - Replace `<CLUSTER NAME>` with the cluster name you wish to use
   - Replace `<REGION>` with the region you wish to use
+
+### Debugging problems
+If you are experiencing issues with your gProfiler installation (such as no flamegraphs available in the [Performance Studio](https://profiler.granulate.io)
+after waiting for more than 1 hour) you can look at gProfiler's logs and see if there are any errors. \
+To see gProfiler's logs, you must enable its output by providing `enable-stdout="1"` in the cluster metadata when creating the Dataproc cluster. You can use the example above.
+Wait at least 10 minutes after creating your cluster, and then you can SSH into one of your cluster instances via either Dataproc's web interface or the command line.
+After connecting to your instance, run the following command:
+```shell
+tail -f /var/log/dataproc-initialization-script-0.log
+```
+If you have more than one initialization script, try running the command with an increasing number instead of `0` in the command find the appropriate gProfiler log file.
+
+### Disabling gProfiler stdout output
+By default, gProfiler's output is written to the Dataproc initialization script output file (`/var/log/dataproc-initialization-script-{Incrementing number}.log`).
+If you wish to disable this behaviour, change the `enable-stdout` metadata variable value to "0" (the default is "1").
 
 ## Running from source
 gProfiler requires Python 3.6+ to run.

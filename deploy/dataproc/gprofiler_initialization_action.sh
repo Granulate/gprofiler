@@ -11,7 +11,15 @@ readonly GPROFILER_TOKEN
 GPROFILER_SERVICE=$(/usr/share/google/get_metadata_value attributes/gprofiler-service)
 readonly GPROFILER_SERVICE
 
-wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler
+ENABLE_STDOUT=$(/usr/share/google/get_metadata_value attributes/enable-stdout)
+readonly ENABLE_STDOUT
+
+OUTPUT_REDIRECTION=""
+if [ "$ENABLE_STDOUT" != "1" ]; then
+  OUTPUT_REDIRECTION="> /dev/null 2>&1"
+fi
+
+wget --no-verbose https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler
 sudo chmod +x gprofiler
-sudo sh -c "setsid ./gprofiler -cu --token '$GPROFILER_TOKEN' --service-name '$GPROFILER_SERVICE' > /dev/null 2>&1 &"
+sudo sh -c "setsid ./gprofiler -cu --token '$GPROFILER_TOKEN' --service-name '$GPROFILER_SERVICE' $OUTPUT_REDIRECTION &"
 echo "gProfiler installed successfully."
