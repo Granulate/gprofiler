@@ -282,7 +282,7 @@ class PythonEbpfProfiler(ProfilerBase):
 
 @register_profiler(
     "Python",
-    possible_modes=["auto", "pyperf", "pyspy", "disabed"],
+    possible_modes=["auto", "pyperf", "pyspy", "disabled"],
     default_mode="auto",
     # we build pyspy for both, pyperf only for x86_64.
     # TODO: this inconsistency shows that py-spy and pyperf should have different Profiler classes,
