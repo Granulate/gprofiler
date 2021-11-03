@@ -56,7 +56,7 @@ For each profiling session (each profiling duration), gProfiler produces outputs
 * `--python-mode`: Controls which profiler is used for Python.
     * `auto` - (default) try with PyPerf (eBPF), fall back to py-spy.
     * `pyperf` - Use PyPerf with no py-spy fallback.
-    * `pyspy` - Use py-spy.
+    * `pyspy`/`py-spy` - Use py-spy.
     * `disabled` - Disable profilers for Python.
 
 Profiling using eBPF incurs lower overhead & provides kernel stacks. This (currently) requires kernel headers to be installed.
