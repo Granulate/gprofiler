@@ -5,6 +5,7 @@
 #
 set -euo pipefail
 
-git clone --depth 1 -b v0.7.0g1 https://github.com/Granulate/rbspy.git && git -C rbspy reset --hard 5f27dc892e70973bc1d6430b1c208ec152448e18
+git clone --depth 1 -b v0.8.1g1 https://github.com/Granulate/rbspy.git
+git -C rbspy reset --hard a592b03f6d447f9c4fb1df49f4f60531d8395c5f
 cd rbspy
 cargo build --release --target=$(uname -m)-unknown-linux-musl
