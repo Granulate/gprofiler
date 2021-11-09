@@ -4,7 +4,9 @@
 #
 import glob
 import os
+import re
 import signal
+import subprocess
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired
 from threading import Event
@@ -16,7 +18,7 @@ from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, St
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_many_collapsed, parse_one_collapsed_file
-from gprofiler.metadata.system_metadata import get_arch
+from gprofiler.metadata.system_metadata import get_arch, get_run_mode
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
@@ -151,6 +153,31 @@ class PythonEbpfProfiler(ProfilerBase):
         self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
         self.user_stacks_pages = user_stacks_pages
 
+    @staticmethod
+    def _fix_kernel_headers_symlink():
+        try:
+            if get_run_mode() not in ("container", "k8s"):
+                return
+
+            try:
+                uname = subprocess.check_output(["uname", "-r"]).decode('latin-1').strip()
+            except subprocess.CalledProcessError:
+                return
+
+            build_path = f"/lib/modules/{uname}/build"
+            if not os.path.islink(build_path):
+                return
+
+            if os.path.lexists(build_path):
+                return
+
+            link_target = os.readlink(build_path)
+            new_target = re.sub('(\.\./)+usr/src', '/usr/src/', link_target, count=1)
+            os.unlink(build_path)
+            os.link(build_path, link_target)
+        except:
+            logger.warning("Exception raised trying to fix /lib/modules symlink for PyPerf", exc_info=True)
+
     @classmethod
     def _check_missing_headers(cls, stdout) -> bool:
         if "Unable to find kernel headers." in stdout:
@@ -189,6 +216,8 @@ class PythonEbpfProfiler(ProfilerBase):
         test_path = Path(storage_dir) / ".test"
         for f in glob.glob(f"{str(test_path)}.*"):
             os.unlink(f)
+
+        cls._fix_kernel_headers_symlink()
 
         # Run the process and check if the output file is properly created.
         # Wait up to 10sec for the process to terminate.
