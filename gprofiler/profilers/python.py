@@ -168,13 +168,22 @@ class PythonEbpfProfiler(ProfilerBase):
             if not os.path.islink(build_path):
                 return
 
-            if os.path.lexists(build_path):
+            if os.path.lexists(build_path + "/"):
                 return
 
+            lib_modules_uname_path = f"/lib/modules/{uname}"
+
+            os.makedirs('/dev/shm/modules_mount/upper', 555)
+            os.makedirs('/dev/shm/modules_mount/workdir', 555)
+            subprocess.check_call(['mount', '-t', 'overlay', 'overlay', '-o',
+                                   f'upperdir=/dev/shm/modules_mount/upper,lowerdir={lib_modules_uname_path}'
+                                   ',workdir=/dev/shm/modules_mount/workdir', lib_modules_uname_path])
+
+            os.chmod(lib_modules_uname_path, 0o755)
             link_target = os.readlink(build_path)
-            new_target = re.sub('(\.\./)+usr/src', '/usr/src/', link_target, count=1)
+            new_target = re.sub('(\.\./)+usr/src', '/usr/src', link_target, count=1)
             os.unlink(build_path)
-            os.link(build_path, link_target)
+            os.symlink(new_target, build_path)
         except:
             logger.warning("Exception raised trying to fix /lib/modules symlink for PyPerf", exc_info=True)
 
