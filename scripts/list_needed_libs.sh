@@ -15,6 +15,12 @@ BINS=$(find gprofiler/resources -executable -type f)
 libs=
 
 for f in $BINS ; do
+    # no need to list binaries from libasyncProfiler.so - these do not run in our context,
+    # so we don't care about their dependencies.
+    if [[ "$f" == *"libasyncProfiler.so"* ]]; then
+        continue
+    fi
+
     set +e
     ldd_output="$(ldd $f 2>&1)"
     ret=$?
