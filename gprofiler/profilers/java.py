@@ -88,7 +88,11 @@ class AsyncProfiledProcess:
         # because storage_dir changes between runs.
         # we embed the async-profiler version in the path, so future gprofiler versions which use another version
         # of AP case use it (will be loaded as a different DSO)
-        self._ap_dir = os.path.join(TEMPORARY_STORAGE_PATH, f"async-profiler-{get_ap_version()}")
+        self._ap_dir = os.path.join(
+            TEMPORARY_STORAGE_PATH,
+            f"async-profiler-{get_ap_version()}",
+            "musl" if self._is_musl() else "glibc",
+        )
         self._ap_dir_host = resolve_proc_root_links(self._process_root, self._ap_dir)
 
         self._libap_path_host = os.path.join(self._ap_dir_host, "libasyncProfiler.so")
@@ -130,6 +134,11 @@ class AsyncProfiledProcess:
         remove_path(self._output_path_host, missing_ok=True)
         remove_path(self._log_path_host, missing_ok=True)
 
+    @functools.lru_cache(maxsize=1)
+    def _is_musl(self) -> bool:
+        # Is target process musl-based?
+        return any("ld-musl" in m.path for m in self.process.memory_maps())
+
     def _copy_libap(self) -> None:
         # copy *is* racy with respect to other processes running in the same namespace, because they all use
         # the same directory for libasyncProfiler.so, as we don't want to create too many copies of it that
@@ -147,7 +156,10 @@ class AsyncProfiledProcess:
         ap_dir_host_tmp = f"{self._ap_dir_host}.{self.process.pid}"
         os.makedirs(ap_dir_host_tmp)
         libap_tmp = os.path.join(ap_dir_host_tmp, "libasyncProfiler.so")
-        shutil.copy(resource_path("java/libasyncProfiler.so"), libap_tmp)
+        shutil.copy(
+            resource_path(os.path.join("java", "musl" if self._is_musl() else "glibc", "libasyncProfiler.so")),
+            libap_tmp,
+        )
         os.chmod(libap_tmp, 0o755)  # make it accessible for all; needed with PyInstaller, which extracts files as 0700
         try:
             os.rename(ap_dir_host_tmp, self._ap_dir_host)

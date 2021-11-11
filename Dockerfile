@@ -8,8 +8,10 @@ ARG PYPERF_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f2
 ARG PERF_BUILDER_UBUNTU=@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c
 # phpspy - ubuntu:20.04
 ARG PHPSPY_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
-# async-profiler, requires CentOS 6, so the built DSO can be loaded into machines running with old glibc - centos:6
+# async-profiler glibc build, requires CentOS 6, so the built DSO can be loaded into machines running with old glibc - centos:6
 ARG AP_BUILDER_CENTOS=@sha256:dec8f471302de43f4cfcf82f56d99a5227b5ea1aa6d02fa56344986e1f4610e7
+# async-profiler musl build - alpine 3.14.2
+ARG AP_BUILDER_ALPINE=@sha256:69704ef328d05a9f806b6b8502915e6a0a4faa4d72018dc42343f511490daf8a
 # burn - golang:1.16.3
 ARG BURN_BUILDER_GOLANG=@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d84d66ef25fa345f1
 # gprofiler - ubuntu 20.04
@@ -65,12 +67,21 @@ RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; apt update && apt install -
 COPY scripts/phpspy_build.sh .
 RUN ./phpspy_build.sh
 
-# async-profiler
-FROM centos${AP_BUILDER_CENTOS} AS async-profiler-builder
-COPY scripts/async_profiler_env.sh .
-RUN ./async_profiler_env.sh
-COPY scripts/async_profiler_build.sh .
-RUN ./async_profiler_build.sh
+# async-profiler glibc
+FROM centos${AP_BUILDER_CENTOS} AS async-profiler-builder-glibc
+COPY scripts/async_profiler_env_glibc.sh .
+RUN ./async_profiler_env_glibc.sh
+COPY scripts/async_profiler_build_shared.sh .
+COPY scripts/async_profiler_build_glibc.sh .
+RUN ./async_profiler_build_shared.sh /async_profiler_build_glibc.sh
+
+# async-profiler musl
+FROM alpine${AP_BUILDER_ALPINE} AS async-profiler-builder-musl
+COPY scripts/async_profiler_env_musl.sh .
+RUN ./async_profiler_env_musl.sh
+COPY scripts/async_profiler_build_shared.sh .
+COPY scripts/async_profiler_build_musl.sh .
+RUN ./async_profiler_build_shared.sh /async_profiler_build_musl.sh
 
 # burn
 FROM golang${BURN_BUILDER_GOLANG} AS burn-builder
@@ -104,10 +115,11 @@ COPY --from=phpspy-builder /phpspy/phpspy gprofiler/resources/php/phpspy
 COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
 COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/strings gprofiler/resources/php/strings
 
-COPY --from=async-profiler-builder /async-profiler/build/jattach gprofiler/resources/java/jattach
-COPY --from=async-profiler-builder /async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
-COPY --from=async-profiler-builder /async-profiler/build/libasyncProfiler.so gprofiler/resources/java/libasyncProfiler.so
-COPY --from=async-profiler-builder /async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
+COPY --from=async-profiler-builder-glibc /async-profiler/build/jattach gprofiler/resources/java/jattach
+COPY --from=async-profiler-builder-glibc /async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
+COPY --from=async-profiler-builder-glibc /async-profiler/build/libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
+COPY --from=async-profiler-builder-musl /async-profiler/build/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
+COPY --from=async-profiler-builder-glibc /async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
 
 COPY --from=rbspy-builder /rbspy/rbspy gprofiler/resources/ruby/rbspy
 

@@ -149,13 +149,28 @@ def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[s
     images = {}
     for runtime in os.listdir(str(CONTAINERS_DIRECTORY)):
         images[runtime], _ = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime))
+        musl_dockerfile = CONTAINERS_DIRECTORY / runtime / "musl.Dockerfile"
+        if musl_dockerfile.exists():
+            images[runtime + "_musl"], _ = docker_client.images.build(
+                path=str(CONTAINERS_DIRECTORY / runtime), dockerfile=str(musl_dockerfile)
+            )
+
     yield images
     for image in images.values():
         docker_client.images.remove(image.id, force=True)
 
 
 @fixture
-def application_docker_image(application_docker_images: Mapping[str, Image], runtime: str) -> Iterable[Image]:
+def musl() -> bool:
+    # selects the musl version of an application image (e.g java:alpine)
+    return False
+
+
+@fixture
+def application_docker_image(
+    application_docker_images: Mapping[str, Image], runtime: str, musl: bool
+) -> Iterable[Image]:
+    runtime = runtime + ("_musl" if musl else "")
     yield application_docker_images[runtime]
 
 

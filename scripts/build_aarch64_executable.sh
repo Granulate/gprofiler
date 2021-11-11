@@ -13,6 +13,8 @@ RUST_VERSION=@sha256:33a923c30700bb627d1389b6819cfb18af2a585b2901df045924eba1ac0
 CENTOS_VERSION=@sha256:43964203bf5d7fe38c6fca6166ac89e4c095e2b0c0a28f6c7c678a1348ddc7fa
 # golang 1.16.3
 GOLANG_VERSION=@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d84d66ef25fa345f1
+# alpine 3.14.2
+ALPINE_VERSION=@sha256:b06a5cf61b2956088722c4f1b9a6f71dfe95f0b1fe285d44195452b8a1627de7
 
 mkdir -p build/aarch64
 docker buildx build --platform=linux/arm64 \
@@ -21,6 +23,7 @@ docker buildx build --platform=linux/arm64 \
     --build-arg PERF_BUILDER_UBUNTU=$UBUNTU_VERSION \
     --build-arg PHPSPY_BUILDER_UBUNTU=$UBUNTU_VERSION \
     --build-arg AP_BUILDER_CENTOS=$CENTOS_VERSION \
+    --build-arg AP_BUILDER_ALPINE=$ALPINE_VERSION \
     --build-arg BURN_BUILDER_GOLANG=$GOLANG_VERSION \
     --build-arg GPROFILER_BUILDER=$CENTOS_VERSION \
     . -f pyi.Dockerfile --output type=local,dest=build/aarch64/
