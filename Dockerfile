@@ -10,7 +10,7 @@ ARG PERF_BUILDER_UBUNTU=@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639
 ARG PHPSPY_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
 # async-profiler glibc build, requires CentOS 6, so the built DSO can be loaded into machines running with old glibc - centos:6
 ARG AP_BUILDER_CENTOS=@sha256:dec8f471302de43f4cfcf82f56d99a5227b5ea1aa6d02fa56344986e1f4610e7
-# async-profiler musl build
+# async-profiler musl build - alpine 3.14.2
 ARG AP_BUILDER_ALPINE=@sha256:69704ef328d05a9f806b6b8502915e6a0a4faa4d72018dc42343f511490daf8a
 # burn - golang:1.16.3
 ARG BURN_BUILDER_GOLANG=@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d84d66ef25fa345f1
