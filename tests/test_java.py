@@ -117,3 +117,21 @@ def test_java_async_profiler_cpu_mode(
         assert_function_in_collapsed(
             "do_syscall_64_[k]", "java", process_collapsed, True
         )  # ensure kernels stacks exist
+
+
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("musl", [True])
+def test_java_async_profiler_musl(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed,
+) -> None:
+    """
+    Run Java in a container and enable async-profiler in CPU mode, make sure we get kernel stacks.
+    """
+    with JavaProfiler(1000, 1, Event(), str(tmp_path), False, True, "cpu", "ap") as profiler:
+        process_collapsed = profiler.snapshot().get(application_pid)
+        assert_collapsed(process_collapsed, check_comm=True)
+        assert_function_in_collapsed(
+            "do_syscall_64_[k]", "java", process_collapsed, True
+        )  # ensure kernels stacks exist
