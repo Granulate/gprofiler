@@ -121,13 +121,14 @@ def test_java_async_profiler_cpu_mode(
 
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("musl", [True])
-def test_java_async_profiler_musl(
+def test_java_async_profiler_musl_and_cpu(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed,
 ) -> None:
     """
-    Run Java in a container and enable async-profiler in CPU mode, make sure we get kernel stacks.
+    Run Java in an Alpine-based container and enable async-profiler in CPU mode, make sure that musl profiling
+    works and that we get kernel stacks.
     """
     with JavaProfiler(1000, 1, Event(), str(tmp_path), False, True, "cpu", "ap") as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
