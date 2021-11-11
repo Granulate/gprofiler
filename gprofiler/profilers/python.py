@@ -155,6 +155,26 @@ class PythonEbpfProfiler(ProfilerBase):
 
     @staticmethod
     def _fix_kernel_headers_symlink():
+        """Fix a bug preventing PyPerf from being used even though kernel headers were present on the host.
+
+
+        Fix a bug that was encountered on Amazon Linux 2018.3,
+        which resulted in gprofiler being unable to properly locate the kernel headers, thus unable to use PyPerf.
+
+        Specifically, the bug manifests itself when:
+
+        + Running in a container.
+        + On the host, /lib is not a symlink.
+        + On the host, /lib/modules/$(uname -r)/build is a relative symlink (i.e. ../../../usr/src/...).
+
+        Inside the gprofiler container /lib is linked to /usr/lib, which means that the relative link from the host
+        becomes broken.
+        The solution is to fix the symlink inside the container, by:
+
+        + Mounting /lib/modules/$(uname -r) as an overlay inside the container.
+        + Converting the relative link to an absolute one.
+        + Removing and recreating the link.
+        """
         try:
             if get_run_mode() not in ("container", "k8s"):
                 return
