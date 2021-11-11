@@ -193,6 +193,7 @@ class PythonEbpfProfiler(ProfilerBase):
 
             lib_modules_uname_path = f"/lib/modules/{uname}"
 
+            # We're using /dev/shm as it is a tmpfs mount, while /tmp isn't.
             os.makedirs('/dev/shm/modules_mount/upper', 555)
             os.makedirs('/dev/shm/modules_mount/workdir', 555)
             subprocess.check_call(
@@ -210,6 +211,8 @@ class PythonEbpfProfiler(ProfilerBase):
 
             os.chmod(lib_modules_uname_path, 0o755)
             link_target = os.readlink(build_path)
+            # We're assuming the actual headers on the host are under /usr/src,
+            # otherwise we wouldn't have access from inside the container any how.
             new_target = re.sub(r'(\.\./)+usr/src', '/usr/src', link_target, count=1)
             os.unlink(build_path)
             os.symlink(new_target, build_path)
