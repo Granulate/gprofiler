@@ -4,7 +4,9 @@
 #
 import glob
 import os
+import re
 import signal
+import subprocess
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired
 from threading import Event
@@ -16,7 +18,7 @@ from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, St
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_many_collapsed, parse_one_collapsed_file
-from gprofiler.metadata.system_metadata import get_arch
+from gprofiler.metadata.system_metadata import get_arch, get_run_mode
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
@@ -151,6 +153,72 @@ class PythonEbpfProfiler(ProfilerBase):
         self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
         self.user_stacks_pages = user_stacks_pages
 
+    @staticmethod
+    def _fix_kernel_headers_symlink():
+        """Fix a bug preventing PyPerf from being used even though kernel headers were present on the host.
+
+
+        Fix a bug that was encountered on Amazon Linux 2018.3,
+        which resulted in gprofiler being unable to properly locate the kernel headers, thus unable to use PyPerf.
+
+        Specifically, the bug manifests itself when:
+
+        + Running in a container.
+        + On the host, /lib is not a symlink.
+        + On the host, /lib/modules/$(uname -r)/build is a relative symlink (i.e. ../../../usr/src/...).
+
+        Inside the gprofiler container /lib is linked to /usr/lib, which means that the relative link from the host
+        becomes broken.
+        The solution is to fix the symlink inside the container, by:
+
+        + Mounting /lib/modules/$(uname -r) as an overlay inside the container.
+        + Converting the relative link to an absolute one.
+        + Removing and recreating the link.
+        """
+        try:
+            if get_run_mode() not in ("container", "k8s"):
+                return
+
+            try:
+                uname = subprocess.check_output(["uname", "-r"]).decode('latin-1').strip()
+            except subprocess.CalledProcessError:
+                return
+
+            build_path = f"/lib/modules/{uname}/build"
+            if not os.path.islink(build_path):
+                return
+
+            if os.path.lexists(build_path + "/"):
+                return
+
+            lib_modules_uname_path = f"/lib/modules/{uname}"
+
+            # We're using /dev/shm as it is a tmpfs mount, while /tmp isn't.
+            os.makedirs('/dev/shm/modules_mount/upper', 555)
+            os.makedirs('/dev/shm/modules_mount/workdir', 555)
+            subprocess.check_call(
+                [
+                    'mount',
+                    '-t',
+                    'overlay',
+                    'overlay',
+                    '-o',
+                    f'upperdir=/dev/shm/modules_mount/upper,lowerdir={lib_modules_uname_path}'
+                    ',workdir=/dev/shm/modules_mount/workdir',
+                    lib_modules_uname_path,
+                ]
+            )
+
+            os.chmod(lib_modules_uname_path, 0o755)
+            link_target = os.readlink(build_path)
+            # We're assuming the actual headers on the host are under /usr/src,
+            # otherwise we wouldn't have access from inside the container any how.
+            new_target = re.sub(r'(\.\./)+usr/src', '/usr/src', link_target, count=1)
+            os.unlink(build_path)
+            os.symlink(new_target, build_path)
+        except BaseException:
+            logger.warning("Exception raised trying to fix /lib/modules symlink for PyPerf", exc_info=True)
+
     @classmethod
     def _check_missing_headers(cls, stdout) -> bool:
         if "Unable to find kernel headers." in stdout:
@@ -189,6 +257,8 @@ class PythonEbpfProfiler(ProfilerBase):
         test_path = Path(storage_dir) / ".test"
         for f in glob.glob(f"{str(test_path)}.*"):
             os.unlink(f)
+
+        cls._fix_kernel_headers_symlink()
 
         # Run the process and check if the output file is properly created.
         # Wait up to 10sec for the process to terminate.
