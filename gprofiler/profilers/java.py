@@ -78,7 +78,7 @@ class AsyncProfiledProcess:
     OUTPUT_FORMAT = "collapsed"
     OUTPUTS_MODE = 0o622  # readable by root, writable by all
 
-    def __init__(self, process: Process, storage_dir: str, buildids: bool, mode: str):
+    def __init__(self, process: Process, storage_dir: str, buildids: bool, mode: str, safemode: int):
         self.process = process
         self._process_root = f"/proc/{process.pid}/root"
         # not using storage_dir for AP itself on purpose: this path should remain constant for the lifetime
@@ -110,6 +110,7 @@ class AsyncProfiledProcess:
         self._buildids = buildids
         assert mode in ("cpu", "itimer"), f"unexpected mode: {mode}"
         self._mode = mode
+        self._safemode = safemode
 
     def __enter__(self):
         os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
@@ -201,7 +202,8 @@ class AsyncProfiledProcess:
             f"start,event={self._mode},file={self._output_path_process},"
             f"{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS},interval={interval},framebuf=2000000,"
             f"log={self._log_path_process}{',buildids' if self._buildids else ''}"
-            f"{',fdtransfer' if self._mode == 'cpu' else ''}",
+            f"{',fdtransfer' if self._mode == 'cpu' else ''}"
+            f",safemode={self._safemode}"
         ]
 
     def _get_stop_cmd(self, with_output: bool) -> List[str]:
@@ -302,6 +304,18 @@ class AsyncProfiledProcess:
             help="Select async-profiler's mode: 'cpu' (based on perf_events & fdtransfer) or 'itimer' (no perf_events)."
             " Defaults to '%(default)s'.",
         ),
+        ProfilerArgument(
+            "--java-async-profiler-safemode",
+            dest="java_async_profiler_safemode",
+            type=int,
+            default=0,
+            choices=range(0, 128),
+            metavar="[0-127]",
+            help="Controls the 'safemode' parameter passed to async-profiler. This is parameter denotes multiple"
+            " bits that describe different stack recovery techniques which async-profiler uses (see StackRecovery"
+            " enum in async-profiler's code)."
+            " Defaults to '%(default)s' (which means 'all enabled').",
+        ),
     ],
 )
 class JavaProfiler(ProcessProfilerBase):
@@ -318,6 +332,7 @@ class JavaProfiler(ProcessProfilerBase):
         java_async_profiler_buildids: bool,
         java_version_check: bool,
         java_async_profiler_mode: str,
+        java_async_profiler_safemode: int,
         java_mode: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
@@ -328,6 +343,7 @@ class JavaProfiler(ProcessProfilerBase):
         self._buildids = java_async_profiler_buildids
         self._version_check = java_version_check
         self._mode = java_async_profiler_mode
+        self._safemode = java_async_profiler_safemode
         self._saved_mlock: Optional[int] = None
 
     def _is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
@@ -385,7 +401,7 @@ class JavaProfiler(ProcessProfilerBase):
                 logger.warning(f"Process {process.pid} running unsupported Java version, skipping...")
                 return None
 
-        with AsyncProfiledProcess(process, self._storage_dir, self._buildids, self._mode) as ap_proc:
+        with AsyncProfiledProcess(process, self._storage_dir, self._buildids, self._mode, self._safemode) as ap_proc:
             return self._profile_ap_process(ap_proc)
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[StackToSampleCount]:
