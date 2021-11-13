@@ -55,7 +55,7 @@ def resource_path(relative_path: str = "") -> str:
         with importlib_resources.path(package, basename) as path:
             return str(path)
     except ImportError as e:
-        raise Exception(f'Resource {relative_path!r} not found!') from e
+        raise Exception(f"Resource {relative_path!r} not found!") from e
 
 
 @lru_cache(maxsize=None)
@@ -505,7 +505,7 @@ def limit_frequency(limit: Optional[int], requested: int, msg_header: str, runti
 
 
 def random_prefix() -> str:
-    return ''.join(random.choice(string.ascii_letters) for _ in range(16))
+    return "".join(random.choice(string.ascii_letters) for _ in range(16))
 
 
 def process_comm(process: Process) -> str:
@@ -531,7 +531,7 @@ def is_pyinstaller() -> bool:
     Are we running in PyInstaller?
     """
     # https://pyinstaller.readthedocs.io/en/stable/runtime-information.html#run-time-information
-    return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
+    return getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
 
 
 def get_staticx_dir() -> Optional[str]:

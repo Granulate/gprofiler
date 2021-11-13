@@ -115,7 +115,7 @@ class PerfProcess:
             suppress_log=True,
         )
         perf_data.unlink()
-        return perf_script_proc.stdout.decode('utf8')
+        return perf_script_proc.stdout.decode("utf8")
 
 
 @register_profiler(

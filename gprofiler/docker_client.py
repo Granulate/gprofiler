@@ -20,11 +20,11 @@ class DockerClient:
             self._client = docker.from_env()
         except Exception:
             logger.warning(
-                'Could not initiate the Docker client, so the profiling data will not include the container'
-                ' names. If you are running gProfiler in a container, please mount the Docker sock file'
-                ' by running the Docker run command with the following argument:'
+                "Could not initiate the Docker client, so the profiling data will not include the container"
+                " names. If you are running gProfiler in a container, please mount the Docker sock file"
+                " by running the Docker run command with the following argument:"
                 ' "-v /var/run/docker.sock:/var/run/docker.sock". Otherwise, please open a new issue here:'
-                ' https://github.com/Granulate/gprofiler/issues/new'
+                " https://github.com/Granulate/gprofiler/issues/new"
             )
             self._client = None
 
@@ -42,13 +42,13 @@ class DockerClient:
 
     def get_container_name(self, pid: int) -> str:
         if self._client is None:
-            return ''
+            return ""
         if pid in self._pid_to_container_name_cache:
             return self._pid_to_container_name_cache[pid]
         container_name: Optional[str] = self._safely_get_process_container_name(pid)
         if container_name is None:
-            self._pid_to_container_name_cache[pid] = ''
-            return ''
+            self._pid_to_container_name_cache[pid] = ""
+            return ""
         self._pid_to_container_name_cache[pid] = container_name
         return container_name
 
@@ -59,7 +59,7 @@ class DockerClient:
                 return None
             return self._get_container_name(container_id)
         except Exception:
-            logger.warning(f'Could not get a container name for PID {pid}', exc_info=True)
+            logger.warning(f"Could not get a container name for PID {pid}", exc_info=True)
             return None
 
     def _get_container_name(self, container_id) -> Optional[str]:
@@ -92,7 +92,7 @@ class DockerClient:
         # standard Docker uses /docker/container-id
         # k8s uses /kubepods/{burstable,besteffort}/uuid/container-id
         try:
-            with open(f"/proc/{pid}/cgroup", 'r') as cgroup_file:
+            with open(f"/proc/{pid}/cgroup", "r") as cgroup_file:
                 cgroup = cgroup_file.read()
         except FileNotFoundError:
             # The process died before we got to this point

@@ -50,8 +50,8 @@ class PHPSpyProfiler(ProfilerBase):
     NUM_WORKERS = 16  # Num of workers following unique PHP processes (one worker per _process)
 
     # regex required for parsing phpspy output
-    SINGLE_FRAME_RE = re.compile(r'^(?P<f_index>\d+) (?P<line>.*)$')  # "1 main.php:24"
-    PID_METADATA_RE = re.compile(r'^# pid = (.*)$')  # "# pid = 455"
+    SINGLE_FRAME_RE = re.compile(r"^(?P<f_index>\d+) (?P<line>.*)$")  # "1 main.php:24"
+    PID_METADATA_RE = re.compile(r"^# pid = (.*)$")  # "# pid = 455"
     PHP_FRAME_ANNOTATION = "[php]"
 
     def __init__(
@@ -142,7 +142,7 @@ class PHPSpyProfiler(ProfilerBase):
             if not match:
                 raise CorruptedPHPSpyOutputException(f"Line {idx} ({raw_frame}) didn't match known re pattern")
 
-            if int(match.group('f_index')) != idx:
+            if int(match.group("f_index")) != idx:
                 raise CorruptedPHPSpyOutputException(
                     f"phpspy reported index {match.group('f_index')} doesn't match line index ({idx})"
                 )
@@ -151,7 +151,7 @@ class PHPSpyProfiler(ProfilerBase):
         # add the "comm" - currently just "php", until we complete https://github.com/Granulate/phpspy/pull/3
         # to get the real comm.
         parsed_frames.append("php")
-        return ';'.join(reversed(parsed_frames))
+        return ";".join(reversed(parsed_frames))
 
     @classmethod
     def _parse_phpspy_output(cls, phpspy_output: str) -> ProcessToStackSampleCounters:
@@ -165,7 +165,7 @@ class PHPSpyProfiler(ProfilerBase):
 
         results: ProcessToStackSampleCounters = defaultdict(Counter)
 
-        stacks = phpspy_output.split('\n\n')  # Last part is always empty.
+        stacks = phpspy_output.split("\n\n")  # Last part is always empty.
         last_stack, stacks = stacks[-1], stacks[:-1]
         if last_stack != "":
             logger.warning(f"phpspy output: last stack is not empty - '{last_stack}'")
@@ -173,7 +173,7 @@ class PHPSpyProfiler(ProfilerBase):
         corrupted_stacks = 0
         for stack in stacks:
             try:
-                frames = stack.split('\n')
+                frames = stack.split("\n")
                 # Last line is the PID.
                 pid_raw = frames.pop(-1)
                 pid = int(extract_metadata_section(cls.PID_METADATA_RE, pid_raw))
@@ -186,7 +186,7 @@ class PHPSpyProfiler(ProfilerBase):
 
             except Exception:
                 corrupted_stacks += 1
-                logger.exception('Unknown exception caught while parsing a phpspy stack, continuing to the next stack')
+                logger.exception("Unknown exception caught while parsing a phpspy stack, continuing to the next stack")
 
         if corrupted_stacks > 0:
             logger.warning(f"phpspy: {corrupted_stacks} corrupted stacks")

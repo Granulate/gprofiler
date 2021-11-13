@@ -100,7 +100,7 @@ class GProfiler:
         self._stop_event = Event()
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
-        self._gpid = ''
+        self._gpid = ""
         if collect_metadata:
             self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
@@ -200,8 +200,8 @@ class GProfiler:
         for line in collapsed_data.splitlines():
             if line.startswith("#"):
                 continue
-            lines.append(line[line.find(';') + 1 :])
-        return '\n'.join(lines)
+            lines.append(line[line.find(";") + 1 :])
+        return "\n".join(lines)
 
     def start(self):
         self._stop_event.clear()
@@ -291,7 +291,7 @@ class GProfiler:
                     metrics,
                     self._gpid,
                 )
-                self._gpid = response_dict.get('gpid', '')
+                self._gpid = response_dict.get("gpid", "")
             except Timeout:
                 logger.error("Upload of profile to server timed out.")
             except APIError as e:
@@ -426,7 +426,7 @@ def parse_cmd_args():
     parser.add_argument("--token", dest="server_token", help="Server token")
     parser.add_argument("--service-name", help="Service name")
 
-    parser.add_argument('--version', action='version', version=__version__)
+    parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
 
     logging_options = parser.add_argument_group("logging")

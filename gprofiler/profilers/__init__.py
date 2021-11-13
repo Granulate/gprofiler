@@ -5,4 +5,4 @@ from gprofiler.profilers.php import PHPSpyProfiler
 from gprofiler.profilers.python import PythonProfiler
 from gprofiler.profilers.ruby import RbSpyProfiler
 
-__all__ = ['JavaProfiler', 'SystemProfiler', 'PHPSpyProfiler', 'PythonProfiler', 'RbSpyProfiler']
+__all__ = ["JavaProfiler", "SystemProfiler", "PHPSpyProfiler", "PythonProfiler", "RbSpyProfiler"]

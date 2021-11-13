@@ -98,15 +98,15 @@ def get_mac_address() -> str:
     IFNAMSIZ = 16
     IFF_LOOPBACK = 8
     MAC_BYTES_LEN = 6
-    SIZE_OF_SHORT = struct.calcsize('H')
+    SIZE_OF_SHORT = struct.calcsize("H")
     MAX_BYTE_COUNT = 4096
 
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
 
     # run SIOCGIFCONF to get all interface names
-    buf = array.array('B', b'\0' * MAX_BYTE_COUNT)
-    ifconf = struct.pack('iL', MAX_BYTE_COUNT, buf.buffer_info()[0])
-    outbytes = struct.unpack('iL', fcntl.ioctl(s.fileno(), 0x8912, ifconf))[0]  # SIOCGIFCONF
+    buf = array.array("B", b"\0" * MAX_BYTE_COUNT)
+    ifconf = struct.pack("iL", MAX_BYTE_COUNT, buf.buffer_info()[0])
+    outbytes = struct.unpack("iL", fcntl.ioctl(s.fileno(), 0x8912, ifconf))[0]  # SIOCGIFCONF
     data = buf.tobytes()[:outbytes]
     for index in range(0, len(data), SIZE_OF_STUCT_ifreq):
         iface = data[index : index + SIZE_OF_STUCT_ifreq]
@@ -114,15 +114,15 @@ def get_mac_address() -> str:
         # iface is now a struct ifreq which starts with the interface name.
         # we can use it for further calls.
         res = fcntl.ioctl(s.fileno(), 0x8913, iface)  # SIOCGIFFLAGS
-        ifr_flags = struct.unpack(f'{IFNAMSIZ}sH', res[: IFNAMSIZ + SIZE_OF_SHORT])[1]
+        ifr_flags = struct.unpack(f"{IFNAMSIZ}sH", res[: IFNAMSIZ + SIZE_OF_SHORT])[1]
         if ifr_flags & IFF_LOOPBACK:
             continue
 
         # okay, not loopback, get its MAC address.
         res = fcntl.ioctl(s.fileno(), 0x8927, iface)  # SIOCGIFHWADDR
-        address = struct.unpack(f'{IFNAMSIZ}sH{MAC_BYTES_LEN}s', res[: IFNAMSIZ + SIZE_OF_SHORT + MAC_BYTES_LEN])[2]
-        mac = struct.unpack(f'{MAC_BYTES_LEN}B', address)
-        address = ":".join(['%02X' % i for i in mac])
+        address = struct.unpack(f"{IFNAMSIZ}sH{MAC_BYTES_LEN}s", res[: IFNAMSIZ + SIZE_OF_SHORT + MAC_BYTES_LEN])[2]
+        mac = struct.unpack(f"{MAC_BYTES_LEN}B", address)
+        address = ":".join(["%02X" % i for i in mac])
         return address
 
     return "unknown"

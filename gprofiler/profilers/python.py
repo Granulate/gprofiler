@@ -180,7 +180,7 @@ class PythonEbpfProfiler(ProfilerBase):
                 return
 
             try:
-                uname = subprocess.check_output(["uname", "-r"]).decode('latin-1').strip()
+                uname = subprocess.check_output(["uname", "-r"]).decode("latin-1").strip()
             except subprocess.CalledProcessError:
                 return
 
@@ -194,17 +194,17 @@ class PythonEbpfProfiler(ProfilerBase):
             lib_modules_uname_path = f"/lib/modules/{uname}"
 
             # We're using /dev/shm as it is a tmpfs mount, while /tmp isn't.
-            os.makedirs('/dev/shm/modules_mount/upper', 555)
-            os.makedirs('/dev/shm/modules_mount/workdir', 555)
+            os.makedirs("/dev/shm/modules_mount/upper", 555)
+            os.makedirs("/dev/shm/modules_mount/workdir", 555)
             subprocess.check_call(
                 [
-                    'mount',
-                    '-t',
-                    'overlay',
-                    'overlay',
-                    '-o',
-                    f'upperdir=/dev/shm/modules_mount/upper,lowerdir={lib_modules_uname_path}'
-                    ',workdir=/dev/shm/modules_mount/workdir',
+                    "mount",
+                    "-t",
+                    "overlay",
+                    "overlay",
+                    "-o",
+                    f"upperdir=/dev/shm/modules_mount/upper,lowerdir={lib_modules_uname_path}"
+                    ",workdir=/dev/shm/modules_mount/workdir",
                     lib_modules_uname_path,
                 ]
             )
@@ -213,7 +213,7 @@ class PythonEbpfProfiler(ProfilerBase):
             link_target = os.readlink(build_path)
             # We're assuming the actual headers on the host are under /usr/src,
             # otherwise we wouldn't have access from inside the container any how.
-            new_target = re.sub(r'(\.\./)+usr/src', '/usr/src', link_target, count=1)
+            new_target = re.sub(r"(\.\./)+usr/src", "/usr/src", link_target, count=1)
             os.unlink(build_path)
             os.symlink(new_target, build_path)
         except BaseException:
