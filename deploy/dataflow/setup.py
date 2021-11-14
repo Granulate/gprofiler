@@ -48,7 +48,7 @@ class ProfilerInstallationCommands(setuptools.Command):
         p = subprocess.Popen(
             command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True
         )
-        stdout_data, _ = p.communicate(input=b'\n')
+        stdout_data, _ = p.communicate(input=b"\n")
         print("Command output: %s" % stdout_data)
         if p.returncode != 0:
             raise RuntimeError("Command %s failed: exit code: %s" % (command, p.returncode))

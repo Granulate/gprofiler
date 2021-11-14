@@ -56,7 +56,7 @@ class RbSpyProfiler(ProcessProfilerBase):
 
     def _profile_process(self, process: Process) -> StackToSampleCount:
         logger.info(
-            f"Profiling process {process.pid} with rbspy", cmdline=' '.join(process.cmdline()), no_extra_to_server=True
+            f"Profiling process {process.pid} with rbspy", cmdline=" ".join(process.cmdline()), no_extra_to_server=True
         )
 
         local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")

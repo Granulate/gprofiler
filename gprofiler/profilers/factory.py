@@ -17,12 +17,12 @@ COMMON_PROFILER_ARGUMENT_NAMES = ["frequency", "duration"]
 
 
 def get_profilers(
-    user_args: 'UserArgs', **profiler_init_kwargs: Any
-) -> Tuple[Union['SystemProfiler', 'NoopProfiler'], List['ProcessProfilerBase']]:
+    user_args: "UserArgs", **profiler_init_kwargs: Any
+) -> Tuple[Union["SystemProfiler", "NoopProfiler"], List["ProcessProfilerBase"]]:
     arch = get_arch()
     profilers_registry = get_profilers_registry()
-    process_profilers_instances: List['ProcessProfilerBase'] = []
-    system_profiler: Union['SystemProfiler', 'NoopProfiler'] = NoopProfiler()
+    process_profilers_instances: List["ProcessProfilerBase"] = []
+    system_profiler: Union["SystemProfiler", "NoopProfiler"] = NoopProfiler()
     for profiler_name, profiler_config in profilers_registry.items():
         lower_profiler_name = profiler_name.lower()
         profiler_mode = user_args.get(f"{lower_profiler_name}_mode")

@@ -129,7 +129,7 @@ class APIClient:
         total_samples: int,
         profile_api_version: Optional[str],
         spawn_time: float,
-        metrics: 'Metrics',
+        metrics: "Metrics",
         gpid: str,
     ) -> Dict:
         return self.post(

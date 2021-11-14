@@ -109,7 +109,7 @@ class RemoteLogsHandler(logging.Handler):
 
     MAX_BUFFERED_RECORDS = 100 * 1000  # max number of records to buffer locally
 
-    def __init__(self, path: str = "logs", api_client: Optional['APIClient'] = None) -> None:
+    def __init__(self, path: str = "logs", api_client: Optional["APIClient"] = None) -> None:
         super().__init__(logging.DEBUG)
         self._api_client = api_client
         self._path = path
@@ -120,7 +120,7 @@ class RemoteLogsHandler(logging.Handler):
         # The formatter is needed to format tracebacks
         self.setFormatter(logging.Formatter())
 
-    def init_api_client(self, api_client: 'APIClient'):
+    def init_api_client(self, api_client: "APIClient"):
         self._api_client = api_client
 
     def emit(self, record: LogRecord) -> None:
@@ -151,9 +151,9 @@ class RemoteLogsHandler(logging.Handler):
         run_id = extra.pop(RUN_ID_KEY, None)
         if run_id is None:
             self._logger.error("state.run_id is not defined! probably a bug!")
-            run_id = ''
+            run_id = ""
 
-        cycle_id = extra.pop(CYCLE_ID_KEY, '')
+        cycle_id = extra.pop(CYCLE_ID_KEY, "")
 
         assert self.formatter is not None
         if record.exc_info:
@@ -162,7 +162,7 @@ class RemoteLogsHandler(logging.Handler):
                 record.exc_text if record.exc_text else self.formatter.formatException(record.exc_info)
             )
         else:
-            exception_traceback = ''
+            exception_traceback = ""
 
         extra = extra if not extra.pop(NO_SERVER_EXTRA_KEY, False) else {}
 
@@ -188,7 +188,7 @@ class RemoteLogsHandler(logging.Handler):
                     " was reached",
                 )
                 self._truncated = False
-            self._api_client.post(self._path, data=self._logs[:logs_count], api_version='v1')
+            self._api_client.post(self._path, data=self._logs[:logs_count], api_version="v1")
         except (APIError, RequestException):
             self._logger.exception("Failed sending logs to server")
         else:
