@@ -313,7 +313,7 @@ class AsyncProfiledProcess:
             metavar="[0-127]",
             help="Controls the 'safemode' parameter passed to async-profiler. This is parameter denotes multiple"
             " bits that describe different stack recovery techniques which async-profiler uses (see StackRecovery"
-            " enum in async-profiler's code)."
+            " enum in async-profiler's code, in profiler.cpp)."
             " Defaults to '%(default)s' (which means 'all enabled').",
         ),
     ],
