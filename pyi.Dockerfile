@@ -79,7 +79,7 @@ RUN ./burn_build.sh
 
 
 # bcc & gprofiler
-FROM centos${GPROFILER_BUILDER} AS build-stage
+FROM centos${GPROFILER_BUILDER} AS build-stage-base
 
 # bcc part
 # TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
@@ -107,6 +107,34 @@ RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; yum install -y devtoolset-8
     llvm-toolset-7-llvm-static \
     llvm-toolset-7-clang-devel \
     devtoolset-8-elfutils-libelf-devel
+
+# bcc helpers
+FROM ubuntu:20.04 AS bcc-helpers
+
+RUN apt-get update -y
+
+RUN apt-get install -y clang-10
+RUN apt-get install -y gcc
+RUN apt-get install -y git
+RUN apt-get install -y make
+RUN apt-get install -y curl
+RUN curl -L ftp://sourceware.org/pub/elfutils/0.179/elfutils-0.179.tar.bz2 -o elfutils-0.179.tar.bz2
+RUN apt-get install -y libz-dev
+RUN apt-get install -y m4
+RUN tar -xf elfutils-0.179.tar.bz2 && \
+    cd elfutils-0.179 && \
+    ./configure --disable-debuginfod --prefix=/usr && make -j 8 && make install && \
+    cd .. && \
+    rm -r elfutils-0.179 && \
+    rm elfutils-0.179.tar.bz2
+
+COPY --from=perf-builder /bpftool /bpftool
+
+RUN git clone -b work --depth=1 --recurse-submodules https://github.com/Jongy/bpf_get_fs_offset.git && cd bpf_get_fs_offset && git reset --hard 675620c5785a309958cadf2e4af9b46b4f3331c8
+
+RUN cd /bpf_get_fs_offset && make BPFTOOL=/bpftool CLANG=clang-10 LLVM_STRIP=llvm-strip CFLAGS=-static
+
+FROM build-stage-base AS build-stage
 
 COPY ./scripts/libunwind_build.sh .
 RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; ./libunwind_build.sh
@@ -142,6 +170,7 @@ RUN cp /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf
 RUN cp /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
 RUN cp -r /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
 RUN cp /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
+COPY --from=bcc-helpers /bpf_get_fs_offset/get_fs_offset gprofiler/resources/python/pyperf/
 
 COPY --from=pyspy-builder /py-spy/py-spy gprofiler/resources/python/py-spy
 COPY --from=rbspy-builder /rbspy/rbspy gprofiler/resources/ruby/rbspy

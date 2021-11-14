@@ -133,6 +133,7 @@ class PythonEbpfError(CalledProcessError):
 class PythonEbpfProfiler(ProfilerBase):
     MAX_FREQUENCY = 1000
     PYPERF_RESOURCE = "python/pyperf/PyPerf"
+    GET_FS_OFFSET_RESOURCE = "python/pyperf/get_fs_offset"
     events_buffer_pages = 256  # 1mb and needs to be physically contiguous
     # 28mb (each symbol is 224 bytes), but needn't be physicall contiguous so don't care
     symbols_map_size = 131072
@@ -263,7 +264,17 @@ class PythonEbpfProfiler(ProfilerBase):
         # Run the process and check if the output file is properly created.
         # Wait up to 10sec for the process to terminate.
         # Allow cancellation via the stop_event.
-        cmd = [resource_path(cls.PYPERF_RESOURCE), "--output", str(test_path), "-F", "1", "--duration", "1"]
+        cmd = [
+            resource_path(cls.PYPERF_RESOURCE),
+            "--output",
+            str(test_path),
+            "-F",
+            "1",
+            "--duration",
+            "1",
+            "--get-fs-offset",
+            resource_path(cls.GET_FS_OFFSET_RESOURCE),
+        ]
         process = start_process(cmd, via_staticx=True)
         try:
             poll_process(process, cls.poll_timeout, stop_event)
@@ -285,6 +296,8 @@ class PythonEbpfProfiler(ProfilerBase):
             str(self.events_buffer_pages),
             "--symbols-map-size",
             str(self.symbols_map_size),
+            "--get-fs-offset",
+            resource_path(self.GET_FS_OFFSET_RESOURCE)
             # Duration is irrelevant here, we want to run continuously.
         ]
 
