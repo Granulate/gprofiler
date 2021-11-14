@@ -21,6 +21,7 @@ from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
+    get_mnt_ns_ancestor,
     get_process_nspid,
     pgrep_maps,
     process_comm,
@@ -80,7 +81,14 @@ class AsyncProfiledProcess:
 
     def __init__(self, process: Process, storage_dir: str, buildids: bool, mode: str, safemode: int):
         self.process = process
-        self._process_root = f"/proc/{process.pid}/root"
+        # access the process' root via its topmost parent/ancestor which uses the same mount namespace.
+        # this allows us to access the files after the process exits:
+        # * for processes that run in host mount NS - their ancestor is always available (it's going to be PID 1)
+        # * for processes that run in a container, and the container remains running after they exit - hence, the
+        #   ancestor is still alive.
+        # there is a hidden assumption here that neither the ancestor nor the process will change their mount
+        # namespace. I think it's okay to assume that.
+        self._process_root = f"/proc/{get_mnt_ns_ancestor(process)}/root"
         # not using storage_dir for AP itself on purpose: this path should remain constant for the lifetime
         # of the target process, so AP is loaded exactly once (if we have multiple paths, AP can be loaded
         # multiple times into the process)
@@ -129,8 +137,8 @@ class AsyncProfiledProcess:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        # ignore_errors because we are deleting paths via /proc/pid/root - and the process
-        # might have gone down already.
+        # ignore_errors because we are deleting paths via /proc/pid/root - and the pid
+        # we're using might have gone down already.
         # remove them as best effort.
         remove_path(self._output_path_host, missing_ok=True)
         remove_path(self._log_path_host, missing_ok=True)
@@ -271,7 +279,7 @@ class AsyncProfiledProcess:
             # perhaps it has exited?
             # check for existence of self._process_root as well, because is_running returns True
             # when the process is a zombie (and /proc/pid/root is not available in that case)
-            if not self.process.is_running() or not os.path.exists(self._process_root):
+            if not self.process.is_running() or not os.path.exists(f"/proc/{self.process.pid}/root"):
                 return None
             raise
 
