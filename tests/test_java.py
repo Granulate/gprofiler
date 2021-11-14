@@ -85,7 +85,7 @@ def test_java_async_profiler_stopped(
     assert any("libasyncProfiler.so" in m.path for m in proc.memory_maps())
 
     # run "status"
-    with AsyncProfiledProcessForTests(proc, tmp_path, False, "itimer") as ap_proc:
+    with AsyncProfiledProcessForTests(proc, tmp_path, False, mode="itimer", safemode=0) as ap_proc:
         ap_proc.status_async_profiler()
 
         # printed the output file, see ACTION_STATUS case in async-profiler/profiler.cpp\
@@ -111,7 +111,17 @@ def test_java_async_profiler_cpu_mode(
     """
     Run Java in a container and enable async-profiler in CPU mode, make sure we get kernel stacks.
     """
-    with JavaProfiler(1000, 1, Event(), str(tmp_path), False, True, "cpu", "ap") as profiler:
+    with JavaProfiler(
+        1000,
+        1,
+        Event(),
+        str(tmp_path),
+        False,
+        True,
+        java_async_profiler_mode="cpu",
+        java_async_profiler_safemode=0,
+        java_mode="ap",
+    ) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
         assert_function_in_collapsed(
@@ -130,7 +140,17 @@ def test_java_async_profiler_musl_and_cpu(
     Run Java in an Alpine-based container and enable async-profiler in CPU mode, make sure that musl profiling
     works and that we get kernel stacks.
     """
-    with JavaProfiler(1000, 1, Event(), str(tmp_path), False, True, "cpu", "ap") as profiler:
+    with JavaProfiler(
+        1000,
+        1,
+        Event(),
+        str(tmp_path),
+        False,
+        True,
+        java_async_profiler_mode="cpu",
+        java_async_profiler_safemode=0,
+        java_mode="ap",
+    ) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
         assert_function_in_collapsed(

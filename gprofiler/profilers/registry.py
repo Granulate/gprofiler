@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Type, Union
 
 
 class ProfilerArgument:
@@ -11,8 +11,9 @@ class ProfilerArgument:
         help: Optional[str] = None,
         default: Any = None,
         action: Optional[str] = None,
-        choices: List[Any] = None,
+        choices: Sequence[Any] = None,
         type: Union[Type, Callable[[str], Any]] = None,
+        metavar: str = None,
     ):
         self.name = name
         self.dest = dest
@@ -21,6 +22,7 @@ class ProfilerArgument:
         self.action = action
         self.choices = choices
         self.type = type
+        self.metavar = metavar
 
     def get_dict(self) -> Dict[str, Any]:
         return {key: value for key, value in self.__dict__.items() if value is not None}

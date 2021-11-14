@@ -26,7 +26,17 @@ def test_java_from_host(
     application_pid: int,
     assert_collapsed,
 ) -> None:
-    with JavaProfiler(1000, 1, Event(), str(tmp_path), False, True, "itimer", "ap") as profiler:
+    with JavaProfiler(
+        1000,
+        1,
+        Event(),
+        str(tmp_path),
+        False,
+        True,
+        java_async_profiler_mode="itimer",
+        java_async_profiler_safemode=0,
+        java_mode="ap",
+    ) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
 
