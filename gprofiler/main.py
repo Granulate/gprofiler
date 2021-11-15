@@ -512,7 +512,7 @@ def parse_cmd_args():
         "--controller-pid",
         default=None,
         type=int,
-        help="PID of the process who invoked gProfiler; if given and that process exits, gProfiler will exit"
+        help="PID of the process that invoked gProfiler; if given and that process exits, gProfiler will exit"
         " as well",
     )
 
