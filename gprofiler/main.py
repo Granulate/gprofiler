@@ -16,6 +16,7 @@ from threading import Event
 from typing import Iterable, Optional
 
 import configargparse
+from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
 
 from gprofiler import __version__, merge
@@ -87,6 +88,7 @@ class GProfiler:
         include_container_names=True,
         profile_api_version: Optional[str] = None,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
+        controller_process: Optional[Process] = None,
     ):
         self._output_dir = output_dir
         self._flamegraph = flamegraph
@@ -101,6 +103,7 @@ class GProfiler:
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
         self._gpid = ""
+        self._controller_process = controller_process
         if collect_metadata:
             self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
@@ -338,6 +341,12 @@ class GProfiler:
                     self._send_remote_logs()  # function is safe, wrapped with try/except block inside
                 self._usage_logger.log_cycle()
 
+                if self._controller_process is not None and (
+                    not self._controller_process.is_running() or self._controller_process.status() == "zombie"
+                ):
+                    logger.info(f"Controller process {self._controller_process.pid} has exited; gProfiler stopping...")
+                    break
+
 
 def parse_cmd_args():
     parser = configargparse.ArgumentParser(
@@ -499,6 +508,14 @@ def parse_cmd_args():
         help="Disable sending system and cloud metadata to the Performance Studio",
     )
 
+    parser.add_argument(
+        "--controller-pid",
+        default=None,
+        type=int,
+        help="PID of the process that invoked gProfiler; if given and that process exits, gProfiler will exit"
+        " as well",
+    )
+
     args = parser.parse_args()
 
     args.perf_inject = args.nodejs_mode == "perf"
@@ -620,6 +637,16 @@ def main():
 
     try:
         logger.info(f"Running gprofiler (version {__version__}), commandline: {' '.join(sys.argv[1:])!r}")
+
+        if args.controller_pid is not None:
+            try:
+                controller_process: Optional[Process] = Process(args.controller_pid)
+            except NoSuchProcess:
+                logger.error("Give controller PID is not running!")
+                sys.exit(1)
+        else:
+            controller_process = None
+
         try:
             log_system_info()
         except Exception:
@@ -670,6 +697,7 @@ def main():
             not args.disable_container_names,
             args.profile_api_version,
             remote_logs_handler,
+            controller_process,
         )
         logger.info("gProfiler initialized and ready to start profiling")
         if args.continuous:
