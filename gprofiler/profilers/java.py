@@ -33,6 +33,7 @@ from gprofiler.utils import (
     run_in_ns,
     run_process,
     touch_path,
+    wait_event,
     write_perf_event_mlock_kb,
 )
 
@@ -428,17 +429,15 @@ class JavaProfiler(ProcessProfilerBase):
                     f"async-profiler is still running in {ap_proc.process.pid}, even after trying to stop it!"
                 )
 
-        self._stop_event.wait(self._duration)
-
-        if ap_proc.process.is_running():
+        try:
+            wait_event(self._duration, self._stop_event, lambda: not ap_proc.process.is_running(), interval=1)
+        except TimeoutError:
+            # Process still running
             ap_proc.stop_async_profiler(True)
         else:
             logger.debug(f"Profiled process {ap_proc.process.pid} exited before stopping async-profiler")
             # no output in this case :/
             return None
-
-        if self._stop_event.is_set():
-            raise StopEventSetException()
 
         output = ap_proc.read_output()
         if output is None:
