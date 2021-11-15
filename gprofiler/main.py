@@ -85,6 +85,7 @@ class GProfiler:
         state: State,
         usage_logger: UsageLoggerInterface,
         user_args: UserArgs,
+        duration: int,
         include_container_names=True,
         profile_api_version: Optional[str] = None,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
@@ -104,6 +105,7 @@ class GProfiler:
         self._spawn_time = time.time()
         self._gpid = ""
         self._controller_process = controller_process
+        self._duration = duration
         if collect_metadata:
             self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
@@ -333,6 +335,7 @@ class GProfiler:
             while not self._stop_event.is_set():
                 self._state.init_new_cycle()
 
+                snapshot_start = time.monotonic()
                 try:
                     self._snapshot()
                 except Exception:
@@ -340,6 +343,9 @@ class GProfiler:
                 finally:
                     self._send_remote_logs()  # function is safe, wrapped with try/except block inside
                 self._usage_logger.log_cycle()
+
+                # wait for one duration
+                self._stop_event.wait(max(self._duration - (time.monotonic() - snapshot_start), 0))
 
                 if self._controller_process is not None and (
                     not self._controller_process.is_running() or self._controller_process.status() == "zombie"
@@ -694,6 +700,7 @@ def main():
             state,
             usage_logger,
             args.__dict__,
+            args.duration,
             not args.disable_container_names,
             args.profile_api_version,
             remote_logs_handler,
