@@ -90,6 +90,7 @@ class AsyncProfiledProcess:
         # there is a hidden assumption here that neither the ancestor nor the process will change their mount
         # namespace. I think it's okay to assume that.
         self._process_root = f"/proc/{get_mnt_ns_ancestor(process)}/root"
+        self.host_cwd = resolve_proc_root_links(self._process_root, process.cwd())
         # not using storage_dir for AP itself on purpose: this path should remain constant for the lifetime
         # of the target process, so AP is loaded exactly once (if we have multiple paths, AP can be loaded
         # multiple times into the process)
@@ -435,6 +436,10 @@ class JavaProfiler(ProcessProfilerBase):
             # Process still running
             ap_proc.stop_async_profiler(True)
         else:
+            # Process terminated, was it due to an error?
+            hs_err_path = f'{ap_proc.host_cwd}/hs_err_pid{ap_proc.process.pid}.log'
+            if os.path.isfile(hs_err_path):
+                logger.warning(f"Found Hotspot error log at {hs_err_path}")
             logger.debug(f"Profiled process {ap_proc.process.pid} exited before stopping async-profiler")
             # no output in this case :/
             return None
