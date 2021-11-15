@@ -14,7 +14,7 @@ from typing import List, Optional
 import psutil
 from psutil import Process
 
-from gprofiler.exceptions import CalledProcessError, StopEventSetException
+from gprofiler.exceptions import CalledProcessError
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
@@ -38,10 +38,10 @@ from gprofiler.utils import (
     write_perf_event_mlock_kb,
 )
 
-NATIVE_FRAMES_REGEX = re.compile(r'^Native frames:[^\n]*\n(.*?)\n\n', re.MULTILINE | re.DOTALL)
-SIGINFO_REGEX = re.compile(r'^siginfo: ([^\n]*)', re.MULTILINE | re.DOTALL)
-CONTAINER_INFO_REGEX = re.compile(r'^container \(cgroup\) information:\n(.*?)\n\n', re.MULTILINE | re.DOTALL)
-VM_INFO_REGEX = re.compile(r'^vm_info: ([^\n]*)', re.MULTILINE | re.DOTALL)
+NATIVE_FRAMES_REGEX = re.compile(r"^Native frames:[^\n]*\n(.*?)\n\n", re.MULTILINE | re.DOTALL)
+SIGINFO_REGEX = re.compile(r"^siginfo: ([^\n]*)", re.MULTILINE | re.DOTALL)
+CONTAINER_INFO_REGEX = re.compile(r"^container \(cgroup\) information:\n(.*?)\n\n", re.MULTILINE | re.DOTALL)
+VM_INFO_REGEX = re.compile(r"^vm_info: ([^\n]*)", re.MULTILINE | re.DOTALL)
 
 logger = get_logger_adapter(__name__)
 
@@ -77,6 +77,18 @@ def get_ap_version() -> str:
     return Path(resource_path("java/async-profiler-version")).read_text()
 
 
+def _locate_hotspot_error_file(process: Process) -> str:
+    error_file = "hs_err_pid%p.log"
+    for arg in process.cmdline():
+        if arg.startswith("-XX:ErrorFile"):
+            _, error_file = arg.split("=", maxsplit=1)
+
+    error_file = error_file.replace("%p", process.pid)
+    if not error_file.startswith("/"):
+        error_file = f"{process.cwd()}/{error_file}"
+    return error_file
+
+
 class AsyncProfiledProcess:
     """
     Represents a process profiled with async-profiler.
@@ -96,7 +108,7 @@ class AsyncProfiledProcess:
         # there is a hidden assumption here that neither the ancestor nor the process will change their mount
         # namespace. I think it's okay to assume that.
         self._process_root = f"/proc/{get_mnt_ns_ancestor(process)}/root"
-        self.host_cwd = resolve_proc_root_links(self._process_root, process.cwd())
+        self.error_file_host = resolve_proc_root_links(self._process_root, _locate_hotspot_error_file(process))
         # not using storage_dir for AP itself on purpose: this path should remain constant for the lifetime
         # of the target process, so AP is loaded exactly once (if we have multiple paths, AP can be loaded
         # multiple times into the process)
@@ -443,9 +455,7 @@ class JavaProfiler(ProcessProfilerBase):
             pass
         else:
             # Process terminated, was it due to an error?
-            hs_err_path = f'{ap_proc.host_cwd}/hs_err_pid{ap_proc.process.pid}.log'
-            if os.path.isfile(hs_err_path):
-                self._log_hotspot_error(ap_proc.process.pid, hs_err_path)
+            self._check_hotspot_error(ap_proc)
             logger.debug(f"Profiled process {ap_proc.process.pid} exited before stopping async-profiler")
             # no output in this case :/
             return None
@@ -464,17 +474,21 @@ class JavaProfiler(ProcessProfilerBase):
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
             return parse_one_collapsed(output, process_comm(ap_proc.process))
 
-    def _log_hotspot_error(self, pid, path):
-        logger.info(f"Found Hotspot error log at {path}")
-        contents = open(path).read()
+    def _check_hotspot_error(self, ap_proc):
+        if not os.path.isfile(ap_proc.error_file_host):
+            return
+
+        pid = ap_proc.process.pid
+        logger.info(f"Found Hotspot error log at {ap_proc.error_file_host}")
+        contents = open(ap_proc.error_file_host).read()
         if m := VM_INFO_REGEX.search(contents):
-            logger.error(f'Pid {pid} Hotspot VM info:\n{m[1]}')
+            logger.error(f"Pid {pid} Hotspot VM info:\n{m[1]}")
         if m := SIGINFO_REGEX.search(contents):
-            logger.error(f'Pid {pid} Hotspot siginfo: {m[1]}')
+            logger.error(f"Pid {pid} Hotspot siginfo: {m[1]}")
         if m := NATIVE_FRAMES_REGEX.search(contents):
-            logger.error(f'Pid {pid} Hotspot native frames:\n{m[1]}')
+            logger.error(f"Pid {pid} Hotspot native frames:\n{m[1]}")
         if m := CONTAINER_INFO_REGEX.search(contents):
-            logger.error(f'Pid {pid} Hotspot container info:\n{m[1]}')
+            logger.error(f"Pid {pid} Hotspot container info:\n{m[1]}")
 
     def _select_processes_to_profile(self) -> List[Process]:
         return pgrep_maps(r"^.+/libjvm\.so$")
