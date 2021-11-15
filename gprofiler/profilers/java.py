@@ -437,8 +437,8 @@ class JavaProfiler(ProcessProfilerBase):
         try:
             wait_event(self._duration, self._stop_event, lambda: not ap_proc.process.is_running(), interval=1)
         except TimeoutError:
-            # Process still running
-            ap_proc.stop_async_profiler(True)
+            # Process still running. We will stop the profiler in finally block.
+            pass
         else:
             # Process terminated, was it due to an error?
             hs_err_path = f'{ap_proc.host_cwd}/hs_err_pid{ap_proc.process.pid}.log'
@@ -447,6 +447,9 @@ class JavaProfiler(ProcessProfilerBase):
             logger.debug(f"Profiled process {ap_proc.process.pid} exited before stopping async-profiler")
             # no output in this case :/
             return None
+        finally:
+            if ap_proc.process.is_running():
+                ap_proc.stop_async_profiler(True)
 
         output = ap_proc.read_output()
         if output is None:
