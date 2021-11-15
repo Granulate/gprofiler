@@ -40,6 +40,7 @@ from gprofiler.utils import (
 
 NATIVE_FRAMES_REGEX = re.compile(r'^Native frames:[^\n]*\n(.*?)\n\n', re.MULTILINE | re.DOTALL)
 SIGINFO_REGEX = re.compile(r'^siginfo: ([^\n]*)', re.MULTILINE | re.DOTALL)
+CONTAINER_INFO_REGEX = re.compile(r'^container \(cgroup\) information:\n(.*?)\n\n', re.MULTILINE | re.DOTALL)
 
 logger = get_logger_adapter(__name__)
 
@@ -465,12 +466,12 @@ class JavaProfiler(ProcessProfilerBase):
     def _log_hotspot_error(self, pid, path):
         logger.info(f"Found Hotspot error log at {path}")
         contents = open(path).read()
-        siginfo_match = SIGINFO_REGEX.search(contents)
-        native_frames_match = NATIVE_FRAMES_REGEX.search(contents)
-        if siginfo_match:
-            logger.error(f'Pid {pid} Hotspot siginfo: {siginfo_match[1]}')
-        if native_frames_match:
-            logger.error(f'Pid {pid} Hotspot native frames:\n{native_frames_match[1]}')
+        if m := SIGINFO_REGEX.search(contents):
+            logger.error(f'Pid {pid} Hotspot siginfo: {m[1]}')
+        if m := NATIVE_FRAMES_REGEX.search(contents):
+            logger.error(f'Pid {pid} Hotspot native frames:\n{m[1]}')
+        if m := CONTAINER_INFO_REGEX.search(contents):
+            logger.error(f'Pid {pid} Hotspot container info:\n{m[1]}')
 
     def _select_processes_to_profile(self) -> List[Process]:
         return pgrep_maps(r"^.+/libjvm\.so$")
