@@ -481,13 +481,17 @@ class JavaProfiler(ProcessProfilerBase):
         pid = ap_proc.process.pid
         logger.info(f"Found Hotspot error log at {ap_proc.error_file_host}")
         contents = open(ap_proc.error_file_host).read()
-        if m := VM_INFO_REGEX.search(contents):
+        m = VM_INFO_REGEX.search(contents)
+        if m:
             logger.error(f"Pid {pid} Hotspot VM info:\n{m[1]}")
-        if m := SIGINFO_REGEX.search(contents):
+        m = SIGINFO_REGEX.search(contents)
+        if m:
             logger.error(f"Pid {pid} Hotspot siginfo: {m[1]}")
-        if m := NATIVE_FRAMES_REGEX.search(contents):
+        m = NATIVE_FRAMES_REGEX.search(contents)
+        if m:
             logger.error(f"Pid {pid} Hotspot native frames:\n{m[1]}")
-        if m := CONTAINER_INFO_REGEX.search(contents):
+        m = CONTAINER_INFO_REGEX.search(contents)
+        if m:
             logger.error(f"Pid {pid} Hotspot container info:\n{m[1]}")
 
     def _select_processes_to_profile(self) -> List[Process]:
