@@ -41,6 +41,7 @@ from gprofiler.utils import (
 NATIVE_FRAMES_REGEX = re.compile(r'^Native frames:[^\n]*\n(.*?)\n\n', re.MULTILINE | re.DOTALL)
 SIGINFO_REGEX = re.compile(r'^siginfo: ([^\n]*)', re.MULTILINE | re.DOTALL)
 CONTAINER_INFO_REGEX = re.compile(r'^container \(cgroup\) information:\n(.*?)\n\n', re.MULTILINE | re.DOTALL)
+VM_INFO_REGEX = re.compile(r'^vm_info: ([^\n]*)', re.MULTILINE | re.DOTALL)
 
 logger = get_logger_adapter(__name__)
 
@@ -466,6 +467,8 @@ class JavaProfiler(ProcessProfilerBase):
     def _log_hotspot_error(self, pid, path):
         logger.info(f"Found Hotspot error log at {path}")
         contents = open(path).read()
+        if m := VM_INFO_REGEX.search(contents):
+            logger.error(f'Pid {pid} Hotspot VM info:\n{m[1]}')
         if m := SIGINFO_REGEX.search(contents):
             logger.error(f'Pid {pid} Hotspot siginfo: {m[1]}')
         if m := NATIVE_FRAMES_REGEX.search(contents):
