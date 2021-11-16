@@ -5,15 +5,15 @@
 import errno
 import functools
 import os
+import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
 from typing import List, Optional
-from packaging.version import Version
-import re
 
 import psutil
+from packaging.version import Version
 from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError, StopEventSetException
@@ -321,14 +321,15 @@ class AsyncProfiledProcess:
         ),
     ],
 )
-
 @dataclass
 class JvmVersion:
     version: Version
     build: int
     name: str
 
-JAVA11_BUILD_REGEX = re.compile("\d+")
+
+JAVA11_BUILD_REGEX = re.compile("\\d+")
+
 
 # Parse java version information from "java -version" output
 def parse_jvm_version(version_string: str) -> JvmVersion:
@@ -344,11 +345,11 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
     build_str = lines[2].split("(build ")[1]
     assert "," in build_str, "Didn't find comma in build information"
     # Extra information we don't care about is placed after a comma
-    build_str = build_str[:build_str.find(",")]
+    build_str = build_str[: build_str.find(",")]
 
     if version_str.endswith("-internal"):
         # Not sure what this means, ignore
-        version_str = version_str[:-len("-internal")]
+        version_str = version_str[: -len("-internal")]
 
     version_list = version_str.split(".")
     if version_list[0] == "1":
@@ -370,23 +371,25 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
         assert "+" in build_str, "Did not find expected build number prefix in new-style java version"
         # The goal of the regex here is to read the build number until a non-digit character is encountered,
         # since additional information can be appended after it, such as the platform name
-        build = int(
-            JAVA11_BUILD_REGEX.match(build_str[build_str.find("+") + 1:])[0])
+        matched = JAVA11_BUILD_REGEX.match(build_str[build_str.find("+") + 1 :])
+        assert matched, "Unexpected build number format in new-style java version"
+        build = int(matched[0])
 
     # There is no real format here, just use the entire description string
     vm_name = lines[2].split("(build")[0].strip()
     return JvmVersion(version, build, vm_name)
 
+
 class JavaProfiler(ProcessProfilerBase):
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
     # Major -> (min version, min build number of version)
     MINIMAL_SUPPORTED_VERSIONS = {
-        7: (Version('7.76'), 4),
-        8: (Version('8.72'), 15),
-        11: (Version('11.0.2'), 7),
-        12: (Version('12.0.1'), 12),
-        15: (Version('15.0.1'), 9),
-        16: (Version('16'), 36)
+        7: (Version("7.76"), 4),
+        8: (Version("8.72"), 15),
+        11: (Version("11.0.2"), 7),
+        12: (Version("12.0.1"), 12),
+        15: (Version("15.0.1"), 9),
+        16: (Version("16"), 36),
     }
 
     _new_perf_event_mlock_kb = 8192
