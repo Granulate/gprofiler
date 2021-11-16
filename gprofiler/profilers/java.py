@@ -535,20 +535,22 @@ class JavaProfiler(ProcessProfilerBase):
             return
 
         pid = ap_proc.process.pid
-        logger.info(f"Found Hotspot error log at {error_file}")
         contents = open(error_file).read()
         m = VM_INFO_REGEX.search(contents)
-        if m:
-            logger.error(f"Pid {pid} Hotspot VM info: {m[1]}")
+        vm_info = m[1] if m else ""
         m = SIGINFO_REGEX.search(contents)
-        if m:
-            logger.error(f"Pid {pid} Hotspot siginfo: {m[1]}")
+        siginfo = m[1] if m else ""
         m = NATIVE_FRAMES_REGEX.search(contents)
-        if m:
-            logger.error(f"Pid {pid} Hotspot native frames:\n{m[1]}")
+        native_frames = m[1] if m else ""
         m = CONTAINER_INFO_REGEX.search(contents)
-        if m:
-            logger.error(f"Pid {pid} Hotspot container info:\n{m[1]}")
+        container_info = m[1] if m else ""
+        logger.error(
+            f"Found Hotspot error log for pid {pid} at {error_file}:\n"
+            f"VM info: {vm_info}\n"
+            f"siginfo: {siginfo}\n"
+            f"native frames:\n{native_frames}\n"
+            f"container info:\n{container_info}"
+        )
 
     def _select_processes_to_profile(self) -> List[Process]:
         return pgrep_maps(r"^.+/libjvm\.so$")
