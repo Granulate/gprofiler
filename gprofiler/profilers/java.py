@@ -175,26 +175,6 @@ class AsyncProfiledProcess:
         self._mode = mode
         self._safemode = safemode
 
-    def _isfile(self, path):
-        if not path.startswith("/"):
-            # relative path
-            path = f"{self._cwd}/{path}"
-        return os.path.isfile(resolve_proc_root_links(self._process_root, path))
-
-    def locate_hotspot_error_file(self) -> Optional[str]:
-        default_error_file = f"hs_err_pid{self.process.pid}.log"
-        locations = [f"{default_error_file}", f"/tmp/{default_error_file}"]
-        for arg in self._cmdline:
-            if arg.startswith("-XX:ErrorFile="):
-                _, error_file = arg.split("=", maxsplit=1)
-                locations.insert(0, error_file.replace("%p", str(self.process.pid)))
-                break
-
-        for path in locations:
-            if self._isfile(path):
-                return path
-        return None
-
     def __enter__(self):
         os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
         os.makedirs(self._storage_dir_host, 0o755, exist_ok=True)
@@ -217,6 +197,26 @@ class AsyncProfiledProcess:
         # remove them as best effort.
         remove_path(self._output_path_host, missing_ok=True)
         remove_path(self._log_path_host, missing_ok=True)
+
+    def _isfile(self, path):
+        if not path.startswith("/"):
+            # relative path
+            path = f"{self._cwd}/{path}"
+        return os.path.isfile(resolve_proc_root_links(self._process_root, path))
+
+    def locate_hotspot_error_file(self) -> Optional[str]:
+        default_error_file = f"hs_err_pid{self.process.pid}.log"
+        locations = [f"{default_error_file}", f"/tmp/{default_error_file}"]
+        for arg in self._cmdline:
+            if arg.startswith("-XX:ErrorFile="):
+                _, error_file = arg.split("=", maxsplit=1)
+                locations.insert(0, error_file.replace("%p", str(self.process.pid)))
+                break
+
+        for path in locations:
+            if self._isfile(path):
+                return path
+        return None
 
     @functools.lru_cache(maxsize=1)
     def _is_musl(self) -> bool:
