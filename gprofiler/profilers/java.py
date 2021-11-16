@@ -483,7 +483,7 @@ class JavaProfiler(ProcessProfilerBase):
         contents = open(ap_proc.error_file_host).read()
         m = VM_INFO_REGEX.search(contents)
         if m:
-            logger.error(f"Pid {pid} Hotspot VM info:\n{m[1]}")
+            logger.error(f"Pid {pid} Hotspot VM info: {m[1]}")
         m = SIGINFO_REGEX.search(contents)
         if m:
             logger.error(f"Pid {pid} Hotspot siginfo: {m[1]}")
