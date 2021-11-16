@@ -7,7 +7,6 @@ import functools
 import os
 import re
 import shutil
-from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
 from typing import List, Optional
@@ -279,14 +278,11 @@ class AsyncProfiledProcess:
             raise
 
 
-@dataclass
 class JvmVersion:
-    version: Version
-    build: int
-    name: str
-
-
-JAVA11_BUILD_REGEX = re.compile("\\d+")
+    def __init__(self, version: Version, build: int, name: str):
+        self.version = version
+        self.build = build
+        self.name = name
 
 
 # Parse java version information from "java -version" output
@@ -314,23 +310,25 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
         # For java 8 and prior, versioning looks like
         # 1.<major>.0_<minor>-b<build_number>
         # For example 1.8.0_242-b12 means 8.242 with build number 12
-        assert len(version_list) == 3, "Unexpected number of elements for old-style java version"
-        assert "_" in version_list[-1], "Did not find expected underscore in old-style java version"
+        assert len(version_list) == 3, f"Unexpected number of elements for old-style java version: {version_list!r}"
+        assert "_" in version_list[-1], f"Did not find expected underscore in old-style java version: {version_list!r}"
         major = version_list[1]
         minor = version_list[-1].split("_")[-1]
         version = Version(f"{major}.{minor}")
-        assert build_str[-4:-2] == "-b", "Did not find expected build number prefix in old-style java version"
+        assert (
+            build_str[-4:-2] == "-b"
+        ), f"Did not find expected build number prefix in old-style java version: {build_str!r}"
         build = int(build_str[-2:])
     else:
         # Since java 9 versioning became more normal, and looks like
         # <version>+<build_number>
         # For example, 11.0.11+9
         version = Version(version_str)
-        assert "+" in build_str, "Did not find expected build number prefix in new-style java version"
+        assert "+" in build_str, f"Did not find expected build number prefix in new-style java version: {build_str!r}"
         # The goal of the regex here is to read the build number until a non-digit character is encountered,
         # since additional information can be appended after it, such as the platform name
-        matched = JAVA11_BUILD_REGEX.match(build_str[build_str.find("+") + 1 :])
-        assert matched, "Unexpected build number format in new-style java version"
+        matched = re.match(r"\d+", build_str[build_str.find("+") + 1 :])
+        assert matched, f"Unexpected build number format in new-style java version: {build_str!r}"
         build = int(matched[0])
 
     # There is no real format here, just use the entire description string
@@ -439,6 +437,7 @@ class JavaProfiler(ProcessProfilerBase):
             logger.info(f"Checking support for java version {jvm_version}")
         except Exception as e:
             logger.error(f"Failed to parse java -version output {java_version_cmd_output}: {e}")
+            return False
 
         if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
             logger.error(f"Unsupported java version {jvm_version.version}")
