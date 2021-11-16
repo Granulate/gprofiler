@@ -205,6 +205,10 @@ class AsyncProfiledProcess:
         return os.path.isfile(resolve_proc_root_links(self._process_root, path))
 
     def locate_hotspot_error_file(self) -> Optional[str]:
+        """
+        Locate a fatal error log written by the Hotspot JVM, if one exists.
+        See https://docs.oracle.com/javase/8/docs/technotes/guides/troubleshoot/felog001.html.
+        """
         default_error_file = f"hs_err_pid{self.process.pid}.log"
         locations = [f"{default_error_file}", f"/tmp/{default_error_file}"]
         for arg in self._cmdline:
