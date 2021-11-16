@@ -6,9 +6,12 @@ import errno
 import functools
 import os
 import shutil
+from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
 from typing import List, Optional
+from packaging.version import Version
+import re
 
 import psutil
 from psutil import Process
@@ -318,8 +321,73 @@ class AsyncProfiledProcess:
         ),
     ],
 )
+
+@dataclass
+class JvmVersion:
+    version: Version
+    build: int
+    name: str
+
+JAVA11_BUILD_REGEX = re.compile("\d+")
+
+# Parse java version information from "java -version" output
+def parse_jvm_version(version_string: str) -> JvmVersion:
+    # Example java -version output:
+    #   openjdk version "1.8.0_265"
+    #   OpenJDK Runtime Environment (AdoptOpenJDK)(build 1.8.0_265-b01)
+    #   OpenJDK 64-Bit Server VM (AdoptOpenJDK)(build 25.265-b01, mixed mode)
+    # We are taking the version from the first line, and the build number and vm name from the last line
+
+    lines = version_string.splitlines()
+    # version is always in quotes
+    _, version_str, _ = lines[0].split('"')
+    build_str = lines[2].split("(build ")[1]
+    assert "," in build_str, "Didn't find comma in build information"
+    # Extra information we don't care about is placed after a comma
+    build_str = build_str[:build_str.find(",")]
+
+    if version_str.endswith("-internal"):
+        # Not sure what this means, ignore
+        version_str = version_str[:-len("-internal")]
+
+    version_list = version_str.split(".")
+    if version_list[0] == "1":
+        # For java 8 and prior, versioning looks like
+        # 1.<major>.0_<minor>-b<build_number>
+        # For example 1.8.0_242-b12 means 8.242 with build number 12
+        assert len(version_list) == 3, "Unexpected number of elements for old-style java version"
+        assert "_" in version_list[-1], "Did not find expected underscore in old-style java version"
+        major = version_list[1]
+        minor = version_list[-1].split("_")[-1]
+        version = Version(f"{major}.{minor}")
+        assert build_str[-4:-2] == "-b", "Did not find expected build number prefix in old-style java version"
+        build = int(build_str[-2:])
+    else:
+        # Since java 9 versioning became more normal, and looks like
+        # <version>+<build_number>
+        # For example, 11.0.11+9
+        version = Version(version_str)
+        assert "+" in build_str, "Did not find expected build number prefix in new-style java version"
+        # The goal of the regex here is to read the build number until a non-digit character is encountered,
+        # since additional information can be appended after it, such as the platform name
+        build = int(
+            JAVA11_BUILD_REGEX.match(build_str[build_str.find("+") + 1:])[0])
+
+    # There is no real format here, just use the entire description string
+    vm_name = lines[2].split("(build")[0].strip()
+    return JvmVersion(version, build, vm_name)
+
 class JavaProfiler(ProcessProfilerBase):
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
+    # Major -> (min version, min build number of version)
+    MINIMAL_SUPPORTED_VERSIONS = {
+        7: (Version('7.76'), 4),
+        8: (Version('8.72'), 15),
+        11: (Version('11.0.2'), 7),
+        12: (Version('12.0.1'), 12),
+        15: (Version('15.0.1'), 9),
+        16: (Version('16'), 36)
+    }
 
     _new_perf_event_mlock_kb = 8192
 
@@ -342,12 +410,36 @@ class JavaProfiler(ProcessProfilerBase):
         self._interval = int((1 / frequency) * 1000_000_000)
         self._buildids = java_async_profiler_buildids
         self._version_check = java_version_check
+        if not java_version_check:
+            logger.warning("Java version checks are disabled")
         self._mode = java_async_profiler_mode
         self._safemode = java_async_profiler_safemode
         self._saved_mlock: Optional[int] = None
 
     def _is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
-        return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
+        # Failsafe
+        for exclusion in self.JDK_EXCLUSIONS:
+            if exclusion in java_version_cmd_output:
+                logger.error(f"Spotted unsupported keyword {exclusion} in java version, not profiling")
+                return False
+
+        try:
+            jvm_version = parse_jvm_version(java_version_cmd_output)
+            logger.info(f"Checking support for java version {jvm_version}")
+        except Exception as e:
+            logger.error(f"Failed to parse java -version output {java_version_cmd_output}: {e}")
+
+        if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
+            logger.error(f"Unsupported java version {jvm_version.version}")
+            return False
+        min_version, min_build = self.MINIMAL_SUPPORTED_VERSIONS[jvm_version.version.major]
+        if jvm_version.version < min_version:
+            logger.error(f"Unsupported build number {jvm_version.build} for java version {jvm_version.version}")
+            return False
+        elif jvm_version.version == min_version:
+            return jvm_version.build >= min_build
+
+        return True
 
     @staticmethod
     def _get_java_version(process: Process) -> str:
