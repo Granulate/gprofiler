@@ -123,18 +123,6 @@ def get_ap_version() -> str:
     return Path(resource_path("java/async-profiler-version")).read_text()
 
 
-def _locate_hotspot_error_file(process: Process) -> str:
-    error_file = "hs_err_pid%p.log"
-    for arg in process.cmdline():
-        if arg.startswith("-XX:ErrorFile"):
-            _, error_file = arg.split("=", maxsplit=1)
-
-    error_file = error_file.replace("%p", str(process.pid))
-    if not error_file.startswith("/"):
-        error_file = f"{process.cwd()}/{error_file}"
-    return error_file
-
-
 class AsyncProfiledProcess:
     """
     Represents a process profiled with async-profiler.
@@ -154,7 +142,8 @@ class AsyncProfiledProcess:
         # there is a hidden assumption here that neither the ancestor nor the process will change their mount
         # namespace. I think it's okay to assume that.
         self._process_root = f"/proc/{get_mnt_ns_ancestor(process)}/root"
-        self.error_file_host = resolve_proc_root_links(self._process_root, _locate_hotspot_error_file(process))
+        self._cmdline = process.cmdline()
+        self._cwd = process.cwd()
         # not using storage_dir for AP itself on purpose: this path should remain constant for the lifetime
         # of the target process, so AP is loaded exactly once (if we have multiple paths, AP can be loaded
         # multiple times into the process)
@@ -185,6 +174,26 @@ class AsyncProfiledProcess:
         assert mode in ("cpu", "itimer"), f"unexpected mode: {mode}"
         self._mode = mode
         self._safemode = safemode
+
+    def _isfile(self, path):
+        if not path.startswith("/"):
+            # relative path
+            path = f"{self._cwd}/{path}"
+        return os.path.isfile(resolve_proc_root_links(self._process_root, path))
+
+    def locate_hotspot_error_file(self) -> Optional[str]:
+        default_error_file = f"hs_err_pid{self.process.pid}.log"
+        locations = [f"{default_error_file}", f"/tmp/{default_error_file}"]
+        for arg in self._cmdline:
+            if arg.startswith("-XX:ErrorFile="):
+                _, error_file = arg.split("=", maxsplit=1)
+                locations.insert(0, error_file.replace("%p", str(self.process.pid)))
+                break
+
+        for path in locations:
+            if self._isfile(path):
+                return path
+        return None
 
     def __enter__(self):
         os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
@@ -521,12 +530,13 @@ class JavaProfiler(ProcessProfilerBase):
             return parse_one_collapsed(output, process_comm(ap_proc.process))
 
     def _check_hotspot_error(self, ap_proc):
-        if not os.path.isfile(ap_proc.error_file_host):
+        error_file = ap_proc.locate_hotspot_error_file()
+        if not error_file:
             return
 
         pid = ap_proc.process.pid
-        logger.info(f"Found Hotspot error log at {ap_proc.error_file_host}")
-        contents = open(ap_proc.error_file_host).read()
+        logger.info(f"Found Hotspot error log at {error_file}")
+        contents = open(error_file).read()
         m = VM_INFO_REGEX.search(contents)
         if m:
             logger.error(f"Pid {pid} Hotspot VM info: {m[1]}")
