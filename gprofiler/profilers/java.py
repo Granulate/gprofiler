@@ -83,7 +83,7 @@ def _locate_hotspot_error_file(process: Process) -> str:
         if arg.startswith("-XX:ErrorFile"):
             _, error_file = arg.split("=", maxsplit=1)
 
-    error_file = error_file.replace("%p", process.pid)
+    error_file = error_file.replace("%p", str(process.pid))
     if not error_file.startswith("/"):
         error_file = f"{process.cwd()}/{error_file}"
     return error_file
