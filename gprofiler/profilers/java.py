@@ -279,48 +279,6 @@ class AsyncProfiledProcess:
             raise
 
 
-@register_profiler(
-    "Java",
-    possible_modes=["ap", "disabled"],
-    default_mode="ap",
-    supported_archs=["x86_64", "aarch64"],
-    profiler_arguments=[
-        ProfilerArgument(
-            "--java-async-profiler-buildids",
-            dest="java_async_profiler_buildids",
-            action="store_true",
-            help="Embed buildid+offset in async-profiler native frames."
-            " The added buildid+offset can be resolved & symbolicated in the Performance Studio."
-            " This is useful if debug symbols are unavailable for the relevant DSOs (libjvm, libc, ...).",
-        ),
-        ProfilerArgument(
-            "--java-no-version-check",
-            dest="java_version_check",
-            action="store_false",
-            help="Skip the JDK version check (that is done before invoking async-profiler)",
-        ),
-        ProfilerArgument(
-            "--java-async-profiler-mode",
-            dest="java_async_profiler_mode",
-            choices=["cpu", "itimer"],
-            default="itimer",
-            help="Select async-profiler's mode: 'cpu' (based on perf_events & fdtransfer) or 'itimer' (no perf_events)."
-            " Defaults to '%(default)s'.",
-        ),
-        ProfilerArgument(
-            "--java-async-profiler-safemode",
-            dest="java_async_profiler_safemode",
-            type=int,
-            default=0,
-            choices=range(0, 128),
-            metavar="[0-127]",
-            help="Controls the 'safemode' parameter passed to async-profiler. This is parameter denotes multiple"
-            " bits that describe different stack recovery techniques which async-profiler uses (see StackRecovery"
-            " enum in async-profiler's code, in profiler.cpp)."
-            " Defaults to '%(default)s' (which means 'all enabled').",
-        ),
-    ],
-)
 @dataclass
 class JvmVersion:
     version: Version
@@ -380,6 +338,51 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
     return JvmVersion(version, build, vm_name)
 
 
+@register_profiler(
+    "Java",
+    possible_modes=["ap", "disabled"],
+    default_mode="ap",
+    supported_archs=["x86_64", "aarch64"],
+    profiler_arguments=[
+        ProfilerArgument(
+            "--java-async-profiler-buildids",
+            dest="java_async_profiler_buildids",
+            action="store_true",
+            help="Embed buildid+offset in async-profiler native frames."
+            " The added buildid+offset can be resolved & symbolicated in the Performance Studio."
+            " This is useful if debug symbols are unavailable for the relevant DSOs (libjvm, libc, ...).",
+        ),
+        ProfilerArgument(
+            "--java-no-version-check",
+            dest="java_version_check",
+            action="store_false",
+            help="Skip the JDK version check (that is done before invoking async-profiler)",
+        ),
+        ProfilerArgument(
+            "--java-async-profiler-mode",
+            dest="java_async_profiler_mode",
+            choices=["cpu", "itimer"],
+            default="itimer",
+            help="Select async-profiler's mode: 'cpu' (based on perf_events & fdtransfer) or 'itimer' (no perf_events)."
+            " Defaults to '%(default)s'.",
+        ),
+        ProfilerArgument(
+            "--java-async-profiler-safemode",
+            dest="java_async_profiler_safemode",
+            type=int,
+            default=0,
+            choices=range(0, 128),
+            metavar="[0-127]",
+            help="Controls the 'safemode' parameter passed to async-profiler. This is parameter denotes multiple"
+            " bits that describe different stack recovery techniques which async-profiler uses (see StackRecovery"
+            " enum in async-profiler's code, in profiler.cpp)."
+            " Defaults to '%(default)s' (which means 'all enabled').",
+        ),
+        ProfilerArgument(
+            "--java-safemode", dest="java_safemode", action="store_true", help="Sets the java profiler to a safe mode"
+        ),
+    ],
+)
 class JavaProfiler(ProcessProfilerBase):
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
     # Major -> (min version, min build number of version)
@@ -404,10 +407,15 @@ class JavaProfiler(ProcessProfilerBase):
         java_version_check: bool,
         java_async_profiler_mode: str,
         java_async_profiler_safemode: int,
+        java_safemode: bool,
         java_mode: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
         super().__init__(frequency, duration, stop_event, storage_dir)
+
+        if java_safemode:
+            assert java_version_check, "Java version checks are mandatory in --java-safemode"
+            assert java_async_profiler_safemode == 127, "Async-profiler safemode must be set to 127 in --java-safemode"
 
         # async-profiler accepts interval between samples (nanoseconds)
         self._interval = int((1 / frequency) * 1000_000_000)

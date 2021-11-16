@@ -35,6 +35,7 @@ def test_java_from_host(
         True,
         java_async_profiler_mode="itimer",
         java_async_profiler_safemode=0,
+        java_safemode=False,
         java_mode="ap",
     ) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)

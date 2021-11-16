@@ -120,6 +120,7 @@ def test_java_async_profiler_cpu_mode(
         True,
         java_async_profiler_mode="cpu",
         java_async_profiler_safemode=0,
+        java_safemode=False,
         java_mode="ap",
     ) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
@@ -149,6 +150,7 @@ def test_java_async_profiler_musl_and_cpu(
         True,
         java_async_profiler_mode="cpu",
         java_async_profiler_safemode=0,
+        java_safemode=False,
         java_mode="ap",
     ) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
