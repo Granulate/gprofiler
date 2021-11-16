@@ -343,7 +343,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
     # version is always in quotes
     _, version_str, _ = lines[0].split('"')
     build_str = lines[2].split("(build ")[1]
-    assert "," in build_str, "Didn't find comma in build information"
+    assert "," in build_str, f"Didn't find comma in build information: {build_str!r}"
     # Extra information we don't care about is placed after a comma
     build_str = build_str[: build_str.find(",")]
 
