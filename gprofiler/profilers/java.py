@@ -144,6 +144,8 @@ class AsyncProfiledProcess:
         self._process_root = f"/proc/{get_mnt_ns_ancestor(process)}/root"
         self._cmdline = process.cmdline()
         self._cwd = process.cwd()
+        self._nspid = get_process_nspid(self.process.pid)
+
         # not using storage_dir for AP itself on purpose: this path should remain constant for the lifetime
         # of the target process, so AP is loaded exactly once (if we have multiple paths, AP can be loaded
         # multiple times into the process)
@@ -213,12 +215,12 @@ class AsyncProfiledProcess:
         Locate a fatal error log written by the Hotspot JVM, if one exists.
         See https://docs.oracle.com/javase/8/docs/technotes/guides/troubleshoot/felog001.html.
         """
-        default_error_file = f"hs_err_pid{self.process.pid}.log"
+        default_error_file = f"hs_err_pid{self._nspid}.log"
         locations = [f"{default_error_file}", f"/tmp/{default_error_file}"]
         for arg in self._cmdline:
             if arg.startswith("-XX:ErrorFile="):
                 _, error_file = arg.split("=", maxsplit=1)
-                locations.insert(0, error_file.replace("%p", str(self.process.pid)))
+                locations.insert(0, error_file.replace("%p", str(self._nspid)))
                 break
 
         for path in locations:
