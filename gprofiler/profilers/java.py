@@ -198,11 +198,15 @@ class AsyncProfiledProcess:
         remove_path(self._output_path_host, missing_ok=True)
         remove_path(self._log_path_host, missing_ok=True)
 
-    def _isfile(self, path):
+    def _existing_realpath(self, path):
+        """
+        Return path relative to process working directory if it exists. Otherwise return None.
+        """
         if not path.startswith("/"):
             # relative path
             path = f"{self._cwd}/{path}"
-        return os.path.isfile(resolve_proc_root_links(self._process_root, path))
+        path = resolve_proc_root_links(self._process_root, path)
+        return path if os.path.exists(path) else None
 
     def locate_hotspot_error_file(self) -> Optional[str]:
         """
@@ -218,7 +222,8 @@ class AsyncProfiledProcess:
                 break
 
         for path in locations:
-            if self._isfile(path):
+            path = self._existing_realpath(path)
+            if path:
                 return path
         return None
 
