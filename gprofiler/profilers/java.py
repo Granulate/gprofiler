@@ -427,7 +427,7 @@ class JavaProfiler(ProcessProfilerBase):
         self._java_safemode = java_safemode
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
-        return any(exclusion in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
+        return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
 
     def _is_jvm_version_supported(self, java_version_cmd_output: str) -> bool:
         try:
