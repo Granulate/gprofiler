@@ -318,6 +318,8 @@ class GProfiler:
             self._remote_logs_handler.try_send_log_to_server()
         except Exception:
             logger.exception("Couldn't send logs to server")
+        else:
+            logger.debug("Successfully uploaded logs to the server")
 
     def run_single(self):
         with self:
