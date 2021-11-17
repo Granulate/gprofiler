@@ -2,6 +2,7 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import signal
 import time
 from pathlib import Path
 from subprocess import Popen
@@ -156,3 +157,30 @@ def test_java_async_profiler_musl_and_cpu(
         assert_function_in_collapsed(
             "do_syscall_64_[k]", "java", process_collapsed, True
         )  # ensure kernels stacks exist
+
+
+@pytest.mark.parametrize("in_container", [False])
+@pytest.mark.parametrize("check_app_exited", [False])
+def test_hotspot_error_file(application_process, tmp_path, monkeypatch, caplog):
+    start_async_profiler = AsyncProfiledProcess.start_async_profiler
+
+    # Simulate crashing process
+    def sap_and_crash(self, *args, **kwargs):
+        result = start_async_profiler(self, *args, **kwargs)
+        application_process.send_signal(signal.SIGBUS)
+        # Note: unless we wait here the process remains "defunct" and psutil reports it as still running.
+        application_process.wait()
+        return result
+
+    monkeypatch.setattr(AsyncProfiledProcess, "start_async_profiler", sap_and_crash)
+
+    with JavaProfiler(1, 5, Event(), str(tmp_path), False, False, "cpu", 0, "ap") as profiler:
+        profiler.snapshot()
+
+    assert len(caplog.records) > 0
+    message = caplog.records[0].message
+    assert "Found Hotspot error log" in message
+    assert "OpenJDK" in message
+    assert "SIGBUS" in message
+    assert "libpthread.so" in message
+    assert "memory_usage_in_bytes:" in message

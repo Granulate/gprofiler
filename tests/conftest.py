@@ -95,7 +95,13 @@ def _print_process_output(popen: subprocess.Popen) -> None:
 
 
 @fixture
-def application_process(in_container: bool, command_line: List):
+def check_app_exited() -> bool:
+    """Override this to prevent checking if app exited prematurely (useful for simulating crash)."""
+    return True
+
+
+@fixture
+def application_process(in_container: bool, command_line: List, check_app_exited: bool):
     if in_container:
         yield None
         return
@@ -119,14 +125,15 @@ def application_process(in_container: bool, command_line: List):
 
         yield popen
 
-        # ensure, again, that it still alive (if it exited prematurely it might provide bad data for the tests)
-        try:
-            popen.wait(0)
-        except subprocess.TimeoutExpired:
-            pass
-        else:
-            _print_process_output(popen)
-            raise Exception(f"Command {command_line} exited unexpectedly during the test with {popen.returncode}")
+        if check_app_exited:
+            # ensure, again, that it still alive (if it exited prematurely it might provide bad data for the tests)
+            try:
+                popen.wait(0)
+            except subprocess.TimeoutExpired:
+                pass
+            else:
+                _print_process_output(popen)
+                raise Exception(f"Command {command_line} exited unexpectedly during the test with {popen.returncode}")
 
         popen.kill()
         _print_process_output(popen)
