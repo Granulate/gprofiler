@@ -541,11 +541,12 @@ class JavaProfiler(ProcessProfilerBase):
             return parse_one_collapsed(output, process_comm(ap_proc.process))
 
     def _check_hotspot_error(self, ap_proc):
+        pid = ap_proc.process.pid
         error_file = ap_proc.locate_hotspot_error_file()
         if not error_file:
+            logger.debug(f"No Hotspot error log for pid {pid}")
             return
 
-        pid = ap_proc.process.pid
         contents = open(error_file).read()
         m = VM_INFO_REGEX.search(contents)
         vm_info = m[1] if m else ""
