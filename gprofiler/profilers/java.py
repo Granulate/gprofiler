@@ -424,14 +424,12 @@ class JavaProfiler(ProcessProfilerBase):
         self._mode = java_async_profiler_mode
         self._safemode = java_async_profiler_safemode
         self._saved_mlock: Optional[int] = None
+        self._java_safemode = java_safemode
 
-    def _is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
-        # Failsafe
-        for exclusion in self.JDK_EXCLUSIONS:
-            if exclusion in java_version_cmd_output:
-                logger.error(f"Spotted unsupported keyword {exclusion} in java version, not profiling")
-                return False
+    def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
+        return any(exclusion in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
 
+    def _is_jvm_version_supported(self, java_version_cmd_output: str) -> bool:
         try:
             jvm_version = parse_jvm_version(java_version_cmd_output)
             logger.info(f"Checking support for java version {jvm_version}")
@@ -494,14 +492,24 @@ class JavaProfiler(ProcessProfilerBase):
 
     def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
         logger.info(f"Profiling process {process.pid} with async-profiler")
+        process_basename = os.path.basename(process.exe())
+        if self._java_safemode and process_basename != "java":
+            logger.error(f"Non-java basenamed process {process.pid} ({process.exe()}), skipping...")
+            return None
 
         # Get Java version
+        java_version_output = self._get_java_version(process)
+
         # TODO we can get the "java" binary by extracting the java home from the libjvm path,
         # then check with that instead (if exe isn't java)
-        if self._version_check and os.path.basename(process.exe()) == "java":
-            if not self._is_jdk_version_supported(self._get_java_version(process)):
-                logger.warning(f"Process {process.pid} running unsupported Java version, skipping...")
+        if self._version_check and process_basename == "java":
+            if not self._is_jvm_type_supported(java_version_output):
+                logger.error(f"Process {process.pid} running unsupported JVM, skipping...")
                 return None
+
+        if self._java_safemode and not self._is_jvm_version_supported(java_version_output):
+            logger.error(f"Process {process.pid} running unsupported Java version, skipping...")
+            return None
 
         with AsyncProfiledProcess(process, self._storage_dir, self._buildids, self._mode, self._safemode) as ap_proc:
             return self._profile_ap_process(ap_proc)
