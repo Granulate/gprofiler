@@ -159,34 +159,15 @@ def test_java_async_profiler_musl_and_cpu(
         )  # ensure kernels stacks exist
 
 
-@pytest.mark.parametrize("in_container", [False])
-@pytest.mark.parametrize("check_app_exited", [False])
-@pytest.mark.parametrize("java_args", [[], ["-XX:ErrorFile=/tmp/my_custom_error_file.log"]])
-def test_hotspot_error_file(application_process, tmp_path, monkeypatch, caplog):
-    start_async_profiler = AsyncProfiledProcess.start_async_profiler
-
-    # Simulate crashing process
-    def sap_and_crash(self, *args, **kwargs):
-        result = start_async_profiler(self, *args, **kwargs)
-        self.process.send_signal(signal.SIGBUS)
-        return result
-
-    monkeypatch.setattr(AsyncProfiledProcess, "start_async_profiler", sap_and_crash)
-
-    with JavaProfiler(1, 5, Event(), str(tmp_path), False, False, "cpu", 0, "ap") as profiler:
-        profiler.snapshot()
-
-    assert len(caplog.records) > 0
-    message = caplog.records[0].message
-    assert "Found Hotspot error log" in message
-    assert "OpenJDK" in message
-    assert "SIGBUS" in message
-    assert "libpthread.so" in message
-    assert "memory_usage_in_bytes:" in message
-
-
-@pytest.mark.parametrize("in_container", [True])
-def test_container_hotspot_error_file(application_pid, tmp_path, monkeypatch, caplog):
+@pytest.mark.parametrize(
+    "in_container,java_args,check_app_exited",
+    [
+        (False, [], False),  # default
+        (False, ["-XX:ErrorFile=/tmp/my_custom_error_file.log"], False),  # custom error file
+        (True, [], False),  # containerized (other params are ignored)
+    ],
+)
+def test_hotspot_error_file(application_pid, tmp_path, monkeypatch, caplog):
     start_async_profiler = AsyncProfiledProcess.start_async_profiler
 
     # Simulate crashing process
