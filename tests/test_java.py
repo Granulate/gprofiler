@@ -212,7 +212,7 @@ def test_java_safemode_version_check(application_process, tmp_path, monkeypatch,
 
     assert len(caplog.records) > 0
     message = caplog.records[0].message
-    assert "Unsupported java version 8.999" in message
+    assert "Unsupported java version 8.275" in message
 
 
 def test_java_safemode_build_number_check(application_process, tmp_path, monkeypatch, caplog) -> None:
@@ -234,4 +234,5 @@ def test_java_safemode_build_number_check(application_process, tmp_path, monkeyp
 
     assert len(caplog.records) > 0
     message = caplog.records[0].message
-    assert "Unsupported java build number 999 for java version 8.275" in message
+    assert "Unsupported java build number" in message
+    assert "for java version 8.275" in message
