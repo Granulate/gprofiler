@@ -111,13 +111,13 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Po
     return popen
 
 
-def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool]) -> None:
+def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool], interval=0.1) -> None:
     end_time = time.monotonic() + timeout
     while True:
         if condition():
             break
 
-        if stop_event.wait(0.1):
+        if stop_event.wait(interval):
             raise StopEventSetException()
 
         if time.monotonic() > end_time:
@@ -554,3 +554,7 @@ def get_mnt_ns_ancestor(process: Process) -> int:
             return process.pid
 
         process = parent
+
+
+def is_process_running(process: psutil.Process):
+    return process.is_running() and not process.status() == "zombie"
