@@ -38,7 +38,9 @@ def test_java_from_host(
         java_safemode=False,
         java_mode="ap",
     ) as profiler:
-        process_collapsed = profiler.snapshot().get(application_pid)
+        result = profiler.snapshot()
+        assert len(result) == 1
+        process_collapsed = result[next(iter(result.keys()))]
         assert_collapsed(process_collapsed, check_comm=True)
 
 
