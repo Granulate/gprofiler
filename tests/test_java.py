@@ -162,9 +162,11 @@ def test_java_safemode_version_check(
         java_safemode=True,
         java_mode="ap",
     ) as profiler:
+        process = profiler._select_processes_to_profile()[0]
+        jvm_version = parse_jvm_version(profiler._get_java_version(process))
         profiler.snapshot()
 
-    assert "Unsupported java version" in caplog.text
+    assert f"Unsupported java version {jvm_version.version}" in caplog.text
 
 
 def test_java_safemode_build_number_check(
