@@ -293,7 +293,7 @@ class JvmVersion:
         self.name = name
 
     def __repr__(self):
-        return f"JvmVersion({self.version}, {self.build}, {self.name})"
+        return f"JvmVersion({self.version}, {self.build!r}, {self.name!r})"
 
 
 # Parse java version information from "java -version" output
