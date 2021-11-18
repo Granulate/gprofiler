@@ -554,3 +554,7 @@ def get_mnt_ns_ancestor(process: Process) -> int:
             return process.pid
 
         process = parent
+
+
+def is_process_running(process: psutil.Process):
+    return process.is_running() and not process.status() == "zombie"

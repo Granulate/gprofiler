@@ -24,6 +24,7 @@ from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     get_mnt_ns_ancestor,
     get_process_nspid,
+    is_process_running,
     pgrep_maps,
     process_comm,
     read_perf_event_mlock_kb,
@@ -363,9 +364,7 @@ class AsyncProfiledProcess:
             return Path(self._output_path_host).read_text()
         except FileNotFoundError:
             # perhaps it has exited?
-            # check for existence of self._process_root as well, because is_running returns True
-            # when the process is a zombie (and /proc/pid/root is not available in that case)
-            if not self.process.is_running() or not os.path.exists(f"/proc/{self.process.pid}/root"):
+            if not is_process_running(self.process):
                 return None
             raise
 
@@ -515,7 +514,7 @@ class JavaProfiler(ProcessProfilerBase):
                 )
 
         try:
-            wait_event(self._duration, self._stop_event, lambda: not ap_proc.process.is_running(), interval=1)
+            wait_event(self._duration, self._stop_event, lambda: not is_process_running(ap_proc.process), interval=1)
         except TimeoutError:
             # Process still running. We will stop the profiler in finally block.
             pass
@@ -526,7 +525,7 @@ class JavaProfiler(ProcessProfilerBase):
             # no output in this case :/
             return None
         finally:
-            if ap_proc.process.is_running():
+            if is_process_running(ap_proc.process):
                 ap_proc.stop_async_profiler(True)
 
         output = ap_proc.read_output()

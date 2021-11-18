@@ -41,6 +41,7 @@ from gprofiler.utils import (
     atomically_symlink,
     get_iso8601_format_time,
     grab_gprofiler_mutex,
+    is_process_running,
     is_root,
     is_running_in_init_pid,
     reset_umask,
@@ -347,9 +348,7 @@ class GProfiler:
                 # wait for one duration
                 self._stop_event.wait(max(self._duration - (time.monotonic() - snapshot_start), 0))
 
-                if self._controller_process is not None and (
-                    not self._controller_process.is_running() or self._controller_process.status() == "zombie"
-                ):
+                if self._controller_process is not None and not is_process_running(self._controller_process):
                     logger.info(f"Controller process {self._controller_process.pid} has exited; gProfiler stopping...")
                     break
 
