@@ -44,19 +44,26 @@ def in_container(request) -> bool:
     return request.param
 
 
-def java_command_line(class_path: Path) -> List:
+@fixture
+def java_args():
+    return []
+
+
+@fixture
+def java_command_line(tmp_path: Path, java_args: List[str]) -> List[str]:
+    class_path = tmp_path / "java"
     class_path.mkdir()
     # make all directories readable & executable by all.
     # Java fails with permissions errors: "Error: Could not find or load main class Fibonacci"
     chmod_path_parts(class_path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
     subprocess.run(["javac", CONTAINERS_DIRECTORY / "java/Fibonacci.java", "-d", class_path])
-    return ["java", "-cp", class_path, "Fibonacci"]
+    return ["java"] + java_args + ["-cp", class_path, "Fibonacci"]
 
 
 @fixture
-def command_line(tmp_path: Path, runtime: str) -> List:
+def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
     return {
-        "java": java_command_line(tmp_path / "java"),
+        "java": java_command_line,
         # note: here we run "python /path/to/lister.py" while in the container test we have
         # "CMD /path/to/lister.py", to test processes with non-python /proc/pid/comm
         "python": ["python3", CONTAINERS_DIRECTORY / "python/lister.py"],
@@ -101,7 +108,7 @@ def check_app_exited() -> bool:
 
 
 @fixture
-def application_process(in_container: bool, command_line: List, check_app_exited: bool):
+def application_process(in_container: bool, command_line: List[str], check_app_exited: bool):
     if in_container:
         yield None
         return
