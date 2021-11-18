@@ -57,7 +57,7 @@ def java_command_line(tmp_path: Path, java_args: List[str]) -> List[str]:
     # Java fails with permissions errors: "Error: Could not find or load main class Fibonacci"
     chmod_path_parts(class_path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
     subprocess.run(["javac", CONTAINERS_DIRECTORY / "java/Fibonacci.java", "-d", class_path])
-    return ["java"] + java_args + ["-cp", class_path, "Fibonacci"]
+    return ["java"] + java_args + ["-cp", str(class_path), "Fibonacci"]
 
 
 @fixture
@@ -66,14 +66,14 @@ def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
         "java": java_command_line,
         # note: here we run "python /path/to/lister.py" while in the container test we have
         # "CMD /path/to/lister.py", to test processes with non-python /proc/pid/comm
-        "python": ["python3", CONTAINERS_DIRECTORY / "python/lister.py"],
-        "php": ["php", CONTAINERS_DIRECTORY / "php/fibonacci.php"],
-        "ruby": ["ruby", CONTAINERS_DIRECTORY / "ruby/fibonacci.rb"],
+        "python": ["python3", str(CONTAINERS_DIRECTORY / "python/lister.py")],
+        "php": ["php", str(CONTAINERS_DIRECTORY / "php/fibonacci.php")],
+        "ruby": ["ruby", str(CONTAINERS_DIRECTORY / "ruby/fibonacci.rb")],
         "nodejs": [
             "node",
             "--perf-prof",
             "--interpreted-frames-native-stack",
-            CONTAINERS_DIRECTORY / "nodejs/fibonacci.js",
+            str(CONTAINERS_DIRECTORY / "nodejs/fibonacci.js"),
         ],
     }[runtime]
 
