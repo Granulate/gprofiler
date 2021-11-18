@@ -434,10 +434,10 @@ class JavaProfiler(ProcessProfilerBase):
             logger.warning("Java version checks are disabled")
         self._mode = java_async_profiler_mode
         self._safemode = java_async_profiler_safemode
-        if self._safemode:
-            logger.debug("Java safemode enabled")
         self._saved_mlock: Optional[int] = None
         self._java_safemode = java_safemode
+        if self._java_safemode:
+            logger.debug("Java safemode enabled")
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
