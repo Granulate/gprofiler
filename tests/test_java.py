@@ -11,7 +11,7 @@ import pytest  # type: ignore
 from packaging.version import Version
 
 from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler, parse_jvm_version
-from tests.utils import assert_function_in_collapsed, run_gprofiler_in_container
+from tests.utils import assert_function_in_collapsed
 
 
 # adds the "status" command to AsyncProfiledProcess from gProfiler.
@@ -38,7 +38,9 @@ def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_p
             assert ap_proc.start_async_profiler(11)
         assert any("libasyncProfiler.so" in m.path for m in process.memory_maps())
         # run "status"
-        with AsyncProfiledProcessForTests(process, profiler._storage_dir, False, mode="itimer", safemode=False) as ap_proc:
+        with AsyncProfiledProcessForTests(
+            process, profiler._storage_dir, False, mode="itimer", safemode=False
+        ) as ap_proc:
             ap_proc.status_async_profiler()
             # printed the output file, see ACTION_STATUS case in async-profiler/profiler.cpp
             assert "Profiling is running for " in ap_proc.read_output()
