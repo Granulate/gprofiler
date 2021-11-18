@@ -34,11 +34,11 @@ def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_p
     caplog.set_level(logging.INFO)
     with JavaProfiler(11, 1, Event(), str(tmp_path), False, False, "cpu", 0, False, "ap") as profiler:
         process = profiler._select_processes_to_profile()[0]
-        with AsyncProfiledProcess(process, profiler._storage_dir, False, profiler._mode, 0) as ap_proc:
+        with AsyncProfiledProcess(process, profiler._storage_dir, False, profiler._mode, False) as ap_proc:
             assert ap_proc.start_async_profiler(11)
         assert any("libasyncProfiler.so" in m.path for m in process.memory_maps())
         # run "status"
-        with AsyncProfiledProcessForTests(process, str(tmp_path), False, mode="itimer", safemode=0) as ap_proc:
+        with AsyncProfiledProcessForTests(process, profiler._storage_dir, False, mode="itimer", safemode=False) as ap_proc:
             ap_proc.status_async_profiler()
             # printed the output file, see ACTION_STATUS case in async-profiler/profiler.cpp
             assert "Profiling is running for " in ap_proc.read_output()
