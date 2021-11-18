@@ -1,4 +1,4 @@
-FROM openjdk:8
+FROM openjdk:8u275
 
 WORKDIR /app
 ADD Fibonacci.java /app
