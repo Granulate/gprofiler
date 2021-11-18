@@ -538,7 +538,7 @@ class JavaProfiler(ProcessProfilerBase):
         else:
             if self._version_check and process_basename == "java":
                 java_version_output = self._get_java_version(process)
-                if self._check_jvm_type_supported(process, java_version_output):
+                if not self._check_jvm_type_supported(process, java_version_output):
                     return False
 
         return True
