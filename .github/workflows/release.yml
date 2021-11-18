@@ -85,6 +85,7 @@ jobs:
         mkdir -p output
         ./scripts/build_x86_64_executable.sh
         mv build/x86_64/gprofiler output/gprofiler_x86_64
+        cp output/gprofiler_x86_64 output/gprofiler  # for backwards compatibility
 
      - name: Upload the executables as job artifacts
        uses: actions/upload-artifact@v2
