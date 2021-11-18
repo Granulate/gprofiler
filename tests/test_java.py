@@ -28,6 +28,9 @@ def runtime() -> str:
 
 
 def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_path, caplog):
+    """
+    Test we're able to restart async-profiler in case it's already running in the process and get results normally.
+    """
     caplog.set_level(logging.INFO)
     with JavaProfiler(11, 1, Event(), str(tmp_path), False, False, "cpu", 0, False, "ap") as profiler:
         process = profiler._select_processes_to_profile()[0]
