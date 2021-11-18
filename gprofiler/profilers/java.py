@@ -284,6 +284,9 @@ class JvmVersion:
         self.build = build
         self.name = name
 
+    def __repr__(self):
+        return f"JvmVersion({self.version}, {self.build}, {self.name})"
+
 
 # Parse java version information from "java -version" output
 def parse_jvm_version(version_string: str) -> JvmVersion:
@@ -442,10 +445,12 @@ class JavaProfiler(ProcessProfilerBase):
             return False
         min_version, min_build = self.MINIMAL_SUPPORTED_VERSIONS[jvm_version.version.major]
         if jvm_version.version < min_version:
-            logger.error(f"Unsupported build number {jvm_version.build} for java version {jvm_version.version}")
+            logger.error(f"Unsupported java version {jvm_version.version}")
             return False
         elif jvm_version.version == min_version:
-            return jvm_version.build >= min_build
+            if jvm_version.build < min_build:
+                logger.error(f"Unsupported build number {jvm_version.build} for java version {jvm_version.version}")
+                return False
 
         return True
 
