@@ -194,7 +194,7 @@ def test_java_safemode_parameters(tmp_path) -> None:
 
 
 def test_java_safemode_version_check(application_process, tmp_path, monkeypatch, caplog) -> None:
-    monkeypatch.getattr(JavaProfiler, "MINIMAL_SUPPORTED_VERSIONS")[8] = (Version("8.999"), 0)
+    monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (Version("8.999"), 0))
 
     with JavaProfiler(
         1,
@@ -216,7 +216,7 @@ def test_java_safemode_version_check(application_process, tmp_path, monkeypatch,
 
 
 def test_java_safemode_build_number_check(application_process, tmp_path, monkeypatch, caplog) -> None:
-    monkeypatch.getattr(JavaProfiler, "MINIMAL_SUPPORTED_VERSIONS")[8] = (Version("8.275"), 999)
+    monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (Version("8.275"), 999))
 
     with JavaProfiler(
         1,
