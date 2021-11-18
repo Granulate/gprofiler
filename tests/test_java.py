@@ -193,7 +193,9 @@ def test_java_safemode_parameters(tmp_path) -> None:
     assert "Java version checks are mandatory in --java-safemode" in str(excinfo.value)
 
 
-def test_java_safemode_version_check(application_process, tmp_path, monkeypatch, caplog) -> None:
+def test_java_safemode_version_check(
+    tmp_path, monkeypatch, caplog, application_docker_container, application_process
+) -> None:
     monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (Version("8.999"), 0))
 
     with JavaProfiler(
@@ -215,7 +217,9 @@ def test_java_safemode_version_check(application_process, tmp_path, monkeypatch,
     assert "Unsupported java version 8.275" in message
 
 
-def test_java_safemode_build_number_check(application_process, tmp_path, monkeypatch, caplog) -> None:
+def test_java_safemode_build_number_check(
+    tmp_path, monkeypatch, caplog, application_docker_container, application_process
+) -> None:
     monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (Version("8.275"), 999))
 
     with JavaProfiler(
@@ -234,5 +238,5 @@ def test_java_safemode_build_number_check(application_process, tmp_path, monkeyp
 
     assert len(caplog.records) > 0
     message = caplog.records[0].message
-    assert "Unsupported java build number" in message
+    assert "Unsupported build number" in message
     assert "for java version 8.275" in message
