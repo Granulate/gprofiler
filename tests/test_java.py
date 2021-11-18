@@ -47,6 +47,7 @@ def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_p
 
         # then start again
         result = profiler.snapshot()
+        assert len(result) == 1
         collapsed = result[next(iter(result.keys()))]
         assert "Found async-profiler already started" in caplog.text
         assert "Finished profiling process" in caplog.text
@@ -75,6 +76,7 @@ def test_java_async_profiler_cpu_mode(
         java_mode="ap",
     ) as profiler:
         result = profiler.snapshot()
+        assert len(result) == 1
         process_collapsed = result[next(iter(result.keys()))]
         assert_collapsed(process_collapsed, check_comm=True)
         assert_function_in_collapsed(
@@ -106,6 +108,7 @@ def test_java_async_profiler_musl_and_cpu(
         java_mode="ap",
     ) as profiler:
         result = profiler.snapshot()
+        assert len(result) == 1
         process_collapsed = result[next(iter(result.keys()))]
         assert_collapsed(process_collapsed, check_comm=True)
         assert_function_in_collapsed(
