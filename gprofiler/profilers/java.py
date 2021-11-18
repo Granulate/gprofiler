@@ -430,10 +430,12 @@ class JavaProfiler(ProcessProfilerBase):
         self._interval = int((1 / frequency) * 1000_000_000)
         self._buildids = java_async_profiler_buildids
         self._version_check = java_version_check
-        if not java_version_check:
+        if not self._version_check:
             logger.warning("Java version checks are disabled")
         self._mode = java_async_profiler_mode
         self._safemode = java_async_profiler_safemode
+        if self._safemode:
+            logger.debug("Java safemode enabled")
         self._saved_mlock: Optional[int] = None
         self._java_safemode = java_safemode
 
