@@ -13,6 +13,7 @@ import pytest  # type: ignore
 from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
+from packaging.version import Version
 
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler
@@ -158,3 +159,79 @@ def test_java_async_profiler_musl_and_cpu(
         assert_function_in_collapsed(
             "do_syscall_64_[k]", "java", process_collapsed, True
         )  # ensure kernels stacks exist
+
+
+def test_java_safemode_parameters(tmp_path) -> None:
+    with pytest.raises(AssertionError) as excinfo:
+        JavaProfiler(
+            1000,
+            1,
+            Event(),
+            str(tmp_path),
+            False,
+            True,
+            java_async_profiler_mode="cpu",
+            java_async_profiler_safemode=0,
+            java_safemode=True,
+            java_mode="ap",
+        )
+    assert "Async-profiler safemode must be set to 127 in --java-safemode" in str(excinfo.value)
+
+    with pytest.raises(AssertionError) as excinfo:
+        JavaProfiler(
+            1,
+            5,
+            Event(),
+            str(tmp_path),
+            False,
+            False,
+            java_async_profiler_mode="cpu",
+            java_async_profiler_safemode=127,
+            java_safemode=True,
+            java_mode="ap",
+        )
+    assert "Java version checks are mandatory in --java-safemode" in str(excinfo.value)
+
+
+def test_java_safemode_version_check(application_process, tmp_path, monkeypatch, caplog) -> None:
+    monkeypatch.getattr(JavaProfiler, "MINIMAL_SUPPORTED_VERSIONS")[8] = (Version("8.999"), 0)
+
+    with JavaProfiler(
+        1,
+        5,
+        Event(),
+        str(tmp_path),
+        False,
+        True,
+        java_async_profiler_mode="cpu",
+        java_async_profiler_safemode=127,
+        java_safemode=True,
+        java_mode="ap",
+    ) as profiler:
+        profiler.snapshot()
+
+    assert len(caplog.records) > 0
+    message = caplog.records[0].message
+    assert "Unsupported java version 8.999" in message
+
+
+def test_java_safemode_build_number_check(application_process, tmp_path, monkeypatch, caplog) -> None:
+    monkeypatch.getattr(JavaProfiler, "MINIMAL_SUPPORTED_VERSIONS")[8] = (Version("8.275"), 999)
+
+    with JavaProfiler(
+        1,
+        5,
+        Event(),
+        str(tmp_path),
+        False,
+        True,
+        java_async_profiler_mode="cpu",
+        java_async_profiler_safemode=127,
+        java_safemode=True,
+        java_mode="ap",
+    ) as profiler:
+        profiler.snapshot()
+
+    assert len(caplog.records) > 0
+    message = caplog.records[0].message
+    assert "Unsupported java build number 999 for java version 8.275" in message
