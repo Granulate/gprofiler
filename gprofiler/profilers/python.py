@@ -8,7 +8,7 @@ import signal
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired
 from threading import Event
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from psutil import NoSuchProcess, Process
 
@@ -132,7 +132,8 @@ class PythonEbpfError(CalledProcessError):
 class PythonEbpfProfiler(ProfilerBase):
     MAX_FREQUENCY = 1000
     PYPERF_RESOURCE = "python/pyperf/PyPerf"
-    GET_FS_OFFSET_RESOURCE = "python/pyperf/get_fs_offset"
+    _GET_FS_OFFSET_RESOURCE = "python/pyperf/get_fs_offset"
+    _GET_STACK_OFFSET_RESOURCE = "python/pyperf/get_stack_offset"
     events_buffer_pages = 256  # 1mb and needs to be physically contiguous
     # 28mb (each symbol is 224 bytes), but needn't be physicall contiguous so don't care
     symbols_map_size = 131072
@@ -152,6 +153,7 @@ class PythonEbpfProfiler(ProfilerBase):
         self.process = None
         self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
         self.user_stacks_pages = user_stacks_pages
+        self._kernel_offsets: Dict[str, int] = {}
 
     @classmethod
     def _pyperf_error(cls, process: Popen):
@@ -168,34 +170,55 @@ class PythonEbpfProfiler(ProfilerBase):
         if not glob.glob(f"{str(output_path)}.*"):
             cls._pyperf_error(process)
 
-    @classmethod
-    def test(cls, storage_dir: str, stop_event: Event):
-        test_path = Path(storage_dir) / ".test"
-        for f in glob.glob(f"{str(test_path)}.*"):
+    def _get_offset(self, prog: str) -> int:
+        return int(run_process(resource_path(prog)).stdout.strip())
+
+    def _kernel_fs_offset(self) -> int:
+        try:
+            return self._kernel_offsets["task_struct_fs"]
+        except KeyError:
+            offset = self._kernel_offsets["task_struct_fs"] = self._get_offset(self._GET_FS_OFFSET_RESOURCE)
+            return offset
+
+    def _kernel_stack_offset(self) -> int:
+        try:
+            return self._kernel_offsets["task_struct_stack"]
+        except KeyError:
+            offset = self._kernel_offsets["task_struct_stack"] = self._get_offset(self._GET_STACK_OFFSET_RESOURCE)
+            return offset
+
+    def _offset_args(self) -> List[str]:
+        return [
+            "--fs-offset",
+            str(self._kernel_fs_offset()),
+            "--stack-offset",
+            str(self._kernel_stack_offset()),
+        ]
+
+    def test(self) -> None:
+        for f in glob.glob(f"{str(self.output_path)}.*"):
             os.unlink(f)
 
         # Run the process and check if the output file is properly created.
         # Wait up to 10sec for the process to terminate.
         # Allow cancellation via the stop_event.
         cmd = [
-            resource_path(cls.PYPERF_RESOURCE),
+            resource_path(self.PYPERF_RESOURCE),
             "--output",
-            str(test_path),
+            str(self.output_path),
             "-F",
             "1",
             "--duration",
             "1",
-            "--get-fs-offset",
-            resource_path(cls.GET_FS_OFFSET_RESOURCE),
-        ]
+        ] + self._offset_args()
         process = start_process(cmd, via_staticx=True)
         try:
-            poll_process(process, cls.poll_timeout, stop_event)
+            poll_process(process, self.poll_timeout, self._stop_event)
         except TimeoutError:
             process.kill()
             raise
         else:
-            cls._check_output(process, test_path)
+            self._check_output(process, self.output_path)
 
     def start(self):
         logger.info("Starting profiling of Python processes with PyPerf")
@@ -209,10 +232,8 @@ class PythonEbpfProfiler(ProfilerBase):
             str(self.events_buffer_pages),
             "--symbols-map-size",
             str(self.symbols_map_size),
-            "--get-fs-offset",
-            resource_path(self.GET_FS_OFFSET_RESOURCE)
             # Duration is irrelevant here, we want to run continuously.
-        ]
+        ] + self._offset_args()
 
         if self.user_stacks_pages is not None:
             cmd.extend(["--user-stacks-pages", str(self.user_stacks_pages)])
@@ -345,8 +366,9 @@ class PythonProfiler(ProfilerInterface):
         user_stacks_pages: Optional[int],
     ) -> Optional[PythonEbpfProfiler]:
         try:
-            PythonEbpfProfiler.test(storage_dir, stop_event)
-            return PythonEbpfProfiler(frequency, duration, stop_event, storage_dir, user_stacks_pages)
+            profiler = PythonEbpfProfiler(frequency, duration, stop_event, storage_dir, user_stacks_pages)
+            profiler.test()
+            return profiler
         except Exception as e:
             logger.debug(f"eBPF profiler error: {str(e)}")
             logger.info("Python eBPF profiler initialization failed")
