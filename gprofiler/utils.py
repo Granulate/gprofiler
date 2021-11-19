@@ -111,13 +111,13 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Po
     return popen
 
 
-def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool]) -> None:
+def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool], interval=0.1) -> None:
     end_time = time.monotonic() + timeout
     while True:
         if condition():
             break
 
-        if stop_event.wait(0.1):
+        if stop_event.wait(interval):
             raise StopEventSetException()
 
         if time.monotonic() > end_time:
@@ -335,8 +335,11 @@ def removed_path(path: str) -> Iterator[None]:
         remove_path(path, missing_ok=True)
 
 
-def is_same_ns(pid: int, nstype: str) -> bool:
-    return os.stat(f"/proc/self/ns/{nstype}").st_ino == os.stat(f"/proc/{pid}/ns/{nstype}").st_ino
+def is_same_ns(pid: int, nstype: str, pid2: int = None) -> bool:
+    return (
+        os.stat(f"/proc/{pid2 if pid2 is not None else 'self'}/ns/{nstype}").st_ino
+        == os.stat(f"/proc/{pid}/ns/{nstype}").st_ino
+    )
 
 
 _INSTALLED_PROGRAMS_CACHE: List[str] = []
@@ -536,3 +539,22 @@ def is_pyinstaller() -> bool:
 
 def get_staticx_dir() -> Optional[str]:
     return os.getenv("STATICX_BUNDLE_DIR")
+
+
+def get_mnt_ns_ancestor(process: Process) -> int:
+    """
+    Gets the topmost ancestor of "process" that runs in the same mount namespace of "process".
+    """
+    while True:
+        parent = process.parent()
+        if parent is None:  # topmost ancestor?
+            return process.pid
+
+        if not is_same_ns(process.pid, "mnt", parent.pid):
+            return process.pid
+
+        process = parent
+
+
+def is_process_running(process: psutil.Process):
+    return process.is_running() and not process.status() == "zombie"
