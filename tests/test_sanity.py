@@ -105,6 +105,7 @@ def test_python_ebpf(
     assert_collapsed,
     gprofiler_docker_image: Image,
     runtime: str,
+    no_kernel_headers,
 ) -> None:
     with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path)) as profiler:
         collapsed = profiler.snapshot()

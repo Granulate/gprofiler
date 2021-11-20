@@ -256,6 +256,22 @@ def exec_container_image(request, docker_client: DockerClient) -> Optional[Image
     return docker_client.images.pull(image_name)
 
 
+@fixture
+def no_kernel_headers():
+    release = os.uname().release
+    headers_dir = f"/lib/modules/{release}"
+    tmp_headers = f"{headers_dir}_tmp_moved"
+    assert not os.path.exists(tmp_headers), "leftovers! please clean it up"
+
+    try:
+        if os.path.exists(headers_dir):
+            os.rename(headers_dir, tmp_headers)
+        yield
+    finally:
+        if os.path.exists(tmp_headers):
+            os.rename(tmp_headers, headers_dir)
+
+
 def pytest_addoption(parser):
     parser.addoption("--exec-container-image", action="store", default=None)
     parser.addoption("--executable", action="store", default=None)
