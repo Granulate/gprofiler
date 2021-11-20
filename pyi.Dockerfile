@@ -130,7 +130,8 @@ RUN tar -xf elfutils-0.179.tar.bz2 && \
 
 COPY --from=perf-builder /bpftool /bpftool
 
-RUN git clone -b work --depth=1 --recurse-submodules https://github.com/Jongy/bpf_get_fs_offset.git && cd bpf_get_fs_offset && git reset --hard 675620c5785a309958cadf2e4af9b46b4f3331c8
+RUN git clone -b v0.0.1 --depth=1 --recurse-submodules https://github.com/Jongy/bpf_get_fs_offset.git && cd bpf_get_fs_offset && git reset --hard 85bbdb3d3b54406944a0f6d8c77117e4d4a35f3e
+RUN git clone -b v0.0.1 --depth=1 --recurse-submodules https://github.com/Jongy/bpf_get_stack_offset.git && cd bpf_get_fs_offset && git reset --hard 7e1aa6148efe2abea54fb5ffb332da2e6426396c
 
 RUN cd /bpf_get_fs_offset && make BPFTOOL=/bpftool CLANG=clang-10 LLVM_STRIP=llvm-strip CFLAGS=-static
 
@@ -171,6 +172,7 @@ RUN cp /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
 RUN cp -r /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
 RUN cp /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 COPY --from=bcc-helpers /bpf_get_fs_offset/get_fs_offset gprofiler/resources/python/pyperf/
+COPY --from=bcc-helpers /bpf_get_stack_offset/get_stack_offset gprofiler/resources/python/pyperf/
 
 COPY --from=pyspy-builder /py-spy/py-spy gprofiler/resources/python/py-spy
 COPY --from=rbspy-builder /rbspy/rbspy gprofiler/resources/ruby/rbspy

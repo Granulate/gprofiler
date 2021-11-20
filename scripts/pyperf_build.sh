@@ -5,7 +5,7 @@
 #
 set -e
 
-git clone --depth 1 -b kernelheaders-less https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 4769de3bbef42cb6e9096ede48d38e36e1e95572
+git clone --depth 1 -b kernelheaders-less https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 07b8eea7064c7dc9d83e0454d31e5ac707bacb7c
 
 # (after clone, because we copy the licenses)
 # TODO support aarch64

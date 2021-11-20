@@ -45,6 +45,7 @@ EOF
 fi
 
 make -C tools/perf LDFLAGS=-static -j 8 perf
-make -C tools/bpf LDFLAGS=-static -j 8 bpftool
 cp tools/perf/perf /
+# don't need it static - it's only used during the build
+make -C tools/bpf -j 8 bpftool
 cp tools/bpf/bpftool/bpftool /

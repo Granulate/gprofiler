@@ -36,12 +36,10 @@ RUN ./rbspy_build.sh
 RUN mv /rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy /rbspy/rbspy
 
 # perf
-FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder-base
+FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder
 
 COPY scripts/perf_env.sh .
 RUN ./perf_env.sh
-
-FROM perf-builder-base AS perf-builder
 
 COPY scripts/libunwind_build.sh .
 RUN ./libunwind_build.sh
@@ -58,13 +56,12 @@ RUN apt-get update && apt-get install -y git && if [ $(uname -m) = "aarch64" ]; 
 # bcc helpers
 FROM bcc-builder-base AS bcc-helpers
 
-RUN git clone -b work --depth=1 --recurse-submodules https://github.com/Jongy/bpf_get_fs_offset.git && git -C bpf_get_fs_offset reset --hard a8eb70e41295b2301aa4d1873106a2f22b6c8bdc
+RUN apt install -y clang-10
 
 COPY --from=perf-builder /bpftool /bpftool
 
-RUN apt install -y clang-10
-
-RUN cd /bpf_get_fs_offset && make BPFTOOL=/bpftool CLANG=clang-10 LLVM_STRIP=llvm-strip-10 CFLAGS=-static
+COPY scripts/bcc_helpers_build.sh .
+RUN ./bcc_helpers_build.sh
 
 FROM bcc-builder-base AS bcc-builder
 
@@ -122,6 +119,7 @@ COPY --from=bcc-builder /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
 COPY --from=bcc-builder /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
 COPY --from=bcc-builder /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 COPY --from=bcc-helpers /bpf_get_fs_offset/get_fs_offset gprofiler/resources/python/pyperf/
+COPY --from=bcc-helpers /bpf_get_stack_offset/get_stack_offset gprofiler/resources/python/pyperf/
 
 COPY --from=pyspy-builder /py-spy/py-spy gprofiler/resources/python/py-spy
 
