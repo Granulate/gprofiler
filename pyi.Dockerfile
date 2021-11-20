@@ -19,6 +19,8 @@ ARG BURN_BUILDER_GOLANG=@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d
 # CentOS 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
 # this will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
 ARG GPROFILER_BUILDER=@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e
+# pyperf - ubuntu 20.04
+ARG PYPERF_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
 
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
@@ -77,9 +79,27 @@ FROM golang${BURN_BUILDER_GOLANG} AS burn-builder
 COPY scripts/burn_build.sh .
 RUN ./burn_build.sh
 
+# bcc helpers
+# built on newer Ubuntu because they require new clang (newer than available in GPROFILER_BUILDER's CentOS 7)
+# these are only relevant for modern kernels, so there's no real reason to build them on CentOS 7 anyway.
+FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-helpers
+
+RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; apt-get update && apt install -y \
+    clang-10 \
+    libelf-dev \
+    make \
+    build-essential \
+    llvm \
+    git
+
+COPY --from=perf-builder /bpftool /bpftool
+
+COPY scripts/bcc_helpers_build.sh .
+RUN ./bcc_helpers_build.sh
+
 
 # bcc & gprofiler
-FROM centos${GPROFILER_BUILDER} AS build-stage-base
+FROM centos${GPROFILER_BUILDER} AS build-stage
 
 # bcc part
 # TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
@@ -107,35 +127,6 @@ RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; yum install -y devtoolset-8
     llvm-toolset-7-llvm-static \
     llvm-toolset-7-clang-devel \
     devtoolset-8-elfutils-libelf-devel
-
-# bcc helpers
-FROM ubuntu:20.04 AS bcc-helpers
-
-RUN apt-get update -y
-
-RUN apt-get install -y clang-10
-RUN apt-get install -y gcc
-RUN apt-get install -y git
-RUN apt-get install -y make
-RUN apt-get install -y curl
-RUN curl -L ftp://sourceware.org/pub/elfutils/0.179/elfutils-0.179.tar.bz2 -o elfutils-0.179.tar.bz2
-RUN apt-get install -y libz-dev
-RUN apt-get install -y m4
-RUN tar -xf elfutils-0.179.tar.bz2 && \
-    cd elfutils-0.179 && \
-    ./configure --disable-debuginfod --prefix=/usr && make -j 8 && make install && \
-    cd .. && \
-    rm -r elfutils-0.179 && \
-    rm elfutils-0.179.tar.bz2
-
-COPY --from=perf-builder /bpftool /bpftool
-
-RUN git clone -b v0.0.1 --depth=1 --recurse-submodules https://github.com/Jongy/bpf_get_fs_offset.git && cd bpf_get_fs_offset && git reset --hard 85bbdb3d3b54406944a0f6d8c77117e4d4a35f3e
-RUN git clone -b v0.0.1 --depth=1 --recurse-submodules https://github.com/Jongy/bpf_get_stack_offset.git && cd bpf_get_fs_offset && git reset --hard 7e1aa6148efe2abea54fb5ffb332da2e6426396c
-
-RUN cd /bpf_get_fs_offset && make BPFTOOL=/bpftool CLANG=clang-10 LLVM_STRIP=llvm-strip CFLAGS=-static
-
-FROM build-stage-base AS build-stage
 
 COPY ./scripts/libunwind_build.sh .
 RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; ./libunwind_build.sh
