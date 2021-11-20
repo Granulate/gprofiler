@@ -131,8 +131,6 @@ def test_from_container(
     _ = application_pid  # Fixture only used for running the application.
     inner_output_directory = "/tmp/gprofiler"
     volumes = {
-        "/usr/src": {"bind": "/usr/src", "mode": "ro"},
-        "/lib/modules": {"bind": "/lib/modules", "mode": "ro"},
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
     }
 
