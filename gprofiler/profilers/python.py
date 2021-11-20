@@ -4,6 +4,7 @@
 #
 import glob
 import os
+import resource
 import signal
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired
@@ -16,7 +17,7 @@ from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, St
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_many_collapsed, parse_one_collapsed_file
-from gprofiler.metadata.system_metadata import get_arch
+from gprofiler.metadata.system_metadata import get_arch, is_container
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
@@ -170,6 +171,22 @@ class PythonEbpfProfiler(ProfilerBase):
         if not glob.glob(f"{str(output_path)}.*"):
             cls._pyperf_error(process)
 
+    @staticmethod
+    def _ebpf_environment() -> None:
+        """
+        In container environments - make some changes so libbpf-based programs can run.
+        """
+        if not is_container():
+            return
+
+        # increase memlock (Docker defaults to 64k which is not enough for the get_offset programs)
+        resource.setrlimit(resource.RLIMIT_MEMLOCK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
+
+        # mount /sys/kernel/debug in our container
+        if not os.path.ismount("/sys/kernel/debug"):
+            os.makedirs("/sys/kernel/debug", exist_ok=True)
+            run_process(["mount", "-t", "debugfs", "none", "/sys/kernel/debug"])
+
     def _get_offset(self, prog: str) -> int:
         return int(run_process(resource_path(prog)).stdout.strip())
 
@@ -196,6 +213,8 @@ class PythonEbpfProfiler(ProfilerBase):
         ]
 
     def test(self) -> None:
+        self._ebpf_environment()
+
         for f in glob.glob(f"{str(self.output_path)}.*"):
             os.unlink(f)
 
