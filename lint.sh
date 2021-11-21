@@ -10,7 +10,7 @@ if [[ "$1" = "--ci" ]]; then
     check_arg="--check"
 fi
 
-isort --settings-file .isort.cfg .
+isort --settings-path .isort.cfg -rc .
 black --line-length 120 $check_arg .
 flake8 --config .flake8 .
 mypy .

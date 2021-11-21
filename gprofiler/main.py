@@ -4,6 +4,7 @@
 #
 import concurrent.futures
 import datetime
+import json
 import logging
 import logging.config
 import logging.handlers
@@ -24,6 +25,7 @@ from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIC
 from gprofiler.docker_client import DockerClient
 from gprofiler.exceptions import SystemProfilerInitFailure
 from gprofiler.gprofiler_types import UserArgs, positive_integer
+from gprofiler.kernel_messages import DevKmsgReader, KernelMessagePublisher
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
@@ -47,6 +49,8 @@ from gprofiler.utils import (
     resource_path,
     run_process,
 )
+from utils.linux.oom import get_oom_entry
+from utils.linux.signals import get_signal_entry
 
 logger: logging.LoggerAdapter
 
@@ -133,6 +137,7 @@ class GProfiler:
             self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
+        self._kernel_message_publisher = KernelMessagePublisher(DevKmsgReader())
 
     @property
     def all_profilers(self) -> Iterable[ProfilerInterface]:
@@ -211,6 +216,8 @@ class GProfiler:
     def start(self):
         self._stop_event.clear()
         self._system_metrics_monitor.start()
+        self._kernel_message_publisher.subscribe(self._log_kernel_message_oom)
+        self._kernel_message_publisher.subscribe(self._log_kernel_message_signal)
 
         for prof in list(self.all_profilers):
             try:
@@ -306,6 +313,16 @@ class GProfiler:
             else:
                 logger.info("Successfully uploaded profiling data to the server")
 
+    def _log_kernel_message_oom(self, message):
+        entry = get_oom_entry(message)
+        if entry:
+            logger.info(f"OOM: {json.dumps(entry._asdict())}")
+
+    def _log_kernel_message_signal(self, message):
+        entry = get_signal_entry(message)
+        if entry:
+            logger.info(f"Signaled: {json.dumps(entry._asdict())}")
+
     def _send_remote_logs(self):
         """
         The function is safe to call without wrapping with try/except block, the function should does the exception
@@ -336,6 +353,7 @@ class GProfiler:
 
             while not self._stop_event.is_set():
                 self._state.init_new_cycle()
+                self._kernel_message_publisher.handle_new_messages()
 
                 snapshot_start = time.monotonic()
                 try:
