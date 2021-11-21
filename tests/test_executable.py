@@ -15,7 +15,17 @@ from gprofiler.merge import parse_one_collapsed
 from tests.utils import run_gprofiler_in_container
 
 
-@pytest.mark.parametrize("runtime", ["java", "python", "php", "ruby", "nodejs"])
+@pytest.mark.parametrize(
+    "runtime,profiler_type",
+    [
+        ("java", "ap"),
+        ("python", "py-spy"),
+        ("python", "pyperf"),
+        ("php", "phpspy"),
+        ("ruby", "rbspy"),
+        ("nodejs", "perf"),
+    ],
+)
 def test_from_executable(
     gprofiler_exe: Path,
     application_pid: int,
@@ -25,12 +35,14 @@ def test_from_executable(
     docker_client: DockerClient,
     output_directory: Path,
     runtime: str,
+    profiler_type: str,
 ) -> None:
     _ = application_pid  # Fixture only used for running the application.
 
     # Execute only the tested profiler
     flags = ["--no-java", "--no-python", "--no-php", "--no-ruby"]
     flags.remove(f"--no-{runtime}")
+    flags.append(f"--{runtime}-mode={profiler_type}")
 
     if exec_container_image is not None:
         gprofiler_inner_dir = Path("/app")
