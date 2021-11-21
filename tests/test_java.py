@@ -254,5 +254,7 @@ def test_already_loaded_ap_profiling_failure(tmp_path, monkeypatch, caplog, appl
         java_safemode=True,
         java_mode="ap",
     ) as profiler:
+        process = profiler._select_processes_to_profile()[0]
+        assert any("/tmp/fake_gprofiler_tmp" in mmap.path for mmap in process.memory_maps())
         profiler.snapshot()
-        assert "Non-Gprofiler Async-profiler is already loaded to the target process:" in caplog.text
+        assert "Non-gProfiler Async-profiler is already loaded to the target process:" in caplog.text
