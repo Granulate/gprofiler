@@ -36,10 +36,10 @@ from gprofiler.state import State, init_state
 from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
 from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLoggerInterface
 from gprofiler.utils import (
-    TEMPORARY_STORAGE_PATH,
     TemporaryDirectoryWithMode,
     atomically_symlink,
     get_iso8601_format_time,
+    get_temporary_storage_path,
     grab_gprofiler_mutex,
     is_process_running,
     is_root,
@@ -115,7 +115,7 @@ class GProfiler:
         # 2. accessible only by us.
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
-        self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
+        self._temp_storage_dir = TemporaryDirectoryWithMode(dir=get_temporary_storage_path(), mode=0o755)
         try:
             self.system_profiler, self.process_profilers = get_profilers(
                 user_args,
@@ -669,8 +669,8 @@ def main():
                 )
                 sys.exit(1)
 
-        if not os.path.exists(TEMPORARY_STORAGE_PATH):
-            os.mkdir(TEMPORARY_STORAGE_PATH)
+        if not os.path.exists(get_temporary_storage_path()):
+            os.mkdir(get_temporary_storage_path())
 
         try:
             client_kwargs = {}
