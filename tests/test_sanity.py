@@ -49,7 +49,6 @@ def test_pyspy(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed,
-    runtime: str,
 ) -> None:
     with PySpyProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
@@ -61,7 +60,6 @@ def test_phpspy(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed,
-    runtime: str,
 ) -> None:
     with PHPSpyProfiler(
         1000, PHPSPY_DURATION, Event(), str(tmp_path), php_process_filter="php", php_mode="phpspy"
@@ -76,7 +74,6 @@ def test_rbspy(
     application_pid: int,
     assert_collapsed,
     gprofiler_docker_image: Image,
-    runtime: str,
 ) -> None:
     with RbSpyProfiler(1000, 3, Event(), str(tmp_path), "rbspy") as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
@@ -89,7 +86,6 @@ def test_nodejs(
     application_pid: int,
     assert_collapsed,
     gprofiler_docker_image: Image,
-    runtime: str,
 ) -> None:
     with SystemProfiler(
         1000, 6, Event(), str(tmp_path), perf_mode="fp", perf_inject=True, perf_dwarf_stack_size=0
@@ -104,18 +100,15 @@ def test_python_ebpf(
     application_pid: int,
     assert_collapsed,
     gprofiler_docker_image: Image,
-    runtime: str,
     no_kernel_headers,
 ) -> None:
     with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path)) as profiler:
         collapsed = profiler.snapshot()
         process_collapsed = collapsed.get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
+        assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed, True)  # ensure kernels stacks exist
         assert_function_in_collapsed(
-            "do_syscall_64_[k]", "python", process_collapsed, True
-        )  # ensure kernels stacks exist
-        assert_function_in_collapsed(
-            "_PyEval_EvalFrameDefault_[pn]", "python", process_collapsed, True
+            "_PyEval_EvalFrameDefault_[pn]", process_collapsed, True
         )  # ensure native user stacks exist
 
 
