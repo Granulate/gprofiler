@@ -134,7 +134,9 @@ class AsyncProfiledProcess:
     OUTPUT_FORMAT = "collapsed"
     OUTPUTS_MODE = 0o622  # readable by root, writable by all
 
-    def __init__(self, process: Process, storage_dir: str, buildids: bool, mode: str, safemode: int):
+    def __init__(
+        self, process: Process, storage_dir: str, buildids: bool, mode: str, safemode: int, java_safemode: bool
+    ):
         self.process = process
         # access the process' root via its topmost parent/ancestor which uses the same mount namespace.
         # this allows us to access the files after the process exits:
@@ -178,12 +180,14 @@ class AsyncProfiledProcess:
         assert mode in ("cpu", "itimer"), f"unexpected mode: {mode}"
         self._mode = mode
         self._safemode = safemode
+        self._java_safemode = java_safemode
 
     def __enter__(self):
         os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
         os.makedirs(self._storage_dir_host, 0o755, exist_ok=True)
 
         self._check_disk_requirements()
+        self._check_async_profiler_not_loaded()
 
         # make out & log paths writable for all, so target process can write to them.
         # see comment on TemporaryDirectoryWithMode in GProfiler.__init__.
@@ -283,6 +287,16 @@ class AsyncProfiledProcess:
                 f"Not enough free disk space: {free_disk}kb left, {250 * 1024}kb"
                 f" required (on path: {self._output_path_host!r}"
             )
+
+    def _check_async_profiler_not_loaded(self) -> None:
+        if not self._java_safemode:
+            return
+        for mmap in self.process.memory_maps():
+            if "libasyncProfiler.so" in mmap.path and not mmap.path.startswith(TEMPORARY_STORAGE_PATH):
+                raise Exception(
+                    f"Non-gProfiler Async-profiler is already loaded to the target process: {mmap.path!r}. "
+                    f"Disable --java-safemode to bypass"
+                )
 
     def _get_base_cmd(self) -> List[str]:
         return [
@@ -632,7 +646,9 @@ class JavaProfiler(ProcessProfilerBase):
             return None
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
-        with AsyncProfiledProcess(process, self._storage_dir, self._buildids, self._mode, self._safemode) as ap_proc:
+        with AsyncProfiledProcess(
+            process, self._storage_dir, self._buildids, self._mode, self._safemode, self._java_safemode
+        ) as ap_proc:
             return self._profile_ap_process(ap_proc)
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[StackToSampleCount]:
