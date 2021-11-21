@@ -252,7 +252,7 @@ def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int], bool], None]:
         "nodejs": "fibonacci",
     }[runtime]
 
-    return partial(assert_function_in_collapsed, function_name, runtime)
+    return partial(assert_function_in_collapsed, function_name)
 
 
 @fixture
@@ -281,7 +281,7 @@ def no_kernel_headers() -> Iterable[None]:
 
 
 @fixture
-def profiler_flags(runtime: str, profile_type: str) -> List[str]:
+def profiler_flags(runtime: str, profiler_type: str) -> List[str]:
     # Execute only the tested profiler
     flags = ["--no-java", "--no-python", "--no-php", "--no-ruby"]
     flags.remove(f"--no-{runtime}")
