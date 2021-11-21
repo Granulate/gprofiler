@@ -283,7 +283,7 @@ def no_kernel_headers() -> Iterable[None]:
 @fixture
 def profiler_flags(runtime: str, profiler_type: str) -> List[str]:
     # Execute only the tested profiler
-    flags = ["--no-java", "--no-python", "--no-php", "--no-ruby"]
+    flags = ["--no-java", "--no-python", "--no-php", "--no-ruby", "--no-nodejs"]
     flags.remove(f"--no-{runtime}")
     flags.append(f"--{runtime}-mode={profiler_type}")
     return flags
