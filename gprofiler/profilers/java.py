@@ -162,7 +162,6 @@ class AsyncProfiledProcess:
             f"async-profiler-{get_ap_version()}",
             "musl" if self._is_musl() else "glibc",
         )
-        print(self._ap_dir)
         self._ap_dir_host = resolve_proc_root_links(self._process_root, self._ap_dir)
 
         self._libap_path_host = os.path.join(self._ap_dir_host, "libasyncProfiler.so")
