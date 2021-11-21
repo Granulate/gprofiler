@@ -20,10 +20,10 @@ fi
 
 LIBBPF_MAKE_FLAGS="BPFTOOL=/bpftool CLANG=clang-10 LLVM_STRIP=$LLVM_STRIP CFLAGS=-static"
 
-cd / && git clone -b v0.0.1 --depth=1 --recurse-submodules https://github.com/Jongy/bpf_get_fs_offset.git
-cd /bpf_get_fs_offset && git reset --hard 85bbdb3d3b54406944a0f6d8c77117e4d4a35f3e
+cd / && git clone -b v0.0.2 --depth=1 --recurse-submodules https://github.com/Jongy/bpf_get_fs_offset.git
+cd /bpf_get_fs_offset && git reset --hard 8326d39cf44845d4b643ed4267994afca8ccecb3
 cd /bpf_get_fs_offset && make $LIBBPF_MAKE_FLAGS
 
-cd / && git clone -b v0.0.1 --depth=1 --recurse-submodules https://github.com/Jongy/bpf_get_stack_offset.git
-cd /bpf_get_stack_offset && git reset --hard 7e1aa6148efe2abea54fb5ffb332da2e6426396c
+cd / && git clone -b v0.0.2 --depth=1 --recurse-submodules https://github.com/Jongy/bpf_get_stack_offset.git
+cd /bpf_get_stack_offset && git reset --hard bd0d4d9a0c4351710d116016e321045496a9eedc
 cd /bpf_get_stack_offset && make $LIBBPF_MAKE_FLAGS
