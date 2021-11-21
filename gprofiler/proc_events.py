@@ -1,9 +1,9 @@
-from select import select
 import errno
-import struct
-import socket
-import threading
 import os
+import socket
+import struct
+import threading
+from select import select
 
 from gprofiler.log import get_logger_adapter
 
@@ -12,6 +12,7 @@ logger = get_logger_adapter(__name__)
 
 # linux/netlink.h:
 _NETLINK_CONNECTOR = 11
+
 
 # linux/netlink.h:
 _NLMSG_DONE = 0x3  # End of a dump
@@ -80,27 +81,27 @@ def _proc_events_listener():
         (readable, _, _) = select([s], [], [])
         data = readable[0].recv(256)
 
-        nl_hdr = dict(
-            zip(("len", "type", "flags", "seq", "pid"),
-                _nlmsghdr.unpack(data[:_nlmsghdr.size])))
+        nl_hdr = dict(zip(("len", "type", "flags", "seq", "pid"), _nlmsghdr.unpack(data[: _nlmsghdr.size])))
         if nl_hdr["type"] != _NLMSG_DONE:
             # Handle only netlink messages
             continue
 
         # Strip off headers
-        data = data[_nlmsghdr.size:nl_hdr["len"]]
-        data = data[_cn_msg.size:]
+        data = data[_nlmsghdr.size : nl_hdr["len"]]
+        data = data[_cn_msg.size :]
 
-        event = dict(
-            zip(("what", "cpu", "timestamp_ns"),
-                _base_proc_event.unpack(data[:_base_proc_event.size])))
+        event = dict(zip(("what", "cpu", "timestamp_ns"), _base_proc_event.unpack(data[: _base_proc_event.size])))
 
         if event["what"] == _PROC_EVENT_EXIT:
             # (exit_signal is the signal that the parent process received on exit)
             event_data = dict(
-                zip(("pid", "tgid", "exit_code", "exit_signal"),
+                zip(
+                    ("pid", "tgid", "exit_code", "exit_signal"),
                     _exit_proc_event.unpack(
-                        data[_base_proc_event.size:_base_proc_event.size + _exit_proc_event.size])))
+                        data[_base_proc_event.size : _base_proc_event.size + _exit_proc_event.size]
+                    ),
+                )
+            )
 
             for callback in _exit_callbacks:
                 callback(event_data["pid"], event_data["exit_code"])
