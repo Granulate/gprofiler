@@ -24,8 +24,13 @@ def test_from_executable(
     exec_container_image: Image,
     docker_client: DockerClient,
     output_directory: Path,
+    runtime: str,
 ) -> None:
     _ = application_pid  # Fixture only used for running the application.
+
+    # Execute only the tested profiler
+    flags = ["--no-java", "--no-python", "--no-php", "--no-ruby"]
+    flags.remove(f"--no-{runtime}")
 
     if exec_container_image is not None:
         gprofiler_inner_dir = Path("/app")
@@ -36,16 +41,24 @@ def test_from_executable(
             str(cwd): {"bind": str(gprofiler_inner_dir), "mode": "rw"},
         }
 
-        command = [
-            str(gprofiler_inner_dir / gprofiler_exe),
-            "-v",
-            "--output-dir",
-            str(inner_output_dir),
-        ] + runtime_specific_args
+        command = (
+            [
+                str(gprofiler_inner_dir / gprofiler_exe),
+                "-v",
+                "--output-dir",
+                str(inner_output_dir),
+            ]
+            + runtime_specific_args
+            + flags
+        )
         run_gprofiler_in_container(docker_client, exec_container_image, command=command, volumes=volumes)
     else:
         os.mkdir(output_directory)
-        command = ["sudo", str(gprofiler_exe), "--output-dir", str(output_directory), "-d", "5"] + runtime_specific_args
+        command = (
+            ["sudo", str(gprofiler_exe), "--output-dir", str(output_directory), "-d", "5"]
+            + runtime_specific_args
+            + flags
+        )
         popen = Popen(command)
         popen.wait()
 
