@@ -3,6 +3,8 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import logging
+import os
+import shutil
 import signal
 from pathlib import Path
 from threading import Event
@@ -10,7 +12,8 @@ from threading import Event
 import pytest  # type: ignore
 from packaging.version import Version
 
-from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler, parse_jvm_version
+from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler, jattach_path, parse_jvm_version
+from gprofiler.utils import remove_prefix, run_process
 from tests.utils import assert_function_in_collapsed
 
 
@@ -34,7 +37,9 @@ def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_p
     caplog.set_level(logging.INFO)
     with JavaProfiler(11, 1, Event(), str(tmp_path), False, False, "cpu", 0, False, "ap") as profiler:
         process = profiler._select_processes_to_profile()[0]
-        with AsyncProfiledProcess(process, profiler._storage_dir, False, profiler._mode, False) as ap_proc:
+        with AsyncProfiledProcess(
+            process, profiler._storage_dir, False, profiler._mode, False, profiler._java_safemode
+        ) as ap_proc:
             assert ap_proc.start_async_profiler(11)
         assert any("libasyncProfiler.so" in m.path for m in process.memory_maps())
         # run "status"
@@ -221,3 +226,37 @@ def test_hotspot_error_file(application_pid, tmp_path, monkeypatch, caplog):
     assert "SIGBUS" in caplog.text
     assert "libpthread.so" in caplog.text
     assert "memory_usage_in_bytes:" in caplog.text
+
+
+def test_already_loaded_ap_profiling_failure(tmp_path, caplog, application_pid) -> None:
+    with JavaProfiler(
+        1,
+        5,
+        Event(),
+        str(tmp_path),
+        False,
+        True,
+        java_async_profiler_mode="cpu",
+        java_async_profiler_safemode=127,
+        java_safemode=True,
+        java_mode="ap",
+    ) as profiler:
+        # Attach async-profiler from a different path first
+        process = profiler._select_processes_to_profile()[0]
+        with AsyncProfiledProcess(
+            process, profiler._storage_dir, False, profiler._mode, profiler._safemode, profiler._java_safemode
+        ) as ap_proc:
+            os.makedirs(os.path.join(ap_proc._ap_dir_host, "modified_path"), exist_ok=True)
+            copied_libap_path = os.path.join(ap_proc._ap_dir_host, "modified_path", "libasyncProfiler.so")
+            shutil.copy(ap_proc._libap_path_process, copied_libap_path)
+            os.chmod(copied_libap_path, 0o777)
+            cmd = [
+                jattach_path(),
+                str(process.pid),
+                "load",
+                remove_prefix(copied_libap_path, ap_proc._process_root),
+                "true",
+            ]
+            run_process(cmd)
+        profiler.snapshot()
+        assert "Non-Gprofiler Async-profiler is already loaded to the target process:" in caplog.text
