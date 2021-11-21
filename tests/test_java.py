@@ -227,7 +227,7 @@ def test_hotspot_error_file(application_pid, tmp_path, monkeypatch, caplog):
 
 def test_already_loaded_ap_profiling_failure(tmp_path, monkeypatch, caplog, application_pid) -> None:
     with monkeypatch.context() as m:
-        m.setattr("gprofiler.profilers.java.get_temporary_storage_path", lambda: "/tmp/fake_gprofiler_tmp")
+        m.setattr("gprofiler.profilers.java.TEMPORARY_STORAGE_PATH", "/tmp/fake_gprofiler_tmp")
         with JavaProfiler(
             1,
             5,

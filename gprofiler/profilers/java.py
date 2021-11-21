@@ -22,9 +22,9 @@ from gprofiler.merge import parse_one_collapsed
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
+    TEMPORARY_STORAGE_PATH,
     get_mnt_ns_ancestor,
     get_process_nspid,
-    get_temporary_storage_path,
     is_process_running,
     pgrep_maps,
     process_comm,
@@ -158,7 +158,7 @@ class AsyncProfiledProcess:
         # we embed the async-profiler version in the path, so future gprofiler versions which use another version
         # of AP case use it (will be loaded as a different DSO)
         self._ap_dir = os.path.join(
-            get_temporary_storage_path(),
+            TEMPORARY_STORAGE_PATH,
             f"async-profiler-{get_ap_version()}",
             "musl" if self._is_musl() else "glibc",
         )
@@ -293,7 +293,7 @@ class AsyncProfiledProcess:
         if not self._java_safemode:
             return
         for mmap in self.process.memory_maps():
-            if "libasyncProfiler.so" in mmap.path and not mmap.path.startswith(get_temporary_storage_path()):
+            if "libasyncProfiler.so" in mmap.path and not mmap.path.startswith(TEMPORARY_STORAGE_PATH):
                 raise Exception(
                     f"Non-gProfiler Async-profiler is already loaded to the target process: {mmap.path!r}. "
                     f"Disable --java-safemode to bypass"

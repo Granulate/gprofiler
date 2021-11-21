@@ -42,11 +42,9 @@ T = TypeVar("T")
 
 logger = get_logger_adapter(__name__)
 
+TEMPORARY_STORAGE_PATH = "/tmp/gprofiler_tmp"
+
 gprofiler_mutex: Optional[socket.socket] = None
-
-
-def get_temporary_storage_path():
-    return "/tmp/gprofiler_tmp"
 
 
 @lru_cache(maxsize=None)
