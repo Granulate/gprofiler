@@ -7,6 +7,15 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 
+RUNTIME_PROFILERS = [
+    ("java", "ap"),
+    ("python", "py-spy"),
+    ("python", "pyperf"),
+    ("php", "phpspy"),
+    ("ruby", "rbspy"),
+    ("nodejs", "perf"),
+]
+
 
 def run_privileged_container(
     docker_client: DockerClient,

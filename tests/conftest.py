@@ -22,9 +22,17 @@ from tests.utils import assert_function_in_collapsed, chmod_path_parts
 
 
 @fixture
-def runtime():
+def runtime() -> str:
     """
-    Parametrize this with application runtime name (java, python).
+    Parametrize this with application runtime name (java, python, ..).
+    """
+    raise NotImplementedError
+
+
+@fixture
+def profiler_type() -> str:
+    """
+    Parametrize this with runtime profiler name (ap, py-spy, ...).
     """
     raise NotImplementedError
 
@@ -45,7 +53,7 @@ def in_container(request) -> bool:
 
 
 @fixture
-def java_args():
+def java_args() -> List[str]:
     return []
 
 
@@ -257,7 +265,7 @@ def exec_container_image(request, docker_client: DockerClient) -> Optional[Image
 
 
 @fixture
-def no_kernel_headers():
+def no_kernel_headers() -> Iterable[None]:
     release = os.uname().release
     headers_dir = f"/lib/modules/{release}"
     tmp_headers = f"{headers_dir}_tmp_moved"
@@ -270,6 +278,15 @@ def no_kernel_headers():
     finally:
         if os.path.exists(tmp_headers):
             os.rename(tmp_headers, headers_dir)
+
+
+@fixture
+def profiler_flags(runtime: str, profile_type: str) -> List[str]:
+    # Execute only the tested profiler
+    flags = ["--no-java", "--no-python", "--no-php", "--no-ruby"]
+    flags.remove(f"--no-{runtime}")
+    flags.append(f"--{runtime}-mode={profiler_type}")
+    return flags
 
 
 def pytest_addoption(parser):

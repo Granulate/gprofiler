@@ -17,7 +17,7 @@ from gprofiler.profilers.php import PHPSpyProfiler
 from gprofiler.profilers.python import PySpyProfiler, PythonEbpfProfiler
 from gprofiler.profilers.ruby import RbSpyProfiler
 from tests import PHPSPY_DURATION
-from tests.utils import assert_function_in_collapsed, run_gprofiler_in_container
+from tests.utils import RUNTIME_PROFILERS, assert_function_in_collapsed, run_gprofiler_in_container
 
 
 @pytest.mark.parametrize("runtime", ["java"])
@@ -112,7 +112,10 @@ def test_python_ebpf(
         )  # ensure native user stacks exist
 
 
-@pytest.mark.parametrize("runtime", ["java", "python", "php", "ruby"])
+@pytest.mark.parametrize(
+    "runtime,profiler_type",
+    RUNTIME_PROFILERS,
+)
 def test_from_container(
     docker_client: DockerClient,
     application_pid: int,
@@ -120,7 +123,7 @@ def test_from_container(
     gprofiler_docker_image: Image,
     output_directory: Path,
     assert_collapsed: Callable[[Mapping[str, int]], None],
-    runtime: str,
+    profiler_flags: List[str],
 ) -> None:
     _ = application_pid  # Fixture only used for running the application.
     inner_output_directory = "/tmp/gprofiler"
@@ -128,11 +131,7 @@ def test_from_container(
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
     }
 
-    # Execute only the tested profiler
-    flags = ["--no-java", "--no-python", "--no-php", "--no-ruby"]
-    flags.remove(f"--no-{runtime}")
-
-    args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args + flags
+    args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args + profiler_flags
     run_gprofiler_in_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
 
     collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
