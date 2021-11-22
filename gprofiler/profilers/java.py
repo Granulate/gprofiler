@@ -503,6 +503,7 @@ class JavaProfiler(ProcessProfilerBase):
     }
 
     _new_perf_event_mlock_kb = 8192
+    _should_profile = True
 
     def __init__(
         self,
@@ -536,6 +537,11 @@ class JavaProfiler(ProcessProfilerBase):
         self._java_safemode = java_safemode
         if self._java_safemode:
             logger.debug("Java safemode enabled")
+
+    def _disable_profiling(self):
+        logger.error("Java profiling has been disabled, avoiding from profiling any java process")
+        JavaProfiler._should_profile = False
+        self._stop_event.set()
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -642,6 +648,10 @@ class JavaProfiler(ProcessProfilerBase):
         return True
 
     def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
+        if not JavaProfiler._should_profile:
+            logger.debug(f"Java profiling has been disabled, skipping process {process.pid}")
+            return None
+
         if not self._is_profiling_supported(process):
             return None
 
@@ -716,6 +726,8 @@ class JavaProfiler(ProcessProfilerBase):
             f"native frames:\n{native_frames}\n"
             f"container info:\n{container_info}"
         )
+
+        self._disable_profiling()
 
     def _select_processes_to_profile(self) -> List[Process]:
         return pgrep_maps(r"^.+/libjvm\.so$")
