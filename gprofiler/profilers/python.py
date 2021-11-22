@@ -17,7 +17,7 @@ from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, St
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_many_collapsed, parse_one_collapsed_file
-from gprofiler.metadata.system_metadata import get_arch, is_container
+from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
@@ -174,11 +174,11 @@ class PythonEbpfProfiler(ProfilerBase):
     @staticmethod
     def _ebpf_environment() -> None:
         """
-        In container environments - make some changes so libbpf-based programs can run.
+        Make sure the environment is ready so that libbpf-based programs can run.
+        Technically this is needed only for container environments, but there's no reason not
+        to verify those conditions stand anyway (and during our tests - we run gProfiler's executable
+        in a container, so these steps have to run)
         """
-        if not is_container():
-            return
-
         # increase memlock (Docker defaults to 64k which is not enough for the get_offset programs)
         resource.setrlimit(resource.RLIMIT_MEMLOCK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
 
