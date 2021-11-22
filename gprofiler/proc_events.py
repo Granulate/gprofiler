@@ -80,6 +80,7 @@ class ProcEventsListener(threading.Thread):
     def __init__(self):
         self._socket = socket.socket(socket.AF_NETLINK, socket.SOCK_DGRAM, self._NETLINK_CONNECTOR)
         self._exit_callbacks = []
+        self._should_stop = False
 
         super().__init__(target=self._proc_events_listener, name="Process Events Listener", daemon=True)
 
@@ -100,8 +101,11 @@ class ProcEventsListener(threading.Thread):
 
         self._register_to_connector_events(self._socket)
 
-        while True:
+        while not self._should_stop:
             (readable, _, _) = select([self._socket], [], [])
+            if self._should_stop:
+                break
+
             data = readable[0].recv(256)
 
             nl_hdr = dict(
@@ -132,6 +136,11 @@ class ProcEventsListener(threading.Thread):
 
                 for callback in self._exit_callbacks:
                     callback(event_data["pid"], event_data["exit_code"])
+
+    @_raise_if_not_running
+    def stop(self):
+        self._should_stop = True
+        self._socket.close()
 
     @_raise_if_not_running
     def register_exit_callback(self, callback):
