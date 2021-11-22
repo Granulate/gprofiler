@@ -3,6 +3,10 @@ import os
 import time
 from typing import List, Tuple
 
+from gprofiler.log import get_logger_adapter
+
+logger = get_logger_adapter(__name__)
+
 # See linux/printk.h
 CONSOLE_EXT_LOG_MAX = 8192
 
@@ -21,8 +25,11 @@ class DevKmsgReader:
         try:
             # Each read() is one message
             while True:
-                message = os.read(self.dev_kmsg_fd, CONSOLE_EXT_LOG_MAX)
-                messages.append((time.time(), message))
+                try:
+                    message = os.read(self.dev_kmsg_fd, CONSOLE_EXT_LOG_MAX)
+                    messages.append((time.time(), message))
+                except BrokenPipeError:
+                    logger.warning("Missed some kernel messages.")
         except OSError as e:
             if e.errno != errno.EAGAIN:
                 raise
