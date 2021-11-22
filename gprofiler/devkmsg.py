@@ -43,6 +43,12 @@ class DevKmsgReader:
     @staticmethod
     def _parse_raw_messages(messages: List[Tuple[float, bytes]]):
         for timestamp, message in messages:
+            """
+            Example messages:
+            7,492,1207557,-;ahci 0000:00:0d.0: version 3.0\n SUBSYSTEM=pci\n DEVICE=+pci:0000:00:0d.0
+            6,339,5140900,-;NET: Registered protocol family 10
+            30,340,5690716,-;udevd[80]: starting version 181
+            """
             prefix, text = message.decode().split(";", maxsplit=1)
             fields = prefix.split(",")
             level = int(fields[0])
