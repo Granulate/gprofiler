@@ -19,13 +19,15 @@ from typing import Iterable, Optional
 import configargparse
 from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
+from utils.linux.oom import get_oom_entry
+from utils.linux.signals import get_signal_entry
 
 from gprofiler import __version__, merge
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
 from gprofiler.docker_client import DockerClient
 from gprofiler.exceptions import SystemProfilerInitFailure
 from gprofiler.gprofiler_types import UserArgs, positive_integer
-from gprofiler.kernel_messages import DevKmsgReader, KernelMessagePublisher
+from gprofiler.kernel_messages import DefaultMessageReader, KernelMessagePublisher
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
@@ -49,8 +51,6 @@ from gprofiler.utils import (
     resource_path,
     run_process,
 )
-from utils.linux.oom import get_oom_entry
-from utils.linux.signals import get_signal_entry
 
 logger: logging.LoggerAdapter
 
@@ -137,7 +137,7 @@ class GProfiler:
             self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
-        self._kernel_message_publisher = KernelMessagePublisher(DevKmsgReader())
+        self._kernel_message_publisher = KernelMessagePublisher(DefaultMessageReader())
 
     @property
     def all_profilers(self) -> Iterable[ProfilerInterface]:

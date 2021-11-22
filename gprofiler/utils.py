@@ -554,3 +554,9 @@ def get_mnt_ns_ancestor(process: Process) -> int:
             return process.pid
 
         process = parent
+
+
+def get_kernel_release() -> Tuple[int, int]:
+    """Return Linux kernel version as (major, minor) tuple."""
+    major_str, minor_str = os.uname().release.split(".", maxsplit=2)[:2]
+    return int(major_str), int(minor_str)
