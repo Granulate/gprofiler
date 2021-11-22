@@ -1,8 +1,8 @@
 import os
+import selectors
 import socket
 import struct
 import threading
-from select import select
 
 from gprofiler.log import get_logger_adapter
 
@@ -100,42 +100,50 @@ class ProcEventsListener(threading.Thread):
             logger.exception("")
 
         self._register_to_connector_events(self._socket)
+        selector = selectors.DefaultSelector()
+        selector.register(self._socket, selectors.EVENT_READ)
 
         while not self._should_stop:
-            (readable, _, _) = select([self._socket], [], [])
+            events = selector.select()
             if self._should_stop:
                 break
 
-            data = readable[0].recv(256)
+            for key, _ in events:
+                data = key.fileobj.recv(256)
 
-            nl_hdr = dict(
-                zip(("len", "type", "flags", "seq", "pid"), self._nlmsghdr.unpack(data[: self._nlmsghdr.size]))
-            )
-            if nl_hdr["type"] != self._NLMSG_DONE:
-                # Handle only netlink messages
-                continue
+                nl_hdr = dict(
+                    zip(("len", "type", "flags", "seq", "pid"), self._nlmsghdr.unpack(data[: self._nlmsghdr.size]))
+                )
+                if nl_hdr["type"] != self._NLMSG_DONE:
+                    # Handle only netlink messages
+                    continue
 
-            # Strip off headers
-            data = data[self._nlmsghdr.size : nl_hdr["len"]]
-            data = data[self._cn_msg.size :]
+                # Strip off headers
+                data = data[self._nlmsghdr.size : nl_hdr["len"]]
+                data = data[self._cn_msg.size :]
 
-            event = dict(
-                zip(("what", "cpu", "timestamp_ns"), self._base_proc_event.unpack(data[: self._base_proc_event.size]))
-            )
-
-            if event["what"] == self._PROC_EVENT_EXIT:
-                # (exit_signal is the signal that the parent process received on exit)
-                event_data = dict(
+                event = dict(
                     zip(
-                        ("pid", "tgid", "exit_code", "exit_signal"),
-                        self._exit_proc_event.unpack(
-                            data[self._base_proc_event.size : self._base_proc_event.size + self._exit_proc_event.size]
-                        ),
+                        ("what", "cpu", "timestamp_ns"),
+                        self._base_proc_event.unpack(data[: self._base_proc_event.size]),
                     )
                 )
 
-                for callback in self._exit_callbacks:
-                    callback(event_data["pid"], event_data["exit_code"])
+                if event["what"] == self._PROC_EVENT_EXIT:
+                    # (exit_signal is the signal that the parent process received on exit)
+                    event_data = dict(
+                        zip(
+                            ("pid", "tgid", "exit_code", "exit_signal"),
+                            self._exit_proc_event.unpack(
+                                data[
+                                    self._base_proc_event.size : self._base_proc_event.size + self._exit_proc_event.size
+                                ]
+                            ),
+                        )
+                    )
+
+                    for callback in self._exit_callbacks:
+                        callback(event_data["pid"], event_data["exit_code"])
 
     @_raise_if_not_running
     def stop(self):
