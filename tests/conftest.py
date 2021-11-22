@@ -44,29 +44,36 @@ def in_container(request) -> bool:
     return request.param
 
 
-def java_command_line(class_path: Path) -> List:
+@fixture
+def java_args():
+    return []
+
+
+@fixture
+def java_command_line(tmp_path: Path, java_args: List[str]) -> List[str]:
+    class_path = tmp_path / "java"
     class_path.mkdir()
     # make all directories readable & executable by all.
     # Java fails with permissions errors: "Error: Could not find or load main class Fibonacci"
     chmod_path_parts(class_path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
     subprocess.run(["javac", CONTAINERS_DIRECTORY / "java/Fibonacci.java", "-d", class_path])
-    return ["java", "-cp", class_path, "Fibonacci"]
+    return ["java"] + java_args + ["-cp", str(class_path), "Fibonacci"]
 
 
 @fixture
-def command_line(tmp_path: Path, runtime: str) -> List:
+def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
     return {
-        "java": java_command_line(tmp_path / "java"),
+        "java": java_command_line,
         # note: here we run "python /path/to/lister.py" while in the container test we have
         # "CMD /path/to/lister.py", to test processes with non-python /proc/pid/comm
-        "python": ["python3", CONTAINERS_DIRECTORY / "python/lister.py"],
-        "php": ["php", CONTAINERS_DIRECTORY / "php/fibonacci.php"],
-        "ruby": ["ruby", CONTAINERS_DIRECTORY / "ruby/fibonacci.rb"],
+        "python": ["python3", str(CONTAINERS_DIRECTORY / "python/lister.py")],
+        "php": ["php", str(CONTAINERS_DIRECTORY / "php/fibonacci.php")],
+        "ruby": ["ruby", str(CONTAINERS_DIRECTORY / "ruby/fibonacci.rb")],
         "nodejs": [
             "node",
             "--perf-prof",
             "--interpreted-frames-native-stack",
-            CONTAINERS_DIRECTORY / "nodejs/fibonacci.js",
+            str(CONTAINERS_DIRECTORY / "nodejs/fibonacci.js"),
         ],
     }[runtime]
 
@@ -95,7 +102,13 @@ def _print_process_output(popen: subprocess.Popen) -> None:
 
 
 @fixture
-def application_process(in_container: bool, command_line: List):
+def check_app_exited() -> bool:
+    """Override this to prevent checking if app exited prematurely (useful for simulating crash)."""
+    return True
+
+
+@fixture
+def application_process(in_container: bool, command_line: List[str], check_app_exited: bool):
     if in_container:
         yield None
         return
@@ -119,14 +132,15 @@ def application_process(in_container: bool, command_line: List):
 
         yield popen
 
-        # ensure, again, that it still alive (if it exited prematurely it might provide bad data for the tests)
-        try:
-            popen.wait(0)
-        except subprocess.TimeoutExpired:
-            pass
-        else:
-            _print_process_output(popen)
-            raise Exception(f"Command {command_line} exited unexpectedly during the test with {popen.returncode}")
+        if check_app_exited:
+            # ensure, again, that it still alive (if it exited prematurely it might provide bad data for the tests)
+            try:
+                popen.wait(0)
+            except subprocess.TimeoutExpired:
+                pass
+            else:
+                _print_process_output(popen)
+                raise Exception(f"Command {command_line} exited unexpectedly during the test with {popen.returncode}")
 
         popen.kill()
         _print_process_output(popen)

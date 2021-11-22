@@ -22,6 +22,7 @@ from gprofiler.metadata.system_metadata import get_arch, get_run_mode
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
+    is_process_running,
     pgrep_maps,
     poll_process,
     process_comm,
@@ -87,7 +88,7 @@ class PySpyProfiler(ProcessProfilerBase):
             except CalledProcessError as e:
                 if (
                     b"Error: Failed to get process executable name. Check that the process is running.\n" in e.stderr
-                    and not process.is_running()
+                    and not is_process_running(process)
                 ):
                     logger.debug(f"Profiled process {process.pid} exited before py-spy could start")
                     return None

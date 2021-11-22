@@ -16,6 +16,7 @@ from threading import Event
 from typing import Iterable, Optional
 
 import configargparse
+from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
 
 from gprofiler import __version__, merge
@@ -40,6 +41,7 @@ from gprofiler.utils import (
     atomically_symlink,
     get_iso8601_format_time,
     grab_gprofiler_mutex,
+    is_process_running,
     is_root,
     is_running_in_init_pid,
     reset_umask,
@@ -84,9 +86,11 @@ class GProfiler:
         state: State,
         usage_logger: UsageLoggerInterface,
         user_args: UserArgs,
+        duration: int,
         include_container_names=True,
         profile_api_version: Optional[str] = None,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
+        controller_process: Optional[Process] = None,
     ):
         self._output_dir = output_dir
         self._flamegraph = flamegraph
@@ -101,6 +105,8 @@ class GProfiler:
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
         self._gpid = ""
+        self._controller_process = controller_process
+        self._duration = duration
         if collect_metadata:
             self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
@@ -313,6 +319,8 @@ class GProfiler:
             self._remote_logs_handler.try_send_log_to_server()
         except Exception:
             logger.exception("Couldn't send logs to server")
+        else:
+            logger.debug("Successfully uploaded logs to the server")
 
     def run_single(self):
         with self:
@@ -330,6 +338,7 @@ class GProfiler:
             while not self._stop_event.is_set():
                 self._state.init_new_cycle()
 
+                snapshot_start = time.monotonic()
                 try:
                     self._snapshot()
                 except Exception:
@@ -337,6 +346,13 @@ class GProfiler:
                 finally:
                     self._send_remote_logs()  # function is safe, wrapped with try/except block inside
                 self._usage_logger.log_cycle()
+
+                # wait for one duration
+                self._stop_event.wait(max(self._duration - (time.monotonic() - snapshot_start), 0))
+
+                if self._controller_process is not None and not is_process_running(self._controller_process):
+                    logger.info(f"Controller process {self._controller_process.pid} has exited; gProfiler stopping...")
+                    break
 
 
 def parse_cmd_args():
@@ -499,6 +515,14 @@ def parse_cmd_args():
         help="Disable sending system and cloud metadata to the Performance Studio",
     )
 
+    parser.add_argument(
+        "--controller-pid",
+        default=None,
+        type=int,
+        help="PID of the process that invoked gProfiler; if given and that process exits, gProfiler will exit"
+        " as well",
+    )
+
     args = parser.parse_args()
 
     args.perf_inject = args.nodejs_mode == "perf"
@@ -620,6 +644,16 @@ def main():
 
     try:
         logger.info(f"Running gprofiler (version {__version__}), commandline: {' '.join(sys.argv[1:])!r}")
+
+        if args.controller_pid is not None:
+            try:
+                controller_process: Optional[Process] = Process(args.controller_pid)
+            except NoSuchProcess:
+                logger.error("Give controller PID is not running!")
+                sys.exit(1)
+        else:
+            controller_process = None
+
         try:
             log_system_info()
         except Exception:
@@ -667,9 +701,11 @@ def main():
             state,
             usage_logger,
             args.__dict__,
+            args.duration,
             not args.disable_container_names,
             args.profile_api_version,
             remote_logs_handler,
+            controller_process,
         )
         logger.info("gProfiler initialized and ready to start profiling")
         if args.continuous:
