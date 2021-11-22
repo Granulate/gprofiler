@@ -538,10 +538,10 @@ class JavaProfiler(ProcessProfilerBase):
         if self._java_safemode:
             logger.debug("Java safemode enabled")
 
-    def _disable_profiling(self):
-        logger.error("Java profiling has been disabled, avoiding from profiling any java process")
-        JavaProfiler._should_profile = False
-        self._stop_event.set()
+    @classmethod
+    def _disable_profiling(cls):
+        logger.error("Java profiling has been disabled, will avoid profiling any new java process")
+        cls._should_profile = False
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -648,10 +648,6 @@ class JavaProfiler(ProcessProfilerBase):
         return True
 
     def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
-        if not JavaProfiler._should_profile:
-            logger.debug(f"Java profiling has been disabled, skipping process {process.pid}")
-            return None
-
         if not self._is_profiling_supported(process):
             return None
 
@@ -730,6 +726,9 @@ class JavaProfiler(ProcessProfilerBase):
         self._disable_profiling()
 
     def _select_processes_to_profile(self) -> List[Process]:
+        if not self._should_profile:
+            logger.debug("Java profiling has been disabled, skipping profiling of all java process")
+            return []
         return pgrep_maps(r"^.+/libjvm\.so$")
 
     def start(self) -> None:

@@ -225,7 +225,7 @@ def test_hotspot_error_file(application_pid, tmp_path, monkeypatch, caplog):
     assert "SIGBUS" in caplog.text
     assert "libpthread.so" in caplog.text
     assert "memory_usage_in_bytes:" in caplog.text
-    assert "Java profiling has been disabled, avoiding from profiling any java process" in caplog.text
+    assert "Java profiling has been disabled, will avoid profiling any new java process" in caplog.text
     assert not JavaProfiler._should_profile
 
 
@@ -235,7 +235,7 @@ def test_disable_java_profiling(application_pid, tmp_path, monkeypatch, caplog):
     with JavaProfiler(1, 5, Event(), str(tmp_path), False, False, "cpu", 0, False, "ap") as profiler:
         assert len(profiler.snapshot()) == 0
 
-    assert "Java profiling has been disabled, skipping process" in caplog.text
+    assert "Java profiling has been disabled, skipping profiling of all java process" in caplog.text
 
 
 def test_already_loaded_ap_profiling_failure(tmp_path, monkeypatch, caplog, application_pid) -> None:
