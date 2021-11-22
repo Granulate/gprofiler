@@ -17,6 +17,7 @@ from gprofiler.exceptions import CalledProcessError, StopEventSetException
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
+from gprofiler.proc_events import ProcEventsListener
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
@@ -52,6 +53,23 @@ class JattachException(CalledProcessError):
 
     def get_ap_log(self) -> str:
         return self._ap_log
+
+
+class AsyncProfiledProcessMonitor:
+    def __init__(self):
+        self._attached_processes = []
+        self._proc_events_listener = ProcEventsListener()
+        self._proc_events_listener.start()
+        self._proc_events_listener.register_exit_callback(self._proc_exit_callback)
+
+    def _proc_exit_callback(self, pid, exit_code):
+        if pid in self._attached_processes:
+            if exit_code != 0:
+                logger.warning(f"Async-profiled Java process [{pid}] exited with error code: {exit_code}")
+            self._attached_processes.remove(pid)
+
+    def register_process(self, pid):
+        self._attached_processes.append(pid)
 
 
 @functools.lru_cache(maxsize=1)
@@ -345,6 +363,7 @@ class JavaProfiler(ProcessProfilerBase):
         self._mode = java_async_profiler_mode
         self._safemode = java_async_profiler_safemode
         self._saved_mlock: Optional[int] = None
+        self._process_monitor = AsyncProfiledProcessMonitor()
 
     def _is_jdk_version_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -402,6 +421,7 @@ class JavaProfiler(ProcessProfilerBase):
                 return None
 
         with AsyncProfiledProcess(process, self._storage_dir, self._buildids, self._mode, self._safemode) as ap_proc:
+            self._process_monitor.register_process(process.pid)
             return self._profile_ap_process(ap_proc)
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[StackToSampleCount]:
