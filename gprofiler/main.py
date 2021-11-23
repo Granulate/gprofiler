@@ -4,7 +4,6 @@
 #
 import concurrent.futures
 import datetime
-import json
 import logging
 import logging.config
 import logging.handlers
@@ -19,22 +18,20 @@ from typing import Iterable, Optional
 import configargparse
 from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
-from utils.linux.oom import get_oom_entry
-from utils.linux.signals import get_signal_entry
 
 from gprofiler import __version__, merge
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
 from gprofiler.docker_client import DockerClient
 from gprofiler.exceptions import SystemProfilerInitFailure
 from gprofiler.gprofiler_types import UserArgs, positive_integer
-from gprofiler.kernel_messages import DefaultMessageReader, KernelMessagePublisher
+from gprofiler.kernel_messages import DefaultMessagesProvider
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
 from gprofiler.profilers.factory import get_profilers
-from gprofiler.profilers.profiler_base import NoopProfiler, ProfilerInterface
+from gprofiler.profilers.profiler_base import NoopProfiler, ProfilerInterface, handle_new_kernel_messages
 from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
@@ -137,7 +134,7 @@ class GProfiler:
             self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
-        self._kernel_message_publisher = KernelMessagePublisher(DefaultMessageReader())
+        self._kernel_messages_provider = DefaultMessagesProvider()
 
     @property
     def all_profilers(self) -> Iterable[ProfilerInterface]:
@@ -216,8 +213,6 @@ class GProfiler:
     def start(self):
         self._stop_event.clear()
         self._system_metrics_monitor.start()
-        self._kernel_message_publisher.subscribe(self._log_kernel_message_oom)
-        self._kernel_message_publisher.subscribe(self._log_kernel_message_signal)
 
         for prof in list(self.all_profilers):
             try:
@@ -313,16 +308,6 @@ class GProfiler:
             else:
                 logger.info("Successfully uploaded profiling data to the server")
 
-    def _log_kernel_message_oom(self, message):
-        entry = get_oom_entry(message)
-        if entry:
-            logger.info(f"OOM: {json.dumps(entry._asdict())}")
-
-    def _log_kernel_message_signal(self, message):
-        entry = get_signal_entry(message)
-        if entry:
-            logger.info(f"Signaled: {json.dumps(entry._asdict())}")
-
     def _send_remote_logs(self):
         """
         The function is safe to call without wrapping with try/except block, the function should does the exception
@@ -353,7 +338,6 @@ class GProfiler:
 
             while not self._stop_event.is_set():
                 self._state.init_new_cycle()
-                self._kernel_message_publisher.handle_new_messages()
 
                 snapshot_start = time.monotonic()
                 try:
@@ -361,6 +345,7 @@ class GProfiler:
                 except Exception:
                     logger.exception("Profiling run failed!")
                 finally:
+                    handle_new_kernel_messages(self._kernel_messages_provider)
                     self._send_remote_logs()  # function is safe, wrapped with try/except block inside
                 self._usage_logger.log_cycle()
 

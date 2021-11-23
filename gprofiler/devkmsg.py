@@ -15,7 +15,7 @@ logger = get_logger_adapter(__name__)
 CONSOLE_EXT_LOG_MAX = 8192
 
 
-class DevKmsgReader:
+class DevKmsgProvider:
     # The /dev/kmsg interfaced is described at Documentation/ABI/testing/dev-kmsg in the kernel source tree
     # and can be viewed at https://github.com/torvalds/linux/blob/master/Documentation/ABI/testing/dev-kmsg.
     def __init__(self):
