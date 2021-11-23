@@ -15,11 +15,11 @@ import psutil
 from packaging.version import Version
 from psutil import Process
 
+from gprofiler import proc_events
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
-from gprofiler.proc_events import ProcEventsListener
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
@@ -114,9 +114,7 @@ class JattachException(CalledProcessError):
 class AsyncProfiledProcessMonitor:
     def __init__(self):
         self._attached_processes = []
-        self._proc_events_listener = ProcEventsListener()
-        self._proc_events_listener.start()
-        self._proc_events_listener.register_exit_callback(self._proc_exit_callback)
+        proc_events.register_exit_callback(self._proc_exit_callback)
 
     def _proc_exit_callback(self, tid, pid, exit_code):
         if pid in self._attached_processes:

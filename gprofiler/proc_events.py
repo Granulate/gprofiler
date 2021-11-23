@@ -14,7 +14,13 @@ def _raise_if_not_running(func):
     return wrapper
 
 
-class ProcEventsListener(threading.Thread):
+class _ProcEventsListener(threading.Thread):
+    """Thead listening to process events.
+
+    Notice that there cannot be more than a single instance of this class per-process because it opens a
+    process-connector socket that can (probably) not be opened twice in the same process.
+    """
+
     # linux/netlink.h:
     _NETLINK_CONNECTOR = 11
 
@@ -158,8 +164,16 @@ class ProcEventsListener(threading.Thread):
 
     @_raise_if_not_running
     def register_exit_callback(self, callback):
-        """Register a function to be called whenever a process exits
-
-        The callback should receive three arguments: tid, pid and exit_code.
-        """
         self._exit_callbacks.append(callback)
+
+
+_proc_events_listener = _ProcEventsListener()
+_proc_events_listener.start()
+
+
+def register_exit_callback(callback):
+    """Register a function to be called whenever a process exits
+
+    The callback should receive three arguments: tid, pid and exit_code.
+    """
+    _proc_events_listener.register_exit_callback(callback)
