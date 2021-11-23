@@ -16,7 +16,7 @@ from utils.linux.signals import get_signal_entry
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.log import get_logger_adapter
-from gprofiler.utils import limit_frequency, is_process_running
+from gprofiler.utils import is_process_running, limit_frequency
 
 logger = get_logger_adapter(__name__)
 
@@ -92,6 +92,7 @@ class ProcessProfilerBase(ProfilerBase):
     This class implements snapshot() for them - creates a thread that runs _profile_process() for each
     process that we wish to profile; then waits for all and returns the result.
     """
+
     profiled_processes = set()
 
     @classmethod
