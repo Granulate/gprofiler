@@ -84,8 +84,8 @@ class ProcEventsListener(threading.Thread):
 
         super().__init__(target=self._proc_events_listener, name="Process Events Listener", daemon=True)
 
-    def _register_to_connector_events(self, socket):
-        """Notify the kernel that we're listening to events on the connector"""
+    def _register_for_connector_events(self, socket):
+        """Notify the kernel that we're listening for events on the connector"""
         cn_proc_op = struct.Struct("=I").pack(self._PROC_CN_MCAST_LISTEN)
         cn_msg = self._cn_msg.pack(self._CN_IDX_PROC, self._CN_VAL_PROC, 0, 0, len(cn_proc_op), 0) + cn_proc_op
         nl_msg = self._nlmsghdr.pack(self._nlmsghdr.size + len(cn_msg), self._NLMSG_DONE, 0, 0, os.getpid()) + cn_msg
@@ -99,7 +99,7 @@ class ProcEventsListener(threading.Thread):
         except socket.error:
             logger.exception("")
 
-        self._register_to_connector_events(self._socket)
+        self._register_for_connector_events(self._socket)
         selector = selectors.DefaultSelector()
         selector.register(self._socket, selectors.EVENT_READ)
 
