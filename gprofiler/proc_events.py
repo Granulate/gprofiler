@@ -4,10 +4,6 @@ import socket
 import struct
 import threading
 
-from gprofiler.log import get_logger_adapter
-
-logger = get_logger_adapter(__name__)
-
 
 def _raise_if_not_running(func):
     def wrapper(self, *args, **kwargs):
@@ -96,8 +92,8 @@ class ProcEventsListener(threading.Thread):
         """Runs forever and calls registered callbacks on process events"""
         try:
             self._socket.bind((os.getpid(), self._CN_IDX_PROC))
-        except socket.error:
-            logger.exception("")
+        except PermissionError as e:
+            raise PermissionError("You don't have permissions to bind to the process events connector") from e
 
         self._register_for_connector_events(self._socket)
         selector = selectors.DefaultSelector()
