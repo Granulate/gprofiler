@@ -81,9 +81,7 @@ def test_java_async_profiler_cpu_mode(
         assert len(result) == 1
         process_collapsed = result[next(iter(result.keys()))]
         assert_collapsed(process_collapsed, check_comm=True)
-        assert_function_in_collapsed(
-            "do_syscall_64_[k]", "java", process_collapsed, True
-        )  # ensure kernels stacks exist
+        assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed, True)  # ensure kernels stacks exist
 
 
 @pytest.mark.parametrize("in_container", [True])
@@ -113,9 +111,7 @@ def test_java_async_profiler_musl_and_cpu(
         assert len(result) == 1
         process_collapsed = result[next(iter(result.keys()))]
         assert_collapsed(process_collapsed, check_comm=True)
-        assert_function_in_collapsed(
-            "do_syscall_64_[k]", "java", process_collapsed, True
-        )  # ensure kernels stacks exist
+        assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed, True)  # ensure kernels stacks exist
 
 
 def test_java_safemode_parameters(tmp_path) -> None:

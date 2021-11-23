@@ -19,6 +19,8 @@ ARG BURN_BUILDER_GOLANG=@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d
 # CentOS 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
 # this will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
 ARG GPROFILER_BUILDER=@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e
+# pyperf - ubuntu 20.04
+ARG PYPERF_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
 
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
@@ -76,6 +78,24 @@ FROM golang${BURN_BUILDER_GOLANG} AS burn-builder
 
 COPY scripts/burn_build.sh .
 RUN ./burn_build.sh
+
+# bcc helpers
+# built on newer Ubuntu because they require new clang (newer than available in GPROFILER_BUILDER's CentOS 7)
+# these are only relevant for modern kernels, so there's no real reason to build them on CentOS 7 anyway.
+FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-helpers
+
+RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; apt-get update && apt install -y \
+    clang-10 \
+    libelf-dev \
+    make \
+    build-essential \
+    llvm \
+    git
+
+COPY --from=perf-builder /bpftool /bpftool
+
+COPY scripts/bcc_helpers_build.sh .
+RUN ./bcc_helpers_build.sh
 
 
 # bcc & gprofiler
@@ -142,6 +162,8 @@ RUN cp /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf
 RUN cp /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
 RUN cp -r /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
 RUN cp /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
+COPY --from=bcc-helpers /bpf_get_fs_offset/get_fs_offset gprofiler/resources/python/pyperf/
+COPY --from=bcc-helpers /bpf_get_stack_offset/get_stack_offset gprofiler/resources/python/pyperf/
 
 COPY --from=pyspy-builder /py-spy/py-spy gprofiler/resources/python/py-spy
 COPY --from=rbspy-builder /rbspy/rbspy gprofiler/resources/ruby/rbspy
