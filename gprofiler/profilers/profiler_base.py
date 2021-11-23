@@ -5,7 +5,6 @@
 
 import concurrent.futures
 import json
-from contextlib import contextmanager
 from threading import Event
 from typing import List, Optional
 
