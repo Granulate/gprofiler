@@ -32,6 +32,10 @@ def test_from_executable(
     _ = application_pid  # Fixture only used for running the application.
 
     if exec_container_image is not None:
+        if "centos:6" in exec_container_image.tags and any("pyperf" in flag for flag in profiler_flags):
+            # don't run PyPerf on the centos:6 image, it fails. And in any case PyPerf can't run on centos:6.
+            pytest.skip("PyPerf test on centos:6")
+
         gprofiler_inner_dir = Path("/app")
         inner_output_dir = Path("/app/output")
         cwd = Path(os.getenv("GITHUB_WORKSPACE", os.getcwd()))
