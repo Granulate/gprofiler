@@ -4,4 +4,4 @@ WORKDIR /app
 ADD Fibonacci.java /app
 RUN javac Fibonacci.java
 
-CMD ["java", "Fibonacci"]
+CMD ["sh", "-c", "java Fibonacci; sleep 10000"]

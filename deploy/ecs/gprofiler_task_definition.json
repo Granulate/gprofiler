@@ -20,16 +20,6 @@
                 {
                   "containerPath": "/var/run/docker.sock",
                   "sourceVolume": "docker-socket"
-                },
-                {
-                  "containerPath": "/usr/src",
-                  "sourceVolume": "usr-src",
-                  "readOnly": true
-                },
-                {
-                  "containerPath": "/lib/modules",
-                  "sourceVolume": "lib-modules",
-                  "readOnly": true
                 }
             ],
             "user": "0:0",

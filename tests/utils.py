@@ -7,6 +7,15 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 
+RUNTIME_PROFILERS = [
+    ("java", "ap"),
+    ("python", "py-spy"),
+    ("python", "pyperf"),
+    ("php", "phpspy"),
+    ("ruby", "rbspy"),
+    ("nodejs", "perf"),
+]
+
 
 def run_privileged_container(
     docker_client: DockerClient,
@@ -84,9 +93,7 @@ def chmod_path_parts(path: Path, add_mode: int) -> None:
         os.chmod(subpath, os.stat(subpath).st_mode | add_mode)
 
 
-def assert_function_in_collapsed(
-    function_name: str, runtime: str, collapsed: Mapping[str, int], check_comm: bool = False
-) -> None:
+def assert_function_in_collapsed(function_name: str, collapsed: Mapping[str, int], check_comm: bool = False) -> None:
     print(f"collapsed: {collapsed}")
     assert any(
         (function_name in record) for record in collapsed.keys()

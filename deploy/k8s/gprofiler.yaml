@@ -20,12 +20,6 @@ spec:
         app: granulate-gprofiler
     spec:
       volumes:
-        - name: lib-modules
-          hostPath:
-            path: /lib/modules
-        - name: usr-src
-          hostPath:
-            path: /usr/src
         - name: docker-sock # Allow containers to fetch the names
           hostPath:
             path: /var/run/docker.sock
@@ -48,12 +42,6 @@ spec:
           image: index.docker.io/granulate/gprofiler:latest
           imagePullPolicy: Always
           volumeMounts:
-            - name: lib-modules
-              mountPath: /lib/modules
-              readOnly: true
-            - name: usr-src
-              mountPath: /usr/src
-              readOnly: true
             - name: docker-sock
               mountPath: /var/run/docker.sock
           args:

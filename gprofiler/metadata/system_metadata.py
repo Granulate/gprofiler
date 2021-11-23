@@ -59,10 +59,14 @@ def get_libc_version() -> Tuple[str, str]:
     return "unknown", decode_libc_version(ldd_version)
 
 
+def is_container() -> bool:
+    return os.getenv("GPROFILER_IN_CONTAINER") is not None  # set by our Dockerfile
+
+
 def get_run_mode() -> str:
     if os.getenv("GPROFILER_IN_K8S") is not None:  # set in k8s/gprofiler.yaml
         return "k8s"
-    elif os.getenv("GPROFILER_IN_CONTAINER") is not None:  # set by our Dockerfile
+    elif is_container():
         return "container"
     elif is_pyinstaller():
         return "standalone_executable"

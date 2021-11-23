@@ -2,22 +2,16 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import time
+import logging
+import signal
 from pathlib import Path
-from subprocess import Popen
 from threading import Event
-from typing import Callable, List, Mapping, Optional
 
-import psutil
 import pytest  # type: ignore
-from docker import DockerClient
-from docker.models.containers import Container
-from docker.models.images import Image
 from packaging.version import Version
 
-from gprofiler.merge import parse_one_collapsed
-from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler
-from tests.utils import assert_function_in_collapsed, run_gprofiler_in_container
+from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler, parse_jvm_version
+from tests.utils import assert_function_in_collapsed
 
 
 # adds the "status" command to AsyncProfiledProcess from gProfiler.
@@ -33,74 +27,33 @@ def runtime() -> str:
     return "java"
 
 
-def test_java_async_profiler_stopped(
-    docker_client: DockerClient,
-    application_pid: int,
-    runtime_specific_args: List[str],
-    gprofiler_docker_image: Image,
-    output_directory: Path,
-    assert_collapsed: Callable[[Mapping[str, int]], None],
-    tmp_path: str,
-    application_docker_container: Optional[Container],
-    application_process: Optional[Popen],
-) -> None:
+def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_path, caplog):
     """
-    This test runs gProfiler, targeting a Java application. Then kills gProfiler brutally so profiling doesn't
-    stop gracefully and async-profiler remains active.
-    Then runs gProfiler again and makes sure we're able to restart async-profiler and get results normally.
+    Test we're able to restart async-profiler in case it's already running in the process and get results normally.
     """
+    caplog.set_level(logging.INFO)
+    with JavaProfiler(11, 1, Event(), str(tmp_path), False, False, "cpu", 0, False, "ap") as profiler:
+        process = profiler._select_processes_to_profile()[0]
+        with AsyncProfiledProcess(
+            process, profiler._storage_dir, False, profiler._mode, False, profiler._java_safemode
+        ) as ap_proc:
+            assert ap_proc.start_async_profiler(11)
+        assert any("libasyncProfiler.so" in m.path for m in process.memory_maps())
+        # run "status"
+        with AsyncProfiledProcessForTests(
+            process, profiler._storage_dir, False, mode="itimer", safemode=False, java_safemode=profiler._java_safemode
+        ) as ap_proc:
+            ap_proc.status_async_profiler()
+            # printed the output file, see ACTION_STATUS case in async-profiler/profiler.cpp
+            assert "Profiling is running for " in ap_proc.read_output()
 
-    inner_output_directory = "/tmp/gprofiler"
-    volumes = {
-        str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
-    }
-    # run Java only (just so initialization is faster w/o others) for 1000 seconds
-    args = [
-        "-v",
-        "-d",
-        "1000",
-        "-o",
-        inner_output_directory,
-        "--no-php",
-        "--no-python",
-        "--no-ruby",
-        "--perf-mode=none",
-    ] + runtime_specific_args
-
-    container = None
-    try:
-        container, logs = run_gprofiler_in_container(
-            docker_client, gprofiler_docker_image, args, volumes=volumes, auto_remove=False, detach=True
-        )
-        assert container is not None, "got None container?"
-
-        # and stop after a short while, brutally.
-        time.sleep(10)
-        container.kill("SIGKILL")
-    finally:
-        if container is not None:
-            print("gProfiler container logs:", container.logs().decode(), sep="\n")
-            container.remove(force=True)
-
-    proc = psutil.Process(application_pid)
-    assert any("libasyncProfiler.so" in m.path for m in proc.memory_maps())
-
-    # run "status"
-    with AsyncProfiledProcessForTests(proc, tmp_path, False, mode="itimer", safemode=0) as ap_proc:
-        ap_proc.status_async_profiler()
-
-        # printed the output file, see ACTION_STATUS case in async-profiler/profiler.cpp\
-        assert "Profiling is running for " in ap_proc.read_output()
-
-    # then start again, with 1 second
-    assert args[2] == "1000"
-    args[2] = "1"
-    _, logs = run_gprofiler_in_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
-
-    assert "Found async-profiler already started" in logs
-
-    collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
-    assert_collapsed(collapsed)
+        # then start again
+        result = profiler.snapshot()
+        assert len(result) == 1
+        collapsed = result[next(iter(result.keys()))]
+        assert "Found async-profiler already started" in caplog.text
+        assert "Finished profiling process" in caplog.text
+        assert_collapsed(collapsed)
 
 
 @pytest.mark.parametrize("in_container", [True])
@@ -124,11 +77,11 @@ def test_java_async_profiler_cpu_mode(
         java_safemode=False,
         java_mode="ap",
     ) as profiler:
-        process_collapsed = profiler.snapshot().get(application_pid)
+        result = profiler.snapshot()
+        assert len(result) == 1
+        process_collapsed = result[next(iter(result.keys()))]
         assert_collapsed(process_collapsed, check_comm=True)
-        assert_function_in_collapsed(
-            "do_syscall_64_[k]", "java", process_collapsed, True
-        )  # ensure kernels stacks exist
+        assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed, True)  # ensure kernels stacks exist
 
 
 @pytest.mark.parametrize("in_container", [True])
@@ -154,11 +107,11 @@ def test_java_async_profiler_musl_and_cpu(
         java_safemode=False,
         java_mode="ap",
     ) as profiler:
-        process_collapsed = profiler.snapshot().get(application_pid)
+        result = profiler.snapshot()
+        assert len(result) == 1
+        process_collapsed = result[next(iter(result.keys()))]
         assert_collapsed(process_collapsed, check_comm=True)
-        assert_function_in_collapsed(
-            "do_syscall_64_[k]", "java", process_collapsed, True
-        )  # ensure kernels stacks exist
+        assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed, True)  # ensure kernels stacks exist
 
 
 def test_java_safemode_parameters(tmp_path) -> None:
@@ -210,17 +163,93 @@ def test_java_safemode_version_check(
         java_safemode=True,
         java_mode="ap",
     ) as profiler:
+        process = profiler._select_processes_to_profile()[0]
+        jvm_version = parse_jvm_version(profiler._get_java_version(process))
         profiler.snapshot()
 
-    assert len(caplog.records) > 0
-    message = caplog.records[0].message
-    assert "Unsupported java version 8.275" in message
+    assert f"Unsupported java version {jvm_version.version}" in caplog.text
 
 
 def test_java_safemode_build_number_check(
     tmp_path, monkeypatch, caplog, application_docker_container, application_process
 ) -> None:
-    monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (Version("8.275"), 999))
+    with JavaProfiler(
+        1,
+        5,
+        Event(),
+        str(tmp_path),
+        False,
+        True,
+        java_async_profiler_mode="cpu",
+        java_async_profiler_safemode=127,
+        java_safemode=True,
+        java_mode="ap",
+    ) as profiler:
+        process = profiler._select_processes_to_profile()[0]
+        jvm_version = parse_jvm_version(profiler._get_java_version(process))
+        monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (jvm_version.version, 999))
+        profiler.snapshot()
+        assert f"Unsupported build number {jvm_version.build} for java version {jvm_version.version}" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "in_container,java_args,check_app_exited",
+    [
+        (False, [], False),  # default
+        (False, ["-XX:ErrorFile=/tmp/my_custom_error_file.log"], False),  # custom error file
+        (True, [], False),  # containerized (other params are ignored)
+    ],
+)
+def test_hotspot_error_file(application_pid, tmp_path, monkeypatch, caplog):
+    start_async_profiler = AsyncProfiledProcess.start_async_profiler
+
+    # Simulate crashing process
+    def sap_and_crash(self, *args, **kwargs):
+        result = start_async_profiler(self, *args, **kwargs)
+        self.process.send_signal(signal.SIGBUS)
+        return result
+
+    monkeypatch.setattr(AsyncProfiledProcess, "start_async_profiler", sap_and_crash)
+    # To make sure it is reverted to True (the original value) after the test
+    monkeypatch.setattr(JavaProfiler, "_should_profile", True)
+
+    with JavaProfiler(1, 5, Event(), str(tmp_path), False, False, "cpu", 0, False, "ap") as profiler:
+        profiler.snapshot()
+
+    assert "Found Hotspot error log" in caplog.text
+    assert "OpenJDK" in caplog.text
+    assert "SIGBUS" in caplog.text
+    assert "libpthread.so" in caplog.text
+    assert "memory_usage_in_bytes:" in caplog.text
+    assert "Java profiling has been disabled, will avoid profiling any new java process" in caplog.text
+    assert not JavaProfiler._should_profile
+
+
+def test_disable_java_profiling(application_pid, tmp_path, monkeypatch, caplog):
+    monkeypatch.setattr(JavaProfiler, "_should_profile", False)
+    caplog.set_level(logging.DEBUG)
+    with JavaProfiler(1, 5, Event(), str(tmp_path), False, False, "cpu", 0, False, "ap") as profiler:
+        assert len(profiler.snapshot()) == 0
+
+    assert "Java profiling has been disabled, skipping profiling of all java process" in caplog.text
+
+
+def test_already_loaded_ap_profiling_failure(tmp_path, monkeypatch, caplog, application_pid) -> None:
+    with monkeypatch.context() as m:
+        m.setattr("gprofiler.profilers.java.TEMPORARY_STORAGE_PATH", "/tmp/fake_gprofiler_tmp")
+        with JavaProfiler(
+            1,
+            5,
+            Event(),
+            str(tmp_path),
+            False,
+            True,
+            java_async_profiler_mode="cpu",
+            java_async_profiler_safemode=127,
+            java_safemode=True,
+            java_mode="ap",
+        ) as profiler:
+            profiler.snapshot()
 
     with JavaProfiler(
         1,
@@ -234,9 +263,7 @@ def test_java_safemode_build_number_check(
         java_safemode=True,
         java_mode="ap",
     ) as profiler:
+        process = profiler._select_processes_to_profile()[0]
+        assert any("/tmp/fake_gprofiler_tmp" in mmap.path for mmap in process.memory_maps())
         profiler.snapshot()
-
-    assert len(caplog.records) > 0
-    message = caplog.records[0].message
-    assert "Unsupported build number" in message
-    assert "for java version 8.275" in message
+        assert "Non-gProfiler Async-profiler is already loaded to the target process:" in caplog.text

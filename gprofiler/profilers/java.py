@@ -15,7 +15,7 @@ import psutil
 from packaging.version import Version
 from psutil import Process
 
-from gprofiler.exceptions import CalledProcessError, StopEventSetException
+from gprofiler.exceptions import CalledProcessError
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
@@ -25,6 +25,7 @@ from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     get_mnt_ns_ancestor,
     get_process_nspid,
+    is_process_running,
     pgrep_maps,
     process_comm,
     read_perf_event_mlock_kb,
@@ -35,8 +36,60 @@ from gprofiler.utils import (
     run_in_ns,
     run_process,
     touch_path,
+    wait_event,
     write_perf_event_mlock_kb,
 )
+
+NATIVE_FRAMES_REGEX = re.compile(r"^Native frames:[^\n]*\n(.*?)\n\n", re.MULTILINE | re.DOTALL)
+"""
+See VMError::print_native_stack.
+Example:
+    Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+    C  [libc.so.6+0x18e4e1]
+    C  [libasyncProfiler.so+0x1bb4e]  Profiler::dump(std::ostream&, Arguments&)+0xce
+    C  [libasyncProfiler.so+0x1bcae]  Profiler::runInternal(Arguments&, std::ostream&)+0x9e
+    C  [libasyncProfiler.so+0x1c242]  Profiler::run(Arguments&)+0x212
+    C  [libasyncProfiler.so+0x48d81]  Agent_OnAttach+0x1e1
+    V  [libjvm.so+0x7ea65b]
+    V  [libjvm.so+0x2f5e62]
+    V  [libjvm.so+0xb08d2f]
+    V  [libjvm.so+0xb0a0fa]
+    V  [libjvm.so+0x990552]
+    C  [libpthread.so.0+0x76db]  start_thread+0xdb
+"""
+
+SIGINFO_REGEX = re.compile(r"^siginfo: ([^\n]*)", re.MULTILINE | re.DOTALL)
+"""
+See os::print_siginfo
+Example:
+    siginfo: si_signo: 11 (SIGSEGV), si_code: 0 (SI_USER), si_pid: 537787, si_uid: 0
+"""
+
+CONTAINER_INFO_REGEX = re.compile(r"^container \(cgroup\) information:\n(.*?)\n\n", re.MULTILINE | re.DOTALL)
+"""
+See os::Linux::print_container_info
+Example:
+    container (cgroup) information:
+    container_type: cgroupv1
+    cpu_cpuset_cpus: 0-15
+    cpu_memory_nodes: 0
+    active_processor_count: 16
+    cpu_quota: -1
+    cpu_period: 100000
+    cpu_shares: -1
+    memory_limit_in_bytes: -1
+    memory_and_swap_limit_in_bytes: -2
+    memory_soft_limit_in_bytes: -1
+    memory_usage_in_bytes: 26905034752
+    memory_max_usage_in_bytes: 27891224576
+"""
+
+VM_INFO_REGEX = re.compile(r"^vm_info: ([^\n]*)", re.MULTILINE | re.DOTALL)
+"""
+This is the last line printed in VMError::report.
+Example:
+    vm_info: OpenJDK 64-Bit Server VM (25.292-b10) for linux-amd64 JRE (1.8.0_292-8u292-b10-0ubuntu1~18.04-b10), ...
+"""
 
 logger = get_logger_adapter(__name__)
 
@@ -81,7 +134,9 @@ class AsyncProfiledProcess:
     OUTPUT_FORMAT = "collapsed"
     OUTPUTS_MODE = 0o622  # readable by root, writable by all
 
-    def __init__(self, process: Process, storage_dir: str, buildids: bool, mode: str, safemode: int):
+    def __init__(
+        self, process: Process, storage_dir: str, buildids: bool, mode: str, safemode: int, java_safemode: bool
+    ):
         self.process = process
         # access the process' root via its topmost parent/ancestor which uses the same mount namespace.
         # this allows us to access the files after the process exits:
@@ -91,6 +146,10 @@ class AsyncProfiledProcess:
         # there is a hidden assumption here that neither the ancestor nor the process will change their mount
         # namespace. I think it's okay to assume that.
         self._process_root = f"/proc/{get_mnt_ns_ancestor(process)}/root"
+        self._cmdline = process.cmdline()
+        self._cwd = process.cwd()
+        self._nspid = get_process_nspid(self.process.pid)
+
         # not using storage_dir for AP itself on purpose: this path should remain constant for the lifetime
         # of the target process, so AP is loaded exactly once (if we have multiple paths, AP can be loaded
         # multiple times into the process)
@@ -121,12 +180,14 @@ class AsyncProfiledProcess:
         assert mode in ("cpu", "itimer"), f"unexpected mode: {mode}"
         self._mode = mode
         self._safemode = safemode
+        self._java_safemode = java_safemode
 
     def __enter__(self):
         os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
         os.makedirs(self._storage_dir_host, 0o755, exist_ok=True)
 
         self._check_disk_requirements()
+        self._check_async_profiler_not_loaded()
 
         # make out & log paths writable for all, so target process can write to them.
         # see comment on TemporaryDirectoryWithMode in GProfiler.__init__.
@@ -144,6 +205,35 @@ class AsyncProfiledProcess:
         # remove them as best effort.
         remove_path(self._output_path_host, missing_ok=True)
         remove_path(self._log_path_host, missing_ok=True)
+
+    def _existing_realpath(self, path):
+        """
+        Return path relative to process working directory if it exists. Otherwise return None.
+        """
+        if not path.startswith("/"):
+            # relative path
+            path = f"{self._cwd}/{path}"
+        path = resolve_proc_root_links(self._process_root, path)
+        return path if os.path.exists(path) else None
+
+    def locate_hotspot_error_file(self) -> Optional[str]:
+        """
+        Locate a fatal error log written by the Hotspot JVM, if one exists.
+        See https://docs.oracle.com/javase/8/docs/technotes/guides/troubleshoot/felog001.html.
+        """
+        default_error_file = f"hs_err_pid{self._nspid}.log"
+        locations = [f"{default_error_file}", f"/tmp/{default_error_file}"]
+        for arg in self._cmdline:
+            if arg.startswith("-XX:ErrorFile="):
+                _, error_file = arg.split("=", maxsplit=1)
+                locations.insert(0, error_file.replace("%p", str(self._nspid)))
+                break
+
+        for path in locations:
+            path = self._existing_realpath(path)
+            if path:
+                return path
+        return None
 
     @functools.lru_cache(maxsize=1)
     def _is_musl(self) -> bool:
@@ -197,6 +287,16 @@ class AsyncProfiledProcess:
                 f"Not enough free disk space: {free_disk}kb left, {250 * 1024}kb"
                 f" required (on path: {self._output_path_host!r}"
             )
+
+    def _check_async_profiler_not_loaded(self) -> None:
+        if not self._java_safemode:
+            return
+        for mmap in self.process.memory_maps():
+            if "libasyncProfiler.so" in mmap.path and not mmap.path.startswith(TEMPORARY_STORAGE_PATH):
+                raise Exception(
+                    f"Non-gProfiler Async-profiler is already loaded to the target process: {mmap.path!r}. "
+                    f"Disable --java-safemode to bypass"
+                )
 
     def _get_base_cmd(self) -> List[str]:
         return [
@@ -279,9 +379,7 @@ class AsyncProfiledProcess:
             return Path(self._output_path_host).read_text()
         except FileNotFoundError:
             # perhaps it has exited?
-            # check for existence of self._process_root as well, because is_running returns True
-            # when the process is a zombie (and /proc/pid/root is not available in that case)
-            if not self.process.is_running() or not os.path.exists(f"/proc/{self.process.pid}/root"):
+            if not is_process_running(self.process):
                 return None
             raise
 
@@ -293,7 +391,7 @@ class JvmVersion:
         self.name = name
 
     def __repr__(self):
-        return f"JvmVersion({self.version}, {self.build}, {self.name})"
+        return f"JvmVersion({self.version}, {self.build!r}, {self.name!r})"
 
 
 # Parse java version information from "java -version" output
@@ -405,6 +503,7 @@ class JavaProfiler(ProcessProfilerBase):
     }
 
     _new_perf_event_mlock_kb = 8192
+    _should_profile = True
 
     def __init__(
         self,
@@ -430,12 +529,19 @@ class JavaProfiler(ProcessProfilerBase):
         self._interval = int((1 / frequency) * 1000_000_000)
         self._buildids = java_async_profiler_buildids
         self._version_check = java_version_check
-        if not java_version_check:
+        if not self._version_check:
             logger.warning("Java version checks are disabled")
         self._mode = java_async_profiler_mode
         self._safemode = java_async_profiler_safemode
         self._saved_mlock: Optional[int] = None
         self._java_safemode = java_safemode
+        if self._java_safemode:
+            logger.debug("Java safemode enabled")
+
+    @classmethod
+    def _disable_profiling(cls):
+        logger.error("Java profiling has been disabled, will avoid profiling any new java process")
+        cls._should_profile = False
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -503,38 +609,52 @@ class JavaProfiler(ProcessProfilerBase):
         # Version is printed to stderr
         return java_version_cmd_output.stderr.decode()
 
-    def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
-        logger.info(f"Profiling process {process.pid} with async-profiler")
+    def _check_jvm_type_supported(self, process: Process, java_version_output: str) -> bool:
+        if not self._is_jvm_type_supported(java_version_output):
+            logger.error(f"Process {process.pid} running unsupported JVM ({java_version_output!r}), skipping...")
+            return False
+
+        return True
+
+    def _is_profiling_supported(self, process: Process) -> bool:
         process_basename = os.path.basename(process.exe())
         if self._java_safemode:
             # TODO we can get the "java" binary by extracting the java home from the libjvm path,
             # then check with that instead (if exe isn't java)
             if process_basename != "java":
                 logger.error(
-                    f"Non-java basenamed process {process.pid} ({process.exe()}), skipping..."
+                    f"Non-java basenamed process {process.pid} ({process.exe()!r}), skipping..."
                     " (disable --java-safemode to profile it anyway)"
                 )
-                return None
+                return False
 
             java_version_output = self._get_java_version(process)
 
-            if not self._is_jvm_type_supported(java_version_output):
-                logger.error(f"Process {process.pid} running unsupported JVM, skipping...")
-                return None
+            if not self._check_jvm_type_supported(process, java_version_output):
+                return False
 
             if not self._is_jvm_version_supported(java_version_output):
                 logger.error(
-                    f"Process {process.pid} running unsupported Java version, skipping..."
+                    f"Process {process.pid} running unsupported Java version ({java_version_output!r}), skipping..."
                     " (disable --java-safemode to profile it anyway)"
                 )
-                return None
+                return False
         else:
             if self._version_check and process_basename == "java":
-                if not self._is_jvm_type_supported(self._get_java_version(process)):
-                    logger.error(f"Process {process.pid} running unsupported JVM, skipping...")
-                    return None
+                java_version_output = self._get_java_version(process)
+                if not self._check_jvm_type_supported(process, java_version_output):
+                    return False
 
-        with AsyncProfiledProcess(process, self._storage_dir, self._buildids, self._mode, self._safemode) as ap_proc:
+        return True
+
+    def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
+        if not self._is_profiling_supported(process):
+            return None
+
+        logger.info(f"Profiling process {process.pid} with async-profiler")
+        with AsyncProfiledProcess(
+            process, self._storage_dir, self._buildids, self._mode, self._safemode, self._java_safemode
+        ) as ap_proc:
             return self._profile_ap_process(ap_proc)
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[StackToSampleCount]:
@@ -553,17 +673,20 @@ class JavaProfiler(ProcessProfilerBase):
                     f"async-profiler is still running in {ap_proc.process.pid}, even after trying to stop it!"
                 )
 
-        self._stop_event.wait(self._duration)
-
-        if ap_proc.process.is_running():
-            ap_proc.stop_async_profiler(True)
+        try:
+            wait_event(self._duration, self._stop_event, lambda: not is_process_running(ap_proc.process), interval=1)
+        except TimeoutError:
+            # Process still running. We will stop the profiler in finally block.
+            pass
         else:
+            # Process terminated, was it due to an error?
+            self._check_hotspot_error(ap_proc)
             logger.debug(f"Profiled process {ap_proc.process.pid} exited before stopping async-profiler")
             # no output in this case :/
             return None
-
-        if self._stop_event.is_set():
-            raise StopEventSetException()
+        finally:
+            if is_process_running(ap_proc.process):
+                ap_proc.stop_async_profiler(True)
 
         output = ap_proc.read_output()
         if output is None:
@@ -576,7 +699,36 @@ class JavaProfiler(ProcessProfilerBase):
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
             return parse_one_collapsed(output, process_comm(ap_proc.process))
 
+    def _check_hotspot_error(self, ap_proc):
+        pid = ap_proc.process.pid
+        error_file = ap_proc.locate_hotspot_error_file()
+        if not error_file:
+            logger.debug(f"No Hotspot error log for pid {pid}")
+            return
+
+        contents = open(error_file).read()
+        m = VM_INFO_REGEX.search(contents)
+        vm_info = m[1] if m else ""
+        m = SIGINFO_REGEX.search(contents)
+        siginfo = m[1] if m else ""
+        m = NATIVE_FRAMES_REGEX.search(contents)
+        native_frames = m[1] if m else ""
+        m = CONTAINER_INFO_REGEX.search(contents)
+        container_info = m[1] if m else ""
+        logger.error(
+            f"Found Hotspot error log for pid {pid} at {error_file}:\n"
+            f"VM info: {vm_info}\n"
+            f"siginfo: {siginfo}\n"
+            f"native frames:\n{native_frames}\n"
+            f"container info:\n{container_info}"
+        )
+
+        self._disable_profiling()
+
     def _select_processes_to_profile(self) -> List[Process]:
+        if not self._should_profile:
+            logger.debug("Java profiling has been disabled, skipping profiling of all java process")
+            return []
         return pgrep_maps(r"^.+/libjvm\.so$")
 
     def start(self) -> None:

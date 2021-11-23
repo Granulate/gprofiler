@@ -4,13 +4,12 @@
 #
 import glob
 import os
-import re
+import resource
 import signal
-import subprocess
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired
 from threading import Event
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from psutil import NoSuchProcess, Process
 
@@ -18,10 +17,11 @@ from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, St
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_many_collapsed, parse_one_collapsed_file
-from gprofiler.metadata.system_metadata import get_arch, get_run_mode
+from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
+    is_process_running,
     pgrep_maps,
     poll_process,
     process_comm,
@@ -87,7 +87,7 @@ class PySpyProfiler(ProcessProfilerBase):
             except CalledProcessError as e:
                 if (
                     b"Error: Failed to get process executable name. Check that the process is running.\n" in e.stderr
-                    and not process.is_running()
+                    and not is_process_running(process)
                 ):
                     logger.debug(f"Profiled process {process.pid} exited before py-spy could start")
                     return None
@@ -133,6 +133,8 @@ class PythonEbpfError(CalledProcessError):
 class PythonEbpfProfiler(ProfilerBase):
     MAX_FREQUENCY = 1000
     PYPERF_RESOURCE = "python/pyperf/PyPerf"
+    _GET_FS_OFFSET_RESOURCE = "python/pyperf/get_fs_offset"
+    _GET_STACK_OFFSET_RESOURCE = "python/pyperf/get_stack_offset"
     events_buffer_pages = 256  # 1mb and needs to be physically contiguous
     # 28mb (each symbol is 224 bytes), but needn't be physicall contiguous so don't care
     symbols_map_size = 131072
@@ -152,89 +154,7 @@ class PythonEbpfProfiler(ProfilerBase):
         self.process = None
         self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
         self.user_stacks_pages = user_stacks_pages
-
-    @staticmethod
-    def _fix_kernel_headers_symlink():
-        """Fix a bug preventing PyPerf from being used even though kernel headers were present on the host.
-
-
-        Fix a bug that was encountered on Amazon Linux 2018.3,
-        which resulted in gprofiler being unable to properly locate the kernel headers, thus unable to use PyPerf.
-
-        Specifically, the bug manifests itself when:
-
-        + Running in a container.
-        + On the host, /lib is not a symlink.
-        + On the host, /lib/modules/$(uname -r)/build is a relative symlink (i.e. ../../../usr/src/...).
-
-        Inside the gprofiler container /lib is linked to /usr/lib, which means that the relative link from the host
-        becomes broken.
-        The solution is to fix the symlink inside the container, by:
-
-        + Mounting /lib/modules/$(uname -r) as an overlay inside the container.
-        + Converting the relative link to an absolute one.
-        + Removing and recreating the link.
-        """
-        try:
-            if get_run_mode() not in ("container", "k8s"):
-                return
-
-            try:
-                uname = subprocess.check_output(["uname", "-r"]).decode("latin-1").strip()
-            except subprocess.CalledProcessError:
-                return
-
-            build_path = f"/lib/modules/{uname}/build"
-            if not os.path.islink(build_path):
-                return
-
-            if os.path.lexists(build_path + "/"):
-                return
-
-            lib_modules_uname_path = f"/lib/modules/{uname}"
-
-            # We're using /dev/shm as it is a tmpfs mount, while /tmp isn't.
-            os.makedirs("/dev/shm/modules_mount/upper", 555)
-            os.makedirs("/dev/shm/modules_mount/workdir", 555)
-            subprocess.check_call(
-                [
-                    "mount",
-                    "-t",
-                    "overlay",
-                    "overlay",
-                    "-o",
-                    f"upperdir=/dev/shm/modules_mount/upper,lowerdir={lib_modules_uname_path}"
-                    ",workdir=/dev/shm/modules_mount/workdir",
-                    lib_modules_uname_path,
-                ]
-            )
-
-            os.chmod(lib_modules_uname_path, 0o755)
-            link_target = os.readlink(build_path)
-            # We're assuming the actual headers on the host are under /usr/src,
-            # otherwise we wouldn't have access from inside the container any how.
-            new_target = re.sub(r"(\.\./)+usr/src", "/usr/src", link_target, count=1)
-            os.unlink(build_path)
-            os.symlink(new_target, build_path)
-        except BaseException:
-            logger.warning("Exception raised trying to fix /lib/modules symlink for PyPerf", exc_info=True)
-
-    @classmethod
-    def _check_missing_headers(cls, stdout) -> bool:
-        if "Unable to find kernel headers." in stdout:
-            print()
-            print("Unable to find kernel headers. Make sure the package is installed for your distribution.")
-            print("If you are using Ubuntu, you can install the required package using:")
-            print()
-            print("    apt install linux-headers-$(uname -r)")
-            print()
-            print("If you are still getting this error and you are running gProfiler as a docker container,")
-            print("make sure /lib/modules and /usr/src are mapped into the container.")
-            print("See the README for further details.")
-            print()
-            return True
-        else:
-            return False
+        self._kernel_offsets: Dict[str, int] = {}
 
     @classmethod
     def _pyperf_error(cls, process: Popen):
@@ -244,7 +164,6 @@ class PythonEbpfProfiler(ProfilerBase):
 
         stdout = process.stdout.read().decode()
         stderr = process.stderr.read().decode()
-        cls._check_missing_headers(stdout)
         raise PythonEbpfError(process.returncode, process.args, stdout, stderr)
 
     @classmethod
@@ -252,26 +171,73 @@ class PythonEbpfProfiler(ProfilerBase):
         if not glob.glob(f"{str(output_path)}.*"):
             cls._pyperf_error(process)
 
-    @classmethod
-    def test(cls, storage_dir: str, stop_event: Event):
-        test_path = Path(storage_dir) / ".test"
-        for f in glob.glob(f"{str(test_path)}.*"):
-            os.unlink(f)
+    @staticmethod
+    def _ebpf_environment() -> None:
+        """
+        Make sure the environment is ready so that libbpf-based programs can run.
+        Technically this is needed only for container environments, but there's no reason not
+        to verify those conditions stand anyway (and during our tests - we run gProfiler's executable
+        in a container, so these steps have to run)
+        """
+        # increase memlock (Docker defaults to 64k which is not enough for the get_offset programs)
+        resource.setrlimit(resource.RLIMIT_MEMLOCK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
 
-        cls._fix_kernel_headers_symlink()
+        # mount /sys/kernel/debug in our container
+        if not os.path.ismount("/sys/kernel/debug"):
+            os.makedirs("/sys/kernel/debug", exist_ok=True)
+            run_process(["mount", "-t", "debugfs", "none", "/sys/kernel/debug"])
+
+    def _get_offset(self, prog: str) -> int:
+        return int(run_process(resource_path(prog)).stdout.strip())
+
+    def _kernel_fs_offset(self) -> int:
+        try:
+            return self._kernel_offsets["task_struct_fs"]
+        except KeyError:
+            offset = self._kernel_offsets["task_struct_fs"] = self._get_offset(self._GET_FS_OFFSET_RESOURCE)
+            return offset
+
+    def _kernel_stack_offset(self) -> int:
+        try:
+            return self._kernel_offsets["task_struct_stack"]
+        except KeyError:
+            offset = self._kernel_offsets["task_struct_stack"] = self._get_offset(self._GET_STACK_OFFSET_RESOURCE)
+            return offset
+
+    def _offset_args(self) -> List[str]:
+        return [
+            "--fs-offset",
+            str(self._kernel_fs_offset()),
+            "--stack-offset",
+            str(self._kernel_stack_offset()),
+        ]
+
+    def test(self) -> None:
+        self._ebpf_environment()
+
+        for f in glob.glob(f"{str(self.output_path)}.*"):
+            os.unlink(f)
 
         # Run the process and check if the output file is properly created.
         # Wait up to 10sec for the process to terminate.
         # Allow cancellation via the stop_event.
-        cmd = [resource_path(cls.PYPERF_RESOURCE), "--output", str(test_path), "-F", "1", "--duration", "1"]
+        cmd = [
+            resource_path(self.PYPERF_RESOURCE),
+            "--output",
+            str(self.output_path),
+            "-F",
+            "1",
+            "--duration",
+            "1",
+        ] + self._offset_args()
         process = start_process(cmd, via_staticx=True)
         try:
-            poll_process(process, cls.poll_timeout, stop_event)
+            poll_process(process, self.poll_timeout, self._stop_event)
         except TimeoutError:
             process.kill()
             raise
         else:
-            cls._check_output(process, test_path)
+            self._check_output(process, self.output_path)
 
     def start(self):
         logger.info("Starting profiling of Python processes with PyPerf")
@@ -286,7 +252,7 @@ class PythonEbpfProfiler(ProfilerBase):
             "--symbols-map-size",
             str(self.symbols_map_size),
             # Duration is irrelevant here, we want to run continuously.
-        ]
+        ] + self._offset_args()
 
         if self.user_stacks_pages is not None:
             cmd.extend(["--user-stacks-pages", str(self.user_stacks_pages)])
@@ -419,8 +385,9 @@ class PythonProfiler(ProfilerInterface):
         user_stacks_pages: Optional[int],
     ) -> Optional[PythonEbpfProfiler]:
         try:
-            PythonEbpfProfiler.test(storage_dir, stop_event)
-            return PythonEbpfProfiler(frequency, duration, stop_event, storage_dir, user_stacks_pages)
+            profiler = PythonEbpfProfiler(frequency, duration, stop_event, storage_dir, user_stacks_pages)
+            profiler.test()
+            return profiler
         except Exception as e:
             logger.debug(f"eBPF profiler error: {str(e)}")
             logger.info("Python eBPF profiler initialization failed")
