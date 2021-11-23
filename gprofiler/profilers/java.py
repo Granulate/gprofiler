@@ -118,10 +118,12 @@ class AsyncProfiledProcessMonitor:
         self._proc_events_listener.start()
         self._proc_events_listener.register_exit_callback(self._proc_exit_callback)
 
-    def _proc_exit_callback(self, pid, exit_code):
+    def _proc_exit_callback(self, tid, pid, exit_code):
         if pid in self._attached_processes:
             if exit_code != 0:
-                logger.warning(f"Async-profiled Java process [{pid}] exited with error code: {exit_code}")
+                logger.warning(
+                    f"Async-profiled Java process [{pid}] (TID: [{tid}]) exited with error code: {exit_code}"
+                )
             self._attached_processes.remove(pid)
 
     def register_process(self, pid):

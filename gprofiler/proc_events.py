@@ -126,7 +126,8 @@ class ProcEventsListener(threading.Thread):
                 )
 
                 if event["what"] == self._PROC_EVENT_EXIT:
-                    # (exit_signal is the signal that the parent process received on exit)
+                    # (Notice that exit_signal is the signal that the parent process received on exit, and not the
+                    # signal that caused it)
                     event_data = dict(
                         zip(
                             ("pid", "tgid", "exit_code", "exit_signal"),
@@ -139,7 +140,7 @@ class ProcEventsListener(threading.Thread):
                     )
 
                     for callback in self._exit_callbacks:
-                        callback(event_data["pid"], event_data["exit_code"])
+                        callback(event_data["pid"], event_data["tgid"], event_data["exit_code"])
 
     @_raise_if_not_running
     def stop(self):
@@ -150,6 +151,6 @@ class ProcEventsListener(threading.Thread):
     def register_exit_callback(self, callback):
         """Register a function to be called whenever a process exits
 
-        The callback should receive two arguments: pid and exit_code.
+        The callback should receive three arguments: tid, pid and exit_code.
         """
         self._exit_callbacks.append(callback)
