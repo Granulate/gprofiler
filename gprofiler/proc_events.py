@@ -3,9 +3,10 @@ import selectors
 import socket
 import struct
 import threading
+from typing import Callable, List
 
 
-def _raise_if_not_running(func):
+def _raise_if_not_running(func: Callable):
     def wrapper(self, *args, **kwargs):
         if not self.is_alive():
             raise RuntimeError("Process Events Listener wasn't started")
@@ -81,7 +82,7 @@ class _ProcEventsListener(threading.Thread):
 
     def __init__(self):
         self._socket = socket.socket(socket.AF_NETLINK, socket.SOCK_DGRAM, self._NETLINK_CONNECTOR)
-        self._exit_callbacks = []
+        self._exit_callbacks: List[Callable] = []
         self._should_stop = False
 
         self._selector = selectors.DefaultSelector()
@@ -91,7 +92,7 @@ class _ProcEventsListener(threading.Thread):
 
         super().__init__(target=self._proc_events_listener, name="Process Events Listener", daemon=True)
 
-    def _register_for_connector_events(self, socket):
+    def _register_for_connector_events(self, socket: socket.socket):
         """Notify the kernel that we're listening for events on the connector"""
         cn_proc_op = struct.Struct("=I").pack(self._PROC_CN_MCAST_LISTEN)
         cn_msg = self._cn_msg.pack(self._CN_IDX_PROC, self._CN_VAL_PROC, 0, 0, len(cn_proc_op), 0) + cn_proc_op
@@ -166,18 +167,18 @@ class _ProcEventsListener(threading.Thread):
         os.write(self._select_breaker, b"\0")
 
     @_raise_if_not_running
-    def register_exit_callback(self, callback):
+    def register_exit_callback(self, callback: Callable):
         self._exit_callbacks.append(callback)
 
     @_raise_if_not_running
-    def unregister_exit_callback(self, callback):
+    def unregister_exit_callback(self, callback: Callable):
         self._exit_callbacks.remove(callback)
 
 
 _proc_events_listener = _ProcEventsListener()
 
 
-def _ensure_thread_started(func):
+def _ensure_thread_started(func: Callable):
     def wrapper(*args, **kwargs):
         if not _proc_events_listener.is_alive():
             _proc_events_listener.start()
@@ -187,7 +188,7 @@ def _ensure_thread_started(func):
 
 
 @_ensure_thread_started
-def register_exit_callback(callback):
+def register_exit_callback(callback: Callable):
     """Register a function to be called whenever a process exits
 
     The callback should receive three arguments: tid, pid and exit_code.
@@ -196,5 +197,5 @@ def register_exit_callback(callback):
 
 
 @_ensure_thread_started
-def unregister_exit_callback(callback):
+def unregister_exit_callback(callback: Callable):
     _proc_events_listener.unregister_exit_callback(callback)
