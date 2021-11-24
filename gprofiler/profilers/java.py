@@ -113,10 +113,10 @@ class JattachException(CalledProcessError):
 
 class AsyncProfiledProcessMonitor:
     def __init__(self):
-        self._attached_processes = []
+        self._attached_processes: List[int] = []
         proc_events.register_exit_callback(self._proc_exit_callback)
 
-    def _proc_exit_callback(self, tid, pid, exit_code):
+    def _proc_exit_callback(self, tid: int, pid: int, exit_code: int):
         if pid in self._attached_processes:
             if exit_code != 0:
                 logger.warning(
@@ -124,7 +124,7 @@ class AsyncProfiledProcessMonitor:
                 )
             self._attached_processes.remove(pid)
 
-    def register_process(self, pid):
+    def register_process(self, pid: int):
         self._attached_processes.append(pid)
 
 
