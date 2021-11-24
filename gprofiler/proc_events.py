@@ -1,3 +1,16 @@
+"""Callbacks for process events
+
+This module uses the Linux's Process Connector mechanism to invoke registered callbacks on various process events.
+To achieve this, once the first callback is registered a thread is invoked to listen to these events and execute the
+registered callbacks.
+
+This interface with the kernel isn't too well documented, but to learn more about it you can read this blog post:
+https://nick-black.com/dankwiki/index.php/The_Proc_Connector_and_Socket_Filters
+
+
+TODO: Add more callbacks.
+TODO: Use socket filter.
+"""
 import os
 import selectors
 import socket
