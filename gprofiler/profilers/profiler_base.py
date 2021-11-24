@@ -6,7 +6,7 @@
 import concurrent.futures
 import json
 from threading import Event
-from typing import List, Optional
+from typing import List, Optional, Set
 
 from psutil import NoSuchProcess, Process
 from utils.linux.oom import get_oom_entry
@@ -92,7 +92,7 @@ class ProcessProfilerBase(ProfilerBase):
     process that we wish to profile; then waits for all and returns the result.
     """
 
-    profiled_processes = set()
+    profiled_processes: Set[Process] = set()
 
     @classmethod
     def prune_profiled_processes(cls):
