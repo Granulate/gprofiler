@@ -169,6 +169,10 @@ class _ProcEventsListener(threading.Thread):
     def register_exit_callback(self, callback):
         self._exit_callbacks.append(callback)
 
+    @_raise_if_not_running
+    def unregister_exit_callback(self, callback):
+        self._exit_callbacks.remove(callback)
+
 
 _proc_events_listener = _ProcEventsListener()
 
@@ -189,3 +193,8 @@ def register_exit_callback(callback):
     The callback should receive three arguments: tid, pid and exit_code.
     """
     _proc_events_listener.register_exit_callback(callback)
+
+
+@_ensure_thread_started
+def unregister_exit_callback(callback):
+    _proc_events_listener.unregister_exit_callback(callback)
