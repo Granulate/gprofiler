@@ -8,9 +8,10 @@ import json
 from threading import Event
 from typing import List, Optional, Set
 
+# TODO remove those type: ignore
+from granulate_utils.linux.oom import get_oom_entry  # type: ignore
+from granulate_utils.linux.signals import get_signal_entry  # type: ignore
 from psutil import NoSuchProcess, Process
-from utils.linux.oom import get_oom_entry
-from utils.linux.signals import get_signal_entry
 
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
