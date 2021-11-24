@@ -86,9 +86,8 @@ class _ProcEventsListener(threading.Thread):
 
         self._selector = selectors.DefaultSelector()
         # Create a pipe so we can make select() return
-        r, w = os.pipe()
-        self._select_breaker = os.fdopen(w, "w")
-        self._selector.register(os.fdopen(r), selectors.EVENT_READ)
+        self._select_breaker_reader, self._select_breaker = os.pipe()
+        self._selector.register(self._select_breaker_reader, selectors.EVENT_READ)
 
         super().__init__(target=self._proc_events_listener, name="Process Events Listener", daemon=True)
 
@@ -153,14 +152,18 @@ class _ProcEventsListener(threading.Thread):
                     for callback in self._exit_callbacks:
                         callback(event_data["pid"], event_data["tgid"], event_data["exit_code"])
 
+        # Cleanup
         self._selector.unregister(self._socket)
+        self._selector.unregister(self._select_breaker_reader)
         self._socket.close()
+        os.close(self._select_breaker)
+        os.close(self._select_breaker_reader)
 
     @_raise_if_not_running
     def stop(self):
         self._should_stop = True
         # Write to make select() return
-        self._select_breaker.write("\0")
+        os.write(self._select_breaker, b"\0")
 
     @_raise_if_not_running
     def register_exit_callback(self, callback):
