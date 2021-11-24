@@ -171,9 +171,18 @@ class _ProcEventsListener(threading.Thread):
 
 
 _proc_events_listener = _ProcEventsListener()
-_proc_events_listener.start()
 
 
+def _ensure_thread_started(func):
+    def wrapper(*args, **kwargs):
+        if not _proc_events_listener.is_alive():
+            _proc_events_listener.start()
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+@_ensure_thread_started
 def register_exit_callback(callback):
     """Register a function to be called whenever a process exits
 
