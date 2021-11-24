@@ -12,10 +12,13 @@ from docker import DockerClient
 from docker.models.images import Image
 
 from gprofiler.merge import parse_one_collapsed
-from tests.utils import run_gprofiler_in_container
+from tests.utils import RUNTIME_PROFILERS, run_gprofiler_in_container
 
 
-@pytest.mark.parametrize("runtime", ["java", "python", "php", "ruby", "nodejs"])
+@pytest.mark.parametrize(
+    "runtime,profiler_type",
+    RUNTIME_PROFILERS,
+)
 def test_from_executable(
     gprofiler_exe: Path,
     application_pid: int,
@@ -24,6 +27,7 @@ def test_from_executable(
     exec_container_image: Image,
     docker_client: DockerClient,
     output_directory: Path,
+    profiler_flags: List[str],
 ) -> None:
     _ = application_pid  # Fixture only used for running the application.
 
@@ -36,16 +40,24 @@ def test_from_executable(
             str(cwd): {"bind": str(gprofiler_inner_dir), "mode": "rw"},
         }
 
-        command = [
-            str(gprofiler_inner_dir / gprofiler_exe),
-            "-v",
-            "--output-dir",
-            str(inner_output_dir),
-        ] + runtime_specific_args
+        command = (
+            [
+                str(gprofiler_inner_dir / gprofiler_exe),
+                "-v",
+                "--output-dir",
+                str(inner_output_dir),
+            ]
+            + runtime_specific_args
+            + profiler_flags
+        )
         run_gprofiler_in_container(docker_client, exec_container_image, command=command, volumes=volumes)
     else:
         os.mkdir(output_directory)
-        command = ["sudo", str(gprofiler_exe), "--output-dir", str(output_directory), "-d", "5"] + runtime_specific_args
+        command = (
+            ["sudo", str(gprofiler_exe), "--output-dir", str(output_directory), "-d", "5"]
+            + runtime_specific_args
+            + profiler_flags
+        )
         popen = Popen(command)
         popen.wait()
 

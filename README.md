@@ -59,7 +59,7 @@ For each profiling session (each profiling duration), gProfiler produces outputs
     * `pyspy`/`py-spy` - Use py-spy.
     * `disabled` - Disable profilers for Python.
 
-Profiling using eBPF incurs lower overhead & provides kernel stacks. This (currently) requires kernel headers to be installed.
+Profiling using eBPF incurs lower overhead & provides kernel stacks.
 
 ### PHP profiling options
 * `--php-mode phpspy`: Enable PHP profiling with phpspy.
@@ -106,14 +106,9 @@ Run the following to have gProfiler running continuously, uploading to Granulate
 docker pull granulate/gprofiler:latest
 docker run --name granulate-gprofiler -d --restart=on-failure:10 \
     --pid=host --userns=host --privileged \
-    -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro \
     -v /var/run/docker.sock:/var/run/docker.sock \
 	granulate/gprofiler:latest -cu --token <token> --service-name <service> [options]
 ```
-
-For profiling with eBPF, kernel headers must be accessible from within the container at
-`/lib/modules/$(uname -r)/build`. On Ubuntu, this directory is a symlink pointing to `/usr/src`.
-The command above mounts both of these directories.
 
 ## Running as an executable
 First, check if gProfiler is already running - run `pgrep gprofiler`. You should not see any output, if you do see any PIDs it means that gProfiler is running and it must be stopped before starting it again (you can stop it with `sudo pkill -TERM gprofiler`).

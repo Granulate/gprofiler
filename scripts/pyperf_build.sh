@@ -5,7 +5,7 @@
 #
 set -e
 
-git clone --depth 1 -b v1.1.2 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 8509fb0f8dfa096b08d0b3619686e7948165406a
+git clone --depth 1 -b v1.2.0 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 3fd97d89efb79553a20e16653c2538b14674f6c6
 
 # (after clone, because we copy the licenses)
 # TODO support aarch64

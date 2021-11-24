@@ -22,9 +22,17 @@ from tests.utils import assert_function_in_collapsed, chmod_path_parts
 
 
 @fixture
-def runtime():
+def runtime() -> str:
     """
-    Parametrize this with application runtime name (java, python).
+    Parametrize this with application runtime name (java, python, ..).
+    """
+    raise NotImplementedError
+
+
+@fixture
+def profiler_type() -> str:
+    """
+    Parametrize this with runtime profiler name (ap, py-spy, ...).
     """
     raise NotImplementedError
 
@@ -45,7 +53,7 @@ def in_container(request) -> bool:
 
 
 @fixture
-def java_args():
+def java_args() -> List[str]:
     return []
 
 
@@ -244,7 +252,7 @@ def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int], bool], None]:
         "nodejs": "fibonacci",
     }[runtime]
 
-    return partial(assert_function_in_collapsed, function_name, runtime)
+    return partial(assert_function_in_collapsed, function_name)
 
 
 @fixture
@@ -254,6 +262,31 @@ def exec_container_image(request, docker_client: DockerClient) -> Optional[Image
         return None
 
     return docker_client.images.pull(image_name)
+
+
+@fixture
+def no_kernel_headers() -> Iterable[None]:
+    release = os.uname().release
+    headers_dir = f"/lib/modules/{release}"
+    tmp_headers = f"{headers_dir}_tmp_moved"
+    assert not os.path.exists(tmp_headers), "leftovers! please clean it up"
+
+    try:
+        if os.path.exists(headers_dir):
+            os.rename(headers_dir, tmp_headers)
+        yield
+    finally:
+        if os.path.exists(tmp_headers):
+            os.rename(tmp_headers, headers_dir)
+
+
+@fixture
+def profiler_flags(runtime: str, profiler_type: str) -> List[str]:
+    # Execute only the tested profiler
+    flags = ["--no-java", "--no-python", "--no-php", "--no-ruby", "--no-nodejs"]
+    flags.remove(f"--no-{runtime}")
+    flags.append(f"--{runtime}-mode={profiler_type}")
+    return flags
 
 
 def pytest_addoption(parser):

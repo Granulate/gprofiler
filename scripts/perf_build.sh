@@ -45,4 +45,7 @@ EOF
 fi
 
 make -C tools/perf LDFLAGS=-static -j 8 perf
-cp tools/perf/perf /perf
+cp tools/perf/perf /
+# need it static as well, even though it's used only during build (relies on libpcap, ...)
+make -C tools/bpf LDFLAGS=-static -j 8 bpftool
+cp tools/bpf/bpftool/bpftool /
