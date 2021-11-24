@@ -85,7 +85,7 @@ class _ProcEventsListener(threading.Thread):
         self._should_stop = False
 
         self._selector = selectors.DefaultSelector()
-        # Create a pip so we can make select() return
+        # Create a pipe so we can make select() return
         r, w = os.pipe()
         self._select_breaker = os.fdopen(w, "w")
         self._selector.register(os.fdopen(r), selectors.EVENT_READ)
