@@ -117,12 +117,12 @@ class AsyncProfiledProcessMonitor:
         proc_events.register_exit_callback(self._proc_exit_callback)
 
     def _proc_exit_callback(self, tid: int, pid: int, exit_code: int):
-        if pid in self._attached_processes:
+        # Notice that we only check the exit code of the main thread here.
+        # It's assumed that an error in any of the Java threads will be reflected in the exit code of the main thread.
+        if tid in self._attached_processes:
             if exit_code != 0:
-                logger.warning(
-                    f"Async-profiled Java process [{pid}] (TID: [{tid}]) exited with error code: {exit_code}"
-                )
-            self._attached_processes.remove(pid)
+                logger.warning(f"Async-profiled Java process {tid} exited with error code: {hex(exit_code)}")
+            self._attached_processes.remove(tid)
 
     def register_process(self, pid: int):
         self._attached_processes.append(pid)
