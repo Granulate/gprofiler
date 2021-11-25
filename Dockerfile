@@ -139,6 +139,8 @@ COPY --from=rbspy-builder /rbspy/rbspy gprofiler/resources/ruby/rbspy
 
 COPY --from=burn-builder /go/burn/burn gprofiler/resources/burn
 
+RUN pip3 install --upgrade pip
+
 # done separately from the 'pip3 install -e' below; so we don't reinstall all dependencies on each
 # code change.
 COPY requirements.txt ./
