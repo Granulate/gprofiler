@@ -4,19 +4,15 @@
 #
 
 import concurrent.futures
-import json
 from threading import Event
-from typing import List, Optional, Set
+from typing import List, Optional
 
-# TODO remove those type: ignore
-from granulate_utils.linux.oom import get_oom_entry  # type: ignore
-from granulate_utils.linux.signals import get_signal_entry  # type: ignore
 from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.log import get_logger_adapter
-from gprofiler.utils import is_process_running, limit_frequency
+from gprofiler.utils import limit_frequency
 
 logger = get_logger_adapter(__name__)
 
@@ -92,24 +88,11 @@ class ProcessProfilerBase(ProfilerBase):
     This class implements snapshot() for them - creates a thread that runs _profile_process() for each
     process that we wish to profile; then waits for all and returns the result.
     """
-
-    profiled_processes: Set[Process] = set()
-
-    @classmethod
-    def prune_profiled_processes(cls):
-        for proc in set(cls.profiled_processes):
-            if not is_process_running(proc):
-                cls.profiled_processes.remove(proc)
-
     def _select_processes_to_profile(self) -> List[Process]:
         raise NotImplementedError
 
     def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
         raise NotImplementedError
-
-    def _profile_process_wrapper(self, process: Process):
-        self.profiled_processes.add(process)
-        return self._profile_process(process)
 
     def snapshot(self) -> ProcessToStackSampleCounters:
         processes_to_profile = self._select_processes_to_profile()
@@ -119,7 +102,7 @@ class ProcessProfilerBase(ProfilerBase):
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes_to_profile)) as executor:
             futures = {}
             for process in processes_to_profile:
-                futures[executor.submit(self._profile_process_wrapper, process)] = process.pid
+                futures[executor.submit(self._profile_process, process)] = process.pid
 
             results = {}
             for future in concurrent.futures.as_completed(futures):
@@ -138,28 +121,3 @@ class ProcessProfilerBase(ProfilerBase):
                     logger.exception(f"{self.__class__.__name__}: failed to profile process {futures[future]}")
 
         return results
-
-
-def _handle_kernel_messages(messages):
-    profiled_pids = {proc.pid for proc in ProcessProfilerBase.profiled_processes}
-
-    for message in messages:
-        _, _, text = message
-        entry = get_oom_entry(text)
-        if entry and entry.pid in profiled_pids:
-            logger.info(f"OOM: {json.dumps(entry._asdict())}")
-
-        entry = get_signal_entry(text)
-        if entry and entry.pid in profiled_pids:
-            logger.info(f"Signaled: {json.dumps(entry._asdict())}")
-
-
-def handle_new_kernel_messages(kernel_messages_provider):
-    try:
-        messages = list(kernel_messages_provider.iter_new_messages())
-    except Exception:
-        logger.exception("Error iterating new kernel messages")
-    else:
-        _handle_kernel_messages(messages)
-    finally:
-        ProcessProfilerBase.prune_profiled_processes()
