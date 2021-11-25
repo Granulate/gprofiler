@@ -17,7 +17,7 @@ CONSOLE_EXT_LOG_MAX = 8192
 
 
 class DevKmsgProvider(Provider):
-    # The /dev/kmsg interfaced is described at Documentation/ABI/testing/dev-kmsg in the kernel source tree
+    # The /dev/kmsg interface is described at Documentation/ABI/testing/dev-kmsg in the kernel source tree
     # and can be viewed at https://github.com/torvalds/linux/blob/master/Documentation/ABI/testing/dev-kmsg.
     def __init__(self):
         self.dev_kmsg_fd = os.open("/dev/kmsg", os.O_RDONLY)
