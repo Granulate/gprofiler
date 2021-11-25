@@ -12,10 +12,10 @@ from threading import Event
 from typing import List, Optional
 
 import psutil
+from granulate_utils.linux import proc_events
 from packaging.version import Version
 from psutil import Process
 
-from granulate_utils.linux import proc_events
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.log import get_logger_adapter
