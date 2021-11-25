@@ -108,7 +108,7 @@ FROM ubuntu${GPROFILER_BUILDER_UBUNTU}
 WORKDIR /app
 
 # kmod - for modprobe kheaders if it's available
-RUN apt-get update && apt-get install --no-install-recommends -y curl python3-pip kmod
+RUN apt-get update && apt-get install --no-install-recommends -y curl python3-pip kmod git
 
 # Aarch64 has no .whl file for psutil - so it's trying to build from source.
 RUN if [ $(uname -m) = "aarch64" ]; then apt-get install -y build-essential python3.8-dev; fi
@@ -138,6 +138,8 @@ COPY --from=async-profiler-builder-glibc /async-profiler/build/fdtransfer gprofi
 COPY --from=rbspy-builder /rbspy/rbspy gprofiler/resources/ruby/rbspy
 
 COPY --from=burn-builder /go/burn/burn gprofiler/resources/burn
+
+RUN pip3 install --upgrade pip
 
 # done separately from the 'pip3 install -e' below; so we don't reinstall all dependencies on each
 # code change.
