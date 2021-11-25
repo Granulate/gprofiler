@@ -20,6 +20,7 @@ from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.gprofiler_types import StackToSampleCount
+from gprofiler.kernel_messages import DefaultMessagesProvider
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
@@ -541,6 +542,7 @@ class JavaProfiler(ProcessProfilerBase):
         if self._java_safemode:
             logger.debug("Java safemode enabled")
         self._profiled_processes: Set[Process] = set()
+        self._kernel_messages_provider = DefaultMessagesProvider()
 
     @classmethod
     def _disable_profiling(cls):
@@ -767,7 +769,7 @@ class JavaProfiler(ProcessProfilerBase):
         if self._saved_mlock is not None:
             write_perf_event_mlock_kb(self._saved_mlock)
 
-    def prune_profiled_processes(self):
+    def _prune_profiled_processes(self):
         for proc in set(self._profiled_processes):
             if not is_process_running(proc):
                 self._profiled_processes.remove(proc)
@@ -785,12 +787,18 @@ class JavaProfiler(ProcessProfilerBase):
             if entry and entry.pid in profiled_pids:
                 logger.info(f"Profiled Java process signalled: {json.dumps(entry._asdict())}")
 
-    def handle_new_kernel_messages(self, kernel_messages_provider):
+    def _handle_new_kernel_messages(self):
         try:
-            messages = list(kernel_messages_provider.iter_new_messages())
+            messages = list(self._kernel_messages_provider.iter_new_messages())
         except Exception:
             logger.exception("Error iterating new kernel messages")
         else:
             self._handle_kernel_messages(messages)
         finally:
-            self.prune_profiled_processes()
+            self._prune_profiled_processes()
+
+    def snapshot(self):
+        try:
+            return super().snapshot()
+        finally:
+            self._handle_new_kernel_messages()

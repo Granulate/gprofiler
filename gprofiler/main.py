@@ -24,14 +24,13 @@ from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIC
 from gprofiler.docker_client import DockerClient
 from gprofiler.exceptions import SystemProfilerInitFailure
 from gprofiler.gprofiler_types import UserArgs, positive_integer
-from gprofiler.kernel_messages import DefaultMessagesProvider
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
 from gprofiler.profilers.factory import get_profilers
-from gprofiler.profilers.profiler_base import NoopProfiler, ProfilerInterface, handle_new_kernel_messages
+from gprofiler.profilers.profiler_base import NoopProfiler, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
@@ -135,7 +134,6 @@ class GProfiler:
             self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
-        self._kernel_messages_provider = DefaultMessagesProvider()
 
     @property
     def all_profilers(self) -> Iterable[ProfilerInterface]:
@@ -346,7 +344,6 @@ class GProfiler:
                 except Exception:
                     logger.exception("Profiling run failed!")
                 finally:
-                    handle_new_kernel_messages(self._kernel_messages_provider)
                     self._send_remote_logs()  # function is safe, wrapped with try/except block inside
                 self._usage_logger.log_cycle()
 
