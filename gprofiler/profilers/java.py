@@ -562,11 +562,11 @@ class JavaProfiler(ProcessProfilerBase):
             return False
 
         if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
-            logger.error(f"Unsupported java version {jvm_version.version}")
+            logger.error("Unsupported java version", jvm_version=repr(jvm_version))
             return False
         min_version, min_build = self.MINIMAL_SUPPORTED_VERSIONS[jvm_version.version.major]
         if jvm_version.version < min_version:
-            logger.error(f"Unsupported java version {jvm_version.version}")
+            logger.error("Unsupported java version", jvm_version=repr(jvm_version))
             return False
         elif jvm_version.version == min_version:
             if jvm_version.build < min_build:
