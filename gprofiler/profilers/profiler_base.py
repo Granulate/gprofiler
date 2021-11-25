@@ -88,6 +88,7 @@ class ProcessProfilerBase(ProfilerBase):
     This class implements snapshot() for them - creates a thread that runs _profile_process() for each
     process that we wish to profile; then waits for all and returns the result.
     """
+
     def _select_processes_to_profile(self) -> List[Process]:
         raise NotImplementedError
 

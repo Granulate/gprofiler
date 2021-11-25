@@ -4,15 +4,17 @@
 #
 import errno
 import functools
+import json
 import os
 import re
 import shutil
-import json
 from pathlib import Path
 from threading import Event
 from typing import List, Optional, Set
 
 import psutil
+from granulate_utils.linux.oom import get_oom_entry
+from granulate_utils.linux.signals import get_signal_entry
 from packaging.version import Version
 from psutil import Process
 
@@ -40,8 +42,6 @@ from gprofiler.utils import (
     wait_event,
     write_perf_event_mlock_kb,
 )
-from granulate_utils.linux.oom import get_oom_entry
-from granulate_utils.linux.signals import get_signal_entry
 
 NATIVE_FRAMES_REGEX = re.compile(r"^Native frames:[^\n]*\n(.*?)\n\n", re.MULTILINE | re.DOTALL)
 """
