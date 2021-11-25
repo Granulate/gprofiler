@@ -4,20 +4,24 @@
 #
 import errno
 import functools
+import json
 import os
 import re
 import shutil
 from pathlib import Path
 from threading import Event
-from typing import List, Optional
+from typing import List, Optional, Set
 
 import psutil
 from granulate_utils.linux import proc_events
+from granulate_utils.linux.oom import get_oom_entry
+from granulate_utils.linux.signals import get_signal_entry
 from packaging.version import Version
 from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.gprofiler_types import StackToSampleCount
+from gprofiler.kernel_messages import DefaultMessagesProvider
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
@@ -328,7 +332,7 @@ class AsyncProfiledProcess:
     def _get_start_cmd(self, interval: int) -> List[str]:
         return self._get_base_cmd() + [
             f"start,event={self._mode},file={self._output_path_process},"
-            f"{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS},interval={interval},framebuf=2000000,"
+            f"{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS},interval={interval},"
             f"log={self._log_path_process}{',buildids' if self._buildids else ''}"
             f"{',fdtransfer' if self._mode == 'cpu' else ''}"
             f",safemode={self._safemode}"
@@ -556,6 +560,8 @@ class JavaProfiler(ProcessProfilerBase):
         self._java_safemode = java_safemode
         if self._java_safemode:
             logger.debug("Java safemode enabled")
+        self._profiled_processes: Set[Process] = set()
+        self._kernel_messages_provider = DefaultMessagesProvider()
 
     @classmethod
     def _disable_profiling(cls):
@@ -670,6 +676,8 @@ class JavaProfiler(ProcessProfilerBase):
         if not self._is_profiling_supported(process):
             return None
 
+        self._profiled_processes.add(process)
+
         logger.info(f"Profiling process {process.pid} with async-profiler")
         with AsyncProfiledProcess(
             process, self._storage_dir, self._buildids, self._mode, self._safemode, self._java_safemode
@@ -780,3 +788,37 @@ class JavaProfiler(ProcessProfilerBase):
         super().stop()
         if self._saved_mlock is not None:
             write_perf_event_mlock_kb(self._saved_mlock)
+
+    def _prune_profiled_processes(self):
+        for proc in set(self._profiled_processes):
+            if not is_process_running(proc):
+                self._profiled_processes.remove(proc)
+
+    def _handle_kernel_messages(self, messages):
+        profiled_pids = {proc.pid for proc in self._profiled_processes}
+
+        for message in messages:
+            _, _, text = message
+            entry = get_oom_entry(text)
+            if entry and entry.pid in profiled_pids:
+                logger.info(f"Profiled Java process OOM: {json.dumps(entry._asdict())}")
+
+            entry = get_signal_entry(text)
+            if entry and entry.pid in profiled_pids:
+                logger.info(f"Profiled Java process signalled: {json.dumps(entry._asdict())}")
+
+    def _handle_new_kernel_messages(self):
+        try:
+            messages = list(self._kernel_messages_provider.iter_new_messages())
+        except Exception:
+            logger.exception("Error iterating new kernel messages")
+        else:
+            self._handle_kernel_messages(messages)
+        finally:
+            self._prune_profiled_processes()
+
+    def snapshot(self):
+        try:
+            return super().snapshot()
+        finally:
+            self._handle_new_kernel_messages()

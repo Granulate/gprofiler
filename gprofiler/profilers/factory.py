@@ -2,15 +2,15 @@ from typing import TYPE_CHECKING, Any, List, Tuple, Union
 
 from gprofiler.exceptions import SystemProfilerInitFailure
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.system_metadata import get_arch
+from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.profiler_base import NoopProfiler
+from gprofiler.profilers.registry import get_profilers_registry
 
 if TYPE_CHECKING:
     from gprofiler.gprofiler_types import UserArgs
     from gprofiler.profilers.profiler_base import ProcessProfilerBase
 
-from gprofiler.metadata.system_metadata import get_arch
-from gprofiler.profilers.perf import SystemProfiler
-from gprofiler.profilers.registry import get_profilers_registry
 
 logger = get_logger_adapter(__name__)
 COMMON_PROFILER_ARGUMENT_NAMES = ["frequency", "duration"]

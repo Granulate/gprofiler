@@ -558,3 +558,9 @@ def get_mnt_ns_ancestor(process: Process) -> int:
 
 def is_process_running(process: psutil.Process):
     return process.is_running() and not process.status() == "zombie"
+
+
+def get_kernel_release() -> Tuple[int, int]:
+    """Return Linux kernel version as (major, minor) tuple."""
+    major_str, minor_str = os.uname().release.split(".", maxsplit=2)[:2]
+    return int(major_str), int(minor_str)
