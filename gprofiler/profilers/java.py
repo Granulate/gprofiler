@@ -115,23 +115,6 @@ class JattachException(CalledProcessError):
         return self._ap_log
 
 
-class AsyncProfiledProcessMonitor:
-    def __init__(self):
-        self._attached_processes: List[int] = []
-        proc_events.register_exit_callback(self._proc_exit_callback)
-
-    def _proc_exit_callback(self, tid: int, pid: int, exit_code: int):
-        # Notice that we only check the exit code of the main thread here.
-        # It's assumed that an error in any of the Java threads will be reflected in the exit code of the main thread.
-        if tid in self._attached_processes:
-            if exit_code != 0:
-                logger.warning(f"Async-profiled Java process {tid} exited with error code: {hex(exit_code)}")
-            self._attached_processes.remove(tid)
-
-    def register_process(self, pid: int):
-        self._attached_processes.append(pid)
-
-
 @functools.lru_cache(maxsize=1)
 def jattach_path() -> str:
     return resource_path("java/jattach")
@@ -556,7 +539,6 @@ class JavaProfiler(ProcessProfilerBase):
         self._mode = java_async_profiler_mode
         self._safemode = java_async_profiler_safemode
         self._saved_mlock: Optional[int] = None
-        self._process_monitor = AsyncProfiledProcessMonitor()
         self._java_safemode = java_safemode
         if self._java_safemode:
             logger.debug("Java safemode enabled")
@@ -682,7 +664,6 @@ class JavaProfiler(ProcessProfilerBase):
         with AsyncProfiledProcess(
             process, self._storage_dir, self._buildids, self._mode, self._safemode, self._java_safemode
         ) as ap_proc:
-            self._process_monitor.register_process(process.pid)
             return self._profile_ap_process(ap_proc)
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[StackToSampleCount]:
@@ -784,11 +765,22 @@ class JavaProfiler(ProcessProfilerBase):
             self._saved_mlock = read_perf_event_mlock_kb()
             write_perf_event_mlock_kb(self._new_perf_event_mlock_kb)
 
+        proc_events.register_exit_callback(self._proc_exit_callback)
+
     def stop(self) -> None:
         super().stop()
         if self._saved_mlock is not None:
             write_perf_event_mlock_kb(self._saved_mlock)
 
+    def _proc_exit_callback(self, tid: int, pid: int, exit_code: int):
+        # Notice that we only check the exit code of the main thread here.
+        # It's assumed that an error in any of the Java threads will be reflected in the exit code of the main thread.
+        if tid in self._profiled_processes:
+            if exit_code != 0:
+                logger.warning(f"Async-profiled Java process {tid} exited with error code: {hex(exit_code)}")
+            self._profiled_processes.remove(tid)
+
+    # keeping this as a safeguard to _proc_exit_callback.
     def _prune_profiled_processes(self):
         for proc in set(self._profiled_processes):
             if not is_process_running(proc):
