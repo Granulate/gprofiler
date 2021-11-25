@@ -45,6 +45,7 @@ def parse_one_collapsed(collapsed: str, add_comm: Optional[str] = None) -> Stack
             continue
         try:
             stack, _, count = line.rpartition(" ")
+            stack = stack.replace("|", ";")
             if add_comm is not None:
                 stacks[f"{add_comm};{stack}"] += int(count)
             else:
