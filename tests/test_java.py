@@ -190,7 +190,9 @@ def test_java_safemode_build_number_check(
         jvm_version = parse_jvm_version(profiler._get_java_version(process))
         monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (jvm_version.version, 999))
         profiler.snapshot()
-        assert f"Unsupported build number {jvm_version.build} for java version {jvm_version.version}" in caplog.text
+
+    assert "Unsupported JVM version" in caplog.text
+    assert repr(jvm_version) in caplog.text
 
 
 @pytest.mark.parametrize(
