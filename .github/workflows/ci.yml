@@ -59,6 +59,8 @@ jobs:
 
     - name: Checkout Code
       uses: actions/checkout@v2
+      with:
+        submodules: true
 
       # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
       # more nicely. the tests will then be able to use the built image.
