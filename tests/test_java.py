@@ -167,8 +167,9 @@ def test_java_safemode_version_check(
         jvm_version = parse_jvm_version(profiler._get_java_version(process))
         profiler.snapshot()
 
-    assert "Unsupported JVM version" in caplog.text
-    assert repr(jvm_version) in caplog.text
+    assert next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records)).gprofiler_adapter_extra[
+        "jvm_version"
+    ] == repr(jvm_version)
 
 
 def test_java_safemode_build_number_check(
@@ -191,8 +192,9 @@ def test_java_safemode_build_number_check(
         monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (jvm_version.version, 999))
         profiler.snapshot()
 
-    assert "Unsupported JVM version" in caplog.text
-    assert repr(jvm_version) in caplog.text
+    assert next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records)).gprofiler_adapter_extra[
+        "jvm_version"
+    ] == repr(jvm_version)
 
 
 @pytest.mark.parametrize(
