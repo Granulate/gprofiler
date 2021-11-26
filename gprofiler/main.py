@@ -16,6 +16,7 @@ from threading import Event
 from typing import Iterable, Optional
 
 import configargparse
+from granulate_utils.linux.ns import is_running_in_init_pid
 from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
 
@@ -43,7 +44,6 @@ from gprofiler.utils import (
     grab_gprofiler_mutex,
     is_process_running,
     is_root,
-    is_running_in_init_pid,
     reset_umask,
     resource_path,
     run_process,
