@@ -144,6 +144,7 @@ RUN pip3 install --upgrade pip
 # done separately from the 'pip3 install -e' below; so we don't reinstall all dependencies on each
 # code change.
 COPY requirements.txt ./
+COPY granulate-utils ./granulate-utils
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY LICENSE.md MANIFEST.in README.md setup.py  ./
