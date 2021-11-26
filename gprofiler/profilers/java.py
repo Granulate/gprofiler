@@ -542,7 +542,7 @@ class JavaProfiler(ProcessProfilerBase):
         self._java_safemode = java_safemode
         if self._java_safemode:
             logger.debug("Java safemode enabled")
-        self._profiled_processes: Set[Process] = set()
+        self._profiled_pids: Set[int] = set()
         self._kernel_messages_provider = DefaultMessagesProvider()
 
     @classmethod
@@ -658,7 +658,7 @@ class JavaProfiler(ProcessProfilerBase):
         if not self._is_profiling_supported(process):
             return None
 
-        self._profiled_processes.add(process)
+        self._profiled_pids.add(process.pid)
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
         with AsyncProfiledProcess(
@@ -775,28 +775,20 @@ class JavaProfiler(ProcessProfilerBase):
     def _proc_exit_callback(self, tid: int, pid: int, exit_code: int):
         # Notice that we only check the exit code of the main thread here.
         # It's assumed that an error in any of the Java threads will be reflected in the exit code of the main thread.
-        if tid in self._profiled_processes:
+        if tid in self._profiled_pids:
             if exit_code != 0:
                 logger.warning(f"Async-profiled Java process {tid} exited with error code: {hex(exit_code)}")
-            self._profiled_processes.remove(tid)
-
-    # keeping this as a safeguard to _proc_exit_callback.
-    def _prune_profiled_processes(self):
-        for proc in set(self._profiled_processes):
-            if not is_process_running(proc):
-                self._profiled_processes.remove(proc)
+            self._profiled_pids.remove(tid)
 
     def _handle_kernel_messages(self, messages):
-        profiled_pids = {proc.pid for proc in self._profiled_processes}
-
         for message in messages:
             _, _, text = message
             entry = get_oom_entry(text)
-            if entry and entry.pid in profiled_pids:
+            if entry and entry.pid in self._profiled_pids:
                 logger.info(f"Profiled Java process OOM: {json.dumps(entry._asdict())}")
 
             entry = get_signal_entry(text)
-            if entry and entry.pid in profiled_pids:
+            if entry and entry.pid in self._profiled_pids:
                 logger.info(f"Profiled Java process signalled: {json.dumps(entry._asdict())}")
 
     def _handle_new_kernel_messages(self):
@@ -806,8 +798,6 @@ class JavaProfiler(ProcessProfilerBase):
             logger.exception("Error iterating new kernel messages")
         else:
             self._handle_kernel_messages(messages)
-        finally:
-            self._prune_profiled_processes()
 
     def snapshot(self):
         try:
