@@ -543,6 +543,7 @@ class JavaProfiler(ProcessProfilerBase):
         if self._java_safemode:
             logger.debug("Java safemode enabled")
         self._profiled_pids: Set[int] = set()
+        self._pids_to_remove: Set[int] = set()
         self._kernel_messages_provider = DefaultMessagesProvider()
 
     @classmethod
@@ -778,19 +779,19 @@ class JavaProfiler(ProcessProfilerBase):
         # It's assumed that an error in any of the Java threads will be reflected in the exit code of the main thread.
         if tid in self._profiled_pids:
             if exit_code != 0:
-                logger.warning(f"Async-profiled Java process {tid} exited with error code: {hex(exit_code)}")
-            self._profiled_pids.remove(tid)
+                logger.warning("Async-profiled Java process exited with error code", pid=tid, exit_code=hex(exit_code))
+            self._pids_to_remove.add(tid)
 
     def _handle_kernel_messages(self, messages):
         for message in messages:
             _, _, text = message
             entry = get_oom_entry(text)
             if entry and entry.pid in self._profiled_pids:
-                logger.info(f"Profiled Java process OOM: {json.dumps(entry._asdict())}")
+                logger.error("Profiled Java process OOM", oom=json.dumps(entry._asdict()))
 
             entry = get_signal_entry(text)
             if entry and entry.pid in self._profiled_pids:
-                logger.info(f"Profiled Java process signalled: {json.dumps(entry._asdict())}")
+                logger.error("Profiled Java process signalled", signal=json.dumps(entry._asdict()))
 
     def _handle_new_kernel_messages(self):
         try:
@@ -805,3 +806,5 @@ class JavaProfiler(ProcessProfilerBase):
             return super().snapshot()
         finally:
             self._handle_new_kernel_messages()
+            self._profiled_pids -= self._pids_to_remove
+            self._pids_to_remove = set()
