@@ -563,15 +563,15 @@ class JavaProfiler(ProcessProfilerBase):
             return False
 
         if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
-            logger.error("Unsupported java version", jvm_version=repr(jvm_version))
+            logger.error("Unsupported JVM version", jvm_version=repr(jvm_version))
             return False
         min_version, min_build = self.MINIMAL_SUPPORTED_VERSIONS[jvm_version.version.major]
         if jvm_version.version < min_version:
-            logger.error("Unsupported java version", jvm_version=repr(jvm_version))
+            logger.error("Unsupported JVM version", jvm_version=repr(jvm_version))
             return False
         elif jvm_version.version == min_version:
             if jvm_version.build < min_build:
-                logger.error(f"Unsupported build number {jvm_version.build} for java version {jvm_version.version}")
+                logger.error("Unsupported JVM version", jvm_version=repr(jvm_version))
                 return False
 
         return True
@@ -619,7 +619,7 @@ class JavaProfiler(ProcessProfilerBase):
 
     def _check_jvm_type_supported(self, process: Process, java_version_output: str) -> bool:
         if not self._is_jvm_type_supported(java_version_output):
-            logger.error(f"Process {process.pid} running unsupported JVM ({java_version_output!r}), skipping...")
+            logger.error("Unsupported JVM type", java_version_output=java_version_output)
             return False
 
         return True
@@ -631,8 +631,9 @@ class JavaProfiler(ProcessProfilerBase):
             # then check with that instead (if exe isn't java)
             if process_basename != "java":
                 logger.error(
-                    f"Non-java basenamed process {process.pid} ({process.exe()!r}), skipping..."
-                    " (disable --java-safemode to profile it anyway)"
+                    "Non-java basenamed process, skipping... (disable --java-safemode to profile it anyway)",
+                    pid=process.pid,
+                    exe=process.exe(),
                 )
                 return False
 
@@ -643,8 +644,10 @@ class JavaProfiler(ProcessProfilerBase):
 
             if not self._is_jvm_version_supported(java_version_output):
                 logger.error(
-                    f"Process {process.pid} running unsupported Java version ({java_version_output!r}), skipping..."
-                    " (disable --java-safemode to profile it anyway)"
+                    "Process running unsupported Java version, skipping..."
+                    " (disable --java-safemode to profile it anyway)",
+                    pid=process.pid,
+                    java_version_output=java_version_output,
                 )
                 return False
         else:
