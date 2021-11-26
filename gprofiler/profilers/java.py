@@ -791,10 +791,12 @@ class JavaProfiler(ProcessProfilerBase):
             entry = get_oom_entry(text)
             if entry and entry.pid in self._profiled_pids:
                 logger.error("Profiled Java process OOM", oom=json.dumps(entry._asdict()))
+                self._disable_profiling()  # paranoia
 
             entry = get_signal_entry(text)
             if entry and entry.pid in self._profiled_pids:
                 logger.error("Profiled Java process signalled", signal=json.dumps(entry._asdict()))
+                self._disable_profiling()  # paranoia
 
     def _handle_new_kernel_messages(self):
         try:
