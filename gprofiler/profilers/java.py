@@ -548,7 +548,7 @@ class JavaProfiler(ProcessProfilerBase):
 
     @classmethod
     def _disable_profiling(cls):
-        logger.error("Java profiling has been disabled, will avoid profiling any new java process")
+        logger.warning("Java profiling has been disabled, will avoid profiling any new java process")
         cls._should_profile = False
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
@@ -563,15 +563,15 @@ class JavaProfiler(ProcessProfilerBase):
             return False
 
         if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
-            logger.error("Unsupported JVM version", jvm_version=repr(jvm_version))
+            logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
             return False
         min_version, min_build = self.MINIMAL_SUPPORTED_VERSIONS[jvm_version.version.major]
         if jvm_version.version < min_version:
-            logger.error("Unsupported JVM version", jvm_version=repr(jvm_version))
+            logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
             return False
         elif jvm_version.version == min_version:
             if jvm_version.build < min_build:
-                logger.error("Unsupported JVM version", jvm_version=repr(jvm_version))
+                logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
                 return False
 
         return True
@@ -619,7 +619,7 @@ class JavaProfiler(ProcessProfilerBase):
 
     def _check_jvm_type_supported(self, process: Process, java_version_output: str) -> bool:
         if not self._is_jvm_type_supported(java_version_output):
-            logger.error("Unsupported JVM type", java_version_output=java_version_output)
+            logger.warning("Unsupported JVM type", java_version_output=java_version_output)
             return False
 
         return True
@@ -630,7 +630,7 @@ class JavaProfiler(ProcessProfilerBase):
             # TODO we can get the "java" binary by extracting the java home from the libjvm path,
             # then check with that instead (if exe isn't java)
             if process_basename != "java":
-                logger.error(
+                logger.warning(
                     "Non-java basenamed process, skipping... (disable --java-safemode to profile it anyway)",
                     pid=process.pid,
                     exe=process.exe(),
@@ -643,7 +643,7 @@ class JavaProfiler(ProcessProfilerBase):
                 return False
 
             if not self._is_jvm_version_supported(java_version_output):
-                logger.error(
+                logger.warning(
                     "Process running unsupported Java version, skipping..."
                     " (disable --java-safemode to profile it anyway)",
                     pid=process.pid,
@@ -728,7 +728,7 @@ class JavaProfiler(ProcessProfilerBase):
         native_frames = m[1] if m else ""
         m = CONTAINER_INFO_REGEX.search(contents)
         container_info = m[1] if m else ""
-        logger.error(
+        logger.warning(
             f"Found Hotspot error log for pid {pid} at {error_file}:\n"
             f"VM info: {vm_info}\n"
             f"siginfo: {siginfo}\n"
@@ -790,12 +790,12 @@ class JavaProfiler(ProcessProfilerBase):
             _, _, text = message
             entry = get_oom_entry(text)
             if entry and entry.pid in self._profiled_pids:
-                logger.error("Profiled Java process OOM", oom=json.dumps(entry._asdict()))
+                logger.warning("Profiled Java process OOM", oom=json.dumps(entry._asdict()))
                 self._disable_profiling()  # paranoia
 
             entry = get_signal_entry(text)
             if entry and entry.pid in self._profiled_pids:
-                logger.error("Profiled Java process signalled", signal=json.dumps(entry._asdict()))
+                logger.warning("Profiled Java process signalled", signal=json.dumps(entry._asdict()))
                 self._disable_profiling()  # paranoia
 
     def _handle_new_kernel_messages(self):
