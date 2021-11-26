@@ -765,7 +765,8 @@ class JavaProfiler(ProcessProfilerBase):
             self._saved_mlock = read_perf_event_mlock_kb()
             write_perf_event_mlock_kb(self._new_perf_event_mlock_kb)
 
-        proc_events.register_exit_callback(self._proc_exit_callback)
+        # needs to run in init net NS
+        run_in_ns(["net"], lambda: proc_events.register_exit_callback(self._proc_exit_callback), 1)
 
     def stop(self) -> None:
         super().stop()
