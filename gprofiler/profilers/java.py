@@ -812,4 +812,4 @@ class JavaProfiler(ProcessProfilerBase):
         finally:
             self._handle_new_kernel_messages()
             self._profiled_pids -= self._pids_to_remove
-            self._pids_to_remove = set()
+            self._pids_to_remove.clear()
