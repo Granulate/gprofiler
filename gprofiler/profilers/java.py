@@ -665,7 +665,12 @@ class JavaProfiler(ProcessProfilerBase):
         if not self._is_profiling_supported(process):
             return None
 
-        self._profiled_pids.add(process.pid)
+        # track profiled PIDs only if proc_events are in use, otherwise there is no use in them.
+        # TODO: it is possible to run in contexts where we're unable to use proc_events but are able to listen
+        # on kernel messages. we can add another mechanism to track PIDs (such as, prune PIDs which have exited)
+        # then use the kernel messages listener without proc_events.
+        if self._enabled_proc_events:
+            self._profiled_pids.add(process.pid)
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
         with AsyncProfiledProcess(
