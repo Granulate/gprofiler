@@ -545,6 +545,7 @@ class JavaProfiler(ProcessProfilerBase):
         self._profiled_pids: Set[int] = set()
         self._pids_to_remove: Set[int] = set()
         self._kernel_messages_provider = DefaultMessagesProvider()
+        self._enabled_proc_events = False
 
     @classmethod
     def _disable_profiling(cls):
@@ -769,10 +770,18 @@ class JavaProfiler(ProcessProfilerBase):
             self._saved_mlock = read_perf_event_mlock_kb()
             write_perf_event_mlock_kb(self._new_perf_event_mlock_kb)
 
-        # needs to run in init net NS
-        run_in_ns(["net"], lambda: proc_events.register_exit_callback(self._proc_exit_callback), 1)
+        try:
+            # needs to run in init net NS
+            run_in_ns(["net"], lambda: proc_events.register_exit_callback(self._proc_exit_callback), 1)
+        except Exception:
+            logger.warning("Failed to enable proc_events listener for exited Java processes", exc_info=True)
+        else:
+            self._enabled_proc_events = True
 
     def stop(self) -> None:
+        if self._enabled_proc_events:
+            proc_events.unregister_exit_callback(self._proc_exit_callback)
+            self._enabled_proc_events = False
         if self._saved_mlock is not None:
             write_perf_event_mlock_kb(self._saved_mlock)
         super().stop()
