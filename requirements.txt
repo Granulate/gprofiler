@@ -7,3 +7,4 @@ docker==5.0.0
 six==1.16.0
 dataclasses==0.8; python_version < '3.7'
 packaging==21.2
+./granulate-utils/

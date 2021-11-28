@@ -148,7 +148,11 @@ RUN if [ $(uname -m) = "aarch64" ]; then yum install -y glibc-static zlib-devel.
 # needed for aarch64, scons & wheel are needed to build staticx
 RUN if [ $(uname -m) = "aarch64" ]; then python3 -m pip install 'wheel==0.37.0' 'scons==4.2.0'; fi
 
+RUN python3 -m pip install --upgrade pip
+
 COPY requirements.txt requirements.txt
+COPY granulate-utils/setup.py granulate-utils/requirements.txt granulate-utils/README.md granulate-utils/
+COPY granulate-utils/granulate_utils granulate-utils/granulate_utils
 RUN python3 -m pip install -r requirements.txt
 
 COPY exe-requirements.txt exe-requirements.txt

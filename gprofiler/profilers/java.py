@@ -4,26 +4,31 @@
 #
 import errno
 import functools
+import json
 import os
 import re
 import shutil
 from pathlib import Path
 from threading import Event
-from typing import List, Optional
+from typing import List, Optional, Set
 
 import psutil
+from granulate_utils.linux import proc_events
+from granulate_utils.linux.ns import get_mnt_ns_ancestor, resolve_proc_root_links, run_in_ns
+from granulate_utils.linux.oom import get_oom_entry
+from granulate_utils.linux.signals import get_signal_entry
 from packaging.version import Version
 from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.gprofiler_types import StackToSampleCount
+from gprofiler.kernel_messages import DefaultMessagesProvider, EmptyProvider
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
-    get_mnt_ns_ancestor,
     get_process_nspid,
     is_process_running,
     pgrep_maps,
@@ -31,9 +36,7 @@ from gprofiler.utils import (
     read_perf_event_mlock_kb,
     remove_path,
     remove_prefix,
-    resolve_proc_root_links,
     resource_path,
-    run_in_ns,
     run_process,
     touch_path,
     wait_event,
@@ -310,7 +313,7 @@ class AsyncProfiledProcess:
     def _get_start_cmd(self, interval: int) -> List[str]:
         return self._get_base_cmd() + [
             f"start,event={self._mode},file={self._output_path_process},"
-            f"{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS},interval={interval},framebuf=2000000,"
+            f"{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS},interval={interval},"
             f"log={self._log_path_process}{',buildids' if self._buildids else ''}"
             f"{',fdtransfer' if self._mode == 'cpu' else ''}"
             f",safemode={self._safemode}"
@@ -537,10 +540,18 @@ class JavaProfiler(ProcessProfilerBase):
         self._java_safemode = java_safemode
         if self._java_safemode:
             logger.debug("Java safemode enabled")
+        self._profiled_pids: Set[int] = set()
+        self._pids_to_remove: Set[int] = set()
+        try:
+            self._kernel_messages_provider = DefaultMessagesProvider()
+        except Exception:
+            logger.warning("Failed to start kernel messages listener", exc_info=True)
+            self._kernel_messages_provider = EmptyProvider()
+        self._enabled_proc_events = False
 
     @classmethod
     def _disable_profiling(cls):
-        logger.error("Java profiling has been disabled, will avoid profiling any new java process")
+        logger.warning("Java profiling has been disabled, will avoid profiling any new java process")
         cls._should_profile = False
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
@@ -555,15 +566,15 @@ class JavaProfiler(ProcessProfilerBase):
             return False
 
         if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
-            logger.error(f"Unsupported java version {jvm_version.version}")
+            logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
             return False
         min_version, min_build = self.MINIMAL_SUPPORTED_VERSIONS[jvm_version.version.major]
         if jvm_version.version < min_version:
-            logger.error(f"Unsupported java version {jvm_version.version}")
+            logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
             return False
         elif jvm_version.version == min_version:
             if jvm_version.build < min_build:
-                logger.error(f"Unsupported build number {jvm_version.build} for java version {jvm_version.version}")
+                logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
                 return False
 
         return True
@@ -611,7 +622,7 @@ class JavaProfiler(ProcessProfilerBase):
 
     def _check_jvm_type_supported(self, process: Process, java_version_output: str) -> bool:
         if not self._is_jvm_type_supported(java_version_output):
-            logger.error(f"Process {process.pid} running unsupported JVM ({java_version_output!r}), skipping...")
+            logger.warning("Unsupported JVM type", java_version_output=java_version_output)
             return False
 
         return True
@@ -622,9 +633,10 @@ class JavaProfiler(ProcessProfilerBase):
             # TODO we can get the "java" binary by extracting the java home from the libjvm path,
             # then check with that instead (if exe isn't java)
             if process_basename != "java":
-                logger.error(
-                    f"Non-java basenamed process {process.pid} ({process.exe()!r}), skipping..."
-                    " (disable --java-safemode to profile it anyway)"
+                logger.warning(
+                    "Non-java basenamed process, skipping... (disable --java-safemode to profile it anyway)",
+                    pid=process.pid,
+                    exe=process.exe(),
                 )
                 return False
 
@@ -634,9 +646,11 @@ class JavaProfiler(ProcessProfilerBase):
                 return False
 
             if not self._is_jvm_version_supported(java_version_output):
-                logger.error(
-                    f"Process {process.pid} running unsupported Java version ({java_version_output!r}), skipping..."
-                    " (disable --java-safemode to profile it anyway)"
+                logger.warning(
+                    "Process running unsupported Java version, skipping..."
+                    " (disable --java-safemode to profile it anyway)",
+                    pid=process.pid,
+                    java_version_output=java_version_output,
                 )
                 return False
         else:
@@ -650,6 +664,13 @@ class JavaProfiler(ProcessProfilerBase):
     def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
         if not self._is_profiling_supported(process):
             return None
+
+        # track profiled PIDs only if proc_events are in use, otherwise there is no use in them.
+        # TODO: it is possible to run in contexts where we're unable to use proc_events but are able to listen
+        # on kernel messages. we can add another mechanism to track PIDs (such as, prune PIDs which have exited)
+        # then use the kernel messages listener without proc_events.
+        if self._enabled_proc_events:
+            self._profiled_pids.add(process.pid)
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
         with AsyncProfiledProcess(
@@ -715,7 +736,7 @@ class JavaProfiler(ProcessProfilerBase):
         native_frames = m[1] if m else ""
         m = CONTAINER_INFO_REGEX.search(contents)
         container_info = m[1] if m else ""
-        logger.error(
+        logger.warning(
             f"Found Hotspot error log for pid {pid} at {error_file}:\n"
             f"VM info: {vm_info}\n"
             f"siginfo: {siginfo}\n"
@@ -756,7 +777,55 @@ class JavaProfiler(ProcessProfilerBase):
             self._saved_mlock = read_perf_event_mlock_kb()
             write_perf_event_mlock_kb(self._new_perf_event_mlock_kb)
 
+        try:
+            # needs to run in init net NS - see netlink_kernel_create() call on init_net in cn_init().
+            run_in_ns(["net"], lambda: proc_events.register_exit_callback(self._proc_exit_callback), 1)
+        except Exception:
+            logger.warning("Failed to enable proc_events listener for exited Java processes", exc_info=True)
+        else:
+            self._enabled_proc_events = True
+
     def stop(self) -> None:
-        super().stop()
+        if self._enabled_proc_events:
+            proc_events.unregister_exit_callback(self._proc_exit_callback)
+            self._enabled_proc_events = False
         if self._saved_mlock is not None:
             write_perf_event_mlock_kb(self._saved_mlock)
+        super().stop()
+
+    def _proc_exit_callback(self, tid: int, pid: int, exit_code: int):
+        # Notice that we only check the exit code of the main thread here.
+        # It's assumed that an error in any of the Java threads will be reflected in the exit code of the main thread.
+        if tid in self._profiled_pids:
+            if exit_code != 0:
+                logger.warning("Async-profiled Java process exited with error code", pid=tid, exit_code=hex(exit_code))
+            self._pids_to_remove.add(tid)
+
+    def _handle_kernel_messages(self, messages):
+        for message in messages:
+            _, _, text = message
+            entry = get_oom_entry(text)
+            if entry and entry.pid in self._profiled_pids:
+                logger.warning("Profiled Java process OOM", oom=json.dumps(entry._asdict()))
+                self._disable_profiling()  # paranoia
+
+            entry = get_signal_entry(text)
+            if entry and entry.pid in self._profiled_pids:
+                logger.warning("Profiled Java process signalled", signal=json.dumps(entry._asdict()))
+                self._disable_profiling()  # paranoia
+
+    def _handle_new_kernel_messages(self):
+        try:
+            messages = list(self._kernel_messages_provider.iter_new_messages())
+        except Exception:
+            logger.exception("Error iterating new kernel messages")
+        else:
+            self._handle_kernel_messages(messages)
+
+    def snapshot(self):
+        try:
+            return super().snapshot()
+        finally:
+            self._handle_new_kernel_messages()
+            self._profiled_pids -= self._pids_to_remove
+            self._pids_to_remove.clear()

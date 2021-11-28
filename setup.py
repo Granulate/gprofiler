@@ -4,14 +4,21 @@
 #
 import re
 from pathlib import Path
-from typing import List
+from typing import Iterator
 
 import setuptools
 
 
-def read_requirements(path: str) -> List[str]:
+def read_requirements(path: str) -> Iterator[str]:
     with open(path) as f:
-        return [line for line in f.readlines() if not line.startswith("#")]
+        for line in f:
+            if line.startswith("#"):
+                continue
+            # install_requires doesn't like paths
+            if line.strip() == "./granulate-utils/":
+                yield "granulate-utils"
+                continue
+            yield line
 
 
 version = re.search(r'__version__\s*=\s*"(.*?)"', Path("gprofiler/__init__.py").read_text())
@@ -34,6 +41,6 @@ setuptools.setup(
     ],
     packages=setuptools.find_packages(),
     include_package_data=True,
-    install_requires=read_requirements("requirements.txt"),
+    install_requires=list(read_requirements("requirements.txt")),
     python_requires=">=3.6",
 )
