@@ -2,9 +2,10 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-from gprofiler.log import get_logger_adapter
 from granulate_utils.linux import get_kernel_release
 from granulate_utils.linux.kernel_messages import DefaultKernelMessagesProvider, EmptyKernelMessagesProvider
+
+from gprofiler.log import get_logger_adapter
 
 logger = get_logger_adapter(__name__)
 

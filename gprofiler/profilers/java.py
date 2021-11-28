@@ -542,11 +542,7 @@ class JavaProfiler(ProcessProfilerBase):
             logger.debug("Java safemode enabled")
         self._profiled_pids: Set[int] = set()
         self._pids_to_remove: Set[int] = set()
-        try:
-            self._kernel_messages_provider = get_kernel_messages_provider()
-        except Exception:
-            logger.warning("Failed to start kernel messages listener", exc_info=True)
-            self._kernel_messages_provider = EmptyProvider()
+        self._kernel_messages_provider = get_kernel_messages_provider()
         self._enabled_proc_events = False
 
     @classmethod
