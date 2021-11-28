@@ -773,9 +773,9 @@ class JavaProfiler(ProcessProfilerBase):
         run_in_ns(["net"], lambda: proc_events.register_exit_callback(self._proc_exit_callback), 1)
 
     def stop(self) -> None:
-        super().stop()
         if self._saved_mlock is not None:
             write_perf_event_mlock_kb(self._saved_mlock)
+        super().stop()
 
     def _proc_exit_callback(self, tid: int, pid: int, exit_code: int):
         # Notice that we only check the exit code of the main thread here.
