@@ -771,7 +771,7 @@ class JavaProfiler(ProcessProfilerBase):
             write_perf_event_mlock_kb(self._new_perf_event_mlock_kb)
 
         try:
-            # needs to run in init net NS
+            # needs to run in init net NS - see netlink_kernel_create() call on init_net in cn_init().
             run_in_ns(["net"], lambda: proc_events.register_exit_callback(self._proc_exit_callback), 1)
         except Exception:
             logger.warning("Failed to enable proc_events listener for exited Java processes", exc_info=True)
