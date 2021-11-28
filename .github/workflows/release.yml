@@ -207,5 +207,6 @@ jobs:
           files: |
             output/gprofiler_x86_64
             output/gprofiler_aarch64
+            output/gprofiler
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
