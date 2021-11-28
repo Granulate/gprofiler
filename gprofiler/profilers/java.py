@@ -545,7 +545,7 @@ class JavaProfiler(ProcessProfilerBase):
         try:
             self._kernel_messages_provider = DefaultMessagesProvider()
         except Exception:
-            logger.warning("Failed to start kernel messages listener")
+            logger.warning("Failed to start kernel messages listener", exc_info=True)
             self._kernel_messages_provider = EmptyProvider()
         self._enabled_proc_events = False
 
