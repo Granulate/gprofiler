@@ -107,8 +107,7 @@ FROM ubuntu${GPROFILER_BUILDER_UBUNTU}
 
 WORKDIR /app
 
-# kmod - for modprobe kheaders if it's available
-RUN apt-get update && apt-get install --no-install-recommends -y curl python3-pip kmod
+RUN apt-get update && apt-get install --no-install-recommends -y python3-pip
 
 # Aarch64 has no .whl file for psutil - so it's trying to build from source.
 RUN if [ $(uname -m) = "aarch64" ]; then apt-get install -y build-essential python3.8-dev; fi

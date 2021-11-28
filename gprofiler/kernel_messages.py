@@ -21,7 +21,10 @@ class Provider(ABC):
 
 class EmptyProvider(Provider):
     def __init__(self):
-        print("This kernel does not support the new /dev/kmsg interface for reading messages.")
+        print(
+            "This kernel does not support the new /dev/kmsg interface for reading messages,"
+            " or you lack the permissions for it."
+        )
         print("Profilee error monitoring not available.")
         print()
         logger.warning("Profilee error monitoring not available.")
