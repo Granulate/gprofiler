@@ -1,0 +1,3 @@
+[submodule "granulate-utils"]
+	path = granulate-utils
+	url = git@github.com:Granulate/granulate-utils.git

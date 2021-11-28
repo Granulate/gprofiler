@@ -107,7 +107,7 @@ FROM ubuntu${GPROFILER_BUILDER_UBUNTU}
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install --no-install-recommends -y python3-pip git
+RUN apt-get update && apt-get install --no-install-recommends -y python3-pip
 
 # Aarch64 has no .whl file for psutil - so it's trying to build from source.
 RUN if [ $(uname -m) = "aarch64" ]; then apt-get install -y build-essential python3.8-dev; fi
@@ -143,6 +143,8 @@ RUN pip3 install --upgrade pip
 # done separately from the 'pip3 install -e' below; so we don't reinstall all dependencies on each
 # code change.
 COPY requirements.txt ./
+COPY granulate-utils/setup.py granulate-utils/requirements.txt granulate-utils/README.md granulate-utils/
+COPY granulate-utils/granulate_utils granulate-utils/granulate_utils
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY LICENSE.md MANIFEST.in README.md setup.py  ./

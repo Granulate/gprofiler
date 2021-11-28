@@ -14,6 +14,7 @@ from typing import List, Optional, Set
 
 import psutil
 from granulate_utils.linux import proc_events
+from granulate_utils.linux.ns import get_mnt_ns_ancestor, resolve_proc_root_links, run_in_ns
 from granulate_utils.linux.oom import get_oom_entry
 from granulate_utils.linux.signals import get_signal_entry
 from packaging.version import Version
@@ -28,7 +29,6 @@ from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
-    get_mnt_ns_ancestor,
     get_process_nspid,
     is_process_running,
     pgrep_maps,
@@ -36,9 +36,7 @@ from gprofiler.utils import (
     read_perf_event_mlock_kb,
     remove_path,
     remove_prefix,
-    resolve_proc_root_links,
     resource_path,
-    run_in_ns,
     run_process,
     touch_path,
     wait_event,

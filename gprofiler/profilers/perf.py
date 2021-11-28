@@ -5,10 +5,9 @@
 import os
 import signal
 from pathlib import Path
+from subprocess import Popen
 from threading import Event
 from typing import List, Optional
-
-import psutil
 
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.log import get_logger_adapter
@@ -46,7 +45,7 @@ class PerfProcess:
         self._type = "dwarf" if is_dwarf else "fp"
         self._inject_jit = inject_jit
         self._extra_args = extra_args + (["-k", "1"] if self._inject_jit else [])
-        self._process: Optional[psutil.Process] = None
+        self._process: Optional[Popen] = None
 
     def _get_perf_cmd(self) -> List[str]:
         return [
@@ -99,8 +98,8 @@ class PerfProcess:
             # always read its stderr
             # using read1() which performs just a single read() call and doesn't read until EOF
             # (unlike Popen.communicate())
-            assert self._process is not None
-            logger.debug(f"perf stderr: {self._process.stderr.read1(4096)}")
+            assert self._process is not None and self._process.stderr is not None
+            logger.debug(f"perf stderr: {self._process.stderr.read1(4096)}")  # type: ignore
 
         if self._inject_jit:
             inject_data = Path(f"{str(perf_data)}.inject")
