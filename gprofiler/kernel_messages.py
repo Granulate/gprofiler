@@ -2,25 +2,20 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-from abc import ABC
-from typing import Iterable, Tuple, Type
-
 from gprofiler.log import get_logger_adapter
-from gprofiler.utils import get_kernel_release
+from granulate_utils.linux import get_kernel_release
+from granulate_utils.linux.kernel_messages import DefaultKernelMessagesProvider, EmptyKernelMessagesProvider
 
 logger = get_logger_adapter(__name__)
-kernel_release = get_kernel_release()
-
-KernelMessage = Tuple[float, int, str]
 
 
-class Provider(ABC):
-    def iter_new_messages(self) -> Iterable[KernelMessage]:
-        ...
+class GProfilerKernelMessagesProvider(DefaultKernelMessagesProvider):
+    def on_missed(self):
+        logger.warning("Missed some kernel messages.")
 
 
-class EmptyProvider(Provider):
-    def __init__(self):
+def get_kernel_messages_provider():
+    if get_kernel_release() < (3, 5):
         print(
             "This kernel does not support the new /dev/kmsg interface for reading messages,"
             " or you lack the permissions for it."
@@ -29,14 +24,9 @@ class EmptyProvider(Provider):
         print()
         logger.warning("Profilee error monitoring not available.")
 
-    def iter_new_messages(self):
-        return []
-
-
-DefaultMessagesProvider: Type[Provider]
-if kernel_release >= (3, 5):
-    from gprofiler.devkmsg import DevKmsgProvider
-
-    DefaultMessagesProvider = DevKmsgProvider
-else:
-    DefaultMessagesProvider = EmptyProvider
+    try:
+        return GProfilerKernelMessagesProvider()
+    except Exception:
+        logger.warning("Failed to start kernel messages listener.", exc_info=True)
+        logger.warning("Profilee error monitoring not available.")
+        return EmptyKernelMessagesProvider()
