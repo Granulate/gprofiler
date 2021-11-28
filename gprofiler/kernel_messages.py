@@ -17,10 +17,7 @@ class GProfilerKernelMessagesProvider(DefaultKernelMessagesProvider):
 
 def get_kernel_messages_provider():
     if get_kernel_release() < (3, 5):
-        print(
-            "This kernel does not support the new /dev/kmsg interface for reading messages,"
-            " or you lack the permissions for it."
-        )
+        print("This kernel does not support the new /dev/kmsg interface for reading messages.")
         print("Profilee error monitoring not available.")
         print()
         logger.warning("Profilee error monitoring not available.")
@@ -28,6 +25,9 @@ def get_kernel_messages_provider():
     try:
         return GProfilerKernelMessagesProvider()
     except Exception:
+        print("Failed to start kernel messages listener. Do you have permission to read /dev/kmsg ?")
+        print("Profilee error monitoring not available.")
+        print()
         logger.warning("Failed to start kernel messages listener.", exc_info=True)
         logger.warning("Profilee error monitoring not available.")
         return EmptyKernelMessagesProvider()
