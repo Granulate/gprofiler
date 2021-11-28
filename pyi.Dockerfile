@@ -151,6 +151,8 @@ RUN if [ $(uname -m) = "aarch64" ]; then python3 -m pip install 'wheel==0.37.0' 
 RUN python3 -m pip install --upgrade pip
 
 COPY requirements.txt requirements.txt
+COPY granulate-utils/setup.py granulate-utils/requirements.txt granulate-utils/README.md granulate-utils/
+COPY granulate-utils/granulate_utils granulate-utils/granulate_utils
 RUN python3 -m pip install -r requirements.txt
 
 COPY exe-requirements.txt exe-requirements.txt
