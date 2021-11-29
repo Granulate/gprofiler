@@ -15,6 +15,10 @@ class GProfilerKernelMessagesProvider(DefaultKernelMessagesProvider):
 
 
 def get_kernel_messages_provider():
+    if DefaultKernelMessagesProvider is EmptyKernelMessagesProvider:
+        logger.info("Profilee error monitoring is not supported for this system.")
+        return DefaultKernelMessagesProvider()
+
     try:
         return GProfilerKernelMessagesProvider()
     except Exception:
