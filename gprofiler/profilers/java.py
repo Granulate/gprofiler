@@ -22,7 +22,7 @@ from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.gprofiler_types import StackToSampleCount
-from gprofiler.kernel_messages import DefaultMessagesProvider, EmptyProvider
+from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
@@ -542,11 +542,7 @@ class JavaProfiler(ProcessProfilerBase):
             logger.debug("Java safemode enabled")
         self._profiled_pids: Set[int] = set()
         self._pids_to_remove: Set[int] = set()
-        try:
-            self._kernel_messages_provider = DefaultMessagesProvider()
-        except Exception:
-            logger.warning("Failed to start kernel messages listener", exc_info=True)
-            self._kernel_messages_provider = EmptyProvider()
+        self._kernel_messages_provider = get_kernel_messages_provider()
         self._enabled_proc_events = False
 
     @classmethod
