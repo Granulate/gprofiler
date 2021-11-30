@@ -357,9 +357,9 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
     # Extra information we don't care about is placed after a comma
     build_str = build_str[: build_str.find(",")]
 
-    if version_str.endswith("-internal"):
-        # Not sure what this means, ignore
-        version_str = version_str[: -len("-internal")]
+    if version_str.endswith("-internal") or version_str.endswith("-ea"):
+        # strip the "internal" or "early access" suffixes
+        version_str = version_str.rsplit("-")[0]
 
     version_list = version_str.split(".")
     if version_list[0] == "1":
@@ -445,6 +445,7 @@ class JavaProfiler(ProcessProfilerBase):
         8: (Version("8.72"), 15),
         11: (Version("11.0.2"), 7),
         12: (Version("12.0.1"), 12),
+        14: (Version("14"), 33),
         15: (Version("15.0.1"), 9),
         16: (Version("16"), 36),
     }
@@ -502,7 +503,7 @@ class JavaProfiler(ProcessProfilerBase):
             jvm_version = parse_jvm_version(java_version_cmd_output)
             logger.info(f"Checking support for java version {jvm_version}")
         except Exception as e:
-            logger.error(f"Failed to parse java -version output {java_version_cmd_output}: {e}")
+            logger.exception(f"Failed to parse java -version output {java_version_cmd_output}: {e}")
             return False
 
         if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
