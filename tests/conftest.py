@@ -197,14 +197,32 @@ def application_docker_image(
 
 
 @fixture
+def application_docker_mount() -> bool:
+    return False
+
+
+@fixture
 def application_docker_container(
-    in_container: bool, docker_client: DockerClient, application_docker_image: Image
+    in_container: bool,
+    docker_client: DockerClient,
+    application_docker_image: Image,
+    output_directory: Path,
+    application_docker_mount: bool,
 ) -> Iterable[Container]:
     if not in_container:
         yield None
         return
     else:
-        container: Container = docker_client.containers.run(application_docker_image, detach=True, user="5555:6666")
+        volumes = (
+            {str(output_directory): {"bind": str(output_directory), "mode": "rw"}} if application_docker_mount else {}
+        )
+        container: Container = docker_client.containers.run(
+            application_docker_image,
+            detach=True,
+            user="5555:6666",
+            volumes=volumes,
+            cap_add=["SYS_PTRACE"],
+        )
         while container.status != "running":
             if container.status == "exited":
                 raise Exception(container.logs().decode())
