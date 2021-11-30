@@ -749,8 +749,7 @@ class JavaProfiler(ProcessProfilerBase):
                 # not a signal - don't report it.
                 return
 
-            if exit_code != 0:
-                logger.warning("async-profiled Java process exited with signal", pid=tid, signal=signo)
+            logger.warning("async-profiled Java process exited with signal", pid=tid, signal=signo)
 
     def _handle_kernel_messages(self, messages):
         for message in messages:
