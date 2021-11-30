@@ -63,7 +63,7 @@ def test_executable(
             + profiler_flags
         )
         popen = Popen(command)
-        popen.wait()
+        assert popen.wait() == 0
 
     collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
     assert_collapsed(collapsed)
