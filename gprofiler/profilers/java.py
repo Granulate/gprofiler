@@ -357,9 +357,9 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
     # Extra information we don't care about is placed after a comma
     build_str = build_str[: build_str.find(",")]
 
-    if version_str.endswith("-internal"):
-        # Not sure what this means, ignore
-        version_str = version_str[: -len("-internal")]
+    if version_str.endswith("-internal") or version_str.endswith("-ea"):
+        # strip the "internal" or "early access" suffixes
+        version_str = version_str.rsplit("-")[0]
 
     version_list = version_str.split(".")
     if version_list[0] == "1":
