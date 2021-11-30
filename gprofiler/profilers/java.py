@@ -445,6 +445,7 @@ class JavaProfiler(ProcessProfilerBase):
         8: (Version("8.72"), 15),
         11: (Version("11.0.2"), 7),
         12: (Version("12.0.1"), 12),
+        14: (Version("14"), 33),
         15: (Version("15.0.1"), 9),
         16: (Version("16"), 36),
     }
