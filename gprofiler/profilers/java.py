@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import signal
 from pathlib import Path
 from threading import Event
 from typing import List, Optional, Set
@@ -738,9 +739,18 @@ class JavaProfiler(ProcessProfilerBase):
         # Notice that we only check the exit code of the main thread here.
         # It's assumed that an error in any of the Java threads will be reflected in the exit code of the main thread.
         if tid in self._profiled_pids:
-            if exit_code != 0:
-                logger.warning("Async-profiled Java process exited with error code", pid=tid, exit_code=hex(exit_code))
             self._pids_to_remove.add(tid)
+
+            if os.WIFSIGNALED(exit_code):
+                signo = os.WTERMSIG(exit_code)
+            elif exit_code == 0x8F00:
+                # java exits with 143 upon SIGTERM
+                signo = signal.SIGTERM.value
+            else:
+                # not a signal - don't report it.
+                return
+
+            logger.warning("async-profiled Java process exited with signal", pid=tid, signal=signo)
 
     def _handle_kernel_messages(self, messages):
         for message in messages:
