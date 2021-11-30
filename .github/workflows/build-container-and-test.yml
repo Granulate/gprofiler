@@ -1,4 +1,4 @@
-name: GProfiler CI
+name: Lint, build gProfiler container and run tests
 
 on: pull_request
 
@@ -30,7 +30,7 @@ jobs:
     - name: Run linters
       run: ./lint.sh --ci
 
-  test:
+  build-container-and-test:
     strategy:
       fail-fast: false  # helps detecting flakiness / errors specific to one Python version
       matrix:
