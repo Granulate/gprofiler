@@ -502,7 +502,7 @@ class JavaProfiler(ProcessProfilerBase):
             jvm_version = parse_jvm_version(java_version_cmd_output)
             logger.info(f"Checking support for java version {jvm_version}")
         except Exception as e:
-            logger.error(f"Failed to parse java -version output {java_version_cmd_output}: {e}")
+            logger.exception(f"Failed to parse java -version output {java_version_cmd_output}: {e}")
             return False
 
         if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
