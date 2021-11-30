@@ -1,0 +1,63 @@
+name: Build gProfiler container & deploy
+
+on:
+  push:
+    tags:
+      - '**'
+
+  build-docker:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          submodules: true
+      - name: Get and verify tag value
+        run: |
+          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          ./cmp_tags.sh
+          echo "GH_REPO=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+          gprofiler_version=$(python -c "exec(open('gprofiler/__init__.py').read()); print(__version__)")
+          git_tag=$(git describe --tags)
+          if [ "$gprofiler_version" != "$git_tag" ]; then
+            echo Running gprofiler_version $gprofiler_version but git_tag $git_tag
+            exit 1
+          fi
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
+      - name: Build and push
+        run: |
+          set -x
+          export DOCKER_BUILDKIT=1
+
+          BASE_IMAGE="${{ env.GH_REPO }}:${{ env.RELEASE_VERSION }}"
+          LATEST_IMAGE="${{ env.GH_REPO }}:latest"
+          X86_64_IMAGE="$BASE_IMAGE-x86_64"
+          AARCH64_IMAGE="$BASE_IMAGE-aarch64"
+
+          # build & push Aarch64
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+          docker buildx create --name multiarch --driver docker-container --use
+          ./scripts/build_aarch64_container.sh -t "$AARCH64_IMAGE" --push
+
+          # build & push x86_64
+          docker build -t "$X86_64_IMAGE" .
+          docker push "$X86_64_IMAGE"
+
+          # create manifests for the tag + for 'latest'
+          docker manifest create "$BASE_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
+          docker manifest push "$BASE_IMAGE"
+          docker manifest create "$LATEST_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
+          docker manifest push "$LATEST_IMAGE"
+
+      - name: Image digest
+        run: echo ${{ steps.docker_build.outputs.digest }}
