@@ -19,12 +19,12 @@ from tests.utils import RUNTIME_PROFILERS, run_gprofiler_in_container
     "runtime,profiler_type",
     RUNTIME_PROFILERS,
 )
-def test_from_executable(
+def test_executable(
     gprofiler_exe: Path,
     application_pid: int,
     runtime_specific_args: List[str],
     assert_collapsed: Callable[[Mapping[str, int]], None],
-    exec_container_image: Image,
+    exec_container_image: Optional[Image],
     docker_client: DockerClient,
     output_directory: Path,
     profiler_flags: List[str],
