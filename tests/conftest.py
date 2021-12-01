@@ -197,14 +197,44 @@ def application_docker_image(
 
 
 @fixture
+def application_docker_mount() -> bool:
+    """
+    Whether or not to mount the output directory (output_directory fixture) to the application containers.
+    """
+    return False
+
+
+@fixture
+def application_docker_capabilities() -> List[str]:
+    """
+    List of capabilities to add to the application containers.
+    """
+    return []
+
+
+@fixture
 def application_docker_container(
-    in_container: bool, docker_client: DockerClient, application_docker_image: Image
+    in_container: bool,
+    docker_client: DockerClient,
+    application_docker_image: Image,
+    output_directory: Path,
+    application_docker_mount: bool,
+    application_docker_capabilities: List[str],
 ) -> Iterable[Container]:
     if not in_container:
         yield None
         return
     else:
-        container: Container = docker_client.containers.run(application_docker_image, detach=True, user="5555:6666")
+        volumes = (
+            {str(output_directory): {"bind": str(output_directory), "mode": "rw"}} if application_docker_mount else {}
+        )
+        container: Container = docker_client.containers.run(
+            application_docker_image,
+            detach=True,
+            user="5555:6666",
+            volumes=volumes,
+            cap_add=application_docker_capabilities,
+        )
         while container.status != "running":
             if container.status == "exited":
                 raise Exception(container.logs().decode())

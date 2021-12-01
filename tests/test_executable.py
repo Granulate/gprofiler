@@ -3,28 +3,30 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
+import shutil
 from pathlib import Path
 from subprocess import Popen
-from typing import Callable, List, Mapping
+from typing import Callable, List, Mapping, Optional
 
 import pytest  # type: ignore
 from docker import DockerClient
+from docker.models.containers import Container
 from docker.models.images import Image
 
 from gprofiler.merge import parse_one_collapsed
-from tests.utils import RUNTIME_PROFILERS, run_gprofiler_in_container
+from tests.utils import RUNTIME_PROFILERS, _no_errors, run_gprofiler_in_container
 
 
 @pytest.mark.parametrize(
     "runtime,profiler_type",
     RUNTIME_PROFILERS,
 )
-def test_from_executable(
+def test_executable(
     gprofiler_exe: Path,
     application_pid: int,
     runtime_specific_args: List[str],
     assert_collapsed: Callable[[Mapping[str, int]], None],
-    exec_container_image: Image,
+    exec_container_image: Optional[Image],
     docker_client: DockerClient,
     output_directory: Path,
     profiler_flags: List[str],
@@ -63,7 +65,66 @@ def test_from_executable(
             + profiler_flags
         )
         popen = Popen(command)
-        popen.wait()
+        assert popen.wait() == 0
+
+    collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
+    assert_collapsed(collapsed)
+
+
+@pytest.mark.parametrize("application_docker_mount", [True])  # adds output_directory mount to the application container
+@pytest.mark.parametrize(
+    "runtime,profiler_type",
+    [
+        ("java", "ap"),
+        ("python", "py-spy"),
+        ("ruby", "rbspy"),
+        ("php", "phpspy"),
+    ],
+)
+@pytest.mark.parametrize(
+    "application_docker_capabilities",
+    [
+        [
+            "SYS_PTRACE",
+        ]
+    ],
+)
+@pytest.mark.parametrize("in_container", [True])
+def test_executable_not_privileged(
+    gprofiler_exe: Path,
+    application_docker_container: Container,
+    runtime_specific_args: List[str],
+    assert_collapsed: Callable[[Mapping[str, int]], None],
+    output_directory: Path,
+    profiler_flags: List[str],
+    application_docker_mount: bool,
+) -> None:
+    """
+    Tests gProfiler with lower privileges: runs in a container, as root & with SYS_PTRACE,
+    but nothing more.
+    """
+    os.makedirs(str(output_directory), mode=0o755, exist_ok=True)
+
+    mount_gprofiler_exe = str(output_directory / "gprofiler")
+    if not os.path.exists(mount_gprofiler_exe):
+        shutil.copy(str(gprofiler_exe), mount_gprofiler_exe)
+
+    command = (
+        [
+            mount_gprofiler_exe,
+            "-v",
+            "--output-dir",
+            str(output_directory),
+            "--disable-pidns-check",  # not running in init PID
+            "--no-perf",  # no privileges to run perf
+        ]
+        + runtime_specific_args
+        + profiler_flags
+    )
+    exit_code, output = application_docker_container.exec_run(cmd=command, privileged=False, user="root:root")
+
+    _no_errors(output.decode())
+    assert exit_code == 0
 
     collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
     assert_collapsed(collapsed)
