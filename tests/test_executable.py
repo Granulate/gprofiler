@@ -80,6 +80,14 @@ def test_executable(
         ("ruby", "rbspy"),
     ],
 )
+@pytest.mark.parametrize(
+    "application_docker_capabilities",
+    [
+        [
+            "SYS_PTRACE",
+        ]
+    ],
+)
 @pytest.mark.parametrize("in_container", [True])
 def test_executale_not_privileged(
     gprofiler_exe: Path,

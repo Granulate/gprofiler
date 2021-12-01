@@ -198,7 +198,18 @@ def application_docker_image(
 
 @fixture
 def application_docker_mount() -> bool:
+    """
+    Whether or not to mount the output directory (output_directory fixture) to the application containers.
+    """
     return False
+
+
+@fixture
+def application_docker_capabilities() -> List[str]:
+    """
+    List of capabilities to add to the application containers.
+    """
+    return []
 
 
 @fixture
@@ -208,6 +219,7 @@ def application_docker_container(
     application_docker_image: Image,
     output_directory: Path,
     application_docker_mount: bool,
+    application_docker_capabilities: List[str],
 ) -> Iterable[Container]:
     if not in_container:
         yield None
@@ -221,7 +233,7 @@ def application_docker_container(
             detach=True,
             user="5555:6666",
             volumes=volumes,
-            cap_add=["SYS_PTRACE"],
+            cap_add=application_docker_capabilities,
         )
         while container.status != "running":
             if container.status == "exited":
