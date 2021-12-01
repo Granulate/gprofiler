@@ -493,8 +493,9 @@ class JavaProfiler(ProcessProfilerBase):
 
     @classmethod
     def _disable_profiling(cls):
-        logger.warning("Java profiling has been disabled, will avoid profiling any new java process")
-        cls._should_profile = False
+        if cls._should_profile:
+            logger.warning("Java profiling has been disabled, will avoid profiling any new java process")
+            cls._should_profile = False
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -755,15 +756,31 @@ class JavaProfiler(ProcessProfilerBase):
     def _handle_kernel_messages(self, messages):
         for message in messages:
             _, _, text = message
-            entry = get_oom_entry(text)
-            if entry and entry.pid in self._profiled_pids:
-                logger.warning("Profiled Java process OOM", oom=json.dumps(entry._asdict()))
+            oom_entry = get_oom_entry(text)
+            if oom_entry and oom_entry.pid in self._profiled_pids:
+                logger.warning("Profiled Java process OOM", oom=json.dumps(oom_entry._asdict()))
                 self._disable_profiling()  # paranoia
+                continue
 
-            entry = get_signal_entry(text)
-            if entry and entry.pid in self._profiled_pids:
-                logger.warning("Profiled Java process signalled", signal=json.dumps(entry._asdict()))
+            signal_entry = get_signal_entry(text)
+            if signal_entry is not None and signal_entry.pid in self._profiled_pids:
+                logger.warning("Profiled Java process signalled", signal=json.dumps(signal_entry._asdict()))
                 self._disable_profiling()  # paranoia
+                continue
+
+            if self._java_safemode:
+                if oom_entry is not None:
+                    logger.warning("General OOM", oom=json.dumps(oom_entry._asdict()))
+                elif signal_entry is not None:
+                    logger.warning("General signal", signal=json.dumps(signal_entry._asdict()))
+                elif any(str(p) in text for p in self._profiled_pids):
+                    logger.warning("Profiled PID shows in kernel message line", line=text)
+                else:
+                    continue
+
+                # paranoia - stop Java profiling upon any OOM / fatal-signal / occurence of a profiled
+                # PID in a kernel message.
+                self._disable_profiling()
 
     def _handle_new_kernel_messages(self):
         try:
