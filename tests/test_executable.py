@@ -78,6 +78,7 @@ def test_executable(
         ("java", "ap"),
         ("python", "py-spy"),
         ("ruby", "rbspy"),
+        ("php", "phpspy"),
     ],
 )
 @pytest.mark.parametrize(
