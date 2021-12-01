@@ -493,8 +493,9 @@ class JavaProfiler(ProcessProfilerBase):
 
     @classmethod
     def _disable_profiling(cls):
-        logger.warning("Java profiling has been disabled, will avoid profiling any new java process")
-        cls._should_profile = False
+        if cls._should_profile:
+            logger.warning("Java profiling has been disabled, will avoid profiling any new java process")
+            cls._should_profile = False
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
