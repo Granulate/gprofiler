@@ -90,7 +90,7 @@ def test_executable(
     ],
 )
 @pytest.mark.parametrize("in_container", [True])
-def test_executale_not_privileged(
+def test_executable_not_privileged(
     gprofiler_exe: Path,
     application_docker_container: Container,
     runtime_specific_args: List[str],
