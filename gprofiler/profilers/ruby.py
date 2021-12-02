@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
+import signal
 from pathlib import Path
 from threading import Event
 from typing import List, Optional
@@ -29,6 +30,7 @@ logger = get_logger_adapter(__name__)
 class RbSpyProfiler(ProcessProfilerBase):
     RESOURCE_PATH = "ruby/rbspy"
     MAX_FREQUENCY = 100
+    _EXTRA_TIMEOUT = 10  # extra time like given to py-spy
 
     def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str, ruby_mode: str):
         super().__init__(frequency, duration, stop_event, storage_dir)
@@ -62,7 +64,12 @@ class RbSpyProfiler(ProcessProfilerBase):
         local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):
             try:
-                run_process(self._make_command(process.pid, local_output_path), stop_event=self._stop_event)
+                run_process(
+                    self._make_command(process.pid, local_output_path),
+                    stop_event=self._stop_event,
+                    timeout=self._duration + self._EXTRA_TIMEOUT,
+                    kill_signal=signal.SIGKILL,
+                )
             except ProcessStoppedException:
                 raise StopEventSetException
 
