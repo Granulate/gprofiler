@@ -257,6 +257,9 @@ class PythonEbpfProfiler(ProfilerBase):
         if self.user_stacks_pages is not None:
             cmd.extend(["--user-stacks-pages", str(self.user_stacks_pages)])
 
+        for f in glob.glob(f"{str(self.output_path)}.*"):
+            os.unlink(f)
+
         process = start_process(cmd, via_staticx=True)
         # wait until the transient data file appears - because once returning from here, PyPerf may
         # be polled via snapshot() and we need it to finish installing its signal handler.
