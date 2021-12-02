@@ -1,3 +1,9 @@
+"""Package name and version for Python files.
+
+Some of the functions in this module are implemented based on similar functions
+in pip: _get_metadata, _convert_legacy_entry, _files_from_record,
+_files_from_legacy, _get_package_name.
+"""
 import csv
 import email
 import os
