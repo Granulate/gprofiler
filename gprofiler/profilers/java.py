@@ -128,15 +128,22 @@ class AsyncProfiledProcess:
     OUTPUT_FORMAT = "collapsed"
     OUTPUTS_MODE = 0o622  # readable by root, writable by all
 
+    # timeouts in seconds
+    _FDTRANSFER_TIMEOUT = 3
+    _START_AP_TIMEOUT = 3
+    _STOP_AP_TIMEOUT = 10  # longer as it does more work
+
     def __init__(
         self,
         process: Process,
         storage_dir: str,
+        stop_event: Event,
         buildids: bool,
         mode: str,
         ap_safemode: int,
     ):
         self.process = process
+        self._stop_event = stop_event
         # access the process' root via its topmost parent/ancestor which uses the same mount namespace.
         # this allows us to access the files after the process exits:
         # * for processes that run in host mount NS - their ancestor is always available (it's going to be PID 1)
@@ -305,9 +312,10 @@ class AsyncProfiledProcess:
         ap_params.append(f"log={self._log_path_process}")
         return self._get_base_cmd() + [",".join(ap_params)]
 
-    def _run_async_profiler(self, cmd: List[str]) -> None:
+    def _run_async_profiler(self, cmd: List[str], timeout: int) -> None:
         try:
-            run_process(cmd)
+            # kill jattach with SIGTERM if it hangs. it will go down
+            run_process(cmd, stop_event=self._stop_event, timeout=timeout, kill_signal=signal.SIGTERM)
         except CalledProcessError as e:
             if os.path.exists(self._log_path_host):
                 log = Path(self._log_path_host)
@@ -325,7 +333,9 @@ class AsyncProfiledProcess:
         """
         Start fdtransfer; it will fork & exit once ready, so we can continue with jattach.
         """
-        run_process([fdtransfer_path(), str(self.process.pid)], communicate=False)
+        run_process(
+            [fdtransfer_path(), str(self.process.pid)], stop_event=self._stop_event, timeout=self._FDTRANSFER_TIMEOUT
+        )
 
     def start_async_profiler(self, interval: int, second_try: bool = False) -> bool:
         """
@@ -336,7 +346,7 @@ class AsyncProfiledProcess:
 
         start_cmd = self._get_start_cmd(interval)
         try:
-            self._run_async_profiler(start_cmd)
+            self._run_async_profiler(start_cmd, timeout=self._START_AP_TIMEOUT)
             return True
         except JattachException as e:
             is_loaded = f" {self._libap_path_process}\n" in Path(f"/proc/{self.process.pid}/maps").read_text()
@@ -352,7 +362,7 @@ class AsyncProfiledProcess:
             raise
 
     def stop_async_profiler(self, with_output: bool) -> None:
-        self._run_async_profiler(self._get_stop_cmd(with_output))
+        self._run_async_profiler(self._get_stop_cmd(with_output), timeout=self._STOP_AP_TIMEOUT)
 
     def read_output(self) -> Optional[str]:
         try:
@@ -492,6 +502,8 @@ class JavaProfiler(ProcessProfilerBase):
 
     _new_perf_event_mlock_kb = 8192
 
+    _JAVA_VERSION_TIMEOUT = 5
+
     def __init__(
         self,
         frequency: int,
@@ -579,8 +591,7 @@ class JavaProfiler(ProcessProfilerBase):
 
         return True
 
-    @staticmethod
-    def _get_java_version(process: Process) -> str:
+    def _get_java_version(self, process: Process) -> str:
         nspid = get_process_nspid(process.pid)
         if nspid is not None:
             # this has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
@@ -608,7 +619,9 @@ class JavaProfiler(ProcessProfilerBase):
                 [
                     java_path,
                     "-version",
-                ]
+                ],
+                stop_event=self._stop_event,
+                timeout=self._JAVA_VERSION_TIMEOUT,
             )
 
         # doesn't work without changing PID NS as well (I'm getting ENOENT for libjli.so)
@@ -695,7 +708,7 @@ class JavaProfiler(ProcessProfilerBase):
             self._profiled_pids.add(process.pid)
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
-        with AsyncProfiledProcess(process, self._storage_dir, self._buildids, self._mode, self._ap_safemode) as ap_proc:
+        with AsyncProfiledProcess(process, self._storage_dir, self._stop_event, self._buildids, self._mode, self._ap_safemode) as ap_proc:
             return self._profile_ap_process(ap_proc)
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[StackToSampleCount]:

@@ -52,6 +52,7 @@ def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_p
         with AsyncProfiledProcessForTests(
             process,
             profiler._storage_dir,
+            profiler._stop_event,
             False,
             mode="itimer",
             ap_safemode=False,
