@@ -9,11 +9,11 @@ import email
 import os
 import pathlib
 from typing import Iterator, List, Optional, Tuple
+from gprofiler.log import get_logger_adapter
 
 import pkg_resources
 
-# A little monkey patch to prevent pkg_resources from converting "/proc/{pid}/root/" to "/"
-pkg_resources._normalize_cached = lambda path: path
+logger = get_logger_adapter(__name__)
 
 
 __all__ = ["get_versions"]
@@ -118,6 +118,9 @@ def _get_package_name(dist: pkg_resources.Distribution) -> Optional(str):
     return None
 
 
+_warned_no__normalized_cached = False
+
+
 def get_versions(modules_paths: List[str], pid: int):
     """Return a dict with module_path: (package_name, version). If couldn't
     determine the version the value is None.
@@ -133,6 +136,23 @@ def get_versions(modules_paths: List[str], pid: int):
     each package. This list is searched for the given module path.
     """
     result = dict.fromkeys(modules_paths)
+
+    # A little monkey patch to prevent pkg_resources from converting "/proc/{pid}/root/" to "/".
+    # This function resolves symlinks and makes paths absolute for comparison purposes which isn't required
+    # for our usage.
+    if hasattr(pkg_resources, "_normalize_cached"):
+        original__normalize_cache = pkg_resources._normalize_cached
+        pkg_resources._normalize_cached = lambda path: path
+    else:
+        global _warned_no__normalized_cached
+        if not _warned_no__normalized_cached:
+            # Log only once so we don't spam the log
+            logger.warning("Cannot get modules version, pkg_resources has no '_normalize_cached' attribute")
+            _warned_no__normalized_cached = True
+
+        # Not much that we can do, pkg_resources.find_distributions won't work properly
+        return result
+
     path_to_dist = {}
 
     for path in modules_paths:
@@ -157,4 +177,6 @@ def get_versions(modules_paths: List[str], pid: int):
             if name is not None:
                 result[path] = (_get_package_name(dist), dist.version)
 
+    # Don't forget to restore the original implementation in case someone else uses this function
+    pkg_resources._normalize_cached = original__normalize_cache
     return result
