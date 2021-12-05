@@ -20,7 +20,7 @@ from gprofiler.log import get_logger_adapter
 logger = get_logger_adapter(__name__)
 
 
-__all__ = ["get_versions"]
+__all__ = ["get_packages_versions"]
 
 
 def _convert_to_proc_root_path(path: str, pid: int) -> str:
@@ -117,7 +117,7 @@ def _files_from_legacy(dist: pkg_resources.Distribution) -> Optional[Iterator[st
     return (_convert_legacy_entry(pathlib.Path(p).parts, info_rel.parts) for p in paths)
 
 
-def _get_package_name(dist: pkg_resources.Distribution) -> Optional(str):
+def _get_package_name(dist: pkg_resources.Distribution) -> Optional[str]:
     """Based on pip._internal.metadata.base.BaseDistribution.raw_name"""
     # TODO: Test
     metadata = _get_metadata(dist)
@@ -188,11 +188,11 @@ def get_packages_versions(modules_paths: List[str], pid: int):
             except Exception:
                 pass
 
-        dist = path_to_dist.get(_convert_to_proc_root_path(path, pid))
-        if dist is not None:
-            name = _get_package_name(dist)
+        dist_info = path_to_dist.get(_convert_to_proc_root_path(path, pid))
+        if dist_info is not None:
+            name = _get_package_name(dist_info)
             if name is not None:
-                result[path] = (_get_package_name(dist), dist.version)
+                result[path] = (_get_package_name(dist_info), dist_info.version)
 
     # Don't forget to restore the original implementation in case someone else uses this function
     pkg_resources._normalize_cached = original__normalize_cache
