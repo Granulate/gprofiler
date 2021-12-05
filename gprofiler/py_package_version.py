@@ -1,8 +1,11 @@
+#
+# Copyright (c) Granulate. All rights reserved.
+# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+#
 """Package name and version for Python files.
 
 Some of the functions in this module are implemented based on similar functions
-in pip: _get_metadata, _convert_legacy_entry, _files_from_record,
-_files_from_legacy, _get_package_name.
+in pip 21.3.1, as mentioned in the functions' documentation.
 """
 import csv
 import email
@@ -37,6 +40,7 @@ def _get_packages_dir(file_path: str) -> Optional[str]:
 
 
 def _get_metadata(dist: pkg_resources.Distribution) -> dict:
+    """Based on pip._internal.utils.get_metadata"""
     metadata_name = "METADATA"
     if isinstance(dist, pkg_resources.DistInfoDistribution) and dist.has_metadata(metadata_name):
         metadata = dist.get_metadata(metadata_name)
@@ -55,7 +59,9 @@ def _get_metadata(dist: pkg_resources.Distribution) -> dict:
 
 
 def _convert_legacy_entry(entry: Tuple[str, ...], info: Tuple[str, ...]) -> str:
-    """Convert a legacy installed-files.txt path into modern RECORD path.
+    """Based on pip._internal.commands.show._convert_legacy_entry.
+
+    Convert a legacy installed-files.txt path into modern RECORD path.
 
     The legacy format stores paths relative to the info directory, while the
     modern format stores paths relative to the package root, e.g. the
@@ -82,6 +88,7 @@ def _convert_legacy_entry(entry: Tuple[str, ...], info: Tuple[str, ...]) -> str:
 
 
 def _files_from_record(dist: pkg_resources.Distribution) -> Optional[Iterator[str]]:
+    """Based on _files_from_record in pip._internal.commands.show.search_packages_info"""
     try:
         text = dist.get_metadata("RECORD")
     except FileNotFoundError:
@@ -91,6 +98,7 @@ def _files_from_record(dist: pkg_resources.Distribution) -> Optional[Iterator[st
 
 
 def _files_from_legacy(dist: pkg_resources.Distribution) -> Optional[Iterator[str]]:
+    """Based on _files_from_legacy in pip._internal.commands.show.search_packages_info"""
     try:
         text = dist.get_metadata("installed-files.txt")
     except FileNotFoundError:
@@ -110,6 +118,7 @@ def _files_from_legacy(dist: pkg_resources.Distribution) -> Optional[Iterator[st
 
 
 def _get_package_name(dist: pkg_resources.Distribution) -> Optional(str):
+    """Based on pip._internal.metadata.base.BaseDistribution.raw_name"""
     # TODO: Test
     metadata = _get_metadata(dist)
     if metadata:
