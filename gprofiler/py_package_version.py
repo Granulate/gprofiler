@@ -33,7 +33,7 @@ def _get_packages_dir(file_path: str) -> Optional[str]:
         return None
 
     idx = file_path.rfind("-packages/")
-    if idx == -1 or (not file_path[:idx].endswith("site") and not file_path[:idx].endswit("dist")):
+    if idx == -1 or (not file_path[:idx].endswith("site") and not file_path[:idx].endswith("dist")):
         return None
 
     return file_path[:idx] + "-packages/"
@@ -131,11 +131,11 @@ def _get_package_name(dist: pkg_resources.Distribution) -> Optional(str):
 _warned_no__normalized_cached = False
 
 
-def get_versions(modules_paths: List[str], pid: int):
+def get_packages_versions(modules_paths: List[str], pid: int):
     """Return a dict with module_path: (package_name, version). If couldn't
     determine the version the value is None.
 
-    modules_paths must be absoulte. pid is required to access the path via
+    modules_paths must be absolute. pid is required to access the path via
     /proc/{pid}/root/.
 
     Given a path to a module, it's not trivial to determine its package as some
