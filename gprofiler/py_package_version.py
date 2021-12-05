@@ -36,7 +36,7 @@ def _get_packages_dir(file_path: str) -> Optional[str]:
     return file_path[:idx] + "-packages/"
 
 
-def _get_metadata(dist: pkg_resources.Distribution) -> email.message.Message:
+def _get_metadata(dist: pkg_resources.Distribution) -> dict:
     metadata_name = "METADATA"
     if isinstance(dist, pkg_resources.DistInfoDistribution) and dist.has_metadata(metadata_name):
         metadata = dist.get_metadata(metadata_name)
@@ -51,7 +51,7 @@ def _get_metadata(dist: pkg_resources.Distribution) -> email.message.Message:
 
     feed_parser = email.parser.FeedParser()
     feed_parser.feed(metadata)
-    return feed_parser.close()
+    return dict(feed_parser.close())
 
 
 def _convert_legacy_entry(entry: Tuple[str, ...], info: Tuple[str, ...]) -> str:
