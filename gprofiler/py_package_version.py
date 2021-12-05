@@ -9,9 +9,10 @@ import email
 import os
 import pathlib
 from typing import Iterator, List, Optional, Tuple
-from gprofiler.log import get_logger_adapter
 
 import pkg_resources
+
+from gprofiler.log import get_logger_adapter
 
 logger = get_logger_adapter(__name__)
 
@@ -83,7 +84,7 @@ def _convert_legacy_entry(entry: Tuple[str, ...], info: Tuple[str, ...]) -> str:
 def _files_from_record(dist: pkg_resources.Distribution) -> Optional[Iterator[str]]:
     try:
         text = dist.get_metadata("RECORD")
-    except:
+    except FileNotFoundError:
         return None
     # This extra Path-str cast normalizes entries.
     return (str(pathlib.Path(row[0])) for row in csv.reader(text.splitlines()))
@@ -92,7 +93,7 @@ def _files_from_record(dist: pkg_resources.Distribution) -> Optional[Iterator[st
 def _files_from_legacy(dist: pkg_resources.Distribution) -> Optional[Iterator[str]]:
     try:
         text = dist.get_metadata("installed-files.txt")
-    except:
+    except FileNotFoundError:
         return None
     paths = (p for p in text.splitlines(keepends=False) if p)
     root = dist.location
@@ -166,10 +167,17 @@ def get_versions(modules_paths: List[str], pid: int):
                 continue
             packages_path = _convert_to_proc_root_path(packages_path, pid)
 
-            for dist in pkg_resources.find_distributions(packages_path):
-                files_iter = _files_from_record(dist) or _files_from_legacy(dist)
-                if files_iter is not None:
-                    path_to_dist.update(dict.fromkeys((os.path.join(packages_path, file) for file in files_iter), dist))
+            # Make sure to catch any exception. If something goes wrong just don't get the version, we shouldn't
+            # interfere with gProfiler
+            try:
+                for dist in pkg_resources.find_distributions(packages_path):
+                    files_iter = _files_from_record(dist) or _files_from_legacy(dist)
+                    if files_iter is not None:
+                        path_to_dist.update(
+                            dict.fromkeys((os.path.join(packages_path, file) for file in files_iter), dist)
+                        )
+            except Exception:
+                pass
 
         dist = path_to_dist.get(_convert_to_proc_root_path(path, pid))
         if dist is not None:
