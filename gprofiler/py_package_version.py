@@ -177,7 +177,6 @@ def get_packages_versions(modules_paths: Iterator[str], pid: int):
             # Make sure to catch any exception. If something goes wrong just don't get the version, we shouldn't
             # interfere with gProfiler
             try:
-                print("Searching path {}".format(packages_path))
                 for dist in pkg_resources.find_distributions(packages_path):
                     files_iter = _files_from_record(dist) or _files_from_legacy(dist)
                     if files_iter is not None:
