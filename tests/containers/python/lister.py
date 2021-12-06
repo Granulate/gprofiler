@@ -6,6 +6,8 @@
 import os
 from threading import Thread
 
+import pkg_resources  # type: ignore
+
 
 def lister():
     os.listdir("/")  # have some kernel stacks
@@ -16,7 +18,15 @@ def burner():
         pass
 
 
+def getter():
+    while True:
+        # Have some package stacks.
+        # Notice that we're using a module from a package with a different name - setuptools
+        pkg_resources.get_platform()
+
+
 if __name__ == "__main__":
     Thread(target=burner).start()
+    Thread(target=getter).start()
     while True:
         lister()
