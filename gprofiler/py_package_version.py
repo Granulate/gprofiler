@@ -11,7 +11,7 @@ import csv
 import email
 import os
 import pathlib
-from typing import Iterator, List, Optional, Tuple
+from typing import Iterator, Optional, Tuple
 
 import pkg_resources
 
@@ -131,7 +131,7 @@ def _get_package_name(dist: pkg_resources.Distribution) -> Optional[str]:
 _warned_no__normalized_cached = False
 
 
-def get_packages_versions(modules_paths: List[str], pid: int):
+def get_packages_versions(modules_paths: Iterator[str], pid: int):
     """Return a dict with module_path: (package_name, version). If couldn't
     determine the version the value is None.
 
@@ -165,7 +165,7 @@ def get_packages_versions(modules_paths: List[str], pid: int):
 
     path_to_dist = {}
 
-    for path in modules_paths:
+    for path in result:
         if not path.startswith("/"):
             continue
 

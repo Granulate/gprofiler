@@ -4,8 +4,10 @@
 #
 import glob
 import os
+import re
 import resource
 import signal
+from collections import Counter, defaultdict
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired
 from threading import Event
@@ -20,6 +22,7 @@ from gprofiler.merge import parse_many_collapsed, parse_one_collapsed_file
 from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
+from gprofiler.py_package_version import get_packages_versions
 from gprofiler.utils import (
     is_process_running,
     pgrep_maps,
@@ -35,6 +38,38 @@ from gprofiler.utils import (
 )
 
 logger = get_logger_adapter(__name__)
+
+_module_name_in_stack = re.compile(r"\((?P<module_info>(?P<filename>.+?\.py):\d+)\)")
+
+
+def _add_versions_to_process_stacks(pid: int, stacks: StackToSampleCount) -> StackToSampleCount:
+    # TODO: Optimize the whole thing. Specifically, add cache in get_packages_versions
+    new_stacks: StackToSampleCount = Counter()
+    for stack in stacks:
+        modules_paths = (match.group("filename") for match in _module_name_in_stack.finditer(stack))
+        packages_versions = get_packages_versions(modules_paths, pid)
+
+        print(packages_versions)
+
+        def _replace_module_name(module_name_match):
+            package_info = packages_versions.get(module_name_match.group("filename"))
+            if package_info is not None:
+                return "({} ({}-{}))".format(module_name_match.group("module_info"), package_info[0], package_info[1])
+            return module_name_match.group()
+
+        new_stack = _module_name_in_stack.sub(_replace_module_name, stack)
+        new_stacks[new_stack] = stacks[stack]
+
+    return new_stacks
+
+
+def _add_versions_to_stacks(process_to_stack_sample_counters: ProcessToStackSampleCounters):
+    result: ProcessToStackSampleCounters = defaultdict(Counter)
+
+    for pid, stack_to_sample_count in process_to_stack_sample_counters.items():
+        result[pid] = _add_versions_to_process_stacks(pid, stack_to_sample_count)
+
+    return result
 
 
 class PySpyProfiler(ProcessProfilerBase):
@@ -94,7 +129,8 @@ class PySpyProfiler(ProcessProfilerBase):
                 raise
 
             logger.info(f"Finished profiling process {process.pid} with py-spy")
-            return parse_one_collapsed_file(Path(local_output_path), process_comm(process))
+            parsed = parse_one_collapsed_file(Path(local_output_path), process_comm(process))
+            return _add_versions_to_process_stacks(process.pid, parsed)
 
     def _select_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
@@ -303,7 +339,8 @@ class PythonEbpfProfiler(ProfilerBase):
         finally:
             # always remove, even if we get read/decode errors
             collapsed_path.unlink()
-        return parse_many_collapsed(collapsed_text)
+        parsed = parse_many_collapsed(collapsed_text)
+        return _add_versions_to_stacks(parsed)
 
     def _terminate(self) -> Optional[int]:
         code = None
