@@ -27,7 +27,7 @@ from typing import Callable, Iterator, List, Optional, Tuple, Union
 
 import importlib_resources
 import psutil
-from granulate_utils.linux.ns import run_in_ns
+from granulate_utils.linux.ns import resolve_proc_root_links, run_in_ns
 from psutil import Process
 
 from gprofiler.exceptions import (
@@ -446,3 +446,8 @@ def get_kernel_release() -> Tuple[int, int]:
     """Return Linux kernel version as (major, minor) tuple."""
     major_str, minor_str = os.uname().release.split(".", maxsplit=2)[:2]
     return int(major_str), int(minor_str)
+
+
+def convert_to_proc_root_path(path: str, pid: int) -> str:
+    assert path.startswith("/")
+    return resolve_proc_root_links(f"/proc/{pid}/root", path)

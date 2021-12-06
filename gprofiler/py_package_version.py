@@ -18,16 +18,12 @@ from typing import Iterator, Optional, Tuple
 import pkg_resources  # type: ignore
 
 from gprofiler.log import get_logger_adapter
+from gprofiler.utils import convert_to_proc_root_path
 
 logger = get_logger_adapter(__name__)
 
 
 __all__ = ["get_packages_versions"]
-
-
-def _convert_to_proc_root_path(path: str, pid: int) -> str:
-    assert path.startswith("/")
-    return os.path.join(f"/proc/{pid}/root", path)
 
 
 def _get_packages_dir(file_path: str) -> Optional[str]:
@@ -176,11 +172,12 @@ def get_packages_versions(modules_paths: Iterator[str], pid: int):
             if packages_path is None:
                 # This module is (probably) not part of a package
                 continue
-            packages_path = _convert_to_proc_root_path(packages_path, pid)
+            packages_path = convert_to_proc_root_path(packages_path, pid)
 
             # Make sure to catch any exception. If something goes wrong just don't get the version, we shouldn't
             # interfere with gProfiler
             try:
+                print("Searching path {}".format(packages_path))
                 for dist in pkg_resources.find_distributions(packages_path):
                     files_iter = _files_from_record(dist) or _files_from_legacy(dist)
                     if files_iter is not None:
@@ -190,7 +187,7 @@ def get_packages_versions(modules_paths: Iterator[str], pid: int):
             except Exception:
                 pass
 
-        dist_info = path_to_dist.get(_convert_to_proc_root_path(path, pid))
+        dist_info = path_to_dist.get(convert_to_proc_root_path(path, pid))
         if dist_info is not None:
             name = _get_package_name(dist_info)
             if name is not None:
