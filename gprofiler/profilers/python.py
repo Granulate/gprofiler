@@ -19,10 +19,10 @@ from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, St
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_many_collapsed, parse_one_collapsed_file
+from gprofiler.metadata.py_package_version import get_packages_versions
 from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.py_package_version import get_packages_versions
 from gprofiler.utils import (
     is_process_running,
     pgrep_maps,
