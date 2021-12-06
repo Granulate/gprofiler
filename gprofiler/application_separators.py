@@ -5,7 +5,7 @@ from abc import ABCMeta, abstractmethod
 from typing import List, Optional
 
 from granulate_utils.linux.ns import resolve_host_path
-from psutil import Process
+from psutil import Process, NoSuchProcess
 
 from gprofiler.log import get_logger_adapter
 
@@ -171,7 +171,12 @@ APPLICATION_SEPARATORS = [
 ]
 
 
-def get_application_name(process: Process) -> Optional[str]:
+def get_application_name(pid: int) -> Optional[str]:
+    try:
+        process = Process(pid)
+    except NoSuchProcess:
+        return None
+
     for separator in APPLICATION_SEPARATORS:
         try:
             if separator.is_supported(process):

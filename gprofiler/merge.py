@@ -10,6 +10,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Iterable, Optional, Tuple
 
+from gprofiler.application_separators import get_application_name
 from gprofiler.docker_client import DockerClient
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.log import get_logger_adapter
@@ -238,6 +239,7 @@ def concatenate_profiles(
     add_container_names: bool,
     metadata: Metadata,
     metrics: Metrics,
+    add_application_names: bool = True
 ) -> Tuple[str, int]:
     """
     Concatenate all stacks from all stack mappings in process_profiles.
@@ -250,9 +252,11 @@ def concatenate_profiles(
 
     for pid, stacks in process_profiles.items():
         container_name = _get_container_name(pid, docker_client, add_container_names)
+        application_name = get_application_name(pid) or "" if add_application_names else ""
+        prefix = container_name + ';' if add_container_names else '' + application_name
         for stack, count in stacks.items():
             total_samples += count
-            lines.append(f"{container_name + ';' if add_container_names else ''}{stack} {count}")
+            lines.append(f"{prefix}{stack} {count}")
 
     lines.insert(0, _make_profile_metadata(docker_client, add_container_names, metadata, metrics))
     return "\n".join(lines), total_samples
