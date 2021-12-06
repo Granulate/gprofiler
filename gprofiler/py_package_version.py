@@ -8,12 +8,14 @@ Some of the functions in this module are implemented based on similar functions
 in pip 21.3.1, as mentioned in the functions' documentation.
 """
 import csv
-import email
+import email.parser
 import os
 import pathlib
 from typing import Iterator, Optional, Tuple
 
-import pkg_resources
+# pkg_resources is a part of setuptools, but it has a standalone deprecated version. That's the version mypy
+# is looking for, but the stubs there are extremely deprecated
+import pkg_resources  # type: ignore
 
 from gprofiler.log import get_logger_adapter
 
