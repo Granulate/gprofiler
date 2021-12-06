@@ -49,8 +49,6 @@ def _add_versions_to_process_stacks(pid: int, stacks: StackToSampleCount) -> Sta
         modules_paths = (match.group("filename") for match in _module_name_in_stack.finditer(stack))
         packages_versions = get_packages_versions(modules_paths, pid)
 
-        print(packages_versions)
-
         def _replace_module_name(module_name_match):
             package_info = packages_versions.get(module_name_match.group("filename"))
             if package_info is not None:
