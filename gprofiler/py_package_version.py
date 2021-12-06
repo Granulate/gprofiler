@@ -30,11 +30,14 @@ def _get_packages_dir(file_path: str) -> Optional[str]:
     if not file_path.startswith("/"):
         return None
 
-    idx = file_path.rfind("-packages/")
-    if idx == -1 or (not file_path[:idx].endswith("site") and not file_path[:idx].endswith("dist")):
+    path, sep, _ = file_path.rpartition("/site-packages/")
+    if sep == "":
+        path, sep, _ = file_path.rpartition("/dist-packages/")
+
+    if sep == "":
         return None
 
-    return file_path[:idx] + "-packages/"
+    return path + sep
 
 
 def _get_metadata(dist: pkg_resources.Distribution) -> dict:
