@@ -5,7 +5,7 @@ from abc import ABCMeta, abstractmethod
 from typing import List, Optional
 
 from granulate_utils.linux.ns import resolve_host_path
-from psutil import Process, NoSuchProcess
+from psutil import NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter
 

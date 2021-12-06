@@ -239,7 +239,7 @@ def concatenate_profiles(
     add_container_names: bool,
     metadata: Metadata,
     metrics: Metrics,
-    add_application_names: bool = True
+    add_application_names: bool = True,
 ) -> Tuple[str, int]:
     """
     Concatenate all stacks from all stack mappings in process_profiles.
@@ -253,7 +253,7 @@ def concatenate_profiles(
     for pid, stacks in process_profiles.items():
         container_name = _get_container_name(pid, docker_client, add_container_names)
         application_name = get_application_name(pid) or "" if add_application_names else ""
-        prefix = container_name + ';' if add_container_names else '' + application_name
+        prefix = container_name + ";" if add_container_names else "" + application_name
         for stack, count in stacks.items():
             total_samples += count
             lines.append(f"{prefix}{stack} {count}")
