@@ -493,6 +493,7 @@ class JavaProfiler(ProcessProfilerBase):
 
     @classmethod
     def _disable_profiling(cls):
+        return
         if cls._should_profile:
             logger.warning("Java profiling has been disabled, will avoid profiling any new java process")
             cls._should_profile = False
