@@ -50,7 +50,7 @@ def test_pyspy(
     application_pid: int,
     assert_collapsed,
 ) -> None:
-    with PySpyProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
+    with PySpyProfiler(1000, 3, Event(), str(tmp_path)) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
         assert_function_in_collapsed("setuptools-59.4.0", process_collapsed)  # Ensure package info is presented
