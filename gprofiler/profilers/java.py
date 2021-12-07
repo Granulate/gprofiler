@@ -95,7 +95,15 @@ class AsyncProfiledProcess:
     OUTPUTS_MODE = 0o622  # readable by root, writable by all
 
     def __init__(
-        self, process: Process, storage_dir: str, buildids: bool, mode: str, safemode: int, java_safemode: bool
+        self,
+        process: Process,
+        storage_dir: str,
+        buildids: bool,
+        mode: str,
+        safemode: int,
+        java_safemode: bool,
+        java_ignore_process_oom: bool,
+        java_ignore_process_signal: bool,
     ):
         self.process = process
         # access the process' root via its topmost parent/ancestor which uses the same mount namespace.
@@ -141,6 +149,8 @@ class AsyncProfiledProcess:
         self._mode = mode
         self._safemode = safemode
         self._java_safemode = java_safemode
+        self._java_ignore_process_oom = java_ignore_process_oom
+        self._java_ignore_process_signal = java_ignore_process_signal
 
     def __enter__(self):
         os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
@@ -436,6 +446,19 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
         ProfilerArgument(
             "--java-safemode", dest="java_safemode", action="store_true", help="Sets the java profiler to a safe mode"
         ),
+        ProfilerArgument(
+            "--java-ignore-process-oom",
+            dest="java_ignore_process_oom",
+            action="store_true",
+            help="Makes the java profiler continue to profile new processes even if OOM was encountered in a profiled "
+            "process",
+        ),
+        ProfilerArgument(
+            "--java-ignore-process-signal",
+            dest="java_ignore_process_signal",
+            action="store_true",
+            help="Makes the java profiler continue to profile new processes even if a profile process was signalled",
+        ),
     ],
 )
 class JavaProfiler(ProcessProfilerBase):
@@ -465,6 +488,8 @@ class JavaProfiler(ProcessProfilerBase):
         java_async_profiler_mode: str,
         java_async_profiler_safemode: int,
         java_safemode: bool,
+        java_ignore_process_oom: bool,
+        java_ignore_process_signal: bool,
         java_mode: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
@@ -486,6 +511,12 @@ class JavaProfiler(ProcessProfilerBase):
         self._java_safemode = java_safemode
         if self._java_safemode:
             logger.debug("Java safemode enabled")
+        self._java_ignore_process_oom = java_ignore_process_oom
+        if self._java_ignore_process_oom:
+            logger.debug("Java profiler ignoring profiled processes OOMs")
+        self._java_ignore_process_signal = java_ignore_process_signal
+        if self._java_ignore_process_signal:
+            logger.debug("Java profiler ignoring profiled processes signals")
         self._profiled_pids: Set[int] = set()
         self._pids_to_remove: Set[int] = set()
         self._kernel_messages_provider = get_kernel_messages_provider()
@@ -493,7 +524,6 @@ class JavaProfiler(ProcessProfilerBase):
 
     @classmethod
     def _disable_profiling(cls):
-        return
         if cls._should_profile:
             logger.warning("Java profiling has been disabled, will avoid profiling any new java process")
             cls._should_profile = False
@@ -618,7 +648,14 @@ class JavaProfiler(ProcessProfilerBase):
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
         with AsyncProfiledProcess(
-            process, self._storage_dir, self._buildids, self._mode, self._safemode, self._java_safemode
+            process,
+            self._storage_dir,
+            self._buildids,
+            self._mode,
+            self._safemode,
+            self._java_safemode,
+            self._java_ignore_process_oom,
+            self._java_ignore_process_signal,
         ) as ap_proc:
             return self._profile_ap_process(ap_proc)
 
@@ -758,16 +795,17 @@ class JavaProfiler(ProcessProfilerBase):
         for message in messages:
             _, _, text = message
             oom_entry = get_oom_entry(text)
-            if oom_entry and oom_entry.pid in self._profiled_pids:
+            if not self._java_ignore_process_oom and oom_entry and oom_entry.pid in self._profiled_pids:
                 logger.warning("Profiled Java process OOM", oom=json.dumps(oom_entry._asdict()))
                 self._disable_profiling()  # paranoia
                 continue
 
             signal_entry = get_signal_entry(text)
-            if signal_entry is not None and signal_entry.pid in self._profiled_pids:
-                logger.warning("Profiled Java process signalled", signal=json.dumps(signal_entry._asdict()))
-                self._disable_profiling()  # paranoia
-                continue
+            if not self._java_ignore_process_signal:
+                if signal_entry is not None and signal_entry.pid in self._profiled_pids:
+                    logger.warning("Profiled Java process signalled", signal=json.dumps(signal_entry._asdict()))
+                    self._disable_profiling()  # paranoia
+                    continue
 
             if self._java_safemode:
                 if oom_entry is not None:
@@ -779,7 +817,7 @@ class JavaProfiler(ProcessProfilerBase):
                 else:
                     continue
 
-                # paranoia - stop Java profiling upon any OOM / fatal-signal / occurence of a profiled
+                # paranoia - stop Java profiling upon any OOM / fatal-signal / occurrence of a profiled
                 # PID in a kernel message.
                 self._disable_profiling()
 

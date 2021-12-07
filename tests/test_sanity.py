@@ -36,6 +36,8 @@ def test_java_from_host(
         java_async_profiler_mode="itimer",
         java_async_profiler_safemode=0,
         java_safemode=False,
+        java_ignore_process_oom=False,
+        java_ignore_process_signal=False,
         java_mode="ap",
     ) as profiler:
         result = profiler.snapshot()
