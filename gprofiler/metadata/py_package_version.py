@@ -9,6 +9,7 @@ in pip 21.3.1, as mentioned in the functions' documentation.
 """
 import csv
 import email.parser
+import functools
 import os
 import pathlib
 import re
@@ -140,6 +141,7 @@ def _get_libpython_path(pid: int) -> Optional[str]:
     return None
 
 
+@functools.lru_cache(maxsize=128)
 def _get_python_full_version(pid: int, short_version: str) -> Optional[str]:
     assert re.match(r"[23]\.\d\d?", short_version)
 
@@ -174,7 +176,63 @@ def _get_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]], pid
             result[path] = ("standard-library", py_version)  # type: ignore
 
 
+@functools.lru_cache(maxsize=128)
+def _get_dists_files(packages_path: str) -> Dict[str, pkg_resources.Distribution]:
+    """Return a dict of filename: dist for the distributions in packages_path"""
+    path_to_dist = {}
+    for dist in pkg_resources.find_distributions(packages_path):
+        files_iter = _files_from_record(dist) or _files_from_legacy(dist)
+        if files_iter is not None:
+            path_to_dist.update(dict.fromkeys((os.path.join(packages_path, file) for file in files_iter), dist))
+    return path_to_dist
+
+
 _warned_no__normalized_cached = False
+
+
+def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], pid: int):
+    # A little monkey patch to prevent pkg_resources from converting "/proc/{pid}/root/" to "/".
+    # This function resolves symlinks and makes paths absolute for comparison purposes which isn't required
+    # for our usage.
+    if hasattr(pkg_resources, "_normalize_cached"):
+        original__normalize_cache = pkg_resources._normalize_cached
+        pkg_resources._normalize_cached = lambda path: path
+    else:
+        global _warned_no__normalized_cached
+        if not _warned_no__normalized_cached:
+            # Log only once so we don't spam the log
+            logger.warning("Cannot get modules version, pkg_resources has no '_normalize_cached' attribute")
+            _warned_no__normalized_cached = True
+
+        # Not much that we can do, pkg_resources.find_distributions won't work properly
+        return result
+
+    for path in result:
+        if not path.startswith("/"):
+            continue
+
+        packages_path = _get_packages_dir(path)
+        if packages_path is None:
+            # This module is (probably) not part of a package
+            continue
+        packages_path = convert_to_proc_root_path(packages_path, pid)
+
+        # Make sure to catch any exception. If something goes wrong just don't get the version, we shouldn't
+        # interfere with gProfiler
+        try:
+            path_to_dist = _get_dists_files(packages_path)
+        except Exception:
+            continue
+
+        dist_info = path_to_dist.get(convert_to_proc_root_path(path, pid))
+        if dist_info is not None:
+            name = _get_package_name(dist_info)
+            if name is not None:
+                result[path] = (name, dist_info.version)
+
+    # Don't forget to restore the original implementation in case someone else uses this function
+    pkg_resources._normalize_cached = original__normalize_cache
+    return result
 
 
 def get_modules_versions(modules_paths: Iterator[str], pid: int):
@@ -197,57 +255,4 @@ def get_modules_versions(modules_paths: Iterator[str], pid: int):
     result = dict.fromkeys(modules_paths)
     _get_standard_libs_version(result, pid)
     _get_packages_versions(result, pid)
-    return result
-
-
-def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], pid: int):
-    # A little monkey patch to prevent pkg_resources from converting "/proc/{pid}/root/" to "/".
-    # This function resolves symlinks and makes paths absolute for comparison purposes which isn't required
-    # for our usage.
-    if hasattr(pkg_resources, "_normalize_cached"):
-        original__normalize_cache = pkg_resources._normalize_cached
-        pkg_resources._normalize_cached = lambda path: path
-    else:
-        global _warned_no__normalized_cached
-        if not _warned_no__normalized_cached:
-            # Log only once so we don't spam the log
-            logger.warning("Cannot get modules version, pkg_resources has no '_normalize_cached' attribute")
-            _warned_no__normalized_cached = True
-
-        # Not much that we can do, pkg_resources.find_distributions won't work properly
-        return result
-
-    path_to_dist = {}
-
-    for path in result:
-        if not path.startswith("/"):
-            continue
-
-        if path not in path_to_dist:
-            packages_path = _get_packages_dir(path)
-            if packages_path is None:
-                # This module is (probably) not part of a package
-                continue
-            packages_path = convert_to_proc_root_path(packages_path, pid)
-
-            # Make sure to catch any exception. If something goes wrong just don't get the version, we shouldn't
-            # interfere with gProfiler
-            try:
-                for dist in pkg_resources.find_distributions(packages_path):
-                    files_iter = _files_from_record(dist) or _files_from_legacy(dist)
-                    if files_iter is not None:
-                        path_to_dist.update(
-                            dict.fromkeys((os.path.join(packages_path, file) for file in files_iter), dist)
-                        )
-            except Exception:
-                pass
-
-        dist_info = path_to_dist.get(convert_to_proc_root_path(path, pid))
-        if dist_info is not None:
-            name = _get_package_name(dist_info)
-            if name is not None:
-                result[path] = (name, dist_info.version)
-
-    # Don't forget to restore the original implementation in case someone else uses this function
-    pkg_resources._normalize_cached = original__normalize_cache
     return result
