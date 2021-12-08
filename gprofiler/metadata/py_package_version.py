@@ -11,7 +11,8 @@ import csv
 import email.parser
 import os
 import pathlib
-from typing import Iterator, Optional, Tuple
+import re
+from typing import Dict, Iterator, Optional, Tuple
 
 # pkg_resources is a part of setuptools, but it has a standalone deprecated version. That's the version mypy
 # is looking for, but the stubs there are extremely deprecated
@@ -23,7 +24,7 @@ from gprofiler.utils import convert_to_proc_root_path
 logger = get_logger_adapter(__name__)
 
 
-__all__ = ["get_packages_versions"]
+__all__ = ["get_modules_versions"]
 
 
 def _get_packages_dir(file_path: str) -> Optional[str]:
@@ -129,12 +130,59 @@ def _get_package_name(dist: pkg_resources.Distribution) -> Optional[str]:
     return None
 
 
+def _get_libpython_path(pid: int) -> Optional[str]:
+    libpython_maps_pattern = re.compile(r"(?<=\s)/\S*libpython\S*\.so(\.\S+)?\Z")
+    with open(f"/proc/{pid}/maps") as f:
+        for line in f.readlines():
+            match = libpython_maps_pattern.search(line.strip())
+            if match is not None:
+                return match.group()
+    return None
+
+
+def _get_python_full_version(pid: int, short_version: str) -> Optional[str]:
+    assert re.match(r"[23]\.\d\d?", short_version)
+
+    bin_file = _get_libpython_path(pid) or f"/proc/{pid}/exe"
+    full_version_string_pattern = re.compile(rb"(?<=\D)" + short_version.encode() + rb"\.\d\d?(?=\x00)")
+
+    # Try to extract the version string from the binary
+    with open(bin_file, "rb") as f:
+        for line in f.readlines():
+            match = full_version_string_pattern.search(line)
+            if match is not None:
+                return match.group().decode()
+    return None
+
+
+def _get_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]], pid: int):
+    # Standard library modules are identified by being under a pythonx.y dir and *not* under site/dist-packages
+    standard_lib_pattern = re.compile(r"/python(?P<version>\d\.\d\d?)/(?!.*(site|dist)-packages)")
+    py_version = None
+
+    for path in result:
+        match = standard_lib_pattern.search(path)
+        if match is not None:
+            if py_version is None:
+                try:
+                    py_version = _get_python_full_version(pid, match.group("version"))
+                except OSError:
+                    pass
+                if py_version is None:
+                    # No need to continue trying if we failed
+                    return None
+            result[path] = ("standard-library", py_version)  # type: ignore
+
+
 _warned_no__normalized_cached = False
 
 
-def get_packages_versions(modules_paths: Iterator[str], pid: int):
-    """Return a dict with module_path: (package_name, version). If couldn't
-    determine the version the value is None.
+def get_modules_versions(modules_paths: Iterator[str], pid: int):
+    """Return a dict with module_path: (package_name, version).
+
+    If the module is from Python's standard library, package_name is
+    "standard-library" and the version is Python's version.
+    If couldn't determine the version the value is None.
 
     modules_paths must be absolute. pid is required to access the path via
     /proc/{pid}/root/.
@@ -147,7 +195,12 @@ def get_packages_versions(modules_paths: Iterator[str], pid: int):
     each package. This list is searched for the given module path.
     """
     result = dict.fromkeys(modules_paths)
+    _get_standard_libs_version(result, pid)
+    _get_packages_versions(result, pid)
+    return result
 
+
+def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], pid: int):
     # A little monkey patch to prevent pkg_resources from converting "/proc/{pid}/root/" to "/".
     # This function resolves symlinks and makes paths absolute for comparison purposes which isn't required
     # for our usage.
@@ -193,7 +246,7 @@ def get_packages_versions(modules_paths: Iterator[str], pid: int):
         if dist_info is not None:
             name = _get_package_name(dist_info)
             if name is not None:
-                result[path] = (_get_package_name(dist_info), dist_info.version)
+                result[path] = (name, dist_info.version)
 
     # Don't forget to restore the original implementation in case someone else uses this function
     pkg_resources._normalize_cached = original__normalize_cache

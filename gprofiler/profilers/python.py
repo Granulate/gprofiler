@@ -19,7 +19,7 @@ from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, St
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_many_collapsed, parse_one_collapsed_file
-from gprofiler.metadata.py_package_version import get_packages_versions
+from gprofiler.metadata.py_package_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
@@ -43,11 +43,11 @@ _module_name_in_stack = re.compile(r"\((?P<module_info>(?P<filename>.+?\.py):\d+
 
 
 def _add_versions_to_process_stacks(pid: int, stacks: StackToSampleCount) -> StackToSampleCount:
-    # TODO: Optimize the whole thing. Specifically, add cache in get_packages_versions
+    # TODO: Optimize the whole thing. Specifically, add cache in get_modules_versions
     new_stacks: StackToSampleCount = Counter()
     for stack in stacks:
         modules_paths = (match.group("filename") for match in _module_name_in_stack.finditer(stack))
-        packages_versions = get_packages_versions(modules_paths, pid)
+        packages_versions = get_modules_versions(modules_paths, pid)
 
         def _replace_module_name(module_name_match):
             package_info = packages_versions.get(module_name_match.group("filename"))
