@@ -147,7 +147,7 @@ def _get_python_full_version(pid: int, short_version: str) -> Optional[str]:
     full_version_string_pattern = re.compile(rb"(?<=\D)" + short_version.encode() + rb"\.\d\d?(?=\x00)")
 
     # Try to extract the version string from the binary
-    with open(bin_file, "rb") as f:
+    with open(convert_to_proc_root_path(bin_file, pid), "rb") as f:
         for line in f.readlines():
             match = full_version_string_pattern.search(line)
             if match is not None:
