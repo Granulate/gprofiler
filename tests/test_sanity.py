@@ -54,7 +54,7 @@ def test_pyspy(
         process_collapsed = profiler.snapshot().get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
         assert_function_in_collapsed("setuptools-59.4.0", process_collapsed)  # Ensure package info is presented
-        assert_function_in_collapsed("standard-library-3.6.9", process_collapsed)  # Ensure Python version is presented
+        assert_function_in_collapsed("standard-library-3.6.15", process_collapsed)  # Ensure Python version is presented
 
 
 @pytest.mark.parametrize("runtime", ["php"])
@@ -113,7 +113,7 @@ def test_python_ebpf(
             "_PyEval_EvalFrameDefault_[pn]", process_collapsed, True
         )  # ensure native user stacks exist
         assert_function_in_collapsed("setuptools-59.4.0", process_collapsed)  # ensure package info is presented
-        assert_function_in_collapsed("standard-library-3.6.9", process_collapsed)  # ensure Python version is presented
+        assert_function_in_collapsed("standard-library-3.6.15", process_collapsed)  # ensure Python version is presented
 
 
 @pytest.mark.parametrize(

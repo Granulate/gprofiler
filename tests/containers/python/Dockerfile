@@ -1,4 +1,4 @@
-FROM python:3.6-slim
+FROM python:3.6.15-slim
 
 WORKDIR /app
 ADD lister.py /app
