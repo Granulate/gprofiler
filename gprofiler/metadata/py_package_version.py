@@ -18,9 +18,9 @@ from typing import Dict, Iterator, Optional, Tuple
 # pkg_resources is a part of setuptools, but it has a standalone deprecated version. That's the version mypy
 # is looking for, but the stubs there are extremely deprecated
 import pkg_resources  # type: ignore
+from granulate_utils.linux.ns import resolve_host_path
 
 from gprofiler.log import get_logger_adapter
-from gprofiler.utils import convert_to_proc_root_path
 
 logger = get_logger_adapter(__name__)
 
@@ -148,7 +148,7 @@ def _get_python_full_version(pid: int, short_version: str) -> Optional[str]:
     full_version_string_pattern = re.compile(rb"(?<=\D)" + short_version.encode() + rb"\.\d\d?(?=\x00)")
 
     # Try to extract the version string from the binary
-    with open(convert_to_proc_root_path(bin_file, pid), "rb") as f:
+    with open(resolve_host_path(bin_file, pid), "rb") as f:
         for line in f.readlines():
             match = full_version_string_pattern.search(line)
             if match is not None:
@@ -214,7 +214,7 @@ def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], pid: in
         if packages_path is None:
             # This module is (probably) not part of a package
             continue
-        packages_path = convert_to_proc_root_path(packages_path, pid)
+        packages_path = resolve_host_path(packages_path, pid)
 
         # Make sure to catch any exception. If something goes wrong just don't get the version, we shouldn't
         # interfere with gProfiler
@@ -223,7 +223,7 @@ def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], pid: in
         except Exception:
             continue
 
-        dist_info = path_to_dist.get(convert_to_proc_root_path(path, pid))
+        dist_info = path_to_dist.get(resolve_host_path(path, pid))
         if dist_info is not None:
             name = _get_package_name(dist_info)
             if name is not None:
