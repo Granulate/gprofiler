@@ -137,8 +137,9 @@ class CeleryApplicationSeparator(ApplicationSeparator):
         return len(process.cmdline()) >= 3 and ["-m", "celery"] == process.cmdline()[1:3]
 
     def get_application_name(self, process: Process) -> Optional[str]:
-        app_name = get_cli_arg_value(process.cmdline(), "-A") or get_cli_arg_value(process.cmdline(), "--app",
-                                                                                   check_for_equals_arg=True)
+        app_name = get_cli_arg_value(process.cmdline(), "-A") or get_cli_arg_value(
+            process.cmdline(), "--app", check_for_equals_arg=True
+        )
         if app_name is None:
             logger.warning("Couldn't find positional argument -A or --app for application indication")
             return None
