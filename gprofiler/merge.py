@@ -295,5 +295,6 @@ def merge_profiles(
         # swap them: use the samples from the runtime profiler.
         perf_pid_to_stacks_counter[pid] = stacks
 
-    return concatenate_profiles(perf_pid_to_stacks_counter, docker_client, add_container_names, add_application_names,
-                                metadata, metrics)
+    return concatenate_profiles(
+        perf_pid_to_stacks_counter, docker_client, add_container_names, add_application_names, metadata, metrics
+    )

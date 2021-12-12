@@ -271,8 +271,12 @@ class GProfiler:
         if NoopProfiler.is_noop_profiler(self.system_profiler):
             assert system_result == {}, system_result  # should be empty!
             merged_result, total_samples = merge.concatenate_profiles(
-                process_profiles, self._docker_client, self._profile_api_version != "v1",
-                self._separate_applications, metadata, metrics
+                process_profiles,
+                self._docker_client,
+                self._profile_api_version != "v1",
+                self._separate_applications,
+                metadata,
+                metrics,
             )
 
         else:
