@@ -78,6 +78,17 @@ class PySpyProfiler(ProcessProfilerBase):
     _BLACKLISTED_PYTHON_PROCS = ["unattended-upgrades", "networkd-dispatcher", "supervisord", "tuned"]
     _EXTRA_TIMEOUT = 10  # give py-spy some seconds to run (added to the duration)
 
+    def __init__(
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Optional[Event],
+        storage_dir: str,
+        add_versions: bool,
+    ):
+        super().__init__(frequency, duration, stop_event, storage_dir)
+        self.add_versions = add_versions
+
     def _make_command(self, pid: int, output_path: str):
         return [
             resource_path("python/py-spy"),
@@ -131,7 +142,9 @@ class PySpyProfiler(ProcessProfilerBase):
 
             logger.info(f"Finished profiling process {process.pid} with py-spy")
             parsed = parse_one_collapsed_file(Path(local_output_path), process_comm(process))
-            return _add_versions_to_process_stacks(process.pid, parsed)
+            if self.add_versions:
+                parsed = _add_versions_to_process_stacks(process.pid, parsed)
+            return parsed
 
     def _select_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
@@ -185,11 +198,13 @@ class PythonEbpfProfiler(ProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
+        add_versions: bool,
         user_stacks_pages: Optional[int] = None,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
         self.process = None
         self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
+        self.add_versions = add_versions
         self.user_stacks_pages = user_stacks_pages
         self._kernel_offsets: Dict[str, int] = {}
 
@@ -341,7 +356,9 @@ class PythonEbpfProfiler(ProfilerBase):
             # always remove, even if we get read/decode errors
             collapsed_path.unlink()
         parsed = parse_many_collapsed(collapsed_text)
-        return _add_versions_to_stacks(parsed)
+        if self.add_versions:
+            parsed = _add_versions_to_stacks(parsed)
+        return parsed
 
     def _terminate(self) -> Optional[int]:
         code = None
@@ -371,13 +388,22 @@ class PythonEbpfProfiler(ProfilerBase):
     " or disabled (no runtime profilers for Python).",
     profiler_arguments=[
         ProfilerArgument(
+            "--add-python-versions",
+            dest="add_versions",
+            action="store_false",
+            default=True,
+            help="Add version information to Python frames. If the frame is from a package the name of the package and"
+            " its version will be displayed, and if the frame is from a Python built-in module Python's full version"
+            " will be displayed.",
+        ),
+        ProfilerArgument(
             "--pyperf-user-stacks-pages",
             dest="python_pyperf_user_stacks_pages",
             default=None,
             type=nonnegative_integer,
             help="Number of user stack-pages that PyPerf will collect, this controls the maximum stack depth of native"
             " user frames. Pass 0 to disable user native stacks altogether.",
-        )
+        ),
     ],
 )
 class PythonProfiler(ProfilerInterface):
@@ -393,6 +419,7 @@ class PythonProfiler(ProfilerInterface):
         stop_event: Event,
         storage_dir: str,
         python_mode: str,
+        add_versions: bool,
         python_pyperf_user_stacks_pages: Optional[int],
     ):
         if python_mode == "py-spy":
@@ -407,13 +434,15 @@ class PythonProfiler(ProfilerInterface):
 
         if python_mode in ("auto", "pyperf"):
             self._ebpf_profiler = self._create_ebpf_profiler(
-                frequency, duration, stop_event, storage_dir, python_pyperf_user_stacks_pages
+                frequency, duration, stop_event, storage_dir, add_versions, python_pyperf_user_stacks_pages
             )
         else:
             self._ebpf_profiler = None
 
         if python_mode in ("auto", "pyspy"):
-            self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(frequency, duration, stop_event, storage_dir)
+            self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(
+                frequency, duration, stop_event, storage_dir, add_versions
+            )
         else:
             self._pyspy_profiler = None
 
@@ -423,10 +452,11 @@ class PythonProfiler(ProfilerInterface):
         duration: int,
         stop_event: Event,
         storage_dir: str,
+        add_versions: bool,
         user_stacks_pages: Optional[int],
     ) -> Optional[PythonEbpfProfiler]:
         try:
-            profiler = PythonEbpfProfiler(frequency, duration, stop_event, storage_dir, user_stacks_pages)
+            profiler = PythonEbpfProfiler(frequency, duration, stop_event, storage_dir, add_versions, user_stacks_pages)
             profiler.test()
             return profiler
         except Exception as e:
