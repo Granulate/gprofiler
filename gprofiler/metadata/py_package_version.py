@@ -132,7 +132,13 @@ def _get_package_name(dist: pkg_resources.Distribution) -> Optional[str]:
 
 def _get_libpython_path(pid: int) -> Optional[str]:
     libpython_maps_pattern = re.compile(r"(?<=\s)/\S*libpython\S*\.so(\.\S+)?\Z")
-    with open(f"/proc/{pid}/maps") as f:
+
+    try:
+        f = open(f"/proc/{pid}/maps")
+    except OSError:
+        return None
+
+    with f:
         for line in f.readlines():
             match = libpython_maps_pattern.search(line.strip())
             if match is not None:
@@ -148,7 +154,12 @@ def _get_python_full_version(pid: int, short_version: str) -> Optional[str]:
     full_version_string_pattern = re.compile(rb"(?<=\D)" + short_version.encode() + rb"\.\d\d?(?=\x00)")
 
     # Try to extract the version string from the binary
-    with open(resolve_host_path(bin_file, pid), "rb") as f:
+    try:
+        f = open(resolve_host_path(bin_file, pid), "rb")
+    except OSError:
+        return None
+
+    with f:
         for line in f.readlines():
             match = full_version_string_pattern.search(line)
             if match is not None:
@@ -165,10 +176,7 @@ def _get_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]], pid
         match = standard_lib_pattern.search(path)
         if match is not None:
             if py_version is None:
-                try:
-                    py_version = _get_python_full_version(pid, match.group("version"))
-                except OSError:
-                    pass
+                py_version = _get_python_full_version(pid, match.group("version"))
                 if py_version is None:
                     # No need to continue trying if we failed
                     return None
