@@ -1,4 +1,4 @@
-שpiVersion: apps/v1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: {{ include "granulate.fullname" . }}
@@ -21,6 +21,9 @@ spec:
           - $(GPROFILER_TOKEN)
           - --service-name
           - $(GPROFILER_SERVICE)
+          {{  range .Values.gprofiler.extraArguments }}
+          - {{ . }}
+          {{ end }}
           env:
           - name: GPROFILER_TOKEN
             value: {{ .Values.gprofiler.token | quote }}
@@ -32,12 +35,6 @@ spec:
           securityContext:
             privileged: true
           volumeMounts:
-          - mountPath: /lib/modules
-            name: lib-modules
-            readOnly: true
-          - mountPath: /usr/src
-            name: usr-src
-            readOnly: true
           - mountPath: /var/run/docker.sock
             name: docker-sock
       hostPID: true
@@ -46,12 +43,6 @@ spec:
         runAsGroup: 0
         runAsUser: 0
       volumes:
-      - hostPath:
-          path: /lib/modules
-        name: lib-modules
-      - hostPath:
-          path: /usr/src
-        name: usr-src
       - hostPath:
           path: /var/run/docker.sock
         name: docker-sock
