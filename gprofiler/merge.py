@@ -237,9 +237,9 @@ def concatenate_profiles(
     process_profiles: ProcessToStackSampleCounters,
     docker_client: Optional[DockerClient],
     add_container_names: bool,
+    add_application_names: bool,
     metadata: Metadata,
     metrics: Metrics,
-    add_application_names: bool = True,
 ) -> Tuple[str, int]:
     """
     Concatenate all stacks from all stack mappings in process_profiles.
@@ -267,6 +267,7 @@ def merge_profiles(
     process_profiles: ProcessToStackSampleCounters,
     docker_client: Optional[DockerClient],
     add_container_names: bool,
+    add_application_names: bool,
     metadata: Metadata,
     metrics: Metrics,
 ) -> Tuple[str, int]:
@@ -294,4 +295,5 @@ def merge_profiles(
         # swap them: use the samples from the runtime profiler.
         perf_pid_to_stacks_counter[pid] = stacks
 
-    return concatenate_profiles(perf_pid_to_stacks_counter, docker_client, add_container_names, metadata, metrics)
+    return concatenate_profiles(perf_pid_to_stacks_counter, docker_client, add_container_names, add_application_names,
+                                metadata, metrics)
