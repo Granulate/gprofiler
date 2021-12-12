@@ -131,6 +131,7 @@ def _get_package_name(dist: pkg_resources.Distribution) -> Optional[str]:
 
 
 def _get_libpython_path(pid: int) -> Optional[str]:
+    # Match the path to libpython as it may appear in /proc/[pid]/maps, e.g. " /usr/local/lib/libpython3.9.so.1.0"
     libpython_maps_pattern = re.compile(r"(?<=\s)/\S*libpython\S*\.so(\.\S+)?\Z")
 
     try:
