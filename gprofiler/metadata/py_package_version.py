@@ -122,7 +122,6 @@ def _files_from_legacy(dist: pkg_resources.Distribution) -> Optional[Iterator[st
 
 def _get_package_name(dist: pkg_resources.Distribution) -> Optional[str]:
     """Based on pip._internal.metadata.base.BaseDistribution.raw_name"""
-    # TODO: Test
     metadata = _get_metadata(dist)
     if metadata:
         # The metadata should NEVER be missing the Name: key, but if it somehow

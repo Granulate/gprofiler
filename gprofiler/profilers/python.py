@@ -52,7 +52,8 @@ def _add_versions_to_process_stacks(pid: int, stacks: StackToSampleCount) -> Sta
         def _replace_module_name(module_name_match):
             package_info = packages_versions.get(module_name_match.group("filename"))
             if package_info is not None:
-                return "({} ({}-{}))".format(module_name_match.group("module_info"), package_info[0], package_info[1])
+                package_name, package_version = package_info
+                return "({} ({}-{}))".format(module_name_match.group("module_info"), package_name, package_version)
             return module_name_match.group()
 
         new_stack = _module_name_in_stack.sub(_replace_module_name, stack)
@@ -61,7 +62,9 @@ def _add_versions_to_process_stacks(pid: int, stacks: StackToSampleCount) -> Sta
     return new_stacks
 
 
-def _add_versions_to_stacks(process_to_stack_sample_counters: ProcessToStackSampleCounters):
+def _add_versions_to_stacks(
+    process_to_stack_sample_counters: ProcessToStackSampleCounters,
+) -> ProcessToStackSampleCounters:
     result: ProcessToStackSampleCounters = defaultdict(Counter)
 
     for pid, stack_to_sample_count in process_to_stack_sample_counters.items():
