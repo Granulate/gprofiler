@@ -34,7 +34,7 @@ class ApplicationSeparator(metaclass=ABCMeta):
         pass
 
 
-IP_PORT_RE = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?:\:\d{2,5})?$")  # Matches against (ip(:port))
+_IP_PORT_RE = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?:\:\d{2,5})?$")  # Matches against (ip(:port))
 
 
 def get_cli_arg_value(args: List[str], arg_name: str, check_for_equals_arg: bool = False) -> Optional[str]:
@@ -73,7 +73,7 @@ class GunicornApplicationSeparator(ApplicationSeparator):
         # config file / environment variables (they added the option to specify `wsgi_app` only in 20.1.0)
         for arg in process.cmdline():
             if ":" in arg:
-                if IP_PORT_RE.match(arg):
+                if _IP_PORT_RE.match(arg):
                     continue
 
                 return append_python_module_to_proc_wd(process, arg)
@@ -155,7 +155,7 @@ class PySparkApplicationSeparator(ApplicationSeparator):
     def is_supported(self, process: Process) -> bool:
         # We're looking for pythonXX -m pyspark.daemon
         return (
-            process.cmdline() >= 3
+            len(process.cmdline()) >= 3
             and "python" in process.cmdline()
             and ["-m", "pyspark.daemon"] == process.cmdline()[1:]
         )
@@ -167,7 +167,7 @@ class PySparkApplicationSeparator(ApplicationSeparator):
 class PythonModuleApplicationSeparator(ApplicationSeparator):
     @property
     def app_prefix(self) -> str:
-        return "generic-python"
+        return "Python"
 
     def is_supported(self, process: Process) -> bool:
         if not _is_python_bin(process.cmdline()[0]):
@@ -186,6 +186,18 @@ class PythonModuleApplicationSeparator(ApplicationSeparator):
         return append_python_module_to_proc_wd(process, module_filename)
 
 
+class JavaJarApplicationSeparator(ApplicationSeparator):
+    def is_supported(self, process: Process) -> bool:
+        return "java" in os.path.basename(process.cmdline()[0]) and "-jar" in process.cmdline()
+
+    def get_application_name(self, process: Process) -> Optional[str]:
+        return get_cli_arg_value(process.cmdline(), "-jar")
+
+    @property
+    def app_prefix(self) -> str:
+        return "Java-Jar"
+
+
 # Please note that the order matter, because the FIRST matching separator will be used.
 # so when adding new separators pay attention to the order.
 APPLICATION_SEPARATORS = [
@@ -194,6 +206,7 @@ APPLICATION_SEPARATORS = [
     CeleryApplicationSeparator(),
     PySparkApplicationSeparator(),
     PythonModuleApplicationSeparator(),
+    JavaJarApplicationSeparator(),
 ]
 
 
