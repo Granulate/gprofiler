@@ -206,31 +206,30 @@ def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], pid: in
         # Not much that we can do, pkg_resources.find_distributions won't work properly
         return result
 
-    for path in result:
-        if not path.startswith("/"):
-            continue
+    # Make sure to catch any exception. If something goes wrong just don't get the version, we shouldn't
+    # interfere with gProfiler
+    try:
+        for path in result:
+            if not path.startswith("/"):
+                continue
 
-        packages_path = _get_packages_dir(path)
-        if packages_path is None:
-            # This module is (probably) not part of a package
-            continue
-        packages_path = resolve_host_path(packages_path, pid)
-
-        # Make sure to catch any exception. If something goes wrong just don't get the version, we shouldn't
-        # interfere with gProfiler
-        try:
+            packages_path = _get_packages_dir(path)
+            if packages_path is None:
+                # This module is (probably) not part of a package
+                continue
+            packages_path = resolve_host_path(packages_path, pid)
             path_to_dist = _get_dists_files(packages_path)
-        except Exception:
-            continue
+            dist_info = path_to_dist.get(resolve_host_path(path, pid))
+            if dist_info is not None:
+                name = _get_package_name(dist_info)
+                if name is not None:
+                    result[path] = (name, dist_info.version)
+    except Exception:
+        pass
+    finally:
+        # Don't forget to restore the original implementation in case someone else uses this function
+        pkg_resources._normalize_cached = original__normalize_cache
 
-        dist_info = path_to_dist.get(resolve_host_path(path, pid))
-        if dist_info is not None:
-            name = _get_package_name(dist_info)
-            if name is not None:
-                result[path] = (name, dist_info.version)
-
-    # Don't forget to restore the original implementation in case someone else uses this function
-    pkg_resources._normalize_cached = original__normalize_cache
     return result
 
 
