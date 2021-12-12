@@ -12,6 +12,13 @@ from gprofiler.log import get_logger_adapter
 logger = get_logger_adapter(__name__)
 
 
+_PYTHON_BIN_RE = re.compile(r"^python([23](\.\d{1,2})?)?$")
+
+
+def _is_python_bin(bin_name: str):
+    return _PYTHON_BIN_RE.match(os.path.basename(bin_name)) is not None
+
+
 class ApplicationSeparator(metaclass=ABCMeta):
     @abstractmethod
     def is_supported(self, process: Process) -> bool:
@@ -30,15 +37,21 @@ class ApplicationSeparator(metaclass=ABCMeta):
 IP_PORT_RE = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?:\:\d{2,5})?$")  # Matches against (ip(:port))
 
 
-def get_positional_arg(args: List[str], pos_arg_name: str) -> Optional[str]:
-    if pos_arg_name in args:
-        return args[args.index(pos_arg_name) + 1]
+def get_cli_arg_value(args: List[str], arg_name: str, check_for_equals_arg: bool = False) -> Optional[str]:
+    if arg_name in args:
+        return args[args.index(arg_name) + 1]
+
+    if check_for_equals_arg:
+        for arg in args:
+            arg_name, _, arg_val = arg.rpartition("=")
+            if arg_val is not None:
+                return arg_val
 
     return None
 
 
 def append_python_module_to_proc_wd(process: Process, module_name: str) -> str:
-    return process.cwd().replace("/", ".") + module_name
+    return f'{process.cwd().replace("/", ".").strip(".")}.{module_name}'
 
 
 class GunicornApplicationSeparator(ApplicationSeparator):
@@ -47,7 +60,13 @@ class GunicornApplicationSeparator(ApplicationSeparator):
         return "gunicorn"
 
     def is_supported(self, process: Process) -> bool:
-        return process.cmdline()[0] == "gunicorn"
+        # Either gunicorn (for example: /usr/local/bin/gunicorn) or python that runs gunicorn
+        # (For example: /usr/local/bin/python /usr/local/bin/gunicorn)
+        if "gunicorn" in process.cmdline()[0]:
+            return True
+        if len(process.cmdline()) >= 2:
+            return "gunicorn" in process.cmdline()[1]
+        return False
 
     def get_application_name(self, process: Process) -> Optional[str]:
         # As of gunicorn documentation the WSGI module name most probably will come from the cmdline and not from the
@@ -69,7 +88,7 @@ class UwsgiApplicationSeparator(ApplicationSeparator):
         return "uwsgi"
 
     def is_supported(self, process: Process) -> bool:
-        return process.cmdline()[0] == "uwsgi"
+        return "uwsgi" in process.cmdline()[0]
 
     @staticmethod
     def _find_wsgi_from_config_file(process: Process) -> Optional[str]:
@@ -94,13 +113,13 @@ class UwsgiApplicationSeparator(ApplicationSeparator):
         return None
 
     def get_application_name(self, process: Process) -> Optional[str]:
-        wsgi = get_positional_arg(process.cmdline(), "-w")
+        wsgi = get_cli_arg_value(process.cmdline(), "-w")
         if wsgi is not None:
-            return wsgi
+            return append_python_module_to_proc_wd(process, wsgi)
 
         wsgi = self._find_wsgi_from_config_file(process)
         if wsgi is not None:
-            return wsgi
+            return append_python_module_to_proc_wd(process, wsgi)
 
         logger.warning("Couldn't find uwsgi wsgi module, both from cmdline and from config file")
         return None
@@ -115,10 +134,11 @@ class CeleryApplicationSeparator(ApplicationSeparator):
         if process.cmdline()[0] == "celery":
             return True
 
-        return len(process.cmdline()) >= 3 and ["-m", "celery"] == process.cmdline()[1:]
+        return len(process.cmdline()) >= 3 and ["-m", "celery"] == process.cmdline()[1:3]
 
     def get_application_name(self, process: Process) -> Optional[str]:
-        app_name = get_positional_arg(process.cmdline(), "-A") or get_positional_arg(process.cmdline(), "--app")
+        app_name = get_cli_arg_value(process.cmdline(), "-A") or get_cli_arg_value(process.cmdline(), "--app",
+                                                                                   check_for_equals_arg=True)
         if app_name is None:
             logger.warning("Couldn't find positional argument -A or --app for application indication")
             return None
@@ -129,14 +149,18 @@ class CeleryApplicationSeparator(ApplicationSeparator):
 class PySparkApplicationSeparator(ApplicationSeparator):
     @property
     def app_prefix(self) -> str:
-        return "pyspark"
+        return "PySpark"
 
     def is_supported(self, process: Process) -> bool:
         # We're looking for pythonXX -m pyspark.daemon
-        return process.cmdline() >= 3 and ["-m", "pyspark.daemon"] == process.cmdline()[1:]
+        return (
+            process.cmdline() >= 3
+            and "python" in process.cmdline()
+            and ["-m", "pyspark.daemon"] == process.cmdline()[1:]
+        )
 
     def get_application_name(self, process: Process) -> Optional[str]:
-        return "generic pyspark.daemon"
+        return "PySpark"
 
 
 class PythonModuleApplicationSeparator(ApplicationSeparator):
@@ -145,15 +169,15 @@ class PythonModuleApplicationSeparator(ApplicationSeparator):
         return "generic-python"
 
     def is_supported(self, process: Process) -> bool:
-        if "python" not in process.cmdline()[0]:
+        if not _is_python_bin(process.cmdline()[0]):
             return False
 
-        return (len(process.cmdline()) > 3 and process.cmdline()[1] == "-m") or (
+        return (len(process.cmdline()) >= 3 and process.cmdline()[1] == "-m") or (
             len(process.cmdline()) >= 2 and process.cmdline()[1].endswith(".py")
         )
 
     def get_application_name(self, process: Process) -> Optional[str]:
-        module_arg = get_positional_arg(process.cmdline(), "-m")
+        module_arg = get_cli_arg_value(process.cmdline(), "-m")
         if module_arg is not None:
             return module_arg
 
@@ -161,7 +185,8 @@ class PythonModuleApplicationSeparator(ApplicationSeparator):
         return append_python_module_to_proc_wd(process, module_filename)
 
 
-# Please note that the order matter, so when adding new separators pay attention to the order.
+# Please note that the order matter, because the FIRST matching separator will be used.
+# so when adding new separators pay attention to the order.
 APPLICATION_SEPARATORS = [
     GunicornApplicationSeparator(),
     UwsgiApplicationSeparator(),
@@ -186,7 +211,7 @@ def get_application_name(pid: int) -> Optional[str]:
 
         except Exception:
             logger.exception(
-                f"Application separator {separator} raised an exception while matching against process" f"{process}"
+                f"Application separator {separator} raised an exception while matching against process {process}"
             )
             continue
 
