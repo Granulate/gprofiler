@@ -144,6 +144,16 @@ The following platforms are currently not supported with the gProfiler executabl
 See [gprofiler.yaml](deploy/k8s/gprofiler.yaml) for a basic template of a DaemonSet running gProfiler.
 Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in the appropriate location!
 
+### Installing with Helm Chart
+Like with the DaemonSet, make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in the appropriate location.
+```
+cd deploy/k8s/helm-charts
+helm install --set gprofiler.token="GPROFILER_TOKEN" --set gprofiler.serviceName="GPROFILER_SERVICE" gprofiler .
+
+# To view additional configuration options you can run:
+helm show values .
+```
+
 ## Running as an ECS (Elastic Container Service) Daemon service
 #### Creating the ECS Task Definition
 - Go to ECS, and [create a new task definition](https://console.aws.amazon.com/ecs/home?region=us-east-1#/taskDefinitions/create)
@@ -161,11 +171,11 @@ Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in t
 #### Deploying the gProfiler service
 
 * Go to your [ECS Clusters](https://console.aws.amazon.com/ecs/home?region=us-east-1#/clusters) and enter the relevant cluster
-* Click on `Services`, and choose `Create` 
+* Click on `Services`, and choose `Create`
 * Choose the `EC2` launch type and the `granulate-gprofiler` task definition with the latest revision
 * Enter a service name
-* Choose the `DAEMON` service type 
-* Click `Next step` until you reach the `Review` page, and then click `Create Service` 
+* Choose the `DAEMON` service type
+* Click `Next step` until you reach the `Review` page, and then click `Create Service`
 
 ## Running on an AWS Fargate service
 
@@ -205,11 +215,11 @@ Alternatively, you can download gProfiler in your `Dockerfile` to avoid having t
 You can run a gProfiler container with `docker-compose` by using the template file in [docker-compose.yml](deploy/docker-compose/docker-compose.yml).
 Start by replacing the `<TOKEN>` and `<SERVICE NAME>` with values in the `command` section -
 * `<TOKEN>` should be replaced with your personal token from the [gProfiler Performance Studio](https://profiler.granulate.io/) site (in the [Install Service](https://profiler.granulate.io/installation) section)
-* The `<SERVICE NAME>` should be replaced with whatever service name you wish to use 
+* The `<SERVICE NAME>` should be replaced with whatever service name you wish to use
 
 Optionally, you can add more command line arguments to the `command` section. For example, if you wish to use the `py-spy` profiler, you could replace the command with `-cu --token "<TOKEN>" --service-name "<SERVICE NAME>" --python-mode pyspy`.
 
-**To run it, run the following command:** 
+**To run it, run the following command:**
   ```bash
   docker-compose -f /path/to/docker-compose.yml up -d
   ```
@@ -223,7 +233,7 @@ Replace the values of `SERVICE_NAME` and `GPROFILER_TOKEN`:
   - Replace `<TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
   - Replace `<SERVICE NAME>` in the command line with the service name you wish to use.
 
-whenever you start a Dataflow job, add the `--setup_file /path/to/setup.py` flag with your `setup.py` 
+whenever you start a Dataflow job, add the `--setup_file /path/to/setup.py` flag with your `setup.py`
  copy (**PLEASE NOTE** - the flag is `--setup_file` and not `--setup-file`).
 For example, here's a command that starts an example Apache Beam job with gProfiler:
 ```shell
@@ -235,7 +245,7 @@ python3 -m apache_beam.examples.complete.top_wikipedia_sessions \
 --output gs://my-cloud-storage-bucket/output/ \
 --setup_file /path/to/setup.py
 ```
-If you are already using the `--setup_file` flag for your own setup, you can merge your setup file with the [gProfiler one](./deploy/dataflow/setup.py). 
+If you are already using the `--setup_file` flag for your own setup, you can merge your setup file with the [gProfiler one](./deploy/dataflow/setup.py).
 Copy over all of the code in the gProfiler setup file **except** the `setuptools.setup` call, and add the following keyword argument to your `setuptools.setup` call:
 ```python
 cmdclass={

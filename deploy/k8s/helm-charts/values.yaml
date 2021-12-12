@@ -20,5 +20,6 @@ namespaceOverride: ""
 
 gprofiler:
   token: TOKEN
-  serviceName: SERVICE_NAME 
+  serviceName: SERVICE_NAME
   kubernetesEnabled: true
+  extraArguments: []
