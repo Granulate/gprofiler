@@ -115,4 +115,4 @@ def get_python_version(application_docker_container: Container):
             os.close(w)
 
     # Output is expected to look like e.g. "Python 3.9.7"
-    return output.strip().split()[-1]
+    return output.decode().strip().split()[-1]
