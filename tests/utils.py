@@ -106,13 +106,7 @@ def get_python_version(application_docker_container: Container):
         if exit_code != 0:
             return None
     else:
-        r, w = os.pipe()
-        try:
-            subprocess.run("python --version".split(), check=True, stderr=w, stdout=w)
-            output = os.read(r, 32)
-        finally:
-            os.close(r)
-            os.close(w)
+        output = subprocess.check_output("python --version", stderr=subprocess.STDOUT, shell=True)
 
     # Output is expected to look like e.g. "Python 3.9.7"
     return output.decode().strip().split()[-1]
