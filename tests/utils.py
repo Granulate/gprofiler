@@ -98,15 +98,3 @@ def assert_function_in_collapsed(function_name: str, collapsed: Mapping[str, int
     assert any(
         (function_name in record) for record in collapsed.keys()
     ), f"function {function_name!r} missing in collapsed data!"
-
-
-def get_python_version(application_docker_container: Container):
-    if application_docker_container is not None:
-        exit_code, output = application_docker_container.exec_run(cmd="python --version")
-        if exit_code != 0:
-            return None
-    else:
-        output = subprocess.check_output("python --version", stderr=subprocess.STDOUT, shell=True)
-
-    # Output is expected to look like e.g. "Python 3.9.7"
-    return output.decode().strip().split()[-1]
