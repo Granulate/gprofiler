@@ -131,10 +131,11 @@ def _get_package_name(dist: pkg_resources.Distribution) -> Optional[str]:
     return None
 
 
-def _get_libpython_path(pid: int) -> Optional[str]:
-    # Match the path to libpython as it may appear in /proc/[pid]/maps, e.g. " /usr/local/lib/libpython3.9.so.1.0"
-    libpython_maps_pattern = re.compile(r"(?<=\s)/\S*libpython\S*\.so(\.\S+)?\Z")
+# Matches the path to libpython as it may appear in /proc/[pid]/maps, e.g. " /usr/local/lib/libpython3.9.so.1.0"
+_LIBPYTHON_MAPS_PATTERN = re.compile(r"(?<=\s)/\S*libpython\S*\.so(\.\S+)?\Z")
 
+
+def _get_libpython_path(pid: int) -> Optional[str]:
     try:
         f = open(f"/proc/{pid}/maps")
     except OSError:
@@ -142,7 +143,7 @@ def _get_libpython_path(pid: int) -> Optional[str]:
 
     with f:
         for line in f.readlines():
-            match = libpython_maps_pattern.search(line.strip())
+            match = _LIBPYTHON_MAPS_PATTERN.search(line.strip())
             if match is not None:
                 return match.group()
     return None
@@ -170,13 +171,15 @@ def _get_python_full_version(process: Process) -> Optional[str]:
     return None
 
 
+# Standard library modules are identified by being under a pythonx.y dir and *not* under site/dist-packages
+_STANDARD_LIB_PATTERN = re.compile(r"/python\d\.\d\d?/(?!.*(site|dist)-packages)")
+
+
 def _get_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]], process: Process):
-    # Standard library modules are identified by being under a pythonx.y dir and *not* under site/dist-packages
-    standard_lib_pattern = re.compile(r"/python\d\.\d\d?/(?!.*(site|dist)-packages)")
     py_version = None
 
     for path in result:
-        match = standard_lib_pattern.search(path)
+        match = _STANDARD_LIB_PATTERN.search(path)
         if match is None:
             # This module is (probably) not part of the standard library
             continue
