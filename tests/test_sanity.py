@@ -50,12 +50,15 @@ def test_pyspy(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed,
+    application_docker_container: Container,
 ) -> None:
     with PySpyProfiler(1000, 3, Event(), str(tmp_path), True) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
         assert_function_in_collapsed("PyYAML-6.0", process_collapsed)  # Ensure package info is presented
-        assert_function_in_collapsed("standard-library-3.6.15", process_collapsed)  # Ensure Python version is presented
+        # Ensure Python version is presented
+        py_version = get_python_version(application_docker_container)
+        assert_function_in_collapsed(f"standard-library-{py_version}", process_collapsed)
 
 
 @pytest.mark.parametrize("runtime", ["php"])

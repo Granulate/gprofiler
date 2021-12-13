@@ -21,7 +21,7 @@ def burner():
 def parser():
     while True:
         # Have some package stacks.
-        # Notice the name of the package (PyYAML) is different from the name of the module (yaml)
+        # Notice the name of the package name (PyYAML) is different from the name of the module (yaml)
         yaml.parse("")
 
 
