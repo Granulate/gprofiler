@@ -8,6 +8,7 @@ from typing import Callable, List, Mapping
 
 import pytest  # type: ignore
 from docker import DockerClient
+from docker.models.containers import Container
 from docker.models.images import Image
 
 from gprofiler.merge import parse_one_collapsed
@@ -17,7 +18,7 @@ from gprofiler.profilers.php import PHPSpyProfiler
 from gprofiler.profilers.python import PySpyProfiler, PythonEbpfProfiler
 from gprofiler.profilers.ruby import RbSpyProfiler
 from tests import PHPSPY_DURATION
-from tests.utils import RUNTIME_PROFILERS, assert_function_in_collapsed, run_gprofiler_in_container
+from tests.utils import RUNTIME_PROFILERS, assert_function_in_collapsed, get_python_version, run_gprofiler_in_container
 
 
 @pytest.mark.parametrize("runtime", ["java"])
@@ -102,6 +103,7 @@ def test_python_ebpf(
     application_pid: int,
     assert_collapsed,
     gprofiler_docker_image: Image,
+    application_docker_container: Container,
     no_kernel_headers,
 ) -> None:
     with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path), True) as profiler:
@@ -113,7 +115,9 @@ def test_python_ebpf(
             "_PyEval_EvalFrameDefault_[pn]", process_collapsed, True
         )  # ensure native user stacks exist
         assert_function_in_collapsed("setuptools-59.4.0", process_collapsed)  # ensure package info is presented
-        assert_function_in_collapsed("standard-library-3.6.15", process_collapsed)  # ensure Python version is presented
+        # ensure Python version is presented
+        py_version = get_python_version(application_docker_container)
+        assert_function_in_collapsed(f"standard-library-{py_version}", process_collapsed)
 
 
 @pytest.mark.parametrize(
