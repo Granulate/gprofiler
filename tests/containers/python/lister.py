@@ -6,7 +6,7 @@
 import os
 from threading import Thread
 
-import pkg_resources  # type: ignore
+import yaml  # type: ignore
 
 
 def lister():
@@ -18,15 +18,15 @@ def burner():
         pass
 
 
-def getter():
+def parser():
     while True:
         # Have some package stacks.
-        # Notice that we're using a module from a package with a different name - setuptools
-        pkg_resources.get_platform()
+        # Notice the name of the package (PyYAML) is different from the name of the module (yaml)
+        yaml.parse("")
 
 
 if __name__ == "__main__":
     Thread(target=burner).start()
-    Thread(target=getter).start()
+    Thread(target=parser).start()
     while True:
         lister()
