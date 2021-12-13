@@ -388,21 +388,20 @@ class PythonEbpfProfiler(ProfilerBase):
     " or disabled (no runtime profilers for Python).",
     profiler_arguments=[
         ProfilerArgument(
-            "--add-python-versions",
-            dest="add_versions",
+            "--no-python-versions",
+            dest="python_add_versions",
             action="store_false",
-            default=True,
-            help="Add version information to Python frames. If the frame is from a package the name of the package and"
-            " its version will be displayed, and if the frame is from a Python built-in module Python's full version"
-            " will be displayed.",
+            help="Don't add version information to Python frames. If not set, frames from packages are displayed with "
+            "the name of the package and its version, and frames from Python built-in modules are displayed with "
+            "Python's full version.",
         ),
         ProfilerArgument(
             "--pyperf-user-stacks-pages",
             dest="python_pyperf_user_stacks_pages",
             default=None,
             type=nonnegative_integer,
-            help="Number of user stack-pages that PyPerf will collect, this controls the maximum stack depth of native"
-            " user frames. Pass 0 to disable user native stacks altogether.",
+            help="Number of user stack-pages that PyPerf will collect, this controls the maximum stack depth of native "
+            "user frames. Pass 0 to disable user native stacks altogether.",
         ),
     ],
 )
@@ -419,7 +418,7 @@ class PythonProfiler(ProfilerInterface):
         stop_event: Event,
         storage_dir: str,
         python_mode: str,
-        add_versions: bool,
+        python_add_versions: bool,
         python_pyperf_user_stacks_pages: Optional[int],
     ):
         if python_mode == "py-spy":
@@ -434,14 +433,14 @@ class PythonProfiler(ProfilerInterface):
 
         if python_mode in ("auto", "pyperf"):
             self._ebpf_profiler = self._create_ebpf_profiler(
-                frequency, duration, stop_event, storage_dir, add_versions, python_pyperf_user_stacks_pages
+                frequency, duration, stop_event, storage_dir, python_add_versions, python_pyperf_user_stacks_pages
             )
         else:
             self._ebpf_profiler = None
 
         if python_mode in ("auto", "pyspy"):
             self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(
-                frequency, duration, stop_event, storage_dir, add_versions
+                frequency, duration, stop_event, storage_dir, python_add_versions
             )
         else:
             self._pyspy_profiler = None
