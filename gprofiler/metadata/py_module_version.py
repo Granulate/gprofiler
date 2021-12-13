@@ -240,8 +240,6 @@ def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], process
         # Don't forget to restore the original implementation in case someone else uses this function
         pkg_resources._normalize_cached = original__normalize_cache
 
-    return result
-
 
 def get_modules_versions(modules_paths: Iterator[str], process: Process):
     """Return a dict with module_path: (package_name, version).
