@@ -19,6 +19,7 @@ from typing import Dict, Iterator, Optional, Tuple
 # is looking for, but the stubs there are extremely deprecated
 import pkg_resources  # type: ignore
 from granulate_utils.linux.ns import resolve_host_path
+from psutil import Process
 
 from gprofiler.log import get_logger_adapter
 
@@ -148,15 +149,15 @@ def _get_libpython_path(pid: int) -> Optional[str]:
 
 
 @functools.lru_cache(maxsize=128)
-def _get_python_full_version(pid: int, short_version: str) -> Optional[str]:
+def _get_python_full_version(process: Process, short_version: str) -> Optional[str]:
     assert re.match(r"[23]\.\d\d?", short_version)
 
-    bin_file = _get_libpython_path(pid) or f"/proc/{pid}/exe"
+    bin_file = _get_libpython_path(process.pid) or f"/proc/{process.pid}/exe"
     full_version_string_pattern = re.compile(rb"(?<=\D)" + short_version.encode() + rb"\.\d\d?(?=\x00)")
 
     # Try to extract the version string from the binary
     try:
-        f = open(resolve_host_path(bin_file, pid), "rb")
+        f = open(resolve_host_path(process, bin_file), "rb")
     except OSError:
         return None
 
@@ -168,7 +169,7 @@ def _get_python_full_version(pid: int, short_version: str) -> Optional[str]:
     return None
 
 
-def _get_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]], pid: int):
+def _get_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]], process: Process):
     # Standard library modules are identified by being under a pythonx.y dir and *not* under site/dist-packages
     standard_lib_pattern = re.compile(r"/python(?P<version>\d\.\d\d?)/(?!.*(site|dist)-packages)")
     py_version = None
@@ -177,7 +178,7 @@ def _get_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]], pid
         match = standard_lib_pattern.search(path)
         if match is not None:
             if py_version is None:
-                py_version = _get_python_full_version(pid, match.group("version"))
+                py_version = _get_python_full_version(process, match.group("version"))
                 if py_version is None:
                     # No need to continue trying if we failed
                     return None
@@ -198,7 +199,7 @@ def _get_dists_files(packages_path: str) -> Dict[str, pkg_resources.Distribution
 _warned_no__normalized_cached = False
 
 
-def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], pid: int):
+def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], process: Process):
     # A little monkey patch to prevent pkg_resources from converting "/proc/{pid}/root/" to "/".
     # This function resolves symlinks and makes paths absolute for comparison purposes which isn't required
     # for our usage.
@@ -226,9 +227,9 @@ def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], pid: in
             if packages_path is None:
                 # This module is (probably) not part of a package
                 continue
-            packages_path = resolve_host_path(packages_path, pid)
-            path_to_dist = _get_dists_files(packages_path)
-            dist_info = path_to_dist.get(resolve_host_path(path, pid))
+            packages_path = resolve_host_path(process, packages_path)
+            paths_to_dists = _get_dists_files(packages_path)
+            dist_info = paths_to_dists.get(resolve_host_path(process, path))
             if dist_info is not None:
                 name = _get_package_name(dist_info)
                 if name is not None:
@@ -242,7 +243,7 @@ def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], pid: in
     return result
 
 
-def get_modules_versions(modules_paths: Iterator[str], pid: int):
+def get_modules_versions(modules_paths: Iterator[str], process: Process):
     """Return a dict with module_path: (package_name, version).
 
     If the module is from Python's standard library, package_name is
@@ -260,6 +261,6 @@ def get_modules_versions(modules_paths: Iterator[str], pid: int):
     each package. This list is searched for the given module path.
     """
     result = dict.fromkeys(modules_paths)
-    _get_standard_libs_version(result, pid)
-    _get_packages_versions(result, pid)
+    _get_standard_libs_version(result, process)
+    _get_packages_versions(result, process)
     return result

@@ -39,15 +39,14 @@ from gprofiler.utils import (
 
 logger = get_logger_adapter(__name__)
 
-_module_name_in_stack = re.compile(r"\((?P<module_info>(?P<filename>.+?\.py):\d+)\)")
+_module_name_in_stack = re.compile(r"\((?P<module_info>(?P<filename>[^\)]+?\.py):\d+)\)")
 
 
-def _add_versions_to_process_stacks(pid: int, stacks: StackToSampleCount) -> StackToSampleCount:
-    # TODO: Optimize the whole thing. Specifically, add cache in get_modules_versions
+def _add_versions_to_process_stacks(process: Process, stacks: StackToSampleCount) -> StackToSampleCount:
     new_stacks: StackToSampleCount = Counter()
     for stack in stacks:
         modules_paths = (match.group("filename") for match in _module_name_in_stack.finditer(stack))
-        packages_versions = get_modules_versions(modules_paths, pid)
+        packages_versions = get_modules_versions(modules_paths, process)
 
         def _replace_module_name(module_name_match):
             package_info = packages_versions.get(module_name_match.group("filename"))
@@ -68,7 +67,12 @@ def _add_versions_to_stacks(
     result: ProcessToStackSampleCounters = defaultdict(Counter)
 
     for pid, stack_to_sample_count in process_to_stack_sample_counters.items():
-        result[pid] = _add_versions_to_process_stacks(pid, stack_to_sample_count)
+        try:
+            process = Process(pid)
+        except NoSuchProcess:
+            # The process doesn't exist anymore so we can't analyze versions
+            continue
+        result[pid] = _add_versions_to_process_stacks(process, stack_to_sample_count)
 
     return result
 
@@ -143,7 +147,7 @@ class PySpyProfiler(ProcessProfilerBase):
             logger.info(f"Finished profiling process {process.pid} with py-spy")
             parsed = parse_one_collapsed_file(Path(local_output_path), process_comm(process))
             if self.add_versions:
-                parsed = _add_versions_to_process_stacks(process.pid, parsed)
+                parsed = _add_versions_to_process_stacks(process, parsed)
             return parsed
 
     def _select_processes_to_profile(self) -> List[Process]:
