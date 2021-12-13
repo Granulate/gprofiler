@@ -186,8 +186,11 @@ def _get_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]], pro
 
 
 @functools.lru_cache(maxsize=128)
-def _get_dists_files(packages_path: str) -> Dict[str, pkg_resources.Distribution]:
+def _get_dists_files(process: Process, packages_path: str) -> Dict[str, pkg_resources.Distribution]:
     """Return a dict of filename: dist for the distributions in packages_path"""
+    # Transform packages_path to be relative to /proc/[pid]/root/
+    packages_path = resolve_host_path(process, packages_path)
+
     path_to_dist = {}
     for dist in pkg_resources.find_distributions(packages_path):
         files_iter = _files_from_record(dist) or _files_from_legacy(dist)
@@ -227,8 +230,7 @@ def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], process
             if packages_path is None:
                 # This module is (probably) not part of a package
                 continue
-            packages_path = resolve_host_path(process, packages_path)
-            paths_to_dists = _get_dists_files(packages_path)
+            paths_to_dists = _get_dists_files(process, packages_path)
             dist_info = paths_to_dists.get(resolve_host_path(process, path))
             if dist_info is not None:
                 name = _get_package_name(dist_info)
