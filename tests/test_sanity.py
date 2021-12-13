@@ -56,6 +56,7 @@ def test_pyspy(
         assert_collapsed(process_collapsed, check_comm=True)
         assert_function_in_collapsed("PyYAML-6.0", process_collapsed)  # Ensure package info is presented
         # Ensure Python version is presented
+        assert python_version is not None, "Failed to find python version"
         assert_function_in_collapsed(f"standard-library-{python_version}", process_collapsed)
 
 
@@ -117,6 +118,7 @@ def test_python_ebpf(
         )  # ensure native user stacks exist
         assert_function_in_collapsed("PyYAML-6.0", process_collapsed)  # ensure package info is presented
         # ensure Python version is presented
+        assert python_version is not None, "Failed to find python version"
         assert_function_in_collapsed(f"standard-library-{python_version}", process_collapsed)
 
 
