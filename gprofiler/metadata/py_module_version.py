@@ -148,12 +148,13 @@ def _get_libpython_path(pid: int) -> Optional[str]:
     return None
 
 
-@functools.lru_cache(maxsize=128)
-def _get_python_full_version(process: Process, short_version: str) -> Optional[str]:
-    assert re.match(r"[23]\.\d\d?", short_version)
+# Matches PY_VERSION in Python's binary
+_PY_VERSION_STRING_PATTERN = re.compile(rb"(?<=\D)(?:2\.7|3\.1?\d)\.\d\d?(?=\x00)")
 
+
+@functools.lru_cache(maxsize=128)
+def _get_python_full_version(process: Process) -> Optional[str]:
     bin_file = _get_libpython_path(process.pid) or f"/proc/{process.pid}/exe"
-    full_version_string_pattern = re.compile(rb"(?<=\D)" + short_version.encode() + rb"\.\d\d?(?=\x00)")
 
     # Try to extract the version string from the binary
     try:
@@ -163,7 +164,7 @@ def _get_python_full_version(process: Process, short_version: str) -> Optional[s
 
     with f:
         for line in f.readlines():
-            match = full_version_string_pattern.search(line)
+            match = _PY_VERSION_STRING_PATTERN.search(line)
             if match is not None:
                 return match.group().decode()
     return None
@@ -171,18 +172,22 @@ def _get_python_full_version(process: Process, short_version: str) -> Optional[s
 
 def _get_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]], process: Process):
     # Standard library modules are identified by being under a pythonx.y dir and *not* under site/dist-packages
-    standard_lib_pattern = re.compile(r"/python(?P<version>\d\.\d\d?)/(?!.*(site|dist)-packages)")
+    standard_lib_pattern = re.compile(r"/python\d\.\d\d?/(?!.*(site|dist)-packages)")
     py_version = None
 
     for path in result:
         match = standard_lib_pattern.search(path)
-        if match is not None:
+        if match is None:
+            # This module is (probably) not part of the standard library
+            continue
+
+        if py_version is None:
+            py_version = _get_python_full_version(process)
             if py_version is None:
-                py_version = _get_python_full_version(process, match.group("version"))
-                if py_version is None:
-                    # No need to continue trying if we failed
-                    return None
-            result[path] = ("standard-library", py_version)  # type: ignore
+                # No need to continue trying if we failed
+                return None
+        # (mypy fails to understand that py_version isn't Optional at this point)
+        result[path] = ("standard-library", py_version)  # type: ignore
 
 
 @functools.lru_cache(maxsize=128)
