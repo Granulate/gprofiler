@@ -19,7 +19,7 @@ from typing import Dict, Iterator, Optional, Tuple
 # is looking for, but the stubs there are extremely deprecated
 import pkg_resources  # type: ignore
 from granulate_utils.linux.ns import get_mnt_ns_ancestor, resolve_host_path
-from psutil import Process
+from psutil import AccessDenied, NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter
 
@@ -136,10 +136,13 @@ _LIBPYTHON_MAPS_PATTERN = re.compile(r"/\S*libpython\S*\.so(\.\S+)?\Z")
 
 
 def _get_libpython_path(process: Process) -> Optional[str]:
-    for mmap in process.memory_maps():
-        match = _LIBPYTHON_MAPS_PATTERN.match(mmap.path)
-        if match is not None:
-            return match.group()
+    try:
+        for mmap in process.memory_maps():
+            match = _LIBPYTHON_MAPS_PATTERN.match(mmap.path)
+            if match is not None:
+                return match.group()
+    except AccessDenied:
+        logger.warning("Got AccessDenied when tried to read {process!r} mmaps")
     return None
 
 
@@ -182,7 +185,7 @@ def _populate_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]]
             py_version = _get_python_full_version(process)
             if py_version is None:
                 # No need to continue trying if we failed
-                return None
+                return
         # (mypy fails to understand that py_version isn't Optional at this point)
         result[path] = ("standard-library", py_version)  # type: ignore
 
@@ -271,6 +274,10 @@ def get_modules_versions(modules_paths: Iterator[str], process: Process):
     each package. This list is searched for the given module path.
     """
     result = dict.fromkeys(modules_paths)
-    _populate_standard_libs_version(result, process)
-    _populate_packages_versions(result, process)
+    try:
+        _populate_standard_libs_version(result, process)
+        _populate_packages_versions(result, process)
+    except NoSuchProcess:
+        # The process died. That's just the way of life, it's expected
+        pass
     return result
