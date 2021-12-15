@@ -131,21 +131,15 @@ def _get_package_name(dist: pkg_resources.Distribution) -> Optional[str]:
     return None
 
 
-# Matches the path to libpython as it may appear in /proc/[pid]/maps, e.g. " /usr/local/lib/libpython3.9.so.1.0"
-_LIBPYTHON_MAPS_PATTERN = re.compile(r"(?<=\s)/\S*libpython\S*\.so(\.\S+)?\Z")
+# Matches the path to libpython as it may appear in /proc/[pid]/maps, e.g. "/usr/local/lib/libpython3.9.so.1.0"
+_LIBPYTHON_MAPS_PATTERN = re.compile(r"/\S*libpython\S*\.so(\.\S+)?\Z")
 
 
-def _get_libpython_path(pid: int) -> Optional[str]:
-    try:
-        f = open(f"/proc/{pid}/maps")
-    except OSError:
-        return None
-
-    with f:
-        for line in f.readlines():
-            match = _LIBPYTHON_MAPS_PATTERN.search(line.strip())
-            if match is not None:
-                return match.group()
+def _get_libpython_path(process: Process) -> Optional[str]:
+    for mmap in process.memory_maps():
+        match = _LIBPYTHON_MAPS_PATTERN.match(mmap.path)
+        if match is not None:
+            return match.group()
     return None
 
 
@@ -155,7 +149,7 @@ _PY_VERSION_STRING_PATTERN = re.compile(rb"(?<=\D)(?:2\.7|3\.1?\d)\.\d\d?(?=\x00
 
 @functools.lru_cache(maxsize=128)
 def _get_python_full_version(process: Process) -> Optional[str]:
-    bin_file = _get_libpython_path(process.pid) or f"/proc/{process.pid}/exe"
+    bin_file = _get_libpython_path(process) or f"/proc/{process.pid}/exe"
 
     # Try to extract the version string from the binary
     try:
