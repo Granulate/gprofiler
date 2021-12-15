@@ -169,7 +169,7 @@ def _get_python_full_version(process: Process) -> Optional[str]:
 _STANDARD_LIB_PATTERN = re.compile(r"/python\d\.\d\d?/(?!.*(site|dist)-packages)")
 
 
-def _get_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]], process: Process):
+def _populate_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]], process: Process):
     py_version = None
 
     for path in result:
@@ -210,7 +210,7 @@ def _get_packages_files(process: Process, packages_path: str) -> Dict[str, Tuple
 _warned_no__normalized_cached = False
 
 
-def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], process: Process):
+def _populate_packages_versions(packages_versions: Dict[str, Optional[Tuple[str, str]]], process: Process):
     # A little monkey patch to prevent pkg_resources from converting "/proc/{pid}/root/" to "/".
     # This function resolves symlinks and makes paths absolute for comparison purposes which isn't required
     # for our usage.
@@ -225,7 +225,7 @@ def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], process
             _warned_no__normalized_cached = True
 
         # Not much that we can do, pkg_resources.find_distributions won't work properly
-        return result
+        return
 
     # We use the process only for its /proc/[pid]/root, so it's more efficient for caching purposes to use the
     # ns ancestor
@@ -234,18 +234,18 @@ def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], process
     # Make sure to catch any exception. If something goes wrong just don't get the version, we shouldn't
     # interfere with gProfiler
     try:
-        for path in result:
-            if not path.startswith("/"):
+        for module_path in packages_versions:
+            if not module_path.startswith("/"):
                 continue
 
-            packages_path = _get_packages_dir(path)
+            packages_path = _get_packages_dir(module_path)
             if packages_path is None:
                 # This module is (probably) not part of a package
                 continue
             path_to_package_info = _get_packages_files(ancestor, packages_path)
-            package_info: Optional[Tuple[str, str]] = path_to_package_info.get(path)
+            package_info: Optional[Tuple[str, str]] = path_to_package_info.get(module_path)
             if package_info is not None:
-                result[path] = package_info
+                packages_versions[module_path] = package_info
     except Exception:
         pass
     finally:
@@ -271,6 +271,6 @@ def get_modules_versions(modules_paths: Iterator[str], process: Process):
     each package. This list is searched for the given module path.
     """
     result = dict.fromkeys(modules_paths)
-    _get_standard_libs_version(result, process)
-    _get_packages_versions(result, process)
+    _populate_standard_libs_version(result, process)
+    _populate_packages_versions(result, process)
     return result
