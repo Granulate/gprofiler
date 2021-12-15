@@ -105,7 +105,7 @@ def _files_from_legacy(dist: pkg_resources.Distribution) -> Optional[Iterator[st
     """Based on _files_from_legacy in pip._internal.commands.show.search_packages_info"""
     try:
         text = dist.get_metadata("installed-files.txt")
-    except FileNotFoundError:
+    except (FileNotFoundError, KeyError):
         return None
     paths = (p for p in text.splitlines(keepends=False) if p)
     root = dist.location
