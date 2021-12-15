@@ -88,6 +88,7 @@ class PySpyProfiler(ProcessProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
+        *,
         add_versions: bool,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
@@ -202,6 +203,7 @@ class PythonEbpfProfiler(ProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
+        *,
         add_versions: bool,
         user_stacks_pages: Optional[int] = None,
     ):
@@ -444,7 +446,7 @@ class PythonProfiler(ProfilerInterface):
 
         if python_mode in ("auto", "pyspy"):
             self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(
-                frequency, duration, stop_event, storage_dir, python_add_versions
+                frequency, duration, stop_event, storage_dir, add_versions=python_add_versions
             )
         else:
             self._pyspy_profiler = None
@@ -459,7 +461,14 @@ class PythonProfiler(ProfilerInterface):
         user_stacks_pages: Optional[int],
     ) -> Optional[PythonEbpfProfiler]:
         try:
-            profiler = PythonEbpfProfiler(frequency, duration, stop_event, storage_dir, add_versions, user_stacks_pages)
+            profiler = PythonEbpfProfiler(
+                frequency,
+                duration,
+                stop_event,
+                storage_dir,
+                add_versions=add_versions,
+                user_stacks_pages=user_stacks_pages,
+            )
             profiler.test()
             return profiler
         except Exception as e:

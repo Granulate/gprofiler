@@ -51,7 +51,7 @@ def test_pyspy(
     assert_collapsed,
     python_version: Optional[str],
 ) -> None:
-    with PySpyProfiler(1000, 3, Event(), str(tmp_path), True) as profiler:
+    with PySpyProfiler(1000, 3, Event(), str(tmp_path), add_versions=True) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
         assert_function_in_collapsed("PyYAML-6.0", process_collapsed)  # Ensure package info is presented
@@ -108,7 +108,7 @@ def test_python_ebpf(
     python_version: Optional[str],
     no_kernel_headers,
 ) -> None:
-    with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path), True) as profiler:
+    with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path), add_versions=True) as profiler:
         collapsed = profiler.snapshot()
         process_collapsed = collapsed.get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
