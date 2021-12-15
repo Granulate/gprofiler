@@ -142,7 +142,7 @@ def _get_libpython_path(process: Process) -> Optional[str]:
             if match is not None:
                 return match.group()
     except AccessDenied:
-        logger.warning("Got AccessDenied when tried to read {process!r} mmaps")
+        logger.warning(f"Got AccessDenied when tried to read {process!r} mmaps")
     return None
 
 
@@ -234,8 +234,6 @@ def _populate_packages_versions(packages_versions: Dict[str, Optional[Tuple[str,
     # ns ancestor
     ancestor = get_mnt_ns_ancestor(process)
 
-    # Make sure to catch any exception. If something goes wrong just don't get the version, we shouldn't
-    # interfere with gProfiler
     try:
         for module_path in packages_versions:
             if not module_path.startswith("/"):
@@ -249,11 +247,12 @@ def _populate_packages_versions(packages_versions: Dict[str, Optional[Tuple[str,
             package_info: Optional[Tuple[str, str]] = path_to_package_info.get(module_path)
             if package_info is not None:
                 packages_versions[module_path] = package_info
-    except Exception:
-        pass
     finally:
         # Don't forget to restore the original implementation in case someone else uses this function
         pkg_resources._normalize_cached = original__normalize_cache
+
+
+_exceptions_logged = 0
 
 
 def get_modules_versions(modules_paths: Iterator[str], process: Process):
@@ -278,6 +277,14 @@ def get_modules_versions(modules_paths: Iterator[str], process: Process):
         _populate_standard_libs_version(result, process)
         _populate_packages_versions(result, process)
     except NoSuchProcess:
-        # The process died. That's just the way of life, it's expected
+        # The process died during the function. That's just the way of life, it's expected
         pass
+    except Exception:
+        # Make sure to catch any exception. If something goes wrong just don't get the version, we shouldn't
+        # interfere with gProfiler
+        global _exceptions_logged
+        if _exceptions_logged < 10:
+            logger.exception(f"Failed to get modules versions for {process!r}:")
+            # Don't spam the log
+            _exceptions_logged += 1
     return result
