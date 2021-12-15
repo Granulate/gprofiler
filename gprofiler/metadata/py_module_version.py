@@ -18,7 +18,7 @@ from typing import Dict, Iterator, Optional, Tuple
 # pkg_resources is a part of setuptools, but it has a standalone deprecated version. That's the version mypy
 # is looking for, but the stubs there are extremely deprecated
 import pkg_resources  # type: ignore
-from granulate_utils.linux.ns import resolve_host_path
+from granulate_utils.linux.ns import get_mnt_ns_ancestor, resolve_host_path
 from psutil import Process
 
 from gprofiler.log import get_logger_adapter
@@ -194,17 +194,23 @@ def _get_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]], pro
 
 
 @functools.lru_cache(maxsize=128)
-def _get_dists_files(process: Process, packages_path: str) -> Dict[str, pkg_resources.Distribution]:
-    """Return a dict of filename: dist for the distributions in packages_path"""
+def _get_packages_files(process: Process, packages_path: str) -> Dict[str, Tuple[str, str]]:
+    """Return a dict of filename: (package_name, package_version) for the packages in packages_path"""
     # Transform packages_path to be relative to /proc/[pid]/root/
-    packages_path = resolve_host_path(process, packages_path)
+    packages_host_path = resolve_host_path(process, packages_path)
 
-    path_to_dist = {}
-    for dist in pkg_resources.find_distributions(packages_path):
+    path_to_package_info = {}
+    for dist in pkg_resources.find_distributions(packages_host_path):
         files_iter = _files_from_record(dist) or _files_from_legacy(dist)
         if files_iter is not None:
-            path_to_dist.update(dict.fromkeys((os.path.join(packages_path, file) for file in files_iter), dist))
-    return path_to_dist
+            pacakge_name = _get_package_name(dist)
+            if pacakge_name is not None:
+                path_to_package_info.update(
+                    dict.fromkeys(
+                        (os.path.join(packages_path, file) for file in files_iter), (pacakge_name, dist.version)
+                    )
+                )
+    return path_to_package_info
 
 
 _warned_no__normalized_cached = False
@@ -227,6 +233,10 @@ def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], process
         # Not much that we can do, pkg_resources.find_distributions won't work properly
         return result
 
+    # We use the process only for its /proc/[pid]/root, so it's more efficient for caching purposes to use the
+    # ns ancestor
+    ancestor = get_mnt_ns_ancestor(process)
+
     # Make sure to catch any exception. If something goes wrong just don't get the version, we shouldn't
     # interfere with gProfiler
     try:
@@ -238,12 +248,10 @@ def _get_packages_versions(result: Dict[str, Optional[Tuple[str, str]]], process
             if packages_path is None:
                 # This module is (probably) not part of a package
                 continue
-            paths_to_dists = _get_dists_files(process, packages_path)
-            dist_info = paths_to_dists.get(resolve_host_path(process, path))
-            if dist_info is not None:
-                name = _get_package_name(dist_info)
-                if name is not None:
-                    result[path] = (name, dist_info.version)
+            path_to_package_info = _get_packages_files(ancestor, packages_path)
+            package_info: Optional[Tuple[str, str]] = path_to_package_info.get(path)
+            if package_info is not None:
+                result[path] = package_info
     except Exception:
         pass
     finally:
