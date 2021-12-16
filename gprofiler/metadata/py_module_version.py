@@ -43,7 +43,7 @@ def _get_packages_dir(file_path: str) -> Optional[str]:
     return path + sep
 
 
-def _get_metadata(dist: pkg_resources.Distribution) -> dict:
+def _get_metadata(dist: pkg_resources.Distribution) -> Dict[str, str]:
     """Based on pip._internal.utils.get_metadata"""
     metadata_name = "METADATA"
     if isinstance(dist, pkg_resources.DistInfoDistribution) and dist.has_metadata(metadata_name):
@@ -255,7 +255,7 @@ def _populate_packages_versions(packages_versions: Dict[str, Optional[Tuple[str,
 _exceptions_logged = 0
 
 
-def get_modules_versions(modules_paths: Iterator[str], process: Process):
+def get_modules_versions(modules_paths: Iterator[str], process: Process) -> Dict[str, Optional[Tuple[str, str]]]:
     """Return a dict with module_path: (package_name, version).
 
     If the module is from Python's standard library, package_name is
