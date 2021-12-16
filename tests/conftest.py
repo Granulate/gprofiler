@@ -322,3 +322,17 @@ def profiler_flags(runtime: str, profiler_type: str) -> List[str]:
 def pytest_addoption(parser):
     parser.addoption("--exec-container-image", action="store", default=None)
     parser.addoption("--executable", action="store", default=None)
+
+
+@fixture
+def python_version(in_container: bool, application_docker_container: Container) -> Optional[str]:
+    if in_container:
+        exit_code, output = application_docker_container.exec_run(cmd="python --version")
+        if exit_code != 0:
+            return None
+    else:
+        # If not running in a container the test application runs on host
+        output = subprocess.check_output("python --version", stderr=subprocess.STDOUT, shell=True)
+
+    # Output is expected to look like e.g. "Python 3.9.7"
+    return output.decode().strip().split()[-1]
