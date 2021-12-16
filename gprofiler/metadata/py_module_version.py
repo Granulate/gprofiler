@@ -188,7 +188,7 @@ def _get_libpython_path(process: Process) -> Optional[str]:
 _PY_VERSION_STRING_PATTERN = re.compile(rb"(?<=\D)(?:2\.7|3\.1?\d)\.\d\d?(?=\x00)")
 
 
-@cached(LRUCache(maxsize=128), key=lambda process: keys.hashkey(_get_mnt_ns_id(process)))
+@cached(LRUCache(maxsize=128), key=lambda process: keys.hashkey(_get_mnt_ns_id(process), process.cmdline()[0]))
 def _get_python_full_version(process: Process) -> Optional[str]:
     bin_file = _get_libpython_path(process) or f"/proc/{process.pid}/exe"
 
