@@ -397,6 +397,7 @@ class PythonEbpfProfiler(ProfilerBase):
             "--no-python-versions",
             dest="python_add_versions",
             action="store_false",
+            default=True,
             help="Don't add version information to Python frames. If not set, frames from packages are displayed with "
             "the name of the package and its version, and frames from Python built-in modules are displayed with "
             "Python's full version.",
