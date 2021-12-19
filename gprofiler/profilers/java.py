@@ -691,10 +691,7 @@ class JavaProfiler(ProcessProfilerBase):
 
         output = ap_proc.read_output()
         if output is None:
-            logger.warning(
-                f"Profiled process {ap_proc.process.pid} exited after stopping async-profiler"
-                " but before reading the output"
-            )
+            logger.warning(f"Profiled process {ap_proc.process.pid} exited before reading the output")
             return None
         else:
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
