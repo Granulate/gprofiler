@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import signal
+from enum import Enum
 from pathlib import Path
 from threading import Event
 from typing import List, Optional, Set
@@ -54,6 +55,23 @@ from gprofiler.utils import (
 logger = get_logger_adapter(__name__)
 
 
+JAVA_SAFEMODE_ALL = "all"  # magic value for *all* options from JavaSafemodeOptions
+
+
+class JavaSafemodeOptions(Enum):
+    PROFILED_OOM = "profiled-oom"
+    PROFILED_SIGNALED = "profiled-signaled"
+    HSERR = "hserr"
+    GENERAL_OOM = "general-oom"
+    GENERAL_SIGNALED = "general-signaled"
+    PID_IN_MESSAGES = "pid-in-messages"
+    JAVA_VERSION_CHECK = "java-version-check"
+    AP_LOADED_CHECK = "ap-loaded-check"
+
+
+JAVA_SAFEMODE_ALL_OPTIONS = [o.value for o in JavaSafemodeOptions]
+
+
 class JattachException(CalledProcessError):
     def __init__(self, returncode, cmd, stdout, stderr, target_pid: int, ap_log: str):
         super().__init__(returncode, cmd, stdout, stderr)
@@ -95,7 +113,7 @@ class AsyncProfiledProcess:
     OUTPUTS_MODE = 0o622  # readable by root, writable by all
 
     def __init__(
-        self, process: Process, storage_dir: str, buildids: bool, mode: str, safemode: int, java_safemode: bool
+        self, process: Process, storage_dir: str, buildids: bool, mode: str, ap_safemode: int, java_safemode: List[str]
     ):
         self.process = process
         # access the process' root via its topmost parent/ancestor which uses the same mount namespace.
@@ -139,7 +157,7 @@ class AsyncProfiledProcess:
         self._buildids = buildids
         assert mode in ("cpu", "itimer"), f"unexpected mode: {mode}"
         self._mode = mode
-        self._safemode = safemode
+        self._ap_safemode = ap_safemode
         self._java_safemode = java_safemode
 
     def __enter__(self):
@@ -237,7 +255,7 @@ class AsyncProfiledProcess:
             )
 
     def _check_async_profiler_not_loaded(self) -> None:
-        if not self._java_safemode:
+        if JavaSafemodeOptions.AP_LOADED_CHECK not in self._java_safemode:
             return
         for mmap in self.process.memory_maps():
             if "libasyncProfiler.so" in mmap.path and not mmap.path.startswith(TEMPORARY_STORAGE_PATH):
@@ -261,7 +279,7 @@ class AsyncProfiledProcess:
             f"{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS},interval={interval},"
             f"log={self._log_path_process}{',buildids' if self._buildids else ''}"
             f"{',fdtransfer' if self._mode == 'cpu' else ''}"
-            f",safemode={self._safemode}"
+            f",safemode={self._ap_safemode}"
         ]
 
     def _get_stop_cmd(self, with_output: bool) -> List[str]:
@@ -434,7 +452,12 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             " Defaults to '%(default)s').",
         ),
         ProfilerArgument(
-            "--java-safemode", dest="java_safemode", action="store_true", help="Sets the java profiler to a safe mode"
+            "--java-safemode",
+            dest="java_safemode",
+            type=str,
+            const=JAVA_SAFEMODE_ALL,
+            nargs="?",
+            help="Sets the Java profiler to a safemode options",
         ),
     ],
 )
@@ -452,7 +475,6 @@ class JavaProfiler(ProcessProfilerBase):
     }
 
     _new_perf_event_mlock_kb = 8192
-    _should_profile = True
 
     def __init__(
         self,
@@ -464,15 +486,11 @@ class JavaProfiler(ProcessProfilerBase):
         java_version_check: bool,
         java_async_profiler_mode: str,
         java_async_profiler_safemode: int,
-        java_safemode: bool,
+        java_safemode: str,
         java_mode: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
         super().__init__(frequency, duration, stop_event, storage_dir)
-
-        if java_safemode:
-            assert java_version_check, "Java version checks are mandatory in --java-safemode"
-            assert java_async_profiler_safemode == 127, "Async-profiler safemode must be set to 127 in --java-safemode"
 
         # async-profiler accepts interval between samples (nanoseconds)
         self._interval = int((1 / frequency) * 1000_000_000)
@@ -481,21 +499,40 @@ class JavaProfiler(ProcessProfilerBase):
         if not self._version_check:
             logger.warning("Java version checks are disabled")
         self._mode = java_async_profiler_mode
-        self._safemode = java_async_profiler_safemode
+        self._ap_safemode = java_async_profiler_safemode
+        self._init_java_safemode(java_safemode)
         self._saved_mlock: Optional[int] = None
-        self._java_safemode = java_safemode
-        if self._java_safemode:
-            logger.debug("Java safemode enabled")
+        self._should_profile = True
         self._profiled_pids: Set[int] = set()
         self._pids_to_remove: Set[int] = set()
         self._kernel_messages_provider = get_kernel_messages_provider()
         self._enabled_proc_events = False
 
-    @classmethod
-    def _disable_profiling(cls):
-        if cls._should_profile:
-            logger.warning("Java profiling has been disabled, will avoid profiling any new java process")
-            cls._should_profile = False
+    def _init_java_safemode(self, java_safemode: str) -> None:
+        if java_safemode == JAVA_SAFEMODE_ALL:
+            self._java_safemode = JAVA_SAFEMODE_ALL_OPTIONS
+        else:
+            self._java_safemode = java_safemode.split(",")
+
+        assert all(
+            o in JAVA_SAFEMODE_ALL_OPTIONS for o in self._java_safemode
+        ), f"unknown options given in Java safemode: {self._java_safemode!r}"
+
+        if self._java_safemode:
+            logger.debug("Java safemode enabled", safemode=self._java_safemode)
+
+        if JavaSafemodeOptions.JAVA_VERSION_CHECK in self._java_safemode:
+            assert (
+                self._version_check
+            ), f"Java version checks are mandatory in --java-safemode={JavaSafemodeOptions.JAVA_VERSION_CHECK}"
+
+        if java_safemode == JAVA_SAFEMODE_ALL:
+            assert self._ap_safemode == 127, "async-profiler safemode must be set to 127 in --java-safemode"
+
+    def _disable_profiling(self, cause: str):
+        if self._should_profile and cause in self._java_safemode:
+            logger.warning("Java profiling has been disabled, will avoid profiling any new java process", cause=cause)
+            self._should_profile = False
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -572,7 +609,7 @@ class JavaProfiler(ProcessProfilerBase):
 
     def _is_profiling_supported(self, process: Process) -> bool:
         process_basename = os.path.basename(process.exe())
-        if self._java_safemode:
+        if JavaSafemodeOptions.JAVA_VERSION_CHECK in self._java_safemode:
             # TODO we can get the "java" binary by extracting the java home from the libjvm path,
             # then check with that instead (if exe isn't java)
             if process_basename != "java":
@@ -617,7 +654,7 @@ class JavaProfiler(ProcessProfilerBase):
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
         with AsyncProfiledProcess(
-            process, self._storage_dir, self._buildids, self._mode, self._safemode, self._java_safemode
+            process, self._storage_dir, self._buildids, self._mode, self._ap_safemode, self._java_safemode
         ) as ap_proc:
             return self._profile_ap_process(ap_proc)
 
@@ -687,7 +724,7 @@ class JavaProfiler(ProcessProfilerBase):
             f"container info:\n{container_info}"
         )
 
-        self._disable_profiling()
+        self._disable_profiling(JavaSafemodeOptions.HSERR.value)
 
     def _select_processes_to_profile(self) -> List[Process]:
         if not self._should_profile:
@@ -759,28 +796,30 @@ class JavaProfiler(ProcessProfilerBase):
             oom_entry = get_oom_entry(text)
             if oom_entry and oom_entry.pid in self._profiled_pids:
                 logger.warning("Profiled Java process OOM", oom=json.dumps(oom_entry._asdict()))
-                self._disable_profiling()  # paranoia
+                self._disable_profiling(JavaSafemodeOptions.PROFILED_OOM.value)
                 continue
 
             signal_entry = get_signal_entry(text)
             if signal_entry is not None and signal_entry.pid in self._profiled_pids:
-                logger.warning("Profiled Java process signalled", signal=json.dumps(signal_entry._asdict()))
-                self._disable_profiling()  # paranoia
+                logger.warning("Profiled Java process signaled", signal=json.dumps(signal_entry._asdict()))
+                self._disable_profiling(JavaSafemodeOptions.PROFILED_SIGNALED.value)
                 continue
 
-            if self._java_safemode:
-                if oom_entry is not None:
-                    logger.warning("General OOM", oom=json.dumps(oom_entry._asdict()))
-                elif signal_entry is not None:
-                    logger.warning("General signal", signal=json.dumps(signal_entry._asdict()))
-                elif any(str(p) in text for p in self._profiled_pids):
-                    logger.warning("Profiled PID shows in kernel message line", line=text)
-                else:
-                    continue
-
-                # paranoia - stop Java profiling upon any OOM / fatal-signal / occurence of a profiled
-                # PID in a kernel message.
-                self._disable_profiling()
+            # paranoia - in safemode, stop Java profiling upon any OOM / fatal-signal / occurrence of a profiled
+            # PID in a kernel message.
+            # these next ones are only checked if the respective safemode option is enabled, because they
+            # are very broad and will spam our log.
+            if oom_entry is not None and JavaSafemodeOptions.GENERAL_OOM in self._java_safemode:
+                logger.warning("General OOM", oom=json.dumps(oom_entry._asdict()))
+                self._disable_profiling(JavaSafemodeOptions.GENERAL_OOM.value)
+            elif signal_entry is not None and JavaSafemodeOptions.GENERAL_SIGNALED in self._java_safemode:
+                logger.warning("General signal", signal=json.dumps(signal_entry._asdict()))
+                self._disable_profiling(JavaSafemodeOptions.GENERAL_SIGNALED.value)
+            elif JavaSafemodeOptions.PID_IN_MESSAGES in self._java_safemode and any(
+                str(p) in text for p in self._profiled_pids
+            ):
+                logger.warning("Profiled PID shows in kernel message line", line=text)
+                self._disable_profiling(JavaSafemodeOptions.PID_IN_MESSAGES.value)
 
     def _handle_new_kernel_messages(self):
         try:
