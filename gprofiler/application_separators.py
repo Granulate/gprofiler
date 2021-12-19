@@ -35,9 +35,10 @@ class ApplicationSeparator(metaclass=ABCMeta):
 
 
 _IP_PORT_RE = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?:\:\d{2,5})?$")  # Matches against (ip(:port))
+_NON_AVAILABLE_ARG = str()
 
 
-def get_cli_arg_value(args: List[str], arg_name: str, check_for_equals_arg: bool = False) -> Optional[str]:
+def get_cli_arg_by_name(args: List[str], arg_name: str, check_for_equals_arg: bool = False) -> str:
     if arg_name in args:
         return args[args.index(arg_name) + 1]
 
@@ -47,7 +48,14 @@ def get_cli_arg_value(args: List[str], arg_name: str, check_for_equals_arg: bool
             if arg_val is not None:
                 return arg_val
 
-    return None
+    return _NON_AVAILABLE_ARG
+
+
+def get_cli_arg_by_index(args: List[str], index: int) -> str:
+    try:
+        return args[index]
+    except KeyError:
+        return _NON_AVAILABLE_ARG
 
 
 def append_python_module_to_proc_wd(process: Process, module_name: str) -> str:
@@ -62,11 +70,9 @@ class GunicornApplicationSeparator(ApplicationSeparator):
     def is_supported(self, process: Process) -> bool:
         # Either gunicorn (for example: /usr/local/bin/gunicorn) or python that runs gunicorn
         # (For example: /usr/local/bin/python /usr/local/bin/gunicorn)
-        if "gunicorn" in process.cmdline()[0]:
-            return True
-        if len(process.cmdline()) >= 2:
-            return "gunicorn" in process.cmdline()[1]
-        return False
+        return "gunicorn" in get_cli_arg_by_index(process.cmdline(), 0) or "gunicorn" in get_cli_arg_by_index(
+            process.cmdline(), 0
+        )
 
     def get_application_name(self, process: Process) -> Optional[str]:
         # As of gunicorn documentation the WSGI module name most probably will come from the cmdline and not from the
@@ -113,7 +119,7 @@ class UwsgiApplicationSeparator(ApplicationSeparator):
         return None
 
     def get_application_name(self, process: Process) -> Optional[str]:
-        wsgi = get_cli_arg_value(process.cmdline(), "-w")
+        wsgi = get_cli_arg_by_name(process.cmdline(), "-w")
         if wsgi is not None:
             return append_python_module_to_proc_wd(process, wsgi)
 
@@ -131,13 +137,13 @@ class CeleryApplicationSeparator(ApplicationSeparator):
         return "celery"
 
     def is_supported(self, process: Process) -> bool:
-        if process.cmdline()[0] == "celery":
+        if get_cli_arg_by_index(process.cmdline(), 0) == "celery":
             return True
 
         return len(process.cmdline()) >= 3 and ["-m", "celery"] == process.cmdline()[1:3]
 
     def get_application_name(self, process: Process) -> Optional[str]:
-        app_name = get_cli_arg_value(process.cmdline(), "-A") or get_cli_arg_value(
+        app_name = get_cli_arg_by_name(process.cmdline(), "-A") or get_cli_arg_by_name(
             process.cmdline(), "--app", check_for_equals_arg=True
         )
         if app_name is None:
@@ -178,7 +184,7 @@ class PythonModuleApplicationSeparator(ApplicationSeparator):
         )
 
     def get_application_name(self, process: Process) -> Optional[str]:
-        module_arg = get_cli_arg_value(process.cmdline(), "-m")
+        module_arg = get_cli_arg_by_name(process.cmdline(), "-m")
         if module_arg is not None:
             return module_arg
 
@@ -191,7 +197,7 @@ class JavaJarApplicationSeparator(ApplicationSeparator):
         return "java" in os.path.basename(process.cmdline()[0]) and "-jar" in process.cmdline()
 
     def get_application_name(self, process: Process) -> Optional[str]:
-        return get_cli_arg_value(process.cmdline(), "-jar")
+        return get_cli_arg_by_name(process.cmdline(), "-jar")
 
     @property
     def app_prefix(self) -> str:
