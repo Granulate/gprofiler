@@ -5,6 +5,7 @@
 import datetime
 import errno
 import fcntl
+import ctypes
 import glob
 import logging
 import os
@@ -74,8 +75,8 @@ def get_process_nspid(pid: int) -> Optional[int]:
     # from the listing of those files itself.
     return None
 
-
-def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Popen:
+libc = ctypes.CDLL('libc.so.6')
+def start_process(cmd: Union[str, List[str]], via_staticx: bool, kill_on_parent_death: bool = True, **kwargs) -> Popen:
     cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
     logger.debug(f"Running command: ({cmd_text})")
     if isinstance(cmd, str):
@@ -97,12 +98,27 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Po
             env = env if env is not None else os.environ.copy()
             env.update({"LD_LIBRARY_PATH": ""})
 
+    cur_preexec_fn = kwargs.pop("preexec_fn", os.setpgrp)
+
+    if kill_on_parent_death:
+        def wrap_with_set_pseg_death(inner):
+            def wrapper():
+                PR_SET_PDEATHSIG = 1
+                TERM = 15
+                libc.prctl(PR_SET_PDEATHSIG, TERM)
+                if inner:
+                    return inner()
+
+            return wrapper
+
+        cur_preexec_fn = wrap_with_set_pseg_death(cur_preexec_fn)
+
     popen = Popen(
         cmd,
         stdout=kwargs.pop("stdout", subprocess.PIPE),
         stderr=kwargs.pop("stderr", subprocess.PIPE),
         stdin=subprocess.PIPE,
-        preexec_fn=kwargs.pop("preexec_fn", os.setpgrp),
+        preexec_fn=cur_preexec_fn,
         env=env,
         **kwargs,
     )
