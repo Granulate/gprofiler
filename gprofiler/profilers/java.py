@@ -22,7 +22,7 @@ from granulate_utils.java import (
     locate_hotspot_error_file,
 )
 from granulate_utils.linux import proc_events
-from granulate_utils.linux.ns import get_mnt_ns_ancestor, resolve_proc_root_links, run_in_ns
+from granulate_utils.linux.ns import get_proc_root_path, resolve_proc_root_links, run_in_ns
 from granulate_utils.linux.oom import get_oom_entry
 from granulate_utils.linux.signals import get_signal_entry
 from packaging.version import Version
@@ -105,7 +105,7 @@ class AsyncProfiledProcess:
         #   ancestor is still alive.
         # there is a hidden assumption here that neither the ancestor nor the process will change their mount
         # namespace. I think it's okay to assume that.
-        self._process_root = f"/proc/{get_mnt_ns_ancestor(process)}/root"
+        self._process_root = get_proc_root_path(process)
         self._cmdline = process.cmdline()
         self._cwd = process.cwd()
         self._nspid = get_process_nspid(self.process.pid)

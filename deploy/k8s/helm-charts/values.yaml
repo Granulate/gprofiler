@@ -1,0 +1,25 @@
+# Default values for granulate.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 100m
+    memory: 256m
+
+image:
+  repository: index.docker.io/granulate/gprofiler
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: latest
+
+namespaceOverride: ""
+
+gprofiler:
+  token: TOKEN
+  serviceName: SERVICE_NAME
+  kubernetesEnabled: true
+  extraArguments: []

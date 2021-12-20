@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "granulate.fullname" . }}
+  namespace: {{ template "granulate.namespace" . }}
+  labels: {{ include "granulate.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels: {{ include "granulate.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{ include "granulate.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ include "granulate.fullname" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+          - -cu
+          - --token
+          - $(GPROFILER_TOKEN)
+          - --service-name
+          - $(GPROFILER_SERVICE)
+          {{  range .Values.gprofiler.extraArguments }}
+          - {{ . }}
+          {{ end }}
+          env:
+          - name: GPROFILER_TOKEN
+            value: {{ .Values.gprofiler.token | quote }}
+          - name: GPROFILER_SERVICE
+            value: {{ .Values.gprofiler.serviceName | quote }}
+          - name: GPROFILER_IN_K8S
+            value: {{ .Values.gprofiler.kubernetesEnabled | ternary "1" "0" | quote }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            privileged: true
+          volumeMounts:
+          - mountPath: /var/run/docker.sock
+            name: docker-sock
+      hostPID: true
+      restartPolicy: Always
+      securityContext:
+        runAsGroup: 0
+        runAsUser: 0
+      volumes:
+      - hostPath:
+          path: /var/run/docker.sock
+        name: docker-sock

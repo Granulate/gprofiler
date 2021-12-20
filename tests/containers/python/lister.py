@@ -6,6 +6,8 @@
 import os
 from threading import Thread
 
+import yaml  # type: ignore
+
 
 def lister():
     os.listdir("/")  # have some kernel stacks
@@ -16,7 +18,15 @@ def burner():
         pass
 
 
+def parser():
+    while True:
+        # Have some package stacks.
+        # Notice the name of the package name (PyYAML) is different from the name of the module (yaml)
+        yaml.parse("")
+
+
 if __name__ == "__main__":
     Thread(target=burner).start()
+    Thread(target=parser).start()
     while True:
         lister()

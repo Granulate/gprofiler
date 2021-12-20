@@ -72,6 +72,9 @@ def register_profiler(
 
     def profiler_decorator(profiler_class):
         assert profiler_name not in profilers_config, f"{profiler_name} is already registered!"
+        assert all(
+            arg.dest.startswith(profiler_name.lower()) for arg in profiler_arguments or []
+        ), f"{profiler_name}: Profiler args dest must be prefixed with the profiler name"
         profilers_config[profiler_name] = ProfilerConfig(
             profiler_mode_argument_help,
             disablement_help,

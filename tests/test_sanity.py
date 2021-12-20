@@ -4,7 +4,7 @@
 #
 from pathlib import Path
 from threading import Event
-from typing import Callable, List, Mapping
+from typing import Callable, List, Mapping, Optional
 
 import pytest  # type: ignore
 from docker import DockerClient
@@ -49,10 +49,15 @@ def test_pyspy(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed,
+    python_version: Optional[str],
 ) -> None:
-    with PySpyProfiler(1000, 1, Event(), str(tmp_path)) as profiler:
+    with PySpyProfiler(1000, 3, Event(), str(tmp_path), add_versions=True) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
+        assert_function_in_collapsed("PyYAML-6.0", process_collapsed)  # Ensure package info is presented
+        # Ensure Python version is presented
+        assert python_version is not None, "Failed to find python version"
+        assert_function_in_collapsed(f"standard-library-{python_version}", process_collapsed)
 
 
 @pytest.mark.parametrize("runtime", ["php"])
@@ -100,9 +105,10 @@ def test_python_ebpf(
     application_pid: int,
     assert_collapsed,
     gprofiler_docker_image: Image,
+    python_version: Optional[str],
     no_kernel_headers,
 ) -> None:
-    with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path)) as profiler:
+    with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path), add_versions=True) as profiler:
         collapsed = profiler.snapshot()
         process_collapsed = collapsed.get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
@@ -110,6 +116,10 @@ def test_python_ebpf(
         assert_function_in_collapsed(
             "_PyEval_EvalFrameDefault_[pn]", process_collapsed, True
         )  # ensure native user stacks exist
+        assert_function_in_collapsed("PyYAML-6.0", process_collapsed)  # ensure package info is presented
+        # ensure Python version is presented
+        assert python_version is not None, "Failed to find python version"
+        assert_function_in_collapsed(f"standard-library-{python_version}", process_collapsed)
 
 
 @pytest.mark.parametrize(
