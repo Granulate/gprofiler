@@ -8,7 +8,7 @@ import random
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Iterable, Optional, Tuple
+from typing import Dict, Iterable, Optional, Tuple
 
 from gprofiler.docker_client import DockerClient
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
@@ -148,32 +148,26 @@ def add_highest_avg_depth_stacks_per_process(
         if fp_frame_count_average > dwarf_frame_count_average:
             merged_pid_to_stacks_counters[pid] = fp_collapsed_stacks_counters
         else:
-            dwarf_collapsed_stacks_counters = scale_dwarf_samples_count(
+            dwarf_collapsed_stacks_counters = scale_sample_counts(
                 dwarf_collapsed_stacks_counters, fp_to_dwarf_sample_ratio
             )
             merged_pid_to_stacks_counters[pid] = dwarf_collapsed_stacks_counters
 
 
-def scale_dwarf_samples_count(
-    dwarf_collapsed_stacks_counters: StackToSampleCount,
-    fp_to_dwarf_sample_ratio: float,
-) -> StackToSampleCount:
-    if fp_to_dwarf_sample_ratio == 1:
-        return dwarf_collapsed_stacks_counters
-    # scale the dwarf stacks to the FP stacks to avoid skewing the results
-    for stack, sample_count in dwarf_collapsed_stacks_counters.items():
-        new_count = sample_count * fp_to_dwarf_sample_ratio
+def scale_sample_counts(stacks: StackToSampleCount, ratio: float) -> StackToSampleCount:
+    if ratio == 1:
+        return stacks
+
+    scaled_stacks = StackToSampleCount()
+    for stack, count in stacks.items():
+        new_count = count * ratio
         # If we were to round all of the sample counts it could skew the results. By using a random factor,
         # we mostly solve this by randomly rounding up / down stacks.
         # The higher the fractional part of the new count, the more likely it is to be rounded up instead of down
-        new_count = math.ceil(new_count) if new_count - int(new_count) <= random.random() else math.floor(new_count)
-        if new_count == 0:
-            # TODO: For more accurate truncation, check if there's a common frame for the truncated stacks and combine
-            #  them
-            continue
-        dwarf_collapsed_stacks_counters[stack] = new_count
-    # Note - returning the value is not necessary, but is done for readability
-    return dwarf_collapsed_stacks_counters
+        scaled_value = math.ceil(new_count) if new_count - int(new_count) <= random.random() else math.floor(new_count)
+        if scaled_value != 0:
+            scaled_stacks[stack] = scaled_value
+    return scaled_stacks
 
 
 def _get_average_frame_count(stacks: Iterable[str]) -> float:
@@ -284,10 +278,9 @@ def merge_profiles(
         # do the scaling by the ratio of samples: samples we received from perf for this process,
         # divided by samples we received from the runtime profiler of this process.
         ratio = perf_samples_count / profile_samples_count
-        for stack in stacks:
-            stacks[stack] = round(stacks[stack] * ratio)
+        scaled_stacks = scale_sample_counts(stacks, ratio)
 
         # swap them: use the samples from the runtime profiler.
-        perf_pid_to_stacks_counter[pid] = stacks
+        perf_pid_to_stacks_counter[pid] = scaled_stacks
 
     return concatenate_profiles(perf_pid_to_stacks_counter, docker_client, add_container_names, metadata, metrics)
