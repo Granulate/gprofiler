@@ -457,6 +457,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             type=str,
             const=JAVA_SAFEMODE_ALL,
             nargs="?",
+            default="",
             help="Sets the Java profiler to a safemode options",
         ),
     ],
@@ -512,7 +513,7 @@ class JavaProfiler(ProcessProfilerBase):
         if java_safemode == JAVA_SAFEMODE_ALL:
             self._java_safemode = JAVA_SAFEMODE_ALL_OPTIONS
         else:
-            self._java_safemode = java_safemode.split(",")
+            self._java_safemode = java_safemode.split(",") if java_safemode else []
 
         assert all(
             o in JAVA_SAFEMODE_ALL_OPTIONS for o in self._java_safemode
