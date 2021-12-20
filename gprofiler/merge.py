@@ -8,7 +8,7 @@ import random
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Iterable, Optional, Tuple
 
 from gprofiler.docker_client import DockerClient
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
@@ -158,7 +158,7 @@ def scale_sample_counts(stacks: StackToSampleCount, ratio: float) -> StackToSamp
     if ratio == 1:
         return stacks
 
-    scaled_stacks = StackToSampleCount()
+    scaled_stacks: StackToSampleCount = StackToSampleCount()
     for stack, count in stacks.items():
         new_count = count * ratio
         # If we were to round all of the sample counts it could skew the results. By using a random factor,
