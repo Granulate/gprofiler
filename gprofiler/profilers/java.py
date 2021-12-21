@@ -260,7 +260,7 @@ class AsyncProfiledProcess:
         for mmap in self.process.memory_maps():
             if "libasyncProfiler.so" in mmap.path and not mmap.path.startswith(TEMPORARY_STORAGE_PATH):
                 raise Exception(
-                    f"Non-gProfiler Async-profiler is already loaded to the target process: {mmap.path!r}. "
+                    f"Non-gProfiler async-profiler is already loaded to the target process: {mmap.path!r}. "
                     f"Disable --java-safemode to bypass"
                 )
 

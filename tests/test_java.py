@@ -52,7 +52,12 @@ def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_p
         assert any("libasyncProfiler.so" in m.path for m in process.memory_maps())
         # run "status"
         with AsyncProfiledProcessForTests(
-            process, profiler._storage_dir, False, mode="itimer", safemode=False, java_safemode=profiler._java_safemode
+            process,
+            profiler._storage_dir,
+            False,
+            mode="itimer",
+            ap_safemode=False,
+            java_safemode=profiler._java_safemode,
         ) as ap_proc:
             ap_proc.status_async_profiler()
             # printed the output file, see ACTION_STATUS case in async-profiler/profiler.cpp
@@ -139,7 +144,7 @@ def test_java_safemode_parameters(tmp_path) -> None:
             java_safemode=JAVA_SAFEMODE_ALL,
             java_mode="ap",
         )
-    assert "Async-profiler safemode must be set to 127 in --java-safemode" in str(excinfo.value)
+    assert "async-profiler safemode must be set to 127 in --java-safemode" in str(excinfo.value)
 
     with pytest.raises(AssertionError) as excinfo:
         JavaProfiler(
@@ -283,4 +288,4 @@ def test_already_loaded_ap_profiling_failure(tmp_path, monkeypatch, caplog, appl
         process = profiler._select_processes_to_profile()[0]
         assert any("/tmp/fake_gprofiler_tmp" in mmap.path for mmap in process.memory_maps())
         profiler.snapshot()
-        assert "Non-gProfiler Async-profiler is already loaded to the target process:" in caplog.text
+        assert "Non-gProfiler async-profiler is already loaded to the target process:" in caplog.text
