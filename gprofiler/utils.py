@@ -75,8 +75,14 @@ def get_process_nspid(pid: int) -> Optional[int]:
     # from the listing of those files itself.
     return None
 
-libc = ctypes.CDLL('libc.so.6')
-def start_process(cmd: Union[str, List[str]], via_staticx: bool, kill_on_parent_death: bool = True, **kwargs) -> Popen:
+libc: Optional[ctypes.CDLL] = None
+def prctl(*argv):
+    global libc
+    if libc is None:
+        libc = ctypes.CDLL("libc.so.6")
+    return libc.prctl(*argv)
+
+def start_process(cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_death: bool = True, **kwargs) -> Popen:
     cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
     logger.debug(f"Running command: ({cmd_text})")
     if isinstance(cmd, str):
@@ -100,12 +106,13 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, kill_on_parent_
 
     cur_preexec_fn = kwargs.pop("preexec_fn", os.setpgrp)
 
-    if kill_on_parent_death:
+    if term_on_parent_death:
         def wrap_with_set_pseg_death(inner):
+            PR_SET_PDEATHSIG = 1
             def wrapper():
-                PR_SET_PDEATHSIG = 1
-                TERM = 15
-                libc.prctl(PR_SET_PDEATHSIG, TERM)
+                ret = prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
+                if ret != 0:
+                    logger.warning("set_pdeathg on child process failed")
                 if inner:
                     return inner()
 
