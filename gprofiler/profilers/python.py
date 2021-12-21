@@ -196,6 +196,7 @@ class PythonEbpfProfiler(ProfilerBase):
     dump_signal = signal.SIGUSR2
     dump_timeout = 5  # seconds
     poll_timeout = 10  # seconds
+    get_offsets_timeout = 5  # seconds
 
     def __init__(
         self,
@@ -246,7 +247,11 @@ class PythonEbpfProfiler(ProfilerBase):
             run_process(["mount", "-t", "debugfs", "none", "/sys/kernel/debug"])
 
     def _get_offset(self, prog: str) -> int:
-        return int(run_process(resource_path(prog)).stdout.strip())
+        return int(
+            run_process(
+                resource_path(prog), stop_event=self._stop_event, timeout=self.get_offsets_timeout
+            ).stdout.strip()
+        )
 
     def _kernel_fs_offset(self) -> int:
         try:
