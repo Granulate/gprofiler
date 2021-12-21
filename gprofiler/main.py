@@ -190,6 +190,8 @@ class GProfiler:
                         [resource_path("burn"), "convert", "--type=folded"],
                         suppress_log=True,
                         stdin=stripped_collapsed_data.encode(),
+                        stop_event=self._stop_event,
+                        timeout=10,
                     ).stdout.decode(),
                 )
                 .replace("{{{START_TIME}}}", start_ts)
