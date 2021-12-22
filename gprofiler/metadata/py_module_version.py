@@ -12,7 +12,7 @@ import email.parser
 import os
 import pathlib
 import re
-from typing import Dict, Iterator, Optional, Tuple, Type, Union
+from typing import Dict, Iterator, Optional, Tuple, Type
 
 # pkg_resources is a part of setuptools, but it has a standalone deprecated version. That's the version mypy
 # is looking for, but the stubs there are extremely deprecated
@@ -34,37 +34,18 @@ logger = get_logger_adapter(__name__)
 __all__ = ["get_modules_versions"]
 
 
-_permission_errors_logged = 0
+# Decorate get_mnt_ns_ancestor with cache:
+_mnt_ns_ancestor_cache = LRUCache(maxsize=128)
+_cached_get_mnt_ns_ancestor = cached(cache=_mnt_ns_ancestor_cache, key=keys.hashkey)(get_mnt_ns_ancestor)
 
 
-def _get_mnt_ns(process: Process) -> Optional[str]:
-    try:
-        return os.readlink(f"/proc/{process.pid}/ns/mnt")
-    except PermissionError:
-        global _permission_errors_logged
-        if _permission_errors_logged < 10:
-            logger.warning(f"Got PermissionError when tried to readlink {process!r}'s ns")
-            _permission_errors_logged += 1
-    except FileNotFoundError:
-        # The process is probably dead
-        pass
-    return None
-
-
-def _get_mnt_ns_id(process: Process) -> Union[str, Tuple[int, float]]:
-    """Get an identifier of the mount ns of a process for caching purposes.
-
-    The result of this function isn't necessarily one-to-one - ideally it
-    returns the contents of /proc/[pid]/mnt/ns, but if the function fails to
-    read this file it returns a tuple that identifies an ancestor process in
-    the namespace.
-    """
-    mnt_ns = _get_mnt_ns(process)
-    if mnt_ns is not None:
-        return mnt_ns
-
-    ancestor = get_mnt_ns_ancestor(process)
-    return (ancestor.pid, ancestor._create_time)
+def _get_mnt_ns_ancestor(process: Process) -> Process:
+    ancestor = _cached_get_mnt_ns_ancestor(process)
+    # Make sure the returned process didn't die while in cache
+    if not ancestor.is_running():
+        _mnt_ns_ancestor_cache.pop(keys.hashkey(process))
+        return _cached_get_mnt_ns_ancestor(process)
+    return ancestor
 
 
 def _get_packages_dir(file_path: str) -> Optional[str]:
@@ -188,7 +169,7 @@ def _get_libpython_path(process: Process) -> Optional[str]:
 _PY_VERSION_STRING_PATTERN = re.compile(rb"(?<=\D)(?:2\.7|3\.1?\d)\.\d\d?(?=\x00)")
 
 
-@cached(LRUCache(maxsize=128), key=lambda process: keys.hashkey(_get_mnt_ns_id(process), process.cmdline()[0]))
+@cached(LRUCache(maxsize=128), key=lambda process: keys.hashkey(_get_mnt_ns_ancestor(process), process.cmdline()[0]))
 def _get_python_full_version(process: Process) -> Optional[str]:
     bin_file = _get_libpython_path(process) or f"/proc/{process.pid}/exe"
 
@@ -228,7 +209,9 @@ def _populate_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]]
         result[path] = ("standard-library", py_version)  # type: ignore
 
 
-@cached(LRUCache(maxsize=128), key=lambda process, packages_path: keys.hashkey(_get_mnt_ns_id(process), packages_path))
+@cached(
+    LRUCache(maxsize=128), key=lambda process, packages_path: keys.hashkey(_get_mnt_ns_ancestor(process), packages_path)
+)
 def _get_packages_files(process: Process, packages_path: str) -> Dict[str, Tuple[str, str]]:
     """Return a dict of filename: (package_name, package_version) for the packages in packages_path"""
     # Transform packages_path to be relative to /proc/[pid]/root/
