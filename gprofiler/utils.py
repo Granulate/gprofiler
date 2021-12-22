@@ -224,11 +224,13 @@ def run_process(
                     # just wait for the process to exit
                     process.wait()
             else:
-                assert communicate, "expected communicate=True if stop_event is given"
                 end_time = (time.monotonic() + timeout) if timeout is not None else None
                 while True:
                     try:
-                        stdout, stderr = process.communicate(timeout=1, **communicate_kwargs)
+                        if communicate:
+                            stdout, stderr = process.communicate(timeout=1, **communicate_kwargs)
+                        else:
+                            process.wait(timeout=1)
                         break
                     except TimeoutExpired:
                         if stop_event.is_set():
