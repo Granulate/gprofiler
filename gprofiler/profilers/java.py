@@ -334,7 +334,10 @@ class AsyncProfiledProcess:
         Start fdtransfer; it will fork & exit once ready, so we can continue with jattach.
         """
         run_process(
-            [fdtransfer_path(), str(self.process.pid)], stop_event=self._stop_event, timeout=self._FDTRANSFER_TIMEOUT
+            [fdtransfer_path(), str(self.process.pid)],
+            stop_event=self._stop_event,
+            timeout=self._FDTRANSFER_TIMEOUT,
+            communicate=False,
         )
 
     def start_async_profiler(self, interval: int, second_try: bool = False) -> bool:
