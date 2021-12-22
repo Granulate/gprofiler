@@ -2,10 +2,10 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import ctypes
 import datetime
 import errno
 import fcntl
-import ctypes
 import glob
 import logging
 import os
@@ -75,20 +75,29 @@ def get_process_nspid(pid: int) -> Optional[int]:
     # from the listing of those files itself.
     return None
 
+
 libc: Optional[ctypes.CDLL] = None
+
+
 def prctl(*argv):
     global libc
     if libc is None:
         libc = ctypes.CDLL("libc.so.6", use_errno=True)
     return libc.prctl(*argv)
 
+
 PR_SET_PDEATHSIG = 1
+
+
 def set_child_termination_on_parent_death():
     ret = prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
     if ret != 0:
         errno = ctypes.get_errno()
-        logger.warning(f"Failed to set parent-death signal on child process. errno: {errno}, strerror: {os.strerror(errno)}")
+        logger.warning(
+            f"Failed to set parent-death signal on child process. errno: {errno}, strerror: {os.strerror(errno)}"
+        )
     return ret
+
 
 def wrap_callbacks(callbacks):
     # Expects array of callback.
@@ -101,6 +110,7 @@ def wrap_callbacks(callbacks):
         return ret
 
     return wrapper
+
 
 def start_process(cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_death: bool = True, **kwargs) -> Popen:
     cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
