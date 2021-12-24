@@ -6,7 +6,7 @@ from pathlib import Path
 from threading import Event
 from typing import Callable, List, Mapping, Optional
 
-import pytest  # type: ignore
+import pytest
 from docker import DockerClient
 from docker.models.images import Image
 

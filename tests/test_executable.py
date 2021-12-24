@@ -8,7 +8,7 @@ from pathlib import Path
 from subprocess import Popen
 from typing import Callable, List, Mapping, Optional
 
-import pytest  # type: ignore
+import pytest
 from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image

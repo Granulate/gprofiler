@@ -7,7 +7,7 @@ import signal
 from pathlib import Path
 from threading import Event
 
-import pytest  # type: ignore
+import pytest
 from packaging.version import Version
 
 from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler, parse_jvm_version
