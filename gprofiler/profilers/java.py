@@ -186,7 +186,7 @@ class AsyncProfiledProcess:
     @functools.lru_cache(maxsize=1)
     def _is_musl(self) -> bool:
         # Is target process musl-based?
-        return any("ld-musl" in m.path for m in self.process.memory_maps())  # type: ignore
+        return any("ld-musl" in m.path for m in self.process.memory_maps())
 
     def _copy_libap(self) -> None:
         # copy *is* racy with respect to other processes running in the same namespace, because they all use
@@ -239,7 +239,7 @@ class AsyncProfiledProcess:
     def _check_async_profiler_not_loaded(self) -> None:
         if not self._java_safemode:
             return
-        for mmap in self.process.memory_maps():  # type: ignore
+        for mmap in self.process.memory_maps():
             if "libasyncProfiler.so" in mmap.path and not mmap.path.startswith(TEMPORARY_STORAGE_PATH):
                 raise Exception(
                     f"Non-gProfiler Async-profiler is already loaded to the target process: {mmap.path!r}. "
