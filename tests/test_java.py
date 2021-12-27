@@ -232,7 +232,18 @@ def test_hotspot_error_file(application_pid, tmp_path, monkeypatch, caplog):
 
     monkeypatch.setattr(AsyncProfiledProcess, "start_async_profiler", sap_and_crash)
 
-    profiler = JavaProfiler(1, 5, Event(), str(tmp_path), False, False, "cpu", 0, False, "ap")
+    profiler = JavaProfiler(
+        1,
+        5,
+        Event(),
+        str(tmp_path),
+        False,
+        True,
+        java_async_profiler_mode="cpu",
+        java_async_profiler_safemode=127,
+        java_safemode=JAVA_SAFEMODE_ALL,
+        java_mode="ap",
+    )
     with profiler:
         profiler.snapshot()
 
