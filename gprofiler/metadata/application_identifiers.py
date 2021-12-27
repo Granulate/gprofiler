@@ -9,7 +9,7 @@ from psutil import NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter
 
-logger = get_logger_adapter(__name__)
+_logger = get_logger_adapter(__name__)
 
 
 _PYTHON_BIN_RE = re.compile(r"^python([23](\.\d{1,2})?)?$")
@@ -19,7 +19,7 @@ def _is_python_bin(bin_name: str):
     return _PYTHON_BIN_RE.match(os.path.basename(bin_name)) is not None
 
 
-class ApplicationSeparator(metaclass=ABCMeta):
+class _ApplicationIdentifier(metaclass=ABCMeta):
     @abstractmethod
     def is_supported(self, process: Process) -> bool:
         pass
@@ -38,7 +38,7 @@ _IP_PORT_RE = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?:\:\d{2,5})?$") 
 _NON_AVAILABLE_ARG = str()
 
 
-def get_cli_arg_by_name(args: List[str], arg_name: str, check_for_equals_arg: bool = False) -> str:
+def _get_cli_arg_by_name(args: List[str], arg_name: str, check_for_equals_arg: bool = False) -> str:
     if arg_name in args:
         return args[args.index(arg_name) + 1]
 
@@ -51,18 +51,18 @@ def get_cli_arg_by_name(args: List[str], arg_name: str, check_for_equals_arg: bo
     return _NON_AVAILABLE_ARG
 
 
-def get_cli_arg_by_index(args: List[str], index: int) -> str:
+def _get_cli_arg_by_index(args: List[str], index: int) -> str:
     try:
         return args[index]
     except KeyError:
         return _NON_AVAILABLE_ARG
 
 
-def append_python_module_to_proc_wd(process: Process, module_name: str) -> str:
+def _append_python_module_to_proc_wd(process: Process, module_name: str) -> str:
     return f'{process.cwd().replace("/", ".").strip(".")}.{module_name}'
 
 
-class GunicornApplicationSeparator(ApplicationSeparator):
+class _GunicornApplicationIdentifier(_ApplicationIdentifier):
     @property
     def app_prefix(self) -> str:
         return "gunicorn"
@@ -70,7 +70,7 @@ class GunicornApplicationSeparator(ApplicationSeparator):
     def is_supported(self, process: Process) -> bool:
         # Either gunicorn (for example: /usr/local/bin/gunicorn) or python that runs gunicorn
         # (For example: /usr/local/bin/python /usr/local/bin/gunicorn)
-        return "gunicorn" in get_cli_arg_by_index(process.cmdline(), 0) or "gunicorn" in get_cli_arg_by_index(
+        return "gunicorn" in _get_cli_arg_by_index(process.cmdline(), 0) or "gunicorn" in _get_cli_arg_by_index(
             process.cmdline(), 0
         )
 
@@ -82,13 +82,15 @@ class GunicornApplicationSeparator(ApplicationSeparator):
                 if _IP_PORT_RE.match(arg):
                     continue
 
-                return append_python_module_to_proc_wd(process, arg)
+                return _append_python_module_to_proc_wd(process, arg)
 
-        logger.warning(f"GunicornApplicationSeparator: matched against process {process} but couldn't find WSGI module")
+        _logger.warning(
+            f"GunicornApplicationSeparator: matched against process {process} but couldn't find WSGI module"
+        )
         return None
 
 
-class UwsgiApplicationSeparator(ApplicationSeparator):
+class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
     @property
     def app_prefix(self) -> str:
         return "uwsgi"
@@ -119,41 +121,41 @@ class UwsgiApplicationSeparator(ApplicationSeparator):
         return None
 
     def get_application_name(self, process: Process) -> Optional[str]:
-        wsgi = get_cli_arg_by_name(process.cmdline(), "-w")
+        wsgi = _get_cli_arg_by_name(process.cmdline(), "-w")
         if wsgi is not None:
-            return append_python_module_to_proc_wd(process, wsgi)
+            return _append_python_module_to_proc_wd(process, wsgi)
 
         wsgi = self._find_wsgi_from_config_file(process)
         if wsgi is not None:
-            return append_python_module_to_proc_wd(process, wsgi)
+            return _append_python_module_to_proc_wd(process, wsgi)
 
-        logger.warning("Couldn't find uwsgi wsgi module, both from cmdline and from config file")
+        _logger.warning("Couldn't find uwsgi wsgi module, both from cmdline and from config file")
         return None
 
 
-class CeleryApplicationSeparator(ApplicationSeparator):
+class _CeleryApplicationIdentifier(_ApplicationIdentifier):
     @property
     def app_prefix(self) -> str:
         return "celery"
 
     def is_supported(self, process: Process) -> bool:
-        if get_cli_arg_by_index(process.cmdline(), 0) == "celery":
+        if _get_cli_arg_by_index(process.cmdline(), 0) == "celery":
             return True
 
         return len(process.cmdline()) >= 3 and ["-m", "celery"] == process.cmdline()[1:3]
 
     def get_application_name(self, process: Process) -> Optional[str]:
-        app_name = get_cli_arg_by_name(process.cmdline(), "-A") or get_cli_arg_by_name(
+        app_name = _get_cli_arg_by_name(process.cmdline(), "-A") or _get_cli_arg_by_name(
             process.cmdline(), "--app", check_for_equals_arg=True
         )
         if app_name is None:
-            logger.warning("Couldn't find positional argument -A or --app for application indication")
+            _logger.warning("Couldn't find positional argument -A or --app for application indication")
             return None
 
         return app_name
 
 
-class PySparkApplicationSeparator(ApplicationSeparator):
+class _PySparkApplicationIdentifier(_ApplicationIdentifier):
     @property
     def app_prefix(self) -> str:
         return "PySpark"
@@ -170,7 +172,7 @@ class PySparkApplicationSeparator(ApplicationSeparator):
         return "PySpark"
 
 
-class PythonModuleApplicationSeparator(ApplicationSeparator):
+class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
     @property
     def app_prefix(self) -> str:
         return "Python"
@@ -184,20 +186,20 @@ class PythonModuleApplicationSeparator(ApplicationSeparator):
         )
 
     def get_application_name(self, process: Process) -> Optional[str]:
-        module_arg = get_cli_arg_by_name(process.cmdline(), "-m")
+        module_arg = _get_cli_arg_by_name(process.cmdline(), "-m")
         if module_arg is not None:
             return module_arg
 
         module_filename = process.cmdline()[1][:-3]  # Strip the ".py" (checked before)
-        return append_python_module_to_proc_wd(process, module_filename)
+        return _append_python_module_to_proc_wd(process, module_filename)
 
 
-class JavaJarApplicationSeparator(ApplicationSeparator):
+class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
     def is_supported(self, process: Process) -> bool:
         return "java" in os.path.basename(process.cmdline()[0]) and "-jar" in process.cmdline()
 
     def get_application_name(self, process: Process) -> Optional[str]:
-        return get_cli_arg_by_name(process.cmdline(), "-jar")
+        return _get_cli_arg_by_name(process.cmdline(), "-jar")
 
     @property
     def app_prefix(self) -> str:
@@ -206,13 +208,13 @@ class JavaJarApplicationSeparator(ApplicationSeparator):
 
 # Please note that the order matter, because the FIRST matching separator will be used.
 # so when adding new separators pay attention to the order.
-APPLICATION_SEPARATORS = [
-    GunicornApplicationSeparator(),
-    UwsgiApplicationSeparator(),
-    CeleryApplicationSeparator(),
-    PySparkApplicationSeparator(),
-    PythonModuleApplicationSeparator(),
-    JavaJarApplicationSeparator(),
+_APPLICATION_SEPARATORS = [
+    _GunicornApplicationIdentifier(),
+    _UwsgiApplicationIdentifier(),
+    _CeleryApplicationIdentifier(),
+    _PySparkApplicationIdentifier(),
+    _PythonModuleApplicationIdentifier(),
+    _JavaJarApplicationIdentifier(),
 ]
 
 
@@ -222,7 +224,7 @@ def get_application_name(pid: int) -> Optional[str]:
     except NoSuchProcess:
         return None
 
-    for separator in APPLICATION_SEPARATORS:
+    for separator in _APPLICATION_SEPARATORS:
         try:
             if separator.is_supported(process):
                 app_name = separator.get_application_name(process)
@@ -230,9 +232,12 @@ def get_application_name(pid: int) -> Optional[str]:
                 return f"{prefix}-{app_name}"
 
         except Exception:
-            logger.exception(
+            _logger.exception(
                 f"Application separator {separator} raised an exception while matching against process {process}"
             )
             continue
 
     return None
+
+
+__all__ = ["get_application_name"]

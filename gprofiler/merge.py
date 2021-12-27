@@ -10,10 +10,10 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Iterable, Optional, Tuple
 
-from gprofiler.application_separators import get_application_name
 from gprofiler.docker_client import DockerClient
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.application_identifiers import get_application_name
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.system_metrics import Metrics
 
