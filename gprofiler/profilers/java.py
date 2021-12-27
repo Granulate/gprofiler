@@ -65,7 +65,7 @@ class JavaSafemodeOptions(str, Enum):
     GENERAL_OOM = "general-oom"
     GENERAL_SIGNALED = "general-signaled"
     PID_IN_MESSAGES = "pid-in-messages"
-    JAVA_VERSION_CHECK = "java-version-check"
+    JAVA_EXTENDED_VERSION_CHECK = "java-extended-version-check"
     AP_LOADED_CHECK = "ap-loaded-check"
 
 
@@ -496,8 +496,9 @@ class JavaProfiler(ProcessProfilerBase):
         # async-profiler accepts interval between samples (nanoseconds)
         self._interval = int((1 / frequency) * 1000_000_000)
         self._buildids = java_async_profiler_buildids
-        self._version_check = java_version_check
-        if not self._version_check:
+        # simple version check, and
+        self._simple_version_check = java_version_check
+        if not self._simple_version_check:
             logger.warning("Java version checks are disabled")
         self._mode = java_async_profiler_mode
         self._ap_safemode = java_async_profiler_safemode
@@ -522,10 +523,10 @@ class JavaProfiler(ProcessProfilerBase):
         if self._java_safemode:
             logger.debug("Java safemode enabled", safemode=self._java_safemode)
 
-        if JavaSafemodeOptions.JAVA_VERSION_CHECK in self._java_safemode:
+        if JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECK in self._java_safemode:
             assert (
-                self._version_check
-            ), f"Java version checks are mandatory in --java-safemode={JavaSafemodeOptions.JAVA_VERSION_CHECK}"
+                self._simple_version_check
+            ), f"Java version checks are mandatory in --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECK}"
 
         if java_safemode == JAVA_SAFEMODE_ALL:
             assert self._ap_safemode == 127, "async-profiler safemode must be set to 127 in --java-safemode"
@@ -610,7 +611,7 @@ class JavaProfiler(ProcessProfilerBase):
 
     def _is_profiling_supported(self, process: Process) -> bool:
         process_basename = os.path.basename(process.exe())
-        if JavaSafemodeOptions.JAVA_VERSION_CHECK in self._java_safemode:
+        if JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECK in self._java_safemode:
             # TODO we can get the "java" binary by extracting the java home from the libjvm path,
             # then check with that instead (if exe isn't java)
             if process_basename != "java":
@@ -635,7 +636,7 @@ class JavaProfiler(ProcessProfilerBase):
                 )
                 return False
         else:
-            if self._version_check and process_basename == "java":
+            if self._simple_version_check and process_basename == "java":
                 java_version_output = self._get_java_version(process)
                 if not self._check_jvm_type_supported(process, java_version_output):
                     return False
