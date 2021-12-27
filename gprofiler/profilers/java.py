@@ -70,6 +70,11 @@ class JavaSafemodeOptions(str, Enum):
 
 
 JAVA_SAFEMODE_ALL_OPTIONS = [o.value for o in JavaSafemodeOptions]
+JAVA_SAFEMODE_DEFAULT_OPTIONS = [
+    JavaSafemodeOptions.PROFILED_OOM.value,
+    JavaSafemodeOptions.PROFILED_SIGNALED.value,
+    JavaSafemodeOptions.HSERR.value,
+]
 
 
 class JattachException(CalledProcessError):
@@ -457,8 +462,8 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             type=str,
             const=JAVA_SAFEMODE_ALL,
             nargs="?",
-            default="",
-            help="Sets the Java profiler to a safemode options",
+            default=",".join(JAVA_SAFEMODE_DEFAULT_OPTIONS),
+            help="Sets the Java profiler safemode options. Default is: %(default)s.",
         ),
     ],
 )
