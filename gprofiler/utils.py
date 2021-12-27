@@ -2,6 +2,7 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import ctypes
 import datetime
 import errno
 import fcntl
@@ -75,7 +76,43 @@ def get_process_nspid(pid: int) -> Optional[int]:
     return None
 
 
-def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Popen:
+libc: Optional[ctypes.CDLL] = None
+
+
+def prctl(*argv):
+    global libc
+    if libc is None:
+        libc = ctypes.CDLL("libc.so.6", use_errno=True)
+    return libc.prctl(*argv)
+
+
+PR_SET_PDEATHSIG = 1
+
+
+def set_child_termination_on_parent_death():
+    ret = prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
+    if ret != 0:
+        errno = ctypes.get_errno()
+        logger.warning(
+            f"Failed to set parent-death signal on child process. errno: {errno}, strerror: {os.strerror(errno)}"
+        )
+    return ret
+
+
+def wrap_callbacks(callbacks):
+    # Expects array of callback.
+    # Returns one callback that call each one of them, and returns the retval of last callback
+    def wrapper():
+        ret = None
+        for cb in callbacks:
+            ret = cb()
+
+        return ret
+
+    return wrapper
+
+
+def start_process(cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_death: bool = True, **kwargs) -> Popen:
     cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
     logger.debug(f"Running command: ({cmd_text})")
     if isinstance(cmd, str):
@@ -97,12 +134,17 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, **kwargs) -> Po
             env = env if env is not None else os.environ.copy()
             env.update({"LD_LIBRARY_PATH": ""})
 
+    cur_preexec_fn = kwargs.pop("preexec_fn", os.setpgrp)
+
+    if term_on_parent_death:
+        cur_preexec_fn = wrap_callbacks([set_child_termination_on_parent_death, cur_preexec_fn])
+
     popen = Popen(
         cmd,
         stdout=kwargs.pop("stdout", subprocess.PIPE),
         stderr=kwargs.pop("stderr", subprocess.PIPE),
         stdin=subprocess.PIPE,
-        preexec_fn=kwargs.pop("preexec_fn", os.setpgrp),
+        preexec_fn=cur_preexec_fn,
         env=env,
         **kwargs,
     )
