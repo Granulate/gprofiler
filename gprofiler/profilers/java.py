@@ -59,13 +59,24 @@ JAVA_SAFEMODE_ALL = "all"  # magic value for *all* options from JavaSafemodeOpti
 
 
 class JavaSafemodeOptions(str, Enum):
+    # a profiled process was OOM-killed and we saw it in the kernel log
     PROFILED_OOM = "profiled-oom"
+    # a profiled process was signaled:
+    # * fatally signaled and we saw it in the kernel log
+    # * we saw an exit code of signal in a proc_events event.
     PROFILED_SIGNALED = "profiled-signaled"
+    # hs_err file was written for a profiled process
     HSERR = "hserr"
+    # a process was OOM-killed and we saw it in the kernel log
     GENERAL_OOM = "general-oom"
+    # a process was fatally signaled and we saw it in the kernel log
     GENERAL_SIGNALED = "general-signaled"
+    # we saw the PID of a profiled process in the kernel logs
     PID_IN_MESSAGES = "pid-in-messages"
+    # employ extended version checks before deciding to profile
     JAVA_EXTENDED_VERSION_CHECK = "java-extended-version-check"
+    # refuse profiling if async-profiler is already loaded (and not by gProfiler)
+    # in the target process
     AP_LOADED_CHECK = "ap-loaded-check"
 
 
