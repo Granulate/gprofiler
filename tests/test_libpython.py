@@ -4,7 +4,7 @@
 #
 from threading import Event
 
-import pytest  # type: ignore
+import pytest
 from docker import DockerClient
 from docker.models.images import Image
 
