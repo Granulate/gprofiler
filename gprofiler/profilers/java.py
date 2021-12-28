@@ -189,7 +189,7 @@ class AsyncProfiledProcess:
         remove_path(self._output_path_host, missing_ok=True)
         remove_path(self._log_path_host, missing_ok=True)
 
-    def _existing_realpath(self, path):
+    def _existing_realpath(self, path: str) -> Optional[str]:
         """
         Return path relative to process working directory if it exists. Otherwise return None.
         """
@@ -200,10 +200,15 @@ class AsyncProfiledProcess:
         return path if os.path.exists(path) else None
 
     def locate_hotspot_error_file(self) -> Optional[str]:
+        # nspid is required
+        if self._nspid is None:
+            # TODO: fix get_process_nspid so it always succeeds
+            return None
+
         for path in locate_hotspot_error_file(self._nspid, self._cmdline):
-            path = self._existing_realpath(path)
-            if path:
-                return path
+            realpath = self._existing_realpath(path)
+            if realpath is not None:
+                return realpath
         return None
 
     @functools.lru_cache(maxsize=1)
