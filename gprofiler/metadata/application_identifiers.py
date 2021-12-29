@@ -81,6 +81,7 @@ class _GunicornApplicationIdentifier(_ApplicationIdentifier):
             return None
 
         for arg in process.cmdline():
+            # ":" might appear in ip:port or in wsgi app specification (module:func)
             if ":" in arg:
                 if _IP_PORT_RE.match(arg):
                     continue
