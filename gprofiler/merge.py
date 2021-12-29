@@ -30,6 +30,8 @@ SAMPLE_REGEX = re.compile(
 # 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
 FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \((.*)\)$")
 
+STACK_COMM_REGEX = re.compile("(.*?);")
+
 
 def parse_one_collapsed(collapsed: str, add_comm: Optional[str] = None) -> StackToSampleCount:
     """
@@ -252,9 +254,12 @@ def concatenate_profiles(
 
     for pid, stacks in process_profiles.items():
         container_name = _get_container_name(pid, docker_client, add_container_names)
-        application_name = get_application_name(pid) or "" if add_application_names else ""
-        prefix = container_name + ";" if add_container_names else "" + application_name
+        application_name = get_application_name(pid)
+        prefix = container_name + ";" if add_container_names else ""
         for stack, count in stacks.items():
+            if add_application_names and application_name is not None:
+                stack = STACK_COMM_REGEX.sub(application_name, stack)
+
             total_samples += count
             lines.append(f"{prefix}{stack} {count}")
 

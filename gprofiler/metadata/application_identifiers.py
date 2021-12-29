@@ -15,7 +15,20 @@ _logger = get_logger_adapter(__name__)
 _PYTHON_BIN_RE = re.compile(r"^python([23](\.\d{1,2})?)?$")
 
 
-def _is_python_bin(bin_name: str):
+def _is_python_m_proc(process: Process) -> bool:
+    """
+    Checks whether the process ran as "python -m ..." pattern.
+    """
+    args = process.cmdline()
+
+    # Just to be on the safe side, module name must be run after the "-m" argument, python enforces it.
+    if len(args) < 3:
+        return False
+
+    return _is_python_bin(args[0]) and args[1] == "-m"
+
+
+def _is_python_bin(bin_name: str) -> bool:
     return _PYTHON_BIN_RE.match(os.path.basename(bin_name)) is not None
 
 
@@ -35,8 +48,8 @@ def _get_cli_arg_by_name(args: List[str], arg_name: str, check_for_equals_arg: b
 
     if check_for_equals_arg:
         for arg in args:
-            arg_name, _, arg_val = arg.rpartition("=")
-            if arg_val is not None:
+            arg_key, _, arg_val = arg.rpartition("=")
+            if arg_key == arg_name:
                 return arg_val
 
     return _NON_AVAILABLE_ARG
@@ -49,19 +62,24 @@ def _get_cli_arg_by_index(args: List[str], index: int) -> str:
         return _NON_AVAILABLE_ARG
 
 
-def _append_python_module_to_proc_wd(process: Process, module_name: str) -> str:
-    return f'{process.cwd().replace("/", ".").strip(".")}.{module_name}'
+def _append_python_module_to_proc_wd(process: Process, module_path: str) -> str:
+    if os.path.isabs(module_path):
+        return module_path
+
+    return os.path.join(process.cwd(), module_path)
 
 
 class _GunicornApplicationIdentifier(_ApplicationIdentifier):
     def get_application_name(self, process: Process) -> Optional[str]:
+        # As of gunicorn documentation the WSGI module name most probably will come from the cmdline and not from the
+        # config file / environment variables (they added the option to specify `wsgi_app`
+        # in the config file only in version 20.1.0)
+
         if "gunicorn" not in _get_cli_arg_by_index(process.cmdline(), 0) or "gunicorn" not in _get_cli_arg_by_index(
             process.cmdline(), 1
         ):
             return None
 
-        # As of gunicorn documentation the WSGI module name most probably will come from the cmdline and not from the
-        # config file / environment variables (they added the option to specify `wsgi_app` only in 20.1.0)
         for arg in process.cmdline():
             if ":" in arg:
                 if _IP_PORT_RE.match(arg):
@@ -102,25 +120,29 @@ class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
         if "uwsgi" not in _get_cli_arg_by_index(process.cmdline(), 0):
             return None
 
-        wsgi = _get_cli_arg_by_name(process.cmdline(), "-w")
-        if wsgi is not None:
-            return f"uwsgi-{_append_python_module_to_proc_wd(process, wsgi)}"
+        wsgi_arg = _get_cli_arg_by_name(process.cmdline(), "-w")
+        if wsgi_arg is not _NON_AVAILABLE_ARG:
+            return f"uwsgi-{_append_python_module_to_proc_wd(process, wsgi_arg)}"
 
-        wsgi = self._find_wsgi_from_config_file(process)
-        if wsgi is not None:
-            return f"uwsgi-{_append_python_module_to_proc_wd(process, wsgi)}"
+        wsgi_config = self._find_wsgi_from_config_file(process)
+        if wsgi_config is not None:
+            return f"uwsgi-{_append_python_module_to_proc_wd(process, wsgi_config)}"
 
-        _logger.warning("Couldn't find uwsgi wsgi module, both from cmdline and from config file")
+        _logger.warning(
+            "Couldn't find uwsgi wsgi module, both from cmdline and from config file",
+            cmdline=process.cmdline(),
+            no_extra_to_server=True,
+        )
         return None
 
 
 class _CeleryApplicationIdentifier(_ApplicationIdentifier):
     @staticmethod
     def is_celery_process(process: Process) -> bool:
-        if _get_cli_arg_by_index(process.cmdline(), 0) == "celery":
+        if "celery" in os.path.basename(_get_cli_arg_by_index(process.cmdline(), 0)):
             return True
 
-        return len(process.cmdline()) >= 3 and ["-m", "celery"] == process.cmdline()[1:3]
+        return _is_python_m_proc(process) and process.cmdline()[2] == "celery"
 
     def get_application_name(self, process: Process) -> Optional[str]:
         if not self.is_celery_process(process):
@@ -130,7 +152,11 @@ class _CeleryApplicationIdentifier(_ApplicationIdentifier):
             process.cmdline(), "--app", check_for_equals_arg=True
         )
         if app_name is None:
-            _logger.warning("Couldn't find positional argument -A or --app for application indication")
+            _logger.warning(
+                "Couldn't find positional argument -A or --app for application indication",
+                cmdline=process.cmdline(),
+                no_extra_to_server=True,
+            )
             return None
 
         return app_name
@@ -140,33 +166,31 @@ class _PySparkApplicationIdentifier(_ApplicationIdentifier):
     @staticmethod
     def _is_pyspark_process(process: Process) -> bool:
         # We're looking for pythonXX -m pyspark.daemon
-        return (
-            len(process.cmdline()) >= 3
-            and "python" in process.cmdline()[0]
-            and ["-m", "pyspark.daemon"] == process.cmdline()[1:3]
-        )
+        return _is_python_m_proc(process) and process.cmdline()[2] == "pyspark.daemon"
 
     def get_application_name(self, process: Process) -> Optional[str]:
-        return "PySpark" if self._is_pyspark_process(process) else None
+        return "pyspark" if self._is_pyspark_process(process) else None
 
 
 class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
     @staticmethod
-    def is_supported(process: Process) -> bool:
-        if not _is_python_bin(process.cmdline()[0]):
+    def is_python_app(process: Process) -> bool:
+        if not _is_python_bin(_get_cli_arg_by_index(process.cmdline(), 0)):
             return False
 
-        return (len(process.cmdline()) >= 3 and process.cmdline()[1] == "-m") or (
-            len(process.cmdline()) >= 2 and process.cmdline()[1].endswith(".py")
-        )
+        return _is_python_m_proc(process) or (len(process.cmdline()) >= 2 and process.cmdline()[1].endswith(".py"))
 
     def get_application_name(self, process: Process) -> Optional[str]:
+        if not _is_python_bin(_get_cli_arg_by_index(process.cmdline(), 0)):
+            return None
+
         module_arg = _get_cli_arg_by_name(process.cmdline(), "-m")
         if module_arg is not None:
             return module_arg
 
-        module_filename = process.cmdline()[1][:-3]  # Strip the ".py" (checked before)
-        return f"GenericPython-{_append_python_module_to_proc_wd(process, module_filename)}"
+        arg_1 = _get_cli_arg_by_index(process.cmdline(), 1)
+        if arg_1.endswith(".py"):
+            return f"python-{_append_python_module_to_proc_wd(process, arg_1)}"
 
 
 class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
@@ -177,7 +201,7 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
         ):
             return None
 
-        return f"JavaJar-{_get_cli_arg_by_name(process.cmdline(), '-jar')}"
+        return f"java-{_get_cli_arg_by_name(process.cmdline(), '-jar')}"
 
 
 # Please note that the order matter, because the FIRST matching separator will be used.
@@ -193,6 +217,11 @@ _APPLICATION_SEPARATORS = [
 
 
 def get_application_name(pid: int) -> Optional[str]:
+    """
+    Tries to identify the application running in a given process, application identification is fully heuristic,
+    heuristics are being made on each application type available differ from each other and those their
+    "heuristic level".
+    """
     try:
         process = Process(pid)
     except NoSuchProcess:
@@ -204,6 +233,8 @@ def get_application_name(pid: int) -> Optional[str]:
             if app_name is not None:
                 return app_name
 
+        except NoSuchProcess:
+            return None
         except Exception:
             _logger.exception(
                 f"Application separator {separator} raised an exception while matching against process {process}"
