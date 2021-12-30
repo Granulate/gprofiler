@@ -15,7 +15,7 @@ import docker
 from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
-from pytest import fixture  # type: ignore
+from pytest import fixture
 
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
 from tests.utils import assert_function_in_collapsed, chmod_path_parts

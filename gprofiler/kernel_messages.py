@@ -9,7 +9,10 @@ from gprofiler.log import get_logger_adapter
 logger = get_logger_adapter(__name__)
 
 
-class GProfilerKernelMessagesProvider(DefaultKernelMessagesProvider):
+# type ignored because mypy doesn't like Type[...] variables defined conditionally, later used as types
+# themselves (which is what we do here).
+# see https://mypy.readthedocs.io/en/stable/common_issues.html#variables-vs-type-aliases
+class GProfilerKernelMessagesProvider(DefaultKernelMessagesProvider):  # type: ignore
     def on_missed(self):
         logger.warning("Missed some kernel messages.")
 
