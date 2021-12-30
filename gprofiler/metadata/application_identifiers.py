@@ -58,7 +58,7 @@ def _get_cli_arg_by_name(args: List[str], arg_name: str, check_for_equals_arg: b
 def _get_cli_arg_by_index(args: List[str], index: int) -> str:
     try:
         return args[index]
-    except KeyError:
+    except IndexError:
         return _NON_AVAILABLE_ARG
 
 
