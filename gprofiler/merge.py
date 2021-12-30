@@ -239,7 +239,7 @@ def concatenate_profiles(
     process_profiles: ProcessToStackSampleCounters,
     docker_client: Optional[DockerClient],
     add_container_names: bool,
-    add_application_names: bool,
+    identify_applications: bool,
     metadata: Metadata,
     metrics: Metrics,
 ) -> Tuple[str, int]:
@@ -257,7 +257,7 @@ def concatenate_profiles(
         application_name = get_application_name(pid)
         prefix = container_name + ";" if add_container_names else ""
         for stack, count in stacks.items():
-            if add_application_names and application_name is not None:
+            if identify_applications and application_name is not None:
                 stack = STACK_COMM_REGEX.sub(application_name, stack)
 
             total_samples += count
