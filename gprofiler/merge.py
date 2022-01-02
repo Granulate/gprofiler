@@ -30,8 +30,6 @@ SAMPLE_REGEX = re.compile(
 # 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
 FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \((.*)\)$")
 
-STACK_COMM_REGEX = re.compile("(.*?);")
-
 
 def parse_one_collapsed(collapsed: str, add_comm: Optional[str] = None) -> StackToSampleCount:
     """
@@ -255,10 +253,10 @@ def concatenate_profiles(
     for pid, stacks in process_profiles.items():
         container_name = _get_container_name(pid, docker_client, add_container_names)
         application_name = get_application_name(pid)
-        prefix = container_name + ";" if add_container_names else ""
+        prefix = (container_name + ";") if add_container_names else ""
         for stack, count in stacks.items():
             if identify_applications and application_name is not None:
-                stack = STACK_COMM_REGEX.sub(application_name, stack)
+                stack = f'{application_name};{stack.split(";", maxsplit=1)[1]}'
 
             total_samples += count
             lines.append(f"{prefix}{stack} {count}")
@@ -272,7 +270,7 @@ def merge_profiles(
     process_profiles: ProcessToStackSampleCounters,
     docker_client: Optional[DockerClient],
     add_container_names: bool,
-    add_application_names: bool,
+    identify_applications: bool,
     metadata: Metadata,
     metrics: Metrics,
 ) -> Tuple[str, int]:
@@ -301,5 +299,5 @@ def merge_profiles(
         perf_pid_to_stacks_counter[pid] = stacks
 
     return concatenate_profiles(
-        perf_pid_to_stacks_counter, docker_client, add_container_names, add_application_names, metadata, metrics
+        perf_pid_to_stacks_counter, docker_client, add_container_names, identify_applications, metadata, metrics
     )
