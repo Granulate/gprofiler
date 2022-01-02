@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 from time import sleep
-from typing import Callable, Iterable, List, Mapping, Optional
+from typing import Callable, Generator, Iterable, List, Mapping, Optional
 
 import docker
 from docker import DockerClient
@@ -287,7 +287,7 @@ def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int], bool], None]:
 
 
 @fixture
-def assert_application_name(application_pid: int, runtime: str) -> None:
+def assert_application_name(application_pid: int, runtime: str) -> Generator:
     desired_names = {"java": "java: /app/Fibonacci.jar", "python": "python: /app/lister.py"}
     yield
     assert get_application_name(application_pid) == desired_names[runtime]
