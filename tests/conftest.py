@@ -288,10 +288,7 @@ def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int], bool], None]:
 
 @fixture
 def assert_application_name(application_pid: int, runtime: str) -> None:
-    desired_names = {
-        "java": "java: /app/Fibonacci.jar",
-        "python": "python: /app/lister.py"
-    }
+    desired_names = {"java": "java: /app/Fibonacci.jar", "python": "python: /app/lister.py"}
     yield
     assert get_application_name(application_pid) == desired_names[runtime]
 
