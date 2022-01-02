@@ -34,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false  # helps detecting flakiness / errors specific to one Python version
       matrix:
-        python-version: [3.6, 3.7, 3.8.8, 3.9.2]
+        python-version: [3.6, 3.7, 3.8.8, 3.9.2, 3.10.1]
 
     runs-on: ubuntu-latest
 
