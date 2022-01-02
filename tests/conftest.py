@@ -17,6 +17,7 @@ from docker.models.containers import Container
 from docker.models.images import Image
 from pytest import fixture
 
+from gprofiler.metadata.application_identifiers import get_application_name
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
 from tests.utils import assert_function_in_collapsed, chmod_path_parts
 
@@ -283,6 +284,16 @@ def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int], bool], None]:
     }[runtime]
 
     return partial(assert_function_in_collapsed, function_name)
+
+
+@fixture
+def assert_application_name(application_pid: int, runtime: str) -> None:
+    desired_names = {
+        "java": "java: /app/Fibonacci.jar",
+        "python": "python: /app/lister.py"
+    }
+    yield
+    assert get_application_name(application_pid) == desired_names[runtime]
 
 
 @fixture

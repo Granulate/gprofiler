@@ -129,6 +129,7 @@ def test_python_ebpf(
 def test_from_container(
     docker_client: DockerClient,
     application_pid: int,
+    assert_application_name: Callable,
     runtime_specific_args: List[str],
     gprofiler_docker_image: Image,
     output_directory: Path,
@@ -136,6 +137,7 @@ def test_from_container(
     profiler_flags: List[str],
 ) -> None:
     _ = application_pid  # Fixture only used for running the application.
+    _ = assert_application_name  # Fixture only for asserting application name upon test teardown.
     inner_output_directory = "/tmp/gprofiler"
     volumes = {
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
