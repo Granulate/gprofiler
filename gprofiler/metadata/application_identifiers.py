@@ -74,7 +74,7 @@ def _append_python_module_to_proc_wd(process: Process, module: str) -> str:
 
 def _append_file_to_proc_wd(process: Process, file_path: str) -> str:
     if os.path.isabs(file_path):
-        return file_path
+        return os.path.realpath(file_path)
 
     return os.path.realpath(os.path.join(process.cwd(), file_path))
 
