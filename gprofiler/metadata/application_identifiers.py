@@ -211,7 +211,7 @@ class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
 
 class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
     def get_application_name(self, process: Process) -> Optional[str]:
-        if "java" != os.path.basename(_get_cli_arg_by_index(process.cmdline(), 0)) or "-jar" not in process.cmdline():
+        if not any("libjvm.so" in m.path for m in process.memory_maps()):
             return None
 
         return f"java: {_append_file_to_proc_wd(process, _get_cli_arg_by_name(process.cmdline(), '-jar'))}"
