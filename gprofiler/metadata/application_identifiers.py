@@ -196,7 +196,7 @@ class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
 
         module_arg = _get_cli_arg_by_name(process.cmdline(), "-m")
         if module_arg is not _NON_AVAILABLE_ARG:
-            return f"python -m {_append_python_module_to_proc_wd(process, module_arg)}"
+            return f"python: {module_arg}"
 
         arg_1 = _get_cli_arg_by_index(process.cmdline(), 1)
         if arg_1.endswith(".py"):
