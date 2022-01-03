@@ -50,7 +50,7 @@ def _get_cli_arg_by_name(args: List[str], arg_name: str, check_for_equals_arg: b
 
     if check_for_equals_arg:
         for arg in args:
-            arg_key, _, arg_val = arg.rpartition("=")
+            arg_key, _, arg_val = arg.partition("=")
             if arg_key == arg_name:
                 return arg_val
 
@@ -113,6 +113,8 @@ class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
         config = configparser.ConfigParser()
         config.read(resolve_host_path(process, config_file))
         try:
+            # Note that `ConfigParser.get` doesn't act like `dict.get` and raises exceptions if section/option
+            # isn't found.
             return config.get("uwsgi", "module")
         except (configparser.NoSectionError, configparser.NoOptionError):
             pass
@@ -194,7 +196,7 @@ class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
 
         module_arg = _get_cli_arg_by_name(process.cmdline(), "-m")
         if module_arg is not _NON_AVAILABLE_ARG:
-            return f"python: {_append_python_module_to_proc_wd(process, module_arg)}"
+            return f"python -m {_append_python_module_to_proc_wd(process, module_arg)}"
 
         arg_1 = _get_cli_arg_by_index(process.cmdline(), 1)
         if arg_1.endswith(".py"):
@@ -211,8 +213,8 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
         return f"java: {_get_cli_arg_by_name(process.cmdline(), '-jar')}"
 
 
-# Please note that the order matter, because the FIRST matching separator will be used.
-# so when adding new separators pay attention to the order.
+# Please note that the order matter, because the FIRST matching identifier will be used.
+# so when adding new identifiers pay attention to the order.
 _APPLICATION_IDENTIFIER = [
     _GunicornApplicationIdentifier(),
     _UwsgiApplicationIdentifier(),

@@ -252,7 +252,7 @@ def concatenate_profiles(
 
     for pid, stacks in process_profiles.items():
         container_name = _get_container_name(pid, docker_client, add_container_names)
-        application_name = get_application_name(pid)
+        application_name = get_application_name(pid) if identify_applications else ""
         prefix = (container_name + ";") if add_container_names else ""
         for stack, count in stacks.items():
             if identify_applications and application_name is not None:
