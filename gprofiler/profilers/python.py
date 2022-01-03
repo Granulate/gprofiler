@@ -52,7 +52,7 @@ def _add_versions_to_process_stacks(process: Process, stacks: StackToSampleCount
             package_info = packages_versions.get(module_name_match.group("filename"))
             if package_info is not None:
                 package_name, package_version = package_info
-                return "({} ({}-{}))".format(module_name_match.group("module_info"), package_name, package_version)
+                return "({} [{}=={}])".format(module_name_match.group("module_info"), package_name, package_version)
             return module_name_match.group()
 
         new_stack = _module_name_in_stack.sub(_replace_module_name, stack)
