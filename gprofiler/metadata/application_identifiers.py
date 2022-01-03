@@ -69,10 +69,14 @@ def _append_python_module_to_proc_wd(process: Process, module: str) -> str:
     if not module.endswith(".py"):
         module = module.replace(".", "/") + ".py"
 
-    if os.path.isabs(module):
-        return module
+    return _append_file_to_proc_wd(process, module)
 
-    return os.path.realpath(os.path.join(process.cwd(), module))
+
+def _append_file_to_proc_wd(process: Process, file_path: str) -> str:
+    if os.path.isabs(file_path):
+        return file_path
+
+    return os.path.realpath(os.path.join(process.cwd(), file_path))
 
 
 class _ApplicationIdentifier(metaclass=ABCMeta):
@@ -210,7 +214,7 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
         if "java" != os.path.basename(_get_cli_arg_by_index(process.cmdline(), 0)) or "-jar" not in process.cmdline():
             return None
 
-        return f"java: {_get_cli_arg_by_name(process.cmdline(), '-jar')}"
+        return f"java: {_append_file_to_proc_wd(process, _get_cli_arg_by_name(process.cmdline(), '-jar'))}"
 
 
 # Please note that the order matter, because the FIRST matching identifier will be used.
