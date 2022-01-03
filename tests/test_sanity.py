@@ -39,7 +39,7 @@ def test_java_from_host(
         java_safemode=False,
         java_mode="ap",
     ) as profiler:
-        _ = assert_application_name  # Fixture only for asserting application name upon test teardown.
+        _ = assert_application_name  # Required for mypy unused argument warning
         result = profiler.snapshot()
         assert len(result) == 1
         process_collapsed = result[next(iter(result.keys()))]
@@ -54,7 +54,7 @@ def test_pyspy(
     assert_application_name: Callable,
     python_version: Optional[str],
 ) -> None:
-    _ = assert_application_name  # Fixture only for asserting application name upon test teardown.
+    _ = assert_application_name  # Required for mypy unused argument warning
     with PySpyProfiler(1000, 3, Event(), str(tmp_path), add_versions=True) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
@@ -113,7 +113,7 @@ def test_python_ebpf(
     python_version: Optional[str],
     no_kernel_headers,
 ) -> None:
-    _ = assert_application_name  # Fixture only for asserting application name upon test teardown.
+    _ = assert_application_name  # Required for mypy unused argument warning
     with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path), add_versions=True) as profiler:
         collapsed = profiler.snapshot()
         process_collapsed = collapsed.get(application_pid)
@@ -143,7 +143,7 @@ def test_from_container(
     profiler_flags: List[str],
 ) -> None:
     _ = application_pid  # Fixture only used for running the application.
-    _ = assert_application_name  # Fixture only for asserting application name upon test teardown.
+    _ = assert_application_name  # Required for mypy unused argument warning
     inner_output_directory = "/tmp/gprofiler"
     volumes = {
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},

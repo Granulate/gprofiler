@@ -302,7 +302,10 @@ def assert_application_name(application_pid: int, runtime: str, in_container: bo
         "java": "java: /app/Fibonacci.jar",
         "python": "python: /app/lister.py",
     }
+    # We test the application name only after test has finished because the test may wait until the application is
+    # running and application name might change.
     yield
+    # TODO: Change commandline of processes running not in containers so we'll be able to match against them.
     if in_container and runtime in desired_names:
         assert get_application_name(application_pid) == desired_names[runtime]
 
