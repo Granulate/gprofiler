@@ -15,6 +15,7 @@ import docker
 from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
+from psutil import Process
 from pytest import fixture
 
 from gprofiler.metadata.application_identifiers import get_application_name
@@ -287,10 +288,12 @@ def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int], bool], None]:
 
 
 @fixture
-def assert_application_name(application_pid: int, runtime: str) -> Generator:
+def assert_application_name(application_pid: int, runtime: str, in_container: bool) -> Generator:
     desired_names = {"java": "java: /app/Fibonacci.jar", "python": "python: /app/lister.py"}
     yield
-    assert get_application_name(application_pid) == desired_names[runtime]
+    if in_container and runtime in desired_names:
+        p = Process(application_pid)
+        assert get_application_name(application_pid) == desired_names[runtime], f"fml {p} {p.cmdline()}"
 
 
 @fixture
