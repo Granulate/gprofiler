@@ -13,6 +13,7 @@ from typing import Iterable, Optional, Tuple
 from gprofiler.docker_client import DockerClient
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.application_identifiers import get_application_name
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.system_metrics import Metrics
 
@@ -236,6 +237,7 @@ def concatenate_profiles(
     process_profiles: ProcessToStackSampleCounters,
     docker_client: Optional[DockerClient],
     add_container_names: bool,
+    identify_applications: bool,
     metadata: Metadata,
     metrics: Metrics,
 ) -> Tuple[str, int]:
@@ -250,9 +252,14 @@ def concatenate_profiles(
 
     for pid, stacks in process_profiles.items():
         container_name = _get_container_name(pid, docker_client, add_container_names)
+        application_name = get_application_name(pid) if identify_applications else ""
+        prefix = (container_name + ";") if add_container_names else ""
         for stack, count in stacks.items():
+            if identify_applications and application_name is not None:
+                stack = f'{application_name};{stack.split(";", maxsplit=1)[1]}'
+
             total_samples += count
-            lines.append(f"{container_name + ';' if add_container_names else ''}{stack} {count}")
+            lines.append(f"{prefix}{stack} {count}")
 
     lines.insert(0, _make_profile_metadata(docker_client, add_container_names, metadata, metrics))
     return "\n".join(lines), total_samples
@@ -263,6 +270,7 @@ def merge_profiles(
     process_profiles: ProcessToStackSampleCounters,
     docker_client: Optional[DockerClient],
     add_container_names: bool,
+    identify_applications: bool,
     metadata: Metadata,
     metrics: Metrics,
 ) -> Tuple[str, int]:
@@ -290,4 +298,6 @@ def merge_profiles(
         # swap them: use the samples from the runtime profiler.
         perf_pid_to_stacks_counter[pid] = stacks
 
-    return concatenate_profiles(perf_pid_to_stacks_counter, docker_client, add_container_names, metadata, metrics)
+    return concatenate_profiles(
+        perf_pid_to_stacks_counter, docker_client, add_container_names, identify_applications, metadata, metrics
+    )

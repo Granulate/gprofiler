@@ -9,14 +9,16 @@ from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 from time import sleep
-from typing import Callable, Iterable, List, Mapping, Optional
+from typing import Callable, Generator, Iterable, List, Mapping, Optional
 
 import docker
 from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
+from psutil import Process
 from pytest import fixture
 
+from gprofiler.metadata.application_identifiers import get_application_name
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
 from tests.utils import assert_function_in_collapsed, chmod_path_parts
 
@@ -250,8 +252,17 @@ def output_directory(tmp_path: Path) -> Path:
 
 
 @fixture
-def application_pid(in_container: bool, application_process: subprocess.Popen, application_docker_container: Container):
-    return application_docker_container.attrs["State"]["Pid"] if in_container else application_process.pid
+def application_pid(
+    in_container: bool, application_process: subprocess.Popen, application_docker_container: Container
+) -> int:
+    pid = application_docker_container.attrs["State"]["Pid"] if in_container else application_process.pid
+
+    # Application might be run using "sh -c ...", we detect the case and return the "real" application pid
+    process = Process(pid)
+    if process.cmdline()[0] == "sh" and process.cmdline()[1] == "-c" and len(process.children(recursive=False)) == 1:
+        pid = process.children(recursive=False)[0].pid
+
+    return pid
 
 
 @fixture
@@ -283,6 +294,20 @@ def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int], bool], None]:
     }[runtime]
 
     return partial(assert_function_in_collapsed, function_name)
+
+
+@fixture
+def assert_application_name(application_pid: int, runtime: str, in_container: bool) -> Generator:
+    desired_names = {
+        "java": "java: /app/Fibonacci.jar",
+        "python": "python: /app/lister.py",
+    }
+    # We test the application name only after test has finished because the test may wait until the application is
+    # running and application name might change.
+    yield
+    # TODO: Change commandline of processes running not in containers so we'll be able to match against them.
+    if in_container and runtime in desired_names:
+        assert get_application_name(application_pid) == desired_names[runtime]
 
 
 @fixture

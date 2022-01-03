@@ -83,6 +83,7 @@ class GProfiler:
         client: APIClient,
         collect_metrics: bool,
         collect_metadata: bool,
+        identify_applications: bool,
         state: State,
         usage_logger: UsageLoggerInterface,
         user_args: UserArgs,
@@ -101,6 +102,7 @@ class GProfiler:
         self._profile_api_version = profile_api_version
         self._collect_metrics = collect_metrics
         self._collect_metadata = collect_metadata
+        self._identify_applications = identify_applications
         self._stop_event = Event()
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
@@ -269,7 +271,12 @@ class GProfiler:
         if NoopProfiler.is_noop_profiler(self.system_profiler):
             assert system_result == {}, system_result  # should be empty!
             merged_result, total_samples = merge.concatenate_profiles(
-                process_profiles, self._docker_client, self._profile_api_version != "v1", metadata, metrics
+                process_profiles,
+                self._docker_client,
+                self._profile_api_version != "v1",
+                self._identify_applications,
+                metadata,
+                metrics,
             )
 
         else:
@@ -278,6 +285,7 @@ class GProfiler:
                 process_profiles,
                 self._docker_client,
                 self._profile_api_version != "v1",
+                self._identify_applications,
                 metadata,
                 metrics,
             )
@@ -516,6 +524,14 @@ def parse_cmd_args():
     )
 
     parser.add_argument(
+        "--disable-application-identification",
+        action="store_false",
+        default=True,
+        dest="identify_applications",
+        help="Disable identification of applications by heuristics",
+    )
+
+    parser.add_argument(
         "--controller-pid",
         default=None,
         type=int,
@@ -698,6 +714,7 @@ def main():
             client,
             args.collect_metrics,
             args.collect_metadata,
+            args.identify_applications,
             state,
             usage_logger,
             args.__dict__,
