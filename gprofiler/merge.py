@@ -164,7 +164,7 @@ def scale_sample_counts(stacks: StackToSampleCount, ratio: float) -> StackToSamp
         # If we were to round all of the sample counts it could skew the results. By using a random factor,
         # we mostly solve this by randomly rounding up / down stacks.
         # The higher the fractional part of the new count, the more likely it is to be rounded up instead of down
-        scaled_value = math.ceil(new_count) if new_count - int(new_count) <= random.random() else math.floor(new_count)
+        scaled_value = math.ceil(new_count) if random.random() <= math.modf(new_count)[0] else math.floor(new_count)
         # TODO: For more accurate truncation, check if there's a common frame for the truncated stacks and combine them
         if scaled_value != 0:
             scaled_stacks[stack] = scaled_value
