@@ -749,7 +749,7 @@ class JavaProfiler(ProcessProfilerBase):
 
     def _select_processes_to_profile(self) -> List[Process]:
         if not self._should_profile:
-            logger.debug("Java profiling has been disabled, skipping profiling of all java process")
+            logger.debug("Java profiling has been disabled, skipping profiling of all java processes")
             return []
         return pgrep_maps(r"^.+/libjvm\.so$")
 
