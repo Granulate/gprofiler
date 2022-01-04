@@ -555,7 +555,7 @@ class JavaProfiler(ProcessProfilerBase):
 
     def _disable_profiling(self, cause: str):
         if self._should_profile and cause in self._java_safemode:
-            logger.warning("Java profiling has been disabled, will avoid profiling any new java process", cause=cause)
+            logger.warning("Java profiling has been disabled, will avoid profiling any new java processes", cause=cause)
             self._should_profile = False
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
