@@ -828,17 +828,13 @@ class JavaProfiler(ProcessProfilerBase):
 
             # paranoia - in safemode, stop Java profiling upon any OOM / fatal-signal / occurrence of a profiled
             # PID in a kernel message.
-            # these next ones are only checked if the respective safemode option is enabled, because they
-            # are very broad and will spam our log.
-            if oom_entry is not None and JavaSafemodeOptions.GENERAL_OOM in self._java_safemode:
+            if oom_entry is not None:
                 logger.warning("General OOM", oom=json.dumps(oom_entry._asdict()))
                 self._disable_profiling(JavaSafemodeOptions.GENERAL_OOM)
-            elif signal_entry is not None and JavaSafemodeOptions.GENERAL_SIGNALED in self._java_safemode:
+            elif signal_entry is not None:
                 logger.warning("General signal", signal=json.dumps(signal_entry._asdict()))
                 self._disable_profiling(JavaSafemodeOptions.GENERAL_SIGNALED)
-            elif JavaSafemodeOptions.PID_IN_KERNEL_MESSAGES in self._java_safemode and any(
-                str(p) in text for p in self._profiled_pids
-            ):
+            elif any(str(p) in text for p in self._profiled_pids):
                 logger.warning("Profiled PID shows in kernel message line", line=text)
                 self._disable_profiling(JavaSafemodeOptions.PID_IN_KERNEL_MESSAGES)
 
