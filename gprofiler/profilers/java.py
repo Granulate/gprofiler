@@ -72,7 +72,7 @@ class JavaSafemodeOptions(str, Enum):
     # a process was fatally signaled and we saw it in the kernel log
     GENERAL_SIGNALED = "general-signaled"
     # we saw the PID of a profiled process in the kernel logs
-    PID_IN_MESSAGES = "pid-in-messages"
+    PID_IN_KERNEL_MESSAGES = "pid-in-kernel-messages"
     # employ extended version checks before deciding to profile
     JAVA_EXTENDED_VERSION_CHECK = "java-extended-version-check"
     # refuse profiling if async-profiler is already loaded (and not by gProfiler)
@@ -836,11 +836,11 @@ class JavaProfiler(ProcessProfilerBase):
             elif signal_entry is not None and JavaSafemodeOptions.GENERAL_SIGNALED in self._java_safemode:
                 logger.warning("General signal", signal=json.dumps(signal_entry._asdict()))
                 self._disable_profiling(JavaSafemodeOptions.GENERAL_SIGNALED)
-            elif JavaSafemodeOptions.PID_IN_MESSAGES in self._java_safemode and any(
+            elif JavaSafemodeOptions.PID_IN_KERNEL_MESSAGES in self._java_safemode and any(
                 str(p) in text for p in self._profiled_pids
             ):
                 logger.warning("Profiled PID shows in kernel message line", line=text)
-                self._disable_profiling(JavaSafemodeOptions.PID_IN_MESSAGES)
+                self._disable_profiling(JavaSafemodeOptions.PID_IN_KERNEL_MESSAGES)
 
     def _handle_new_kernel_messages(self):
         try:
