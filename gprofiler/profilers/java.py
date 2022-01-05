@@ -63,6 +63,7 @@ class JavaSafemodeOptions(str, Enum):
     PROFILED_OOM = "profiled-oom"
     # a profiled process was signaled:
     # * fatally signaled and we saw it in the kernel log
+    # * we saw an exit code of signal in a proc_events event.
     PROFILED_SIGNALED = "profiled-signaled"
     # hs_err file was written for a profiled process
     HSERR = "hserr"
@@ -826,6 +827,15 @@ class JavaProfiler(ProcessProfilerBase):
 
             logger.warning("async-profiled Java process exited with signal", pid=tid, signal=signo)
 
+            # SIGABRT is what JVMs (at least HotSpot) exit with upon a VM error (e.g after writing the hs_err file).
+            # SIGKILL is the result of OOM.
+            # SIGSEGV is added because in some extreme cases, the signal handler (which usually ends up with SIGABRT)
+            # causes another SIGSEGV (possibly in some loop), and eventually Java really dies with SIGSEGV.
+            # Other signals (such as SIGTERM which is common) are ignored until proven relevant
+            # to hard errors such as crashes. (SIGTERM, for example, is used as containers' stop signal)
+            if signo in (signal.SIGABRT.value, signal.SIGKILL.value, signal.SIGSEGV.value):
+                self._disable_profiling(JavaSafemodeOptions.PROFILED_SIGNALED)
+
     def _handle_kernel_messages(self, messages):
         for message in messages:
             _, _, text = message
@@ -837,7 +847,7 @@ class JavaProfiler(ProcessProfilerBase):
 
             signal_entry = get_signal_entry(text)
             if signal_entry is not None and signal_entry.pid in self._profiled_pids:
-                logger.warning("Profiled Java process signaled", signal=json.dumps(signal_entry._asdict()))
+                logger.warning("Profiled Java process fatally signaled", signal=json.dumps(signal_entry._asdict()))
                 self._disable_profiling(JavaSafemodeOptions.PROFILED_SIGNALED)
                 continue
 
