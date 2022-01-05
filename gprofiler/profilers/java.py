@@ -711,7 +711,9 @@ class JavaProfiler(ProcessProfilerBase):
             self._profiled_pids.add(process.pid)
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
-        with AsyncProfiledProcess(process, self._storage_dir, self._stop_event, self._buildids, self._mode, self._ap_safemode) as ap_proc:
+        with AsyncProfiledProcess(
+            process, self._storage_dir, self._stop_event, self._buildids, self._mode, self._ap_safemode
+        ) as ap_proc:
             return self._profile_ap_process(ap_proc)
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[StackToSampleCount]:
