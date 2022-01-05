@@ -73,7 +73,7 @@ class JavaSafemodeOptions(str, Enum):
     # we saw the PID of a profiled process in the kernel logs
     PID_IN_KERNEL_MESSAGES = "pid-in-kernel-messages"
     # employ extended version checks before deciding to profile
-    JAVA_EXTENDED_VERSION_CHECK = "java-extended-version-check"
+    JAVA_EXTENDED_VERSION_CHECKS = "java-extended-version-checks"
     # refuse profiling if async-profiler is already loaded (and not by gProfiler)
     # in the target process
     AP_LOADED_CHECK = "ap-loaded-check"
@@ -544,10 +544,11 @@ class JavaProfiler(ProcessProfilerBase):
         if self._java_safemode:
             logger.debug("Java safemode enabled", safemode=self._java_safemode)
 
-        if JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECK in self._java_safemode:
-            assert (
-                self._simple_version_check
-            ), f"Java version checks are mandatory in --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECK}"
+        if JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS in self._java_safemode:
+            assert self._simple_version_check, (
+                "Java version checks are mandatory in"
+                f" --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS}"
+            )
 
         if java_safemode == JAVA_SAFEMODE_ALL:
             assert self._ap_safemode == 127, "async-profiler safemode must be set to 127 in --java-safemode"
@@ -632,7 +633,7 @@ class JavaProfiler(ProcessProfilerBase):
 
     def _is_profiling_supported(self, process: Process) -> bool:
         process_basename = os.path.basename(process.exe())
-        if JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECK in self._java_safemode:
+        if JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS in self._java_safemode:
             # TODO we can get the "java" binary by extracting the java home from the libjvm path,
             # then check with that instead (if exe isn't java)
             if process_basename != "java":
