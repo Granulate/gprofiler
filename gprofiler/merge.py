@@ -251,7 +251,13 @@ def concatenate_profiles(
         prefix = (container_name + ";") if add_container_names else ""
         for stack, count in stacks.items():
             if identify_applications and application_name is not None:
-                stack = f'{application_name};{stack.split(";", maxsplit=1)[1]}'
+                application_name = f"appid: {application_name}"
+                # insert the app name between the first frame and all others
+                try:
+                    first_frame, others = stack.split(";", maxsplit=1)
+                    stack = f"{first_frame};{application_name};{others}"
+                except ValueError:
+                    stack = f"{stack};{application_name}"
 
             total_samples += count
             lines.append(f"{prefix}{stack} {count}")
