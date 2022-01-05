@@ -10,7 +10,7 @@ from threading import Event
 import pytest
 from packaging.version import Version
 
-from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler, parse_jvm_version
+from gprofiler.profilers.java import JAVA_SAFEMODE_ALL, AsyncProfiledProcess, JavaProfiler, parse_jvm_version
 from tests.utils import assert_function_in_collapsed
 
 
@@ -32,16 +32,29 @@ def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_p
     Test we're able to restart async-profiler in case it's already running in the process and get results normally.
     """
     caplog.set_level(logging.INFO)
-    with JavaProfiler(11, 1, Event(), str(tmp_path), False, False, "cpu", 0, False, "ap") as profiler:
+    with JavaProfiler(
+        11,
+        1,
+        Event(),
+        str(tmp_path),
+        False,
+        False,
+        java_async_profiler_mode="cpu",
+        java_async_profiler_safemode=0,
+        java_safemode="",
+        java_mode="ap",
+    ) as profiler:
         process = profiler._select_processes_to_profile()[0]
-        with AsyncProfiledProcess(
-            process, profiler._storage_dir, False, profiler._mode, False, profiler._java_safemode
-        ) as ap_proc:
+        with AsyncProfiledProcess(process, profiler._storage_dir, False, profiler._mode, False) as ap_proc:
             assert ap_proc.start_async_profiler(11)
         assert any("libasyncProfiler.so" in m.path for m in process.memory_maps())
         # run "status"
         with AsyncProfiledProcessForTests(
-            process, profiler._storage_dir, False, mode="itimer", safemode=False, java_safemode=profiler._java_safemode
+            process,
+            profiler._storage_dir,
+            False,
+            mode="itimer",
+            ap_safemode=False,
         ) as ap_proc:
             ap_proc.status_async_profiler()
             # printed the output file, see ACTION_STATUS case in async-profiler/profiler.cpp
@@ -74,7 +87,7 @@ def test_java_async_profiler_cpu_mode(
         True,
         java_async_profiler_mode="cpu",
         java_async_profiler_safemode=0,
-        java_safemode=False,
+        java_safemode="",
         java_mode="ap",
     ) as profiler:
         result = profiler.snapshot()
@@ -104,7 +117,7 @@ def test_java_async_profiler_musl_and_cpu(
         True,
         java_async_profiler_mode="cpu",
         java_async_profiler_safemode=0,
-        java_safemode=False,
+        java_safemode="",
         java_mode="ap",
     ) as profiler:
         result = profiler.snapshot()
@@ -125,10 +138,10 @@ def test_java_safemode_parameters(tmp_path) -> None:
             True,
             java_async_profiler_mode="cpu",
             java_async_profiler_safemode=0,
-            java_safemode=True,
+            java_safemode=JAVA_SAFEMODE_ALL,
             java_mode="ap",
         )
-    assert "Async-profiler safemode must be set to 127 in --java-safemode" in str(excinfo.value)
+    assert "async-profiler safemode must be set to 127 in --java-safemode" in str(excinfo.value)
 
     with pytest.raises(AssertionError) as excinfo:
         JavaProfiler(
@@ -140,7 +153,7 @@ def test_java_safemode_parameters(tmp_path) -> None:
             False,
             java_async_profiler_mode="cpu",
             java_async_profiler_safemode=127,
-            java_safemode=True,
+            java_safemode=JAVA_SAFEMODE_ALL,
             java_mode="ap",
         )
     assert "Java version checks are mandatory in --java-safemode" in str(excinfo.value)
@@ -160,7 +173,7 @@ def test_java_safemode_version_check(
         True,
         java_async_profiler_mode="cpu",
         java_async_profiler_safemode=127,
-        java_safemode=True,
+        java_safemode=JAVA_SAFEMODE_ALL,
         java_mode="ap",
     ) as profiler:
         process = profiler._select_processes_to_profile()[0]
@@ -184,7 +197,7 @@ def test_java_safemode_build_number_check(
         True,
         java_async_profiler_mode="cpu",
         java_async_profiler_safemode=127,
-        java_safemode=True,
+        java_safemode=JAVA_SAFEMODE_ALL,
         java_mode="ap",
     ) as profiler:
         process = profiler._select_processes_to_profile()[0]
@@ -215,10 +228,20 @@ def test_hotspot_error_file(application_pid, tmp_path, monkeypatch, caplog):
         return result
 
     monkeypatch.setattr(AsyncProfiledProcess, "start_async_profiler", sap_and_crash)
-    # To make sure it is reverted to True (the original value) after the test
-    monkeypatch.setattr(JavaProfiler, "_should_profile", True)
 
-    with JavaProfiler(1, 5, Event(), str(tmp_path), False, False, "cpu", 0, False, "ap") as profiler:
+    profiler = JavaProfiler(
+        1,
+        5,
+        Event(),
+        str(tmp_path),
+        False,
+        True,
+        java_async_profiler_mode="cpu",
+        java_async_profiler_safemode=127,
+        java_safemode=JAVA_SAFEMODE_ALL,
+        java_mode="ap",
+    )
+    with profiler:
         profiler.snapshot()
 
     assert "Found Hotspot error log" in caplog.text
@@ -227,13 +250,15 @@ def test_hotspot_error_file(application_pid, tmp_path, monkeypatch, caplog):
     assert "libpthread.so" in caplog.text
     assert "memory_usage_in_bytes:" in caplog.text
     assert "Java profiling has been disabled, will avoid profiling any new java process" in caplog.text
-    assert not JavaProfiler._should_profile
+    assert not profiler._should_profile
 
 
 def test_disable_java_profiling(application_pid, tmp_path, monkeypatch, caplog):
-    monkeypatch.setattr(JavaProfiler, "_should_profile", False)
     caplog.set_level(logging.DEBUG)
-    with JavaProfiler(1, 5, Event(), str(tmp_path), False, False, "cpu", 0, False, "ap") as profiler:
+
+    profiler = JavaProfiler(1, 5, Event(), str(tmp_path), False, False, "cpu", 0, False, "ap")
+    monkeypatch.setattr(profiler, "_should_profile", False)
+    with profiler:
         assert len(profiler.snapshot()) == 0
 
     assert "Java profiling has been disabled, skipping profiling of all java process" in caplog.text
@@ -251,7 +276,7 @@ def test_already_loaded_ap_profiling_failure(tmp_path, monkeypatch, caplog, appl
             True,
             java_async_profiler_mode="cpu",
             java_async_profiler_safemode=127,
-            java_safemode=True,
+            java_safemode=JAVA_SAFEMODE_ALL,
             java_mode="ap",
         ) as profiler:
             profiler.snapshot()
@@ -265,10 +290,10 @@ def test_already_loaded_ap_profiling_failure(tmp_path, monkeypatch, caplog, appl
         True,
         java_async_profiler_mode="cpu",
         java_async_profiler_safemode=127,
-        java_safemode=True,
+        java_safemode=JAVA_SAFEMODE_ALL,
         java_mode="ap",
     ) as profiler:
         process = profiler._select_processes_to_profile()[0]
         assert any("/tmp/fake_gprofiler_tmp" in mmap.path for mmap in process.memory_maps())
         profiler.snapshot()
-        assert "Non-gProfiler Async-profiler is already loaded to the target process:" in caplog.text
+        assert "Non-gProfiler async-profiler is already loaded to the target process" in caplog.text

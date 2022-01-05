@@ -14,6 +14,8 @@ class ProfilerArgument:
         choices: Sequence[Any] = None,
         type: Union[Type, Callable[[str], Any]] = None,
         metavar: str = None,
+        const: Any = None,
+        nargs: str = None,
     ):
         self.name = name
         self.dest = dest
@@ -23,6 +25,8 @@ class ProfilerArgument:
         self.choices = choices
         self.type = type
         self.metavar = metavar
+        self.const = const
+        self.nargs = nargs
 
     def get_dict(self) -> Dict[str, Any]:
         return {key: value for key, value in self.__dict__.items() if value is not None}
