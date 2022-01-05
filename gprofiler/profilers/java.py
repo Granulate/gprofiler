@@ -63,7 +63,6 @@ class JavaSafemodeOptions(str, Enum):
     PROFILED_OOM = "profiled-oom"
     # a profiled process was signaled:
     # * fatally signaled and we saw it in the kernel log
-    # * we saw an exit code of signal in a proc_events event.
     PROFILED_SIGNALED = "profiled-signaled"
     # hs_err file was written for a profiled process
     HSERR = "hserr"
