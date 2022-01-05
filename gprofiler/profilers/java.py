@@ -544,7 +544,9 @@ class JavaProfiler(ProcessProfilerBase):
             )
 
         if java_safemode == JAVA_SAFEMODE_ALL:
-            assert self._ap_safemode == 127, "async-profiler safemode must be set to 127 in --java-safemode"
+            assert (
+                self._ap_safemode == 127
+            ), f"async-profiler safemode must be set to 127 in --java-safemode={JAVA_SAFEMODE_ALL} (or --java-safemode)"
 
     def _disable_profiling(self, cause: str):
         if self._should_profile and cause in self._java_safemode:
@@ -631,7 +633,8 @@ class JavaProfiler(ProcessProfilerBase):
             # then check with that instead (if exe isn't java)
             if process_basename != "java":
                 logger.warning(
-                    "Non-java basenamed process, skipping... (disable --java-safemode to profile it anyway)",
+                    "Non-java basenamed process, skipping... (disable "
+                    f" --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS} to profile it anyway)",
                     pid=process.pid,
                     exe=process.exe(),
                 )
@@ -645,7 +648,8 @@ class JavaProfiler(ProcessProfilerBase):
             if not self._is_jvm_version_supported(java_version_output):
                 logger.warning(
                     "Process running unsupported Java version, skipping..."
-                    " (disable --java-safemode to profile it anyway)",
+                    f" (disable --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS}"
+                    " to profile it anyway)",
                     pid=process.pid,
                     java_version_output=java_version_output,
                 )
@@ -667,7 +671,7 @@ class JavaProfiler(ProcessProfilerBase):
             if "libasyncProfiler.so" in mmap.path and not mmap.path.startswith(TEMPORARY_STORAGE_PATH):
                 logger.warning(
                     "Non-gProfiler async-profiler is already loaded to the target process."
-                    " Disable --java-safemode=ap-loaded-check to bypass this check.",
+                    f" Disable --java-safemode={JavaSafemodeOptions.AP_LOADED_CHECK} to bypass this check.",
                     pid=process.pid,
                     ap_path=mmap.path,
                 )
