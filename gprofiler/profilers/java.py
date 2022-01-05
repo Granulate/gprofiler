@@ -829,9 +829,11 @@ class JavaProfiler(ProcessProfilerBase):
 
             # SIGABRT is what JVMs (at least HotSpot) exit with upon a VM error (e.g after writing the hs_err file).
             # SIGKILL is the result of OOM.
+            # SIGSEGV is added because in some extreme cases, the signal handler (which usually ends up with SIGABRT)
+            # causes another SIGSEGV (possibly in some loop), and eventually Java really dies with SIGSEGV.
             # Other signals (such as SIGTERM which is common) are ignored until proven relevant
             # to hard errors such as crashes. (SIGTERM, for example, is used as containers' stop signal)
-            if signo == signal.SIGABRT.value or signo == signal.SIGKILL.value:
+            if signo in (signal.SIGABRT.value, signal.SIGKILL.value, signal.SIGSEGV.value):
                 self._disable_profiling(JavaSafemodeOptions.PROFILED_SIGNALED)
 
     def _handle_kernel_messages(self, messages):
