@@ -180,7 +180,6 @@ class AsyncProfiledProcess:
         os.makedirs(self._storage_dir_host, 0o755, exist_ok=True)
 
         self._check_disk_requirements()
-        self._check_async_profiler_not_loaded()
 
         # make out & log paths writable for all, so target process can write to them.
         # see comment on TemporaryDirectoryWithMode in GProfiler.__init__.
@@ -273,16 +272,6 @@ class AsyncProfiledProcess:
                 f"Not enough free disk space: {free_disk}kb left, {250 * 1024}kb"
                 f" required (on path: {self._output_path_host!r}"
             )
-
-    def _check_async_profiler_not_loaded(self) -> None:
-        if JavaSafemodeOptions.AP_LOADED_CHECK not in self._java_safemode:
-            return
-        for mmap in self.process.memory_maps():
-            if "libasyncProfiler.so" in mmap.path and not mmap.path.startswith(TEMPORARY_STORAGE_PATH):
-                raise Exception(
-                    f"Non-gProfiler async-profiler is already loaded to the target process: {mmap.path!r}. "
-                    f"Disable --java-safemode to bypass"
-                )
 
     def _get_base_cmd(self) -> List[str]:
         return [
@@ -665,8 +654,28 @@ class JavaProfiler(ProcessProfilerBase):
 
         return True
 
+    def _check_async_profiler_loaded(self, process: Process) -> bool:
+        if JavaSafemodeOptions.AP_LOADED_CHECK not in self._java_safemode:
+            # don't care
+            return False
+
+        for mmap in process.memory_maps():
+            if "libasyncProfiler.so" in mmap.path and not mmap.path.startswith(TEMPORARY_STORAGE_PATH):
+                logger.warning(
+                    "Non-gProfiler async-profiler is already loaded to the target process."
+                    " Disable --java-safemode=ap-loaded-check to bypass this check.",
+                    pid=process.pid,
+                    ap_path=mmap.path,
+                )
+                return True
+
+        return False
+
     def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
         if not self._is_profiling_supported(process):
+            return None
+
+        if self._check_async_profiler_loaded(process):
             return None
 
         # track profiled PIDs only if proc_events are in use, otherwise there is no use in them.
