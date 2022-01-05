@@ -128,7 +128,12 @@ class AsyncProfiledProcess:
     OUTPUTS_MODE = 0o622  # readable by root, writable by all
 
     def __init__(
-        self, process: Process, storage_dir: str, buildids: bool, mode: str, ap_safemode: int, java_safemode: List[str]
+        self,
+        process: Process,
+        storage_dir: str,
+        buildids: bool,
+        mode: str,
+        ap_safemode: int,
     ):
         self.process = process
         # access the process' root via its topmost parent/ancestor which uses the same mount namespace.
@@ -173,7 +178,6 @@ class AsyncProfiledProcess:
         assert mode in ("cpu", "itimer"), f"unexpected mode: {mode}"
         self._mode = mode
         self._ap_safemode = ap_safemode
-        self._java_safemode = java_safemode
 
     def __enter__(self):
         os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
@@ -686,9 +690,7 @@ class JavaProfiler(ProcessProfilerBase):
             self._profiled_pids.add(process.pid)
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
-        with AsyncProfiledProcess(
-            process, self._storage_dir, self._buildids, self._mode, self._ap_safemode, self._java_safemode
-        ) as ap_proc:
+        with AsyncProfiledProcess(process, self._storage_dir, self._buildids, self._mode, self._ap_safemode) as ap_proc:
             return self._profile_ap_process(ap_proc)
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[StackToSampleCount]:
