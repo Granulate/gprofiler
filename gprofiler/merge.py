@@ -247,11 +247,12 @@ def concatenate_profiles(
 
     for pid, stacks in process_profiles.items():
         container_name = _get_container_name(pid, docker_client, add_container_names)
-        application_name = get_application_name(pid) if identify_applications else ""
+        application_name = get_application_name(pid) if identify_applications else None
+        if application_name is not None:
+            application_name = f"appid: {application_name}"
         prefix = (container_name + ";") if add_container_names else ""
         for stack, count in stacks.items():
             if identify_applications and application_name is not None:
-                application_name = f"appid: {application_name}"
                 # insert the app name between the first frame and all others
                 try:
                     first_frame, others = stack.split(";", maxsplit=1)
