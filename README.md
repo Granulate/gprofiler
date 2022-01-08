@@ -147,6 +147,14 @@ The following platforms are currently not supported with the gProfiler executabl
 
 **Remark:** container-based execution works and can be used in those cases.
 
+## Running on Databricks
+For Databricks, the same installation instructions as specified in the [running as an executable](#running-as-an-executable) section can be used (make sure to run them in the initialization script of your node).
+
+Additionally, 2 more flags need to be added to gProfiler's commandline: `--disable-pidns-check --perf-mode=none`. You can add them right after the `--service-name` argument.
+
+* `--disable-pidns-check` is required because gProfiler won't run in the init PID NS :)
+* `--perf-mode=none` is required because gProfiler will not have permissions to run system-wide `perf`, so we will profile only runtime processes. See [perf-less mode](#perf-less-mode) for more information.
+
 ## Running as a Kubernetes DaemonSet
 See [gprofiler.yaml](deploy/k8s/gprofiler.yaml) for a basic template of a DaemonSet running gProfiler.
 Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in the appropriate location!
@@ -198,9 +206,7 @@ So in order to deploy gProfiler, we need to modify a container definition to inc
 
     Additionally, we will set `entryPoint` to `["/bin/bash"]`. If you had used `entryPoint` prior to incorporating gProfiler, make sure to use it in the new `command`.
 
-    `--disable-pidns-check` is required because, well, we won't run in init PID NS :)
-
-    `--perf-mode none` is required because our container will not have permissions to run system-wide `perf`, so gProfiler will profile only runtime processes. See [perf-less mode](#perf-less-mode) for more information.
+    About `--disable-pidns-check` and `--perf-mode none` - please see the explanation in [running-on-databricks](#running-on-databricks), as it applies here as well.
 
     gProfiler and its installation process will send the outputs to your container's stdout & stderr. After verifying that everything works, you can append `> /dev/null 2>&1` to the gProfiler command parenthesis (in this example, before the `& python ...`) to prevent it from spamming your container logs.
 
