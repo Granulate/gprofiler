@@ -8,11 +8,13 @@ To upload results, you will have to register and generate a token on the website
 
 gProfiler runs on Linux (on x86_64 and Aarch64; Aarch64 support is not complete yet and not all runtime profilers are supported, see [architecture support](#architecture-support)).
 
+For installation methods, jump to [run as...](#run-as)
+
 ![Granulate Performance Studio example view](https://user-images.githubusercontent.com/58514213/124375504-36b0b200-dcab-11eb-8d64-caf20687a29f.gif)
 
-# Running
+# Configuration & parameters
 
-This section describes the possible options to control gProfiler's output, and the various execution modes (as a container, as an executable, etc...)
+This section describes the possible options to control gProfiler's behavior.
 
 ## Output options
 
@@ -59,7 +61,7 @@ For each profiling session (each profiling duration), gProfiler produces outputs
     * `pyspy`/`py-spy` - Use py-spy.
     * `disabled` - Disable profilers for Python.
 
-Profiling using eBPF incurs lower overhead & provides kernel stacks.
+Profiling using eBPF incurs lower overhead & provides kernel & native stacks.
 
 ### PHP profiling options
 * `--php-mode phpspy`: Enable PHP profiling with phpspy.
@@ -83,6 +85,7 @@ Profiling using eBPF incurs lower overhead & provides kernel stacks.
     * `disabled` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
 
 ## Other options
+
 ### Sending logs to server
 **By default, gProfiler sends logs to Granulate Performance Studio** (when using `--upload-results`/`-u` flag)
 This behavior can be disabled by passing `--dont-send-logs` or the setting environment variable `GPROFILER_DONT_SEND_LOGS=1`.
@@ -99,6 +102,10 @@ Otherwise, you can disable metrics and metadata by using the following parameter
 gProfiler can be run in a continuous mode, profiling periodically, using the `--continuous`/`-c` flag.
 Note that when using `--continuous` with `--output-dir`, a new file will be created during *each* sampling interval.
 Aggregations are only available when uploading to the Granulate Performance Studio.
+
+# Run as...
+
+This sections lists the various execution modes for gProfiler (as a container, as an executable, etc...).
 
 ## Running as a Docker container
 Run the following to have gProfiler running continuously, uploading to Granulate Performance Studio:
