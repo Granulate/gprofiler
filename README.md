@@ -141,7 +141,7 @@ you can add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current 
 sudo TMPDIR=/proc/self/cwd ./gprofiler -cu --token <token> --service-name <service> [options]
 ```
 
-#### Executable known issues
+### Executable known issues
 The following platforms are currently not supported with the gProfiler executable:
 + Alpine
 
@@ -162,7 +162,8 @@ helm show values .
 ```
 
 ## Running as an ECS (Elastic Container Service) Daemon service
-#### Creating the ECS Task Definition
+
+### Creating the ECS Task Definition
 - Go to ECS, and [create a new task definition](https://console.aws.amazon.com/ecs/home?region=us-east-1#/taskDefinitions/create)
 - Choose EC2, and click `Next Step`
 - Scroll to the bottom of the page, and click `Configure via JSON` \
@@ -175,7 +176,7 @@ helm show values .
 - Click `Save`
 - Click `Create`
 
-#### Deploying the gProfiler service
+### Deploying the gProfiler service
 
 * Go to your [ECS Clusters](https://console.aws.amazon.com/ecs/home?region=us-east-1#/clusters) and enter the relevant cluster
 * Click on `Services`, and choose `Create`
