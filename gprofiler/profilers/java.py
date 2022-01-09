@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import signal
+from collections import Counter
 from enum import Enum
 from pathlib import Path
 from threading import Event
@@ -515,6 +516,8 @@ class JavaProfiler(ProcessProfilerBase):
         self._ap_safemode = java_async_profiler_safemode
         self._init_java_safemode(java_safemode)
         self._should_profile = True
+        # if set, profiling is disabled due to this safemode reason.
+        self._safemode_disable_reason: Optional[str] = None
         self._profiled_pids: Set[int] = set()
         self._pids_to_remove: Set[int] = set()
         self._kernel_messages_provider = get_kernel_messages_provider()
@@ -545,9 +548,15 @@ class JavaProfiler(ProcessProfilerBase):
             ), f"async-profiler safemode must be set to 127 in --java-safemode={JAVA_SAFEMODE_ALL} (or --java-safemode)"
 
     def _disable_profiling(self, cause: str):
-        if self._should_profile and cause in self._java_safemode:
+        if self._safemode_disable_reason is None and cause in self._java_safemode:
             logger.warning("Java profiling has been disabled, will avoid profiling any new java processes", cause=cause)
-            self._should_profile = False
+            self._safemode_disable_reason = cause
+
+    def _profiling_error_stack(self, reason: str) -> StackToSampleCount:
+        # return 1 sample, it will be scaled later in merge_profiles().
+        # if --perf-mode=none mode is used, it will not, but we don't have anything logical to
+        # do here in that case :/
+        return Counter({f"[Profiling error: {reason}]": 1})
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -676,6 +685,9 @@ class JavaProfiler(ProcessProfilerBase):
         return False
 
     def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
+        if self._safemode_disable_reason is not None:
+            return self._profiling_error_stack(f"disabled due to {self._safemode_disable_reason}")
+
         if not self._is_profiling_supported(process):
             return None
 
@@ -759,9 +771,10 @@ class JavaProfiler(ProcessProfilerBase):
         self._disable_profiling(JavaSafemodeOptions.HSERR)
 
     def _select_processes_to_profile(self) -> List[Process]:
-        if not self._should_profile:
+        if self._safemode_disable_reason is not None:
             logger.debug("Java profiling has been disabled, skipping profiling of all java processes")
-            return []
+            # continue - _profile_process will return an appropriate error for each process selected for
+            # profiling.
         return pgrep_maps(r"^.+/libjvm\.so$")
 
     def start(self) -> None:
