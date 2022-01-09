@@ -4,6 +4,7 @@
 #
 import logging
 import signal
+from collections import Counter
 from pathlib import Path
 from threading import Event
 
@@ -178,7 +179,10 @@ def test_java_safemode_version_check(
     ) as profiler:
         process = profiler._select_processes_to_profile()[0]
         jvm_version = parse_jvm_version(profiler._get_java_version(process))
-        profiler.snapshot()
+        result = profiler.snapshot()
+        assert len(result) == 1
+        process_collapsed = result[next(iter(result.keys()))]
+        assert process_collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
     assert next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records)).gprofiler_adapter_extra[
         "jvm_version"
@@ -250,21 +254,25 @@ def test_hotspot_error_file(application_pid, tmp_path, monkeypatch, caplog):
     assert "libpthread.so" in caplog.text
     assert "memory_usage_in_bytes:" in caplog.text
     assert "Java profiling has been disabled, will avoid profiling any new java process" in caplog.text
-    assert not profiler._should_profile
+    assert profiler._safemode_disable_reason is not None
 
 
 def test_disable_java_profiling(application_pid, tmp_path, monkeypatch, caplog):
     caplog.set_level(logging.DEBUG)
 
     profiler = JavaProfiler(1, 5, Event(), str(tmp_path), False, False, "cpu", 0, False, "ap")
-    monkeypatch.setattr(profiler, "_should_profile", False)
+    dummy_reason = "dummy reason"
+    monkeypatch.setattr(profiler, "_safemode_disable_reason", dummy_reason)
     with profiler:
-        assert len(profiler.snapshot()) == 0
+        result = profiler.snapshot()
+        assert len(result) == 1
+        process_collapsed = result[next(iter(result.keys()))]
+        assert process_collapsed == Counter({f"java;[Profiling skipped: disabled due to {dummy_reason}]": 1})
 
     assert "Java profiling has been disabled, skipping profiling of all java process" in caplog.text
 
 
-def test_already_loaded_ap_profiling_failure(tmp_path, monkeypatch, caplog, application_pid) -> None:
+def test_already_loaded_async_profiler_profiling_failure(tmp_path, monkeypatch, caplog, application_pid) -> None:
     with monkeypatch.context() as m:
         m.setattr("gprofiler.profilers.java.TEMPORARY_STORAGE_PATH", "/tmp/fake_gprofiler_tmp")
         with JavaProfiler(
@@ -295,5 +303,8 @@ def test_already_loaded_ap_profiling_failure(tmp_path, monkeypatch, caplog, appl
     ) as profiler:
         process = profiler._select_processes_to_profile()[0]
         assert any("/tmp/fake_gprofiler_tmp" in mmap.path for mmap in process.memory_maps())
-        profiler.snapshot()
+        result = profiler.snapshot()
+        assert len(result) == 1
+        process_collapsed = result[next(iter(result.keys()))]
+        assert process_collapsed == Counter({"java;[Profiling skipped: async-profiler is already loaded]": 1})
         assert "Non-gProfiler async-profiler is already loaded to the target process" in caplog.text
