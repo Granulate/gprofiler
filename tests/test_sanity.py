@@ -59,7 +59,8 @@ def test_pyspy(
 ) -> None:
     _ = assert_application_name  # Required for mypy unused argument warning
     with PySpyProfiler(1000, 3, Event(), str(tmp_path), add_versions=True) as profiler:
-        process_collapsed = snapshot_one_collaped(profiler)
+        # not using snapshot_one_collaped because there are multiple Python processes running usually.
+        process_collapsed = profiler.snapshot().get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
         assert_function_in_collapsed("PyYAML==6.0", process_collapsed)  # Ensure package info is presented
         # Ensure Python version is presented
