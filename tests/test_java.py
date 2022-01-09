@@ -199,7 +199,8 @@ def test_java_safemode_build_number_check(
         process = profiler._select_processes_to_profile()[0]
         jvm_version = parse_jvm_version(profiler._get_java_version(process))
         monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (jvm_version.version, 999))
-        profiler.snapshot()
+        collapsed = snapshot_one_collaped(profiler)
+        assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
     assert next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records)).gprofiler_adapter_extra[
         "jvm_version"
