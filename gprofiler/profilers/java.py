@@ -631,7 +631,7 @@ class JavaProfiler(ProcessProfilerBase):
 
         return True
 
-    def _is_profiling_supported(self, process: Process) -> bool:
+    def _is_jvm_profiling_supported(self, process: Process) -> bool:
         process_basename = os.path.basename(process.exe())
         if JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS in self._java_safemode:
             # TODO we can get the "java" binary by extracting the java home from the libjvm path,
@@ -688,8 +688,8 @@ class JavaProfiler(ProcessProfilerBase):
         if self._safemode_disable_reason is not None:
             return self._profiling_error_stack(f"disabled due to {self._safemode_disable_reason}")
 
-        if not self._is_profiling_supported(process):
-            return None
+        if not self._is_jvm_profiling_supported(process):
+            return self._profiling_error_stack("profiling this JVM is not supported")
 
         if self._check_async_profiler_loaded(process):
             return None
