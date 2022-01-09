@@ -692,7 +692,7 @@ class JavaProfiler(ProcessProfilerBase):
             return self._profiling_error_stack("profiling this JVM is not supported")
 
         if self._check_async_profiler_loaded(process):
-            return None
+            return self._profiling_error_stack("async-profiler is already loaded")
 
         # track profiled PIDs only if proc_events are in use, otherwise there is no use in them.
         # TODO: it is possible to run in contexts where we're unable to use proc_events but are able to listen
