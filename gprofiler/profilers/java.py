@@ -31,7 +31,7 @@ from packaging.version import Version
 from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError
-from gprofiler.gprofiler_types import StackToSampleCount
+from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
@@ -856,7 +856,7 @@ class JavaProfiler(ProcessProfilerBase):
         else:
             self._handle_kernel_messages(messages)
 
-    def snapshot(self):
+    def snapshot(self) -> ProcessToStackSampleCounters:
         try:
             return super().snapshot()
         finally:
