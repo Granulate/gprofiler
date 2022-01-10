@@ -3,7 +3,10 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import logging
+import os
 import signal
+import threading
+import time
 from collections import Counter
 from pathlib import Path
 
@@ -187,3 +190,26 @@ def test_already_loaded_async_profiler_profiling_failure(tmp_path, monkeypatch, 
         collapsed = snapshot_one_collaped(profiler)
         assert collapsed == Counter({"java;[Profiling skipped: async-profiler is already loaded]": 1})
         assert "Non-gProfiler async-profiler is already loaded to the target process" in caplog.text
+
+
+# test only once; and don't test in container - as it will go down once we kill the Java app.
+@pytest.mark.parametrize("in_container", [False])
+@pytest.mark.parametrize("check_app_exited", [False])  # we're killing it, the exit check will raise.
+def test_async_profiler_output_written_upon_jvm_exit(tmp_path, application_pid, assert_collapsed, caplog) -> None:
+    """
+    Make sure async-profiler writes output upon process exit (and we manage to read it correctly)
+    """
+    caplog.set_level(logging.DEBUG)
+
+    with make_java_profiler(str(tmp_path), duration=10) as profiler:
+
+        def delayed_kill():
+            time.sleep(3)
+            os.kill(application_pid, signal.SIGINT)
+
+        threading.Thread(target=delayed_kill).start()
+
+        process_collapsed = snapshot_one_collaped(profiler)
+        assert_collapsed(process_collapsed, check_comm=True)
+
+        assert f"Profiled process {application_pid} exited before stopping async-profiler" in caplog.text

@@ -293,23 +293,24 @@ class AsyncProfiledProcess:
     def _get_extra_ap_args(self) -> str:
         return f",{self._ap_args}" if self._ap_args else ""
 
+    def _get_ap_output_args(self) -> str:
+        return f"file={self._output_path_process},{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS}"
+
     def _get_start_cmd(self, interval: int) -> List[str]:
         return self._get_base_cmd() + [
             f"start,event={self._mode},file={self._output_path_process},"
-            f"{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS},interval={interval},"
+            f"{self._get_ap_output_args()},interval={interval},"
             f"log={self._log_path_process}{',buildids' if self._buildids else ''}"
             f"{',fdtransfer' if self._mode == 'cpu' else ''}"
             f",safemode={self._ap_safemode}{self._get_extra_ap_args()}"
         ]
 
     def _get_stop_cmd(self, with_output: bool) -> List[str]:
-        ap_params = ["stop"]
-        if with_output:
-            ap_params.append(f"file={self._output_path_process}")
-            ap_params.append(self.OUTPUT_FORMAT)
-            ap_params.append(self.FORMAT_PARAMS)
-        ap_params.append(f"log={self._log_path_process}")
-        return self._get_base_cmd() + [",".join(ap_params) + self._get_extra_ap_args()]
+        return self._get_base_cmd() + [
+            f"stop,log={self._log_path_process}"
+            + (self._get_ap_output_args() if with_output else "")
+            + self._get_extra_ap_args()
+        ]
 
     def _run_async_profiler(self, cmd: List[str]) -> None:
         try:
@@ -749,8 +750,7 @@ class JavaProfiler(ProcessProfilerBase):
             # Process terminated, was it due to an error?
             self._check_hotspot_error(ap_proc)
             logger.debug(f"Profiled process {ap_proc.process.pid} exited before stopping async-profiler")
-            # no output in this case :/
-            return None
+            # fall-through - try to read the output, since async-profiler writes it upon JVM exit.
         finally:
             if is_process_running(ap_proc.process):
                 ap_proc.stop_async_profiler(True)
