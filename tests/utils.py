@@ -1,14 +1,19 @@
 import os
 import subprocess
 from pathlib import Path
+from threading import Event
 from typing import Dict, List, Mapping, Optional, Tuple
 
 from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 
+<<<<<<< HEAD
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.profilers.profiler_base import ProfilerInterface
+=======
+from gprofiler.profilers.java import JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE, JAVA_SAFEMODE_ALL, JavaProfiler
+>>>>>>> d80722c... tests: java: Add make_java_profiler() helper
 
 RUNTIME_PROFILERS = [
     ("java", "ap"),
@@ -107,3 +112,30 @@ def snapshot_one_collaped(profiler: ProfilerInterface) -> StackToSampleCount:
     result = profiler.snapshot()
     assert len(result) == 1
     return next(iter(result.values()))
+
+def make_java_profiler(
+    storage_dir: str,
+    frequency: int = 11,
+    duration: int = 1,
+    stop_event: Event = Event(),
+    java_async_profiler_buildids: bool = False,
+    java_version_check: bool = True,
+    java_async_profiler_mode: str = "cpu",
+    java_async_profiler_safemode: int = JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
+    java_async_profiler_args: str = "",
+    java_safemode: str = JAVA_SAFEMODE_ALL,
+    java_mode: str = "ap",
+) -> JavaProfiler:
+    return JavaProfiler(
+        frequency=frequency,
+        duration=duration,
+        stop_event=stop_event,
+        storage_dir=storage_dir,
+        java_async_profiler_buildids=java_async_profiler_buildids,
+        java_version_check=java_version_check,
+        java_async_profiler_mode="cpu",
+        java_async_profiler_safemode=0,
+        java_async_profiler_args="",
+        java_safemode="",
+        java_mode="ap",
+    )

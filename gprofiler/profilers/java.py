@@ -86,6 +86,8 @@ JAVA_SAFEMODE_DEFAULT_OPTIONS = [
     JavaSafemodeOptions.HSERR.value,
 ]
 
+JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 0  # all off
+
 
 class JattachException(CalledProcessError):
     def __init__(self, returncode, cmd, stdout, stderr, target_pid: int, ap_log: str):
@@ -461,7 +463,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             "--java-async-profiler-safemode",
             dest="java_async_profiler_safemode",
             type=int,
-            default=0,
+            default=JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
             choices=range(0, 128),
             metavar="[0-127]",
             help="Controls the 'safemode' parameter passed to async-profiler. This is parameter denotes multiple"
