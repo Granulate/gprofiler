@@ -54,6 +54,11 @@ from gprofiler.utils import (
 logger = get_logger_adapter(__name__)
 
 
+def frequency_to_ap_interval(frequency: int):
+    # async-profiler accepts interval between samples (nanoseconds)
+    return int((1 / frequency) * 1_000_000_000)
+
+
 JAVA_SAFEMODE_ALL = "all"  # magic value for *all* options from JavaSafemodeOptions
 
 
@@ -296,13 +301,13 @@ class AsyncProfiledProcess:
     def _get_ap_output_args(self) -> str:
         return f"file={self._output_path_process},{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS}"
 
-    def _get_start_cmd(self, interval: int) -> List[str]:
+    def _get_start_cmd(self, interval: int, ap_timeout: int) -> List[str]:
         return self._get_base_cmd() + [
             f"start,event={self._mode},file={self._output_path_process},"
             f"{self._get_ap_output_args()},interval={interval},"
             f"log={self._log_path_process}{',buildids' if self._buildids else ''}"
             f"{',fdtransfer' if self._mode == 'cpu' else ''}"
-            f",safemode={self._ap_safemode}{self._get_extra_ap_args()}"
+            f",safemode={self._ap_safemode},timeout={ap_timeout}{self._get_extra_ap_args()}"
         ]
 
     def _get_stop_cmd(self, with_output: bool) -> List[str]:
@@ -334,14 +339,15 @@ class AsyncProfiledProcess:
         """
         run_process([fdtransfer_path(), str(self.process.pid)], communicate=False)
 
-    def start_async_profiler(self, interval: int, second_try: bool = False) -> bool:
+    def start_async_profiler(self, interval: int, second_try: bool = False, ap_timeout: int = 0) -> bool:
         """
         Returns True if profiling was started; False if it was already started.
+        ap_timeout defaults to 0, which means "no timeout" for AP (see call to startTimer() in profiler.cpp)
         """
         if self._mode == "cpu" and not second_try:
             self._run_fdtransfer()
 
-        start_cmd = self._get_start_cmd(interval)
+        start_cmd = self._get_start_cmd(interval, ap_timeout)
         try:
             self._run_async_profiler(start_cmd)
             return True
@@ -503,6 +509,11 @@ class JavaProfiler(ProcessProfilerBase):
         17: (Version("17.0.1"), 12),
     }
 
+    # extra timeout seconds to add to the duration itself.
+    # once the timeout triggers, AP remains stopped, so if it triggers before we tried to stop
+    # AP ourselves, we'll be in messed up state. hence, we add 30s which is enough.
+    _AP_EXTRA_TIMEOUT_S = 30
+
     def __init__(
         self,
         frequency: int,
@@ -520,8 +531,7 @@ class JavaProfiler(ProcessProfilerBase):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
         super().__init__(frequency, duration, stop_event, storage_dir)
 
-        # async-profiler accepts interval between samples (nanoseconds)
-        self._interval = int((1 / frequency) * 1000_000_000)
+        self._interval = frequency_to_ap_interval(frequency)
         self._buildids = java_async_profiler_buildids
         # simple version check, and
         self._simple_version_check = java_version_check
@@ -538,6 +548,7 @@ class JavaProfiler(ProcessProfilerBase):
         self._pids_to_remove: Set[int] = set()
         self._kernel_messages_provider = get_kernel_messages_provider()
         self._enabled_proc_events = False
+        self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
 
     def _init_java_safemode(self, java_safemode: str) -> None:
         if java_safemode == JAVA_SAFEMODE_ALL:
@@ -721,12 +732,17 @@ class JavaProfiler(ProcessProfilerBase):
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
         with AsyncProfiledProcess(
-            process, self._storage_dir, self._buildids, self._mode, self._ap_safemode, self._ap_args
+            process,
+            self._storage_dir,
+            self._buildids,
+            self._mode,
+            self._ap_safemode,
+            self._ap_args,
         ) as ap_proc:
             return self._profile_ap_process(ap_proc, comm)
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str) -> Optional[StackToSampleCount]:
-        started = ap_proc.start_async_profiler(self._interval)
+        started = ap_proc.start_async_profiler(self._interval, ap_timeout=self._ap_timeout)
         if not started:
             logger.info(f"Found async-profiler already started on {ap_proc.process.pid}, trying to stop it...")
             # stop, and try to start again. this might happen if AP & gProfiler go out of sync: for example,
@@ -735,7 +751,7 @@ class JavaProfiler(ProcessProfilerBase):
             # not using the "resume" action because I'm not sure it properly reconfigures all settings; while stop;start
             # surely does.
             ap_proc.stop_async_profiler(with_output=False)
-            started = ap_proc.start_async_profiler(self._interval, second_try=True)
+            started = ap_proc.start_async_profiler(self._interval, second_try=True, ap_timeout=self._ap_timeout)
             if not started:
                 raise Exception(
                     f"async-profiler is still running in {ap_proc.process.pid}, even after trying to stop it!"

@@ -10,10 +10,11 @@ import time
 from collections import Counter
 from pathlib import Path
 
+import psutil
 import pytest
 from packaging.version import Version
 
-from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler, parse_jvm_version
+from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler, frequency_to_ap_interval, parse_jvm_version
 from tests.utils import assert_function_in_collapsed, snapshot_one_collaped, make_java_profiler
 
 
@@ -37,16 +38,23 @@ def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_p
     caplog.set_level(logging.INFO)
     with make_java_profiler(str(tmp_path)) as profiler:
         process = profiler._select_processes_to_profile()[0]
-        with AsyncProfiledProcess(process, profiler._storage_dir, False, profiler._mode, False, "") as ap_proc:
-            assert ap_proc.start_async_profiler(11)
+        with AsyncProfiledProcess(
+            process=process,
+            storage_dir=profiler._storage_dir,
+            buildis=False,
+            mode=profiler._mode,
+            ap_safemode=0,
+            ap_args="",
+        ) as ap_proc:
+            assert ap_proc.start_async_profiler(frequency_to_ap_interval(11))
         assert any("libasyncProfiler.so" in m.path for m in process.memory_maps())
         # run "status"
         with AsyncProfiledProcessForTests(
-            process,
-            profiler._storage_dir,
-            False,
+            process=process,
+            storage_dir=profiler._storage_dir,
+            buildis=False,
             mode="itimer",
-            ap_safemode=False,
+            ap_safemode=0,
             ap_args="",
         ) as ap_proc:
             ap_proc.status_async_profiler()
@@ -213,3 +221,28 @@ def test_async_profiler_output_written_upon_jvm_exit(tmp_path, application_pid, 
         assert_collapsed(process_collapsed, check_comm=True)
 
         assert f"Profiled process {application_pid} exited before stopping async-profiler" in caplog.text
+
+
+# test only once
+@pytest.mark.parametrize("in_container", [False])
+def test_async_profiler_timeout_stop(tmp_path, application_pid, assert_collapsed, caplog) -> None:
+    """
+    Make sure that async-profiler stops after the given output.
+    """
+    caplog.set_level(logging.DEBUG)
+
+    process = psutil.Process(application_pid)
+    timeout_s = 5
+    with AsyncProfiledProcessForTests(
+        process=process, storage_dir=str(tmp_path), buildids=False, mode="itimer", ap_safemode=0, ap_args=""
+    ) as ap_proc:
+        assert ap_proc.start_async_profiler(frequency_to_ap_interval(11), ap_timeout=timeout_s)
+
+        ap_proc.status_async_profiler()
+        assert "Profiling is running for " in ap_proc.read_output()
+
+        # let the timeout trigger
+        time.sleep(timeout_s)
+
+        ap_proc.status_async_profiler()
+        assert "Profiler is not active\n" in ap_proc.read_output()
