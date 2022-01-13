@@ -57,6 +57,7 @@ def run_privileged_container(
 
 
 def _no_errors(logs: str):
+    print(logs)  # will be displayed if the test fails
     # example line: [2021-06-12 10:13:57,528] ERROR: gprofiler: ruby profiling failed
     assert "] ERROR: " not in logs, "found ERRORs in gProfiler logs!"
 
