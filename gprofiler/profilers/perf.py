@@ -19,6 +19,7 @@ from gprofiler.utils import perf_path, run_process, start_process, wait_event, w
 logger = get_logger_adapter(__name__)
 
 
+# TODO: automatically disable this profiler if can_i_use_perf_events() returns False?
 class PerfProcess:
     _dump_timeout_s = 5
     _poll_timeout_s = 5
