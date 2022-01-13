@@ -86,7 +86,8 @@ def test_java_async_profiler_cpu_mode(
         str(tmp_path),
         False,
         True,
-        java_async_profiler_mode="cpu",
+        # this ensures auto selection picks CPU by default, if possible.
+        java_async_profiler_mode="auto",
         java_async_profiler_safemode=0,
         java_async_profiler_args="",
         java_safemode="",
