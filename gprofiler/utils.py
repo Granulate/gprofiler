@@ -488,3 +488,21 @@ def get_kernel_release() -> Tuple[int, int]:
     """Return Linux kernel version as (major, minor) tuple."""
     major_str, minor_str = os.uname().release.split(".", maxsplit=2)[:2]
     return int(major_str), int(minor_str)
+
+
+def perf_path() -> str:
+    return resource_path("perf")
+
+
+def can_i_use_perf_events() -> bool:
+    # checks access to perf_events
+    try:
+        run_process([perf_path(), "record", "-o", "/dev/null", "--", "/bin/true"])
+    except CalledProcessError as e:
+        # perf's output upon start error (e.g due to permissions denied error)
+        if e.returncode == 255 and "perf_event_open(..., 0) failed unexpectedly with error" in e.stderr:
+            return False
+        raise
+    else:
+        # all good
+        return True
