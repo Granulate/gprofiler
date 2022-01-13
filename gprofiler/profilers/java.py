@@ -453,7 +453,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             "--java-async-profiler-mode",
             dest="java_async_profiler_mode",
             choices=["cpu", "itimer"],
-            default="itimer",
+            default="cpu",
             help="Select async-profiler's mode: 'cpu' (based on perf_events & fdtransfer) or 'itimer' (no perf_events)."
             " Defaults to '%(default)s'.",
         ),
