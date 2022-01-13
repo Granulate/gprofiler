@@ -542,6 +542,7 @@ class JavaProfiler(ProcessProfilerBase):
     def _init_ap_mode(self, ap_mode: str) -> None:
         if ap_mode == "auto":
             ap_mode = "cpu" if can_i_use_perf_events() else "itimer"
+            logger.debug("Auto selected AP mode", ap_mode=ap_mode)
 
         assert ap_mode in SUPPORTED_AP_MODES, f"unexpected ap mode: {ap_mode}"
         self._mode = ap_mode
