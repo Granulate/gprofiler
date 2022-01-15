@@ -139,9 +139,6 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_
     if term_on_parent_death:
         cur_preexec_fn = wrap_callbacks([set_child_termination_on_parent_death, cur_preexec_fn])
 
-    print("env", env)
-    print("os.environ", os.environ)
-
     popen = Popen(
         cmd,
         stdout=kwargs.pop("stdout", subprocess.PIPE),
