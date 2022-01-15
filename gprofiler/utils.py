@@ -132,13 +132,15 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_
         else:
             # explicitly remove our directory from LD_LIBRARY_PATH
             env = env if env is not None else os.environ.copy()
-            print("LD_LIBRARY_PATH", env.get("LD_LIBRARY_PATH"))
             env.update({"LD_LIBRARY_PATH": ""})
 
     cur_preexec_fn = kwargs.pop("preexec_fn", os.setpgrp)
 
     if term_on_parent_death:
         cur_preexec_fn = wrap_callbacks([set_child_termination_on_parent_death, cur_preexec_fn])
+
+    print("env", env)
+    print("os.environ", os.environ)
 
     popen = Popen(
         cmd,
