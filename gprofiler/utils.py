@@ -132,6 +132,7 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_
         else:
             # explicitly remove our directory from LD_LIBRARY_PATH
             env = env if env is not None else os.environ.copy()
+            print("LD_LIBRARY_PATH", env.get("LD_LIBRARY_PATH"))
             env.update({"LD_LIBRARY_PATH": ""})
 
     cur_preexec_fn = kwargs.pop("preexec_fn", os.setpgrp)
@@ -270,12 +271,13 @@ def pgrep_exe(match: str) -> List[Process]:
 def pgrep_maps(match: str) -> List[Process]:
     # this is much faster than iterating over processes' maps with psutil.
     result = run_process(
-        f"grep -lP '{match}' /proc/*/maps",
+        f"/bin/grep -lP '{match}' /proc/*/maps",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         shell=True,
         suppress_log=True,
         check=False,
+        env={},
     )
     # 0 - found
     # 1 - not found

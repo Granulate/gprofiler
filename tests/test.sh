@@ -7,8 +7,8 @@ set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"  # https://stackoverflow.com/a/246128
 
-sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends libc6
+sudo DEBIAN_FRONTEND=noninteractive apt-get update
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libc6
 
 if [ -z ${NO_APT_INSTALL+x} ]; then
  sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update
