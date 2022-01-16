@@ -16,6 +16,7 @@ from typing import Any, Optional
 import psutil
 import pytest
 from docker.models.containers import Container
+from flaky import flaky  # type: ignore
 from packaging.version import Version
 from pytest import LogCaptureFixture, MonkeyPatch
 
@@ -38,6 +39,7 @@ def runtime() -> str:
     return "java"
 
 
+@flaky(max_runs=2)
 def test_async_profiler_already_running(
     application_pid: int, assert_collapsed: AssertInCollapsed, tmp_path: Path, caplog: LogCaptureFixture
 ) -> None:
