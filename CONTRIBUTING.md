@@ -15,7 +15,7 @@ on you machine:
 
 To get the source of `gprofiler`, clone the git repository via:
 ````bash
-git clone https://github.com/granulate/gprofiler
+git clone --recursive https://github.com/granulate/gprofiler
 ````
 
 This will clone the complete source to your local machine. Navigate to the project folder
