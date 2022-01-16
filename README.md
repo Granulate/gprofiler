@@ -105,7 +105,7 @@ Aggregations are only available when uploading to the Granulate Performance Stud
 
 # Run as...
 
-This sections lists the various execution modes for gProfiler (as a container, as an executable, etc...).
+This section lists the various execution modes for gProfiler (as a container, as an executable, etc...).
 
 ## Running as a Docker container
 Run the following to have gProfiler running continuously, uploading to Granulate Performance Studio:
