@@ -22,7 +22,7 @@ from granulate_utils.java import (
     VM_INFO_REGEX,
     locate_hotspot_error_file,
 )
-from granulate_utils.linux import proc_events
+from granulate_utils.linux import proc_events, ns
 from granulate_utils.linux.ns import get_proc_root_path, resolve_proc_root_links, run_in_ns
 from granulate_utils.linux.oom import get_oom_entry
 from granulate_utils.linux.signals import get_signal_entry
@@ -38,7 +38,6 @@ from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
-    get_process_nspid,
     is_process_running,
     pgrep_maps,
     process_comm,
@@ -147,7 +146,7 @@ class AsyncProfiledProcess:
         self._process_root = get_proc_root_path(process)
         self._cmdline = process.cmdline()
         self._cwd = process.cwd()
-        self._nspid = get_process_nspid(self.process.pid)
+        self._nspid = ns.get_process_nspid(self.process.pid)
 
         # not using storage_dir for AP itself on purpose: this path should remain constant for the lifetime
         # of the target process, so AP is loaded exactly once (if we have multiple paths, AP can be loaded
@@ -216,7 +215,6 @@ class AsyncProfiledProcess:
     def locate_hotspot_error_file(self) -> Optional[str]:
         # nspid is required
         if self._nspid is None:
-            # TODO: fix get_process_nspid so it always succeeds
             return None
 
         for path in locate_hotspot_error_file(self._nspid, self._cmdline):
@@ -581,7 +579,7 @@ class JavaProfiler(ProcessProfilerBase):
 
     @staticmethod
     def _get_java_version(process: Process) -> str:
-        nspid = get_process_nspid(process.pid)
+        nspid = ns.get_process_nspid(process.pid)
         if nspid is not None:
             # this has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
             # in that case, the libraries would have been replaced as well, and therefore we're actually checking
@@ -596,7 +594,6 @@ class JavaProfiler(ProcessProfilerBase):
             #    other JDK types.
             java_path = f"/proc/{nspid}/exe"
         else:
-            # TODO fix get_process_nspid() for all cases.
             java_path = os.readlink(f"/proc/{process.pid}/exe")
 
         java_version_cmd_output = None
