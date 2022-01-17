@@ -134,6 +134,7 @@ class AsyncProfiledProcess:
         buildids: bool,
         mode: str,
         ap_safemode: int,
+        ap_args: str,
     ):
         self.process = process
         # access the process' root via its topmost parent/ancestor which uses the same mount namespace.
@@ -178,6 +179,7 @@ class AsyncProfiledProcess:
         assert mode in ("cpu", "itimer"), f"unexpected mode: {mode}"
         self._mode = mode
         self._ap_safemode = ap_safemode
+        self._ap_args = ap_args
 
     def __enter__(self):
         os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
@@ -286,13 +288,16 @@ class AsyncProfiledProcess:
             "true",
         ]
 
+    def _get_extra_ap_args(self) -> str:
+        return f",{self._ap_args}" if self._ap_args else ""
+
     def _get_start_cmd(self, interval: int) -> List[str]:
         return self._get_base_cmd() + [
             f"start,event={self._mode},file={self._output_path_process},"
             f"{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS},interval={interval},"
             f"log={self._log_path_process}{',buildids' if self._buildids else ''}"
             f"{',fdtransfer' if self._mode == 'cpu' else ''}"
-            f",safemode={self._ap_safemode}"
+            f",safemode={self._ap_safemode}{self._get_extra_ap_args()}"
         ]
 
     def _get_stop_cmd(self, with_output: bool) -> List[str]:
@@ -302,7 +307,7 @@ class AsyncProfiledProcess:
             ap_params.append(self.OUTPUT_FORMAT)
             ap_params.append(self.FORMAT_PARAMS)
         ap_params.append(f"log={self._log_path_process}")
-        return self._get_base_cmd() + [",".join(ap_params)]
+        return self._get_base_cmd() + [",".join(ap_params) + self._get_extra_ap_args()]
 
     def _run_async_profiler(self, cmd: List[str]) -> None:
         try:
@@ -465,6 +470,12 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             " Defaults to '%(default)s').",
         ),
         ProfilerArgument(
+            "--java-async-profiler-args",
+            dest="java_async_profiler_args",
+            type=str,
+            help="Additional arguments to pass directly to async-profiler (start & stop commands)",
+        ),
+        ProfilerArgument(
             "--java-safemode",
             dest="java_safemode",
             type=str,
@@ -499,6 +510,7 @@ class JavaProfiler(ProcessProfilerBase):
         java_version_check: bool,
         java_async_profiler_mode: str,
         java_async_profiler_safemode: int,
+        java_async_profiler_args: str,
         java_safemode: str,
         java_mode: str,
     ):
@@ -514,6 +526,7 @@ class JavaProfiler(ProcessProfilerBase):
             logger.warning("Java version checks are disabled")
         self._mode = java_async_profiler_mode
         self._ap_safemode = java_async_profiler_safemode
+        self._ap_args = java_async_profiler_args
         self._init_java_safemode(java_safemode)
         self._should_profile = True
         # if set, profiling is disabled due to this safemode reason.
@@ -704,7 +717,9 @@ class JavaProfiler(ProcessProfilerBase):
             self._profiled_pids.add(process.pid)
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
-        with AsyncProfiledProcess(process, self._storage_dir, self._buildids, self._mode, self._ap_safemode) as ap_proc:
+        with AsyncProfiledProcess(
+            process, self._storage_dir, self._buildids, self._mode, self._ap_safemode, self._ap_args
+        ) as ap_proc:
             return self._profile_ap_process(ap_proc, comm)
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str) -> Optional[StackToSampleCount]:

@@ -42,11 +42,12 @@ def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_p
         False,
         java_async_profiler_mode="cpu",
         java_async_profiler_safemode=0,
+        java_async_profiler_args="",
         java_safemode="",
         java_mode="ap",
     ) as profiler:
         process = profiler._select_processes_to_profile()[0]
-        with AsyncProfiledProcess(process, profiler._storage_dir, False, profiler._mode, False) as ap_proc:
+        with AsyncProfiledProcess(process, profiler._storage_dir, False, profiler._mode, False, "") as ap_proc:
             assert ap_proc.start_async_profiler(11)
         assert any("libasyncProfiler.so" in m.path for m in process.memory_maps())
         # run "status"
@@ -56,6 +57,7 @@ def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_p
             False,
             mode="itimer",
             ap_safemode=False,
+            ap_args="",
         ) as ap_proc:
             ap_proc.status_async_profiler()
             # printed the output file, see ACTION_STATUS case in async-profiler/profiler.cpp
@@ -86,6 +88,7 @@ def test_java_async_profiler_cpu_mode(
         True,
         java_async_profiler_mode="cpu",
         java_async_profiler_safemode=0,
+        java_async_profiler_args="",
         java_safemode="",
         java_mode="ap",
     ) as profiler:
@@ -114,6 +117,7 @@ def test_java_async_profiler_musl_and_cpu(
         True,
         java_async_profiler_mode="cpu",
         java_async_profiler_safemode=0,
+        java_async_profiler_args="",
         java_safemode="",
         java_mode="ap",
     ) as profiler:
@@ -133,6 +137,7 @@ def test_java_safemode_parameters(tmp_path) -> None:
             True,
             java_async_profiler_mode="cpu",
             java_async_profiler_safemode=0,
+            java_async_profiler_args="",
             java_safemode=JAVA_SAFEMODE_ALL,
             java_mode="ap",
         )
@@ -148,6 +153,7 @@ def test_java_safemode_parameters(tmp_path) -> None:
             False,
             java_async_profiler_mode="cpu",
             java_async_profiler_safemode=127,
+            java_async_profiler_args="",
             java_safemode=JAVA_SAFEMODE_ALL,
             java_mode="ap",
         )
@@ -168,6 +174,7 @@ def test_java_safemode_version_check(
         True,
         java_async_profiler_mode="cpu",
         java_async_profiler_safemode=127,
+        java_async_profiler_args="",
         java_safemode=JAVA_SAFEMODE_ALL,
         java_mode="ap",
     ) as profiler:
@@ -193,6 +200,7 @@ def test_java_safemode_build_number_check(
         True,
         java_async_profiler_mode="cpu",
         java_async_profiler_safemode=127,
+        java_async_profiler_args="",
         java_safemode=JAVA_SAFEMODE_ALL,
         java_mode="ap",
     ) as profiler:
@@ -235,6 +243,7 @@ def test_hotspot_error_file(application_pid, tmp_path, monkeypatch, caplog):
         True,
         java_async_profiler_mode="cpu",
         java_async_profiler_safemode=127,
+        java_async_profiler_args="",
         java_safemode=JAVA_SAFEMODE_ALL,
         java_mode="ap",
     )
@@ -253,7 +262,7 @@ def test_hotspot_error_file(application_pid, tmp_path, monkeypatch, caplog):
 def test_disable_java_profiling(application_pid, tmp_path, monkeypatch, caplog):
     caplog.set_level(logging.DEBUG)
 
-    profiler = JavaProfiler(1, 5, Event(), str(tmp_path), False, False, "cpu", 0, False, "ap")
+    profiler = JavaProfiler(1, 5, Event(), str(tmp_path), False, False, "cpu", 0, "", False, "ap")
     dummy_reason = "dummy reason"
     monkeypatch.setattr(profiler, "_safemode_disable_reason", dummy_reason)
     with profiler:
@@ -275,6 +284,7 @@ def test_already_loaded_async_profiler_profiling_failure(tmp_path, monkeypatch, 
             True,
             java_async_profiler_mode="cpu",
             java_async_profiler_safemode=127,
+            java_async_profiler_args="",
             java_safemode=JAVA_SAFEMODE_ALL,
             java_mode="ap",
         ) as profiler:
@@ -289,6 +299,7 @@ def test_already_loaded_async_profiler_profiling_failure(tmp_path, monkeypatch, 
         True,
         java_async_profiler_mode="cpu",
         java_async_profiler_safemode=127,
+        java_async_profiler_args="",
         java_safemode=JAVA_SAFEMODE_ALL,
         java_mode="ap",
     ) as profiler:
