@@ -41,6 +41,7 @@ def test_java_from_host(
         True,
         java_async_profiler_mode="itimer",
         java_async_profiler_safemode=0,
+        java_async_profiler_args="",
         java_safemode="",
         java_mode="ap",
     ) as profiler:
