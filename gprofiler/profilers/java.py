@@ -8,7 +8,6 @@ import json
 import os
 import re
 import shutil
-import signal
 from collections import Counter
 from enum import Enum
 from pathlib import Path
@@ -22,6 +21,7 @@ from granulate_utils.java import (
     SIGINFO_REGEX,
     VM_INFO_REGEX,
     is_java_fatal_signal,
+    java_exit_code_to_signo,
     locate_hotspot_error_file,
 )
 from granulate_utils.linux import proc_events
@@ -817,13 +817,9 @@ class JavaProfiler(ProcessProfilerBase):
         if tid in self._profiled_pids:
             self._pids_to_remove.add(tid)
 
-            if os.WIFSIGNALED(exit_code):
-                signo = os.WTERMSIG(exit_code)
-            elif exit_code == 0x8F00:
-                # java exits with 143 upon SIGTERM
-                signo = signal.SIGTERM.value
-            else:
-                # not a signal - don't report it.
+            signo = java_exit_code_to_signo(exit_code)
+            if signo is None:
+                # not a signal, do not report
                 return
 
             logger.warning("async-profiled Java process exited with signal", pid=tid, signal=signo)
