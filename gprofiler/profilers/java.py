@@ -21,6 +21,7 @@ from granulate_utils.java import (
     NATIVE_FRAMES_REGEX,
     SIGINFO_REGEX,
     VM_INFO_REGEX,
+    is_java_fatal_signal,
     locate_hotspot_error_file,
 )
 from granulate_utils.linux import proc_events
@@ -827,13 +828,7 @@ class JavaProfiler(ProcessProfilerBase):
 
             logger.warning("async-profiled Java process exited with signal", pid=tid, signal=signo)
 
-            # SIGABRT is what JVMs (at least HotSpot) exit with upon a VM error (e.g after writing the hs_err file).
-            # SIGKILL is the result of OOM.
-            # SIGSEGV is added because in some extreme cases, the signal handler (which usually ends up with SIGABRT)
-            # causes another SIGSEGV (possibly in some loop), and eventually Java really dies with SIGSEGV.
-            # Other signals (such as SIGTERM which is common) are ignored until proven relevant
-            # to hard errors such as crashes. (SIGTERM, for example, is used as containers' stop signal)
-            if signo in (signal.SIGABRT.value, signal.SIGKILL.value, signal.SIGSEGV.value):
+            if is_java_fatal_signal(signo):
                 self._disable_profiling(JavaSafemodeOptions.PROFILED_SIGNALED)
 
     def _handle_kernel_messages(self, messages):
