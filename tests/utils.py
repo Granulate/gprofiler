@@ -106,4 +106,4 @@ def assert_function_in_collapsed(function_name: str, collapsed: Mapping[str, int
 def snapshot_one_collaped(profiler: ProfilerInterface) -> StackToSampleCount:
     result = profiler.snapshot()
     assert len(result) == 1
-    return result[next(iter(result.keys()))]
+    return next(iter(result.values()))
