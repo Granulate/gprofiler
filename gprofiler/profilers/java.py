@@ -456,7 +456,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             "--java-async-profiler-safemode",
             dest="java_async_profiler_safemode",
             type=int,
-            default=127,
+            default=0,
             choices=range(0, 128),
             metavar="[0-127]",
             help="Controls the 'safemode' parameter passed to async-profiler. This is parameter denotes multiple"
