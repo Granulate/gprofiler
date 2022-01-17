@@ -17,7 +17,12 @@ from gprofiler.profilers.php import PHPSpyProfiler
 from gprofiler.profilers.python import PySpyProfiler, PythonEbpfProfiler
 from gprofiler.profilers.ruby import RbSpyProfiler
 from tests import PHPSPY_DURATION
-from tests.utils import RUNTIME_PROFILERS, assert_function_in_collapsed, run_gprofiler_in_container
+from tests.utils import (
+    RUNTIME_PROFILERS,
+    assert_function_in_collapsed,
+    run_gprofiler_in_container,
+    snapshot_one_collaped,
+)
 
 
 @pytest.mark.parametrize("runtime", ["java"])
@@ -40,9 +45,7 @@ def test_java_from_host(
         java_mode="ap",
     ) as profiler:
         _ = assert_application_name  # Required for mypy unused argument warning
-        result = profiler.snapshot()
-        assert len(result) == 1
-        process_collapsed = result[next(iter(result.keys()))]
+        process_collapsed = snapshot_one_collaped(profiler)
         assert_collapsed(process_collapsed, check_comm=True)
 
 
@@ -56,6 +59,7 @@ def test_pyspy(
 ) -> None:
     _ = assert_application_name  # Required for mypy unused argument warning
     with PySpyProfiler(1000, 3, Event(), str(tmp_path), add_versions=True) as profiler:
+        # not using snapshot_one_collaped because there are multiple Python processes running usually.
         process_collapsed = profiler.snapshot().get(application_pid)
         assert_collapsed(process_collapsed, check_comm=True)
         assert_function_in_collapsed("PyYAML==6.0", process_collapsed)  # Ensure package info is presented
@@ -85,7 +89,7 @@ def test_rbspy(
     gprofiler_docker_image: Image,
 ) -> None:
     with RbSpyProfiler(1000, 3, Event(), str(tmp_path), "rbspy") as profiler:
-        process_collapsed = profiler.snapshot().get(application_pid)
+        process_collapsed = snapshot_one_collaped(profiler)
         assert_collapsed(process_collapsed, check_comm=True)
 
 

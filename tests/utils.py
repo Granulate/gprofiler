@@ -7,6 +7,9 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 
+from gprofiler.gprofiler_types import StackToSampleCount
+from gprofiler.profilers.profiler_base import ProfilerInterface
+
 RUNTIME_PROFILERS = [
     ("java", "ap"),
     ("python", "py-spy"),
@@ -98,3 +101,9 @@ def assert_function_in_collapsed(function_name: str, collapsed: Mapping[str, int
     assert any(
         (function_name in record) for record in collapsed.keys()
     ), f"function {function_name!r} missing in collapsed data!"
+
+
+def snapshot_one_collaped(profiler: ProfilerInterface) -> StackToSampleCount:
+    result = profiler.snapshot()
+    assert len(result) == 1
+    return next(iter(result.values()))

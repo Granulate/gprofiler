@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import signal
+from collections import Counter
 from enum import Enum
 from pathlib import Path
 from threading import Event
@@ -30,7 +31,7 @@ from packaging.version import Version
 from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError
-from gprofiler.gprofiler_types import StackToSampleCount
+from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
@@ -515,6 +516,8 @@ class JavaProfiler(ProcessProfilerBase):
         self._ap_safemode = java_async_profiler_safemode
         self._init_java_safemode(java_safemode)
         self._should_profile = True
+        # if set, profiling is disabled due to this safemode reason.
+        self._safemode_disable_reason: Optional[str] = None
         self._profiled_pids: Set[int] = set()
         self._pids_to_remove: Set[int] = set()
         self._kernel_messages_provider = get_kernel_messages_provider()
@@ -545,9 +548,15 @@ class JavaProfiler(ProcessProfilerBase):
             ), f"async-profiler safemode must be set to 127 in --java-safemode={JAVA_SAFEMODE_ALL} (or --java-safemode)"
 
     def _disable_profiling(self, cause: str):
-        if self._should_profile and cause in self._java_safemode:
+        if self._safemode_disable_reason is None and cause in self._java_safemode:
             logger.warning("Java profiling has been disabled, will avoid profiling any new java processes", cause=cause)
-            self._should_profile = False
+            self._safemode_disable_reason = cause
+
+    def _profiling_skipped_stack(self, reason: str, comm: str) -> StackToSampleCount:
+        # return 1 sample, it will be scaled later in merge_profiles().
+        # if --perf-mode=none mode is used, it will not, but we don't have anything logical to
+        # do here in that case :/
+        return Counter({f"{comm};[Profiling skipped: {reason}]": 1})
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -622,7 +631,7 @@ class JavaProfiler(ProcessProfilerBase):
 
         return True
 
-    def _is_profiling_supported(self, process: Process) -> bool:
+    def _is_jvm_profiling_supported(self, process: Process) -> bool:
         process_basename = os.path.basename(process.exe())
         if JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS in self._java_safemode:
             # TODO we can get the "java" binary by extracting the java home from the libjvm path,
@@ -676,11 +685,16 @@ class JavaProfiler(ProcessProfilerBase):
         return False
 
     def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
-        if not self._is_profiling_supported(process):
-            return None
+        comm = process_comm(process)
+
+        if self._safemode_disable_reason is not None:
+            return self._profiling_skipped_stack(f"disabled due to {self._safemode_disable_reason}", comm)
+
+        if not self._is_jvm_profiling_supported(process):
+            return self._profiling_skipped_stack("profiling this JVM is not supported", comm)
 
         if self._check_async_profiler_loaded(process):
-            return None
+            return self._profiling_skipped_stack("async-profiler is already loaded", comm)
 
         # track profiled PIDs only if proc_events are in use, otherwise there is no use in them.
         # TODO: it is possible to run in contexts where we're unable to use proc_events but are able to listen
@@ -691,9 +705,9 @@ class JavaProfiler(ProcessProfilerBase):
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
         with AsyncProfiledProcess(process, self._storage_dir, self._buildids, self._mode, self._ap_safemode) as ap_proc:
-            return self._profile_ap_process(ap_proc)
+            return self._profile_ap_process(ap_proc, comm)
 
-    def _profile_ap_process(self, ap_proc: AsyncProfiledProcess) -> Optional[StackToSampleCount]:
+    def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str) -> Optional[StackToSampleCount]:
         started = ap_proc.start_async_profiler(self._interval)
         if not started:
             logger.info(f"Found async-profiler already started on {ap_proc.process.pid}, trying to stop it...")
@@ -730,7 +744,7 @@ class JavaProfiler(ProcessProfilerBase):
             return None
         else:
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
-            return parse_one_collapsed(output, process_comm(ap_proc.process))
+            return parse_one_collapsed(output, comm)
 
     def _check_hotspot_error(self, ap_proc):
         pid = ap_proc.process.pid
@@ -759,9 +773,10 @@ class JavaProfiler(ProcessProfilerBase):
         self._disable_profiling(JavaSafemodeOptions.HSERR)
 
     def _select_processes_to_profile(self) -> List[Process]:
-        if not self._should_profile:
+        if self._safemode_disable_reason is not None:
             logger.debug("Java profiling has been disabled, skipping profiling of all java processes")
-            return []
+            # continue - _profile_process will return an appropriate error for each process selected for
+            # profiling.
         return pgrep_maps(r"^.+/libjvm\.so$")
 
     def start(self) -> None:
@@ -841,7 +856,7 @@ class JavaProfiler(ProcessProfilerBase):
         else:
             self._handle_kernel_messages(messages)
 
-    def snapshot(self):
+    def snapshot(self) -> ProcessToStackSampleCounters:
         try:
             return super().snapshot()
         finally:
