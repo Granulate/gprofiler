@@ -15,7 +15,7 @@ import pytest
 from packaging.version import Version
 
 from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler, frequency_to_ap_interval, parse_jvm_version
-from tests.utils import assert_function_in_collapsed, snapshot_one_collaped, make_java_profiler
+from tests.utils import assert_function_in_collapsed, make_java_profiler, snapshot_one_collaped
 
 
 # adds the "status" command to AsyncProfiledProcess from gProfiler.
@@ -78,7 +78,7 @@ def test_java_async_profiler_cpu_mode(
     Run Java in a container and enable async-profiler in CPU mode, make sure we get kernel stacks.
     """
     with make_java_profiler(str(tmp_path), frequency=999) as profiler:
-        collapsed = snapshot_one_collaped(profiler)
+        process_collapsed = snapshot_one_collaped(profiler)
         assert_collapsed(process_collapsed, check_comm=True)
         assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed, True)  # ensure kernels stacks exist
 
@@ -95,7 +95,7 @@ def test_java_async_profiler_musl_and_cpu(
     works and that we get kernel stacks.
     """
     with make_java_profiler(str(tmp_path), frequency=999) as profiler:
-        collapsed = snapshot_one_collaped(profiler)
+        process_collapsed = snapshot_one_collaped(profiler)
         assert_collapsed(process_collapsed, check_comm=True)
         assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed, True)  # ensure kernels stacks exist
 

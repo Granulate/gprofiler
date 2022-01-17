@@ -8,12 +8,9 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 
-<<<<<<< HEAD
 from gprofiler.gprofiler_types import StackToSampleCount
-from gprofiler.profilers.profiler_base import ProfilerInterface
-=======
 from gprofiler.profilers.java import JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE, JAVA_SAFEMODE_ALL, JavaProfiler
->>>>>>> d80722c... tests: java: Add make_java_profiler() helper
+from gprofiler.profilers.profiler_base import ProfilerInterface
 
 RUNTIME_PROFILERS = [
     ("java", "ap"),
@@ -112,6 +109,7 @@ def snapshot_one_collaped(profiler: ProfilerInterface) -> StackToSampleCount:
     result = profiler.snapshot()
     assert len(result) == 1
     return next(iter(result.values()))
+
 
 def make_java_profiler(
     storage_dir: str,
