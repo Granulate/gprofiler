@@ -10,6 +10,7 @@ import re
 import shutil
 from collections import Counter
 from enum import Enum
+from itertools import dropwhile
 from pathlib import Path
 from threading import Event
 from typing import List, Optional, Set
@@ -388,6 +389,11 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
     # We are taking the version from the first line, and the build number and vm name from the last line
 
     lines = version_string.splitlines()
+
+    # the version always starts with "openjdk version" or "java version". strip all lines
+    # before that.
+    lines = list(dropwhile(lambda l: not ("openjdk version" in l or "java version" in l), lines))
+
     # version is always in quotes
     _, version_str, _ = lines[0].split('"')
     build_str = lines[2].split("(build ")[1]
@@ -578,9 +584,9 @@ class JavaProfiler(ProcessProfilerBase):
     def _is_jvm_version_supported(self, java_version_cmd_output: str) -> bool:
         try:
             jvm_version = parse_jvm_version(java_version_cmd_output)
-            logger.info(f"Checking support for java version {jvm_version}")
-        except Exception as e:
-            logger.exception(f"Failed to parse java -version output {java_version_cmd_output}: {e}")
+            logger.info("Checking support for java version", jvm_version=jvm_version)
+        except Exception:
+            logger.exception("Failed to parse java -version output", java_version_cmd_output=java_version_cmd_output)
             return False
 
         if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
