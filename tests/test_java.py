@@ -57,6 +57,7 @@ def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_p
             False,
             mode="itimer",
             ap_safemode=False,
+            ap_args="",
         ) as ap_proc:
             ap_proc.status_async_profiler()
             # printed the output file, see ACTION_STATUS case in async-profiler/profiler.cpp
@@ -261,7 +262,7 @@ def test_hotspot_error_file(application_pid, tmp_path, monkeypatch, caplog):
 def test_disable_java_profiling(application_pid, tmp_path, monkeypatch, caplog):
     caplog.set_level(logging.DEBUG)
 
-    profiler = JavaProfiler(1, 5, Event(), str(tmp_path), False, False, "cpu", 0, False, "ap")
+    profiler = JavaProfiler(1, 5, Event(), str(tmp_path), False, False, "cpu", 0, "", False, "ap")
     dummy_reason = "dummy reason"
     monkeypatch.setattr(profiler, "_safemode_disable_reason", dummy_reason)
     with profiler:
