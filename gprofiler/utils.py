@@ -198,6 +198,7 @@ def run_process(
 ) -> CompletedProcess:
     stdout = None
     stderr = None
+    caught_exc: Optional[BaseException] = None
     with start_process(cmd, via_staticx, **kwargs) as process:
         try:
             communicate_kwargs = dict(input=stdin) if stdin is not None else {}
@@ -224,10 +225,10 @@ def run_process(
                         if end_time is not None and time.monotonic() > end_time:
                             assert timeout is not None
                             raise TimeoutExpired(cmd, timeout) from None
-        except:  # noqa
+        except BaseException as e:  # noqa
             process.send_signal(kill_signal)
             process.wait()
-            raise
+            caught_exc = e
         retcode = process.poll()
         assert retcode is not None  # only None if child has not terminated
     result: CompletedProcess = CompletedProcess(process.args, retcode, stdout, stderr)
@@ -238,7 +239,9 @@ def run_process(
             logger.debug(f"({process.args!r}) stdout: {result.stdout}")
         if result.stderr:
             logger.debug(f"({process.args!r}) stderr: {result.stderr}")
-    if check and retcode != 0:
+    if caught_exc is not None:
+        raise caught_exc
+    elif check and retcode != 0:
         raise CalledProcessError(retcode, process.args, output=stdout, stderr=stderr)
     return result
 
