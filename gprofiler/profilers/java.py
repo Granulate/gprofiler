@@ -130,8 +130,8 @@ class AsyncProfiledProcess:
     OUTPUTS_MODE = 0o622  # readable by root, writable by all
 
     # timeouts in seconds
-    _FDTRANSFER_TIMEOUT = 3
-    _START_AP_TIMEOUT = 3
+    _FDTRANSFER_TIMEOUT = 10
+    _START_AP_TIMEOUT = 10  # higher than jattach's timeout
     _STOP_AP_TIMEOUT = 10  # longer as it does more work
 
     def __init__(
