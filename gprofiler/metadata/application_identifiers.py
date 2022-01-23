@@ -214,7 +214,11 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
         if not any("libjvm.so" in m.path for m in process.memory_maps()):
             return None
 
-        return f"java: {_append_file_to_proc_wd(process, _get_cli_arg_by_name(process.cmdline(), '-jar'))}"
+        jar_arg = _get_cli_arg_by_name(process.cmdline(), "-jar")
+        if jar_arg is _NON_AVAILABLE_ARG:
+            return None
+
+        return f"java: {_append_file_to_proc_wd(process, jar_arg)}"
 
 
 # Please note that the order matter, because the FIRST matching identifier will be used.

@@ -450,7 +450,7 @@ class PythonProfiler(ProfilerInterface):
         else:
             self._ebpf_profiler = None
 
-        if python_mode in ("auto", "pyspy"):
+        if python_mode == "pyspy" or (self._ebpf_profiler is None and python_mode == "auto"):
             self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(
                 frequency, duration, stop_event, storage_dir, add_versions=python_add_versions
             )
@@ -493,16 +493,12 @@ class PythonProfiler(ProfilerInterface):
             try:
                 return self._ebpf_profiler.snapshot()
             except PythonEbpfError as e:
-                pypspy_msg = ", falling back to py-spy" if self._pyspy_profiler is not None else ""
-                logger.warning(f"Python eBPF profiler failed (exit code: {e.returncode}){pypspy_msg}")
-                self._ebpf_profiler = None
+                logger.warning("Python eBPF profiler failed, restarting PyPerf...", exit_code=e.returncode)
+                self._ebpf_profiler.start()
                 return {}  # empty this round
-        elif self._pyspy_profiler is not None:
-            return self._pyspy_profiler.snapshot()
         else:
-            # this can happen python_mode was 'pyperf' and PyPerf has failed.
-            # we won't resort to py-spy in this case.
-            return {}
+            assert self._pyspy_profiler is not None
+            return self._pyspy_profiler.snapshot()
 
     def stop(self) -> None:
         if self._ebpf_profiler is not None:
