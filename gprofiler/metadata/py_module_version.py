@@ -9,24 +9,43 @@ in pip 21.3.1, as mentioned in the functions' documentation.
 """
 import csv
 import email.parser
-import functools
 import os
 import pathlib
 import re
-from typing import Dict, Iterator, Optional, Tuple
+from typing import Dict, Iterator, Optional, Tuple, Type
 
 # pkg_resources is a part of setuptools, but it has a standalone deprecated version. That's the version mypy
 # is looking for, but the stubs there are extremely deprecated
 import pkg_resources  # type: ignore
+from cachetools import Cache
+from cachetools import LRUCache as _LRUCache
+from cachetools import cached, keys
 from granulate_utils.linux.ns import get_mnt_ns_ancestor, resolve_host_path
 from psutil import AccessDenied, NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter
 
+# For some reason mypy fails to infer the type of LRUCache when it's passed to @cached. This is the workaround:
+LRUCache: Type[Cache] = _LRUCache
+
 logger = get_logger_adapter(__name__)
 
 
 __all__ = ["get_modules_versions"]
+
+
+# Decorate get_mnt_ns_ancestor with cache:
+_mnt_ns_ancestor_cache = LRUCache(maxsize=128)
+_cached_get_mnt_ns_ancestor = cached(cache=_mnt_ns_ancestor_cache, key=keys.hashkey)(get_mnt_ns_ancestor)
+
+
+def _get_mnt_ns_ancestor(process: Process) -> Process:
+    ancestor = _cached_get_mnt_ns_ancestor(process)
+    # Make sure the returned process didn't die while in cache
+    if not ancestor.is_running():
+        _mnt_ns_ancestor_cache.pop(keys.hashkey(process))
+        return _cached_get_mnt_ns_ancestor(process)
+    return ancestor
 
 
 def _get_packages_dir(file_path: str) -> Optional[str]:
@@ -150,7 +169,7 @@ def _get_libpython_path(process: Process) -> Optional[str]:
 _PY_VERSION_STRING_PATTERN = re.compile(rb"(?<=\D)(?:2\.7|3\.1?\d)\.\d\d?(?=\x00)")
 
 
-@functools.lru_cache(maxsize=128)
+@cached(LRUCache(maxsize=128), key=lambda process: keys.hashkey(_get_mnt_ns_ancestor(process), process.cmdline()[0]))
 def _get_python_full_version(process: Process) -> Optional[str]:
     bin_file = _get_libpython_path(process) or f"/proc/{process.pid}/exe"
 
@@ -190,7 +209,9 @@ def _populate_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]]
         result[path] = ("standard-library", py_version)  # type: ignore
 
 
-@functools.lru_cache(maxsize=128)
+@cached(
+    LRUCache(maxsize=128), key=lambda process, packages_path: keys.hashkey(_get_mnt_ns_ancestor(process), packages_path)
+)
 def _get_packages_files(process: Process, packages_path: str) -> Dict[str, Tuple[str, str]]:
     """Return a dict of filename: (package_name, package_version) for the packages in packages_path"""
     # Transform packages_path to be relative to /proc/[pid]/root/
@@ -230,10 +251,6 @@ def _populate_packages_versions(packages_versions: Dict[str, Optional[Tuple[str,
         # Not much that we can do, pkg_resources.find_distributions won't work properly
         return
 
-    # We use the process only for its /proc/[pid]/root, so it's more efficient for caching purposes to use the
-    # ns ancestor
-    ancestor = get_mnt_ns_ancestor(process)
-
     try:
         for module_path in packages_versions:
             if not module_path.startswith("/"):
@@ -243,7 +260,7 @@ def _populate_packages_versions(packages_versions: Dict[str, Optional[Tuple[str,
             if packages_path is None:
                 # This module is (probably) not part of a package
                 continue
-            path_to_package_info = _get_packages_files(ancestor, packages_path)
+            path_to_package_info = _get_packages_files(process, packages_path)
             package_info: Optional[Tuple[str, str]] = path_to_package_info.get(module_path)
             if package_info is not None:
                 packages_versions[module_path] = package_info
