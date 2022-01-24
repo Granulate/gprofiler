@@ -114,8 +114,8 @@ def snapshot_one_collaped(profiler: ProfilerInterface) -> StackToSampleCount:
 def make_java_profiler(
     frequency: int = 11,
     duration: int = 1,
-    storage_dir: str = None,
     stop_event: Event = Event(),
+    storage_dir: str = None,
     java_async_profiler_buildids: bool = False,
     java_version_check: bool = True,
     java_async_profiler_mode: str = "cpu",
