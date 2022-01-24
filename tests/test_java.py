@@ -163,7 +163,7 @@ def test_hotspot_error_file(application_pid, tmp_path, monkeypatch, caplog):
 
     monkeypatch.setattr(AsyncProfiledProcess, "start_async_profiler", sap_and_crash)
 
-    profiler = make_java_profiler(storage_dir=str(tmp_path))
+    profiler = make_java_profiler(storage_dir=str(tmp_path), duration=5)
     with profiler:
         profiler.snapshot()
 
