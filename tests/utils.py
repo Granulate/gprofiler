@@ -112,9 +112,9 @@ def snapshot_one_collaped(profiler: ProfilerInterface) -> StackToSampleCount:
 
 
 def make_java_profiler(
-    storage_dir: str,
     frequency: int = 11,
     duration: int = 1,
+    storage_dir: str = None,
     stop_event: Event = Event(),
     java_async_profiler_buildids: bool = False,
     java_version_check: bool = True,
@@ -124,6 +124,7 @@ def make_java_profiler(
     java_safemode: str = JAVA_SAFEMODE_ALL,
     java_mode: str = "ap",
 ) -> JavaProfiler:
+    assert storage_dir is not None
     return JavaProfiler(
         frequency=frequency,
         duration=duration,
@@ -131,9 +132,9 @@ def make_java_profiler(
         storage_dir=storage_dir,
         java_async_profiler_buildids=java_async_profiler_buildids,
         java_version_check=java_version_check,
-        java_async_profiler_mode="cpu",
-        java_async_profiler_safemode=0,
-        java_async_profiler_args="",
-        java_safemode="",
-        java_mode="ap",
+        java_async_profiler_mode=java_async_profiler_mode,
+        java_async_profiler_safemode=java_async_profiler_safemode,
+        java_async_profiler_args=java_async_profiler_args,
+        java_safemode=java_safemode,
+        java_mode=java_mode,
     )
