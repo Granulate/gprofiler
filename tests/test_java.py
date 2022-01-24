@@ -19,7 +19,7 @@ from tests.utils import assert_function_in_collapsed, snapshot_one_collaped
 class AsyncProfiledProcessForTests(AsyncProfiledProcess):
     def status_async_profiler(self):
         self._run_async_profiler(
-            self._get_base_cmd() + [f"status,log={self._log_path_process},file={self._output_path_process}"]
+            self._get_base_cmd() + [f"status,log={self._log_path_process},file={self._output_path_process}"],
         )
 
 
@@ -47,13 +47,16 @@ def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_p
         java_mode="ap",
     ) as profiler:
         process = profiler._select_processes_to_profile()[0]
-        with AsyncProfiledProcess(process, profiler._storage_dir, False, profiler._mode, False, "") as ap_proc:
+        with AsyncProfiledProcess(
+            process, profiler._storage_dir, profiler._stop_event, False, profiler._mode, False, ""
+        ) as ap_proc:
             assert ap_proc.start_async_profiler(11)
         assert any("libasyncProfiler.so" in m.path for m in process.memory_maps())
         # run "status"
         with AsyncProfiledProcessForTests(
             process,
             profiler._storage_dir,
+            profiler._stop_event,
             False,
             mode="itimer",
             ap_safemode=False,

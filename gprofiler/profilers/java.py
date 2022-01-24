@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import signal
 from collections import Counter
 from enum import Enum
 from itertools import dropwhile
@@ -25,7 +26,7 @@ from granulate_utils.java import (
     java_exit_code_to_signo,
     locate_hotspot_error_file,
 )
-from granulate_utils.linux import proc_events, ns
+from granulate_utils.linux import ns, proc_events
 from granulate_utils.linux.ns import get_proc_root_path, resolve_proc_root_links, run_in_ns
 from granulate_utils.linux.oom import get_oom_entry
 from granulate_utils.linux.signals import get_signal_entry
@@ -128,16 +129,22 @@ class AsyncProfiledProcess:
     OUTPUT_FORMAT = "collapsed"
     OUTPUTS_MODE = 0o622  # readable by root, writable by all
 
+    # timeouts in seconds
+    _FDTRANSFER_TIMEOUT = 10
+    _JATTACH_TIMEOUT = 10  # higher than jattach's timeout
+
     def __init__(
         self,
         process: Process,
         storage_dir: str,
+        stop_event: Event,
         buildids: bool,
         mode: str,
         ap_safemode: int,
         ap_args: str,
     ):
         self.process = process
+        self._stop_event = stop_event
         # access the process' root via its topmost parent/ancestor which uses the same mount namespace.
         # this allows us to access the files after the process exits:
         # * for processes that run in host mount NS - their ancestor is always available (it's going to be PID 1)
@@ -307,8 +314,9 @@ class AsyncProfiledProcess:
 
     def _run_async_profiler(self, cmd: List[str]) -> None:
         try:
-            run_process(cmd)
-        except CalledProcessError as e:
+            # kill jattach with SIGTERM if it hangs. it will go down
+            run_process(cmd, stop_event=self._stop_event, timeout=self._JATTACH_TIMEOUT, kill_signal=signal.SIGTERM)
+        except CalledProcessError as e:  # catches timeouts as well
             if os.path.exists(self._log_path_host):
                 log = Path(self._log_path_host)
                 ap_log = log.read_text()
@@ -325,7 +333,12 @@ class AsyncProfiledProcess:
         """
         Start fdtransfer; it will fork & exit once ready, so we can continue with jattach.
         """
-        run_process([fdtransfer_path(), str(self.process.pid)], communicate=False)
+        run_process(
+            [fdtransfer_path(), str(self.process.pid)],
+            stop_event=self._stop_event,
+            timeout=self._FDTRANSFER_TIMEOUT,
+            communicate=False,
+        )
 
     def start_async_profiler(self, interval: int, second_try: bool = False) -> bool:
         """
@@ -501,6 +514,8 @@ class JavaProfiler(ProcessProfilerBase):
         17: (Version("17.0.1"), 12),
     }
 
+    _JAVA_VERSION_TIMEOUT = 5
+
     def __init__(
         self,
         frequency: int,
@@ -597,8 +612,7 @@ class JavaProfiler(ProcessProfilerBase):
 
         return True
 
-    @staticmethod
-    def _get_java_version(process: Process) -> str:
+    def _get_java_version(self, process: Process) -> str:
         nspid = ns.get_process_nspid(process.pid)
 
         # this has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
@@ -623,7 +637,9 @@ class JavaProfiler(ProcessProfilerBase):
                 [
                     java_path,
                     "-version",
-                ]
+                ],
+                stop_event=self._stop_event,
+                timeout=self._JAVA_VERSION_TIMEOUT,
             )
 
         # doesn't work without changing PID NS as well (I'm getting ENOENT for libjli.so)
@@ -716,7 +732,7 @@ class JavaProfiler(ProcessProfilerBase):
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
         with AsyncProfiledProcess(
-            process, self._storage_dir, self._buildids, self._mode, self._ap_safemode, self._ap_args
+            process, self._storage_dir, self._stop_event, self._buildids, self._mode, self._ap_safemode, self._ap_args
         ) as ap_proc:
             return self._profile_ap_process(ap_proc, comm)
 

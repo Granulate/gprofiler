@@ -33,6 +33,7 @@ from psutil import Process
 
 from gprofiler.exceptions import (
     CalledProcessError,
+    CalledProcessTimeoutError,
     ProcessStoppedException,
     ProgramMissingException,
     StopEventSetException,
@@ -184,6 +185,16 @@ def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> P
     return Path(output_files[0])
 
 
+def _reap_process(process: Popen, kill_signal: signal.Signals) -> Tuple[int, str, str]:
+    # kill the process and read its output so far
+    process.send_signal(kill_signal)
+    process.wait()
+    stdout, stderr = process.communicate()
+    returncode = process.poll()
+    assert returncode is not None  # only None if child has not terminated
+    return returncode, stdout, stderr
+
+
 def run_process(
     cmd: Union[str, List[str]],
     stop_event: Event = None,
@@ -198,6 +209,7 @@ def run_process(
 ) -> CompletedProcess:
     stdout = None
     stderr = None
+    reraise_exc: Optional[BaseException] = None
     with start_process(cmd, via_staticx, **kwargs) as process:
         try:
             communicate_kwargs = dict(input=stdin) if stdin is not None else {}
@@ -210,24 +222,30 @@ def run_process(
                     # just wait for the process to exit
                     process.wait()
             else:
-                assert communicate, "expected communicate=True if stop_event is given"
                 end_time = (time.monotonic() + timeout) if timeout is not None else None
                 while True:
                     try:
-                        stdout, stderr = process.communicate(timeout=1, **communicate_kwargs)
+                        if communicate:
+                            stdout, stderr = process.communicate(timeout=1, **communicate_kwargs)
+                        else:
+                            process.wait(timeout=1)
                         break
                     except TimeoutExpired:
                         if stop_event.is_set():
                             raise ProcessStoppedException from None
                         if end_time is not None and time.monotonic() > end_time:
                             assert timeout is not None
-                            raise TimeoutExpired(cmd, timeout) from None
-        except:  # noqa
-            process.send_signal(kill_signal)
-            process.wait()
-            raise
+                            raise
+        except TimeoutExpired:
+            returncode, stdout, stderr = _reap_process(process, kill_signal)
+            assert timeout is not None
+            reraise_exc = CalledProcessTimeoutError(timeout, returncode, cmd, stdout, stderr)
+        except BaseException as e:  # noqa
+            returncode, stdout, stderr = _reap_process(process, kill_signal)
+            reraise_exc = e
         retcode = process.poll()
         assert retcode is not None  # only None if child has not terminated
+
     result: CompletedProcess = CompletedProcess(process.args, retcode, stdout, stderr)
 
     logger.debug(f"({process.args!r}) exit code: {result.returncode}")
@@ -236,7 +254,9 @@ def run_process(
             logger.debug(f"({process.args!r}) stdout: {result.stdout}")
         if result.stderr:
             logger.debug(f"({process.args!r}) stderr: {result.stderr}")
-    if check and retcode != 0:
+    if reraise_exc is not None:
+        raise reraise_exc
+    elif check and retcode != 0:
         raise CalledProcessError(retcode, process.args, output=stdout, stderr=stderr)
     return result
 
