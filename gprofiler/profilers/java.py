@@ -131,8 +131,7 @@ class AsyncProfiledProcess:
 
     # timeouts in seconds
     _FDTRANSFER_TIMEOUT = 10
-    _START_AP_TIMEOUT = 10  # higher than jattach's timeout
-    _STOP_AP_TIMEOUT = 10  # longer as it does more work
+    _JATTACH_TIMEOUT = 10  # higher than jattach's timeout
 
     def __init__(
         self,
@@ -313,10 +312,10 @@ class AsyncProfiledProcess:
         ap_params.append(f"log={self._log_path_process}")
         return self._get_base_cmd() + [",".join(ap_params) + self._get_extra_ap_args()]
 
-    def _run_async_profiler(self, cmd: List[str], timeout: int) -> None:
+    def _run_async_profiler(self, cmd: List[str]) -> None:
         try:
             # kill jattach with SIGTERM if it hangs. it will go down
-            run_process(cmd, stop_event=self._stop_event, timeout=timeout, kill_signal=signal.SIGTERM)
+            run_process(cmd, stop_event=self._stop_event, timeout=self._JATTACH_TIMEOUT, kill_signal=signal.SIGTERM)
         except CalledProcessError as e:
             if os.path.exists(self._log_path_host):
                 log = Path(self._log_path_host)
@@ -350,7 +349,7 @@ class AsyncProfiledProcess:
 
         start_cmd = self._get_start_cmd(interval)
         try:
-            self._run_async_profiler(start_cmd, timeout=self._START_AP_TIMEOUT)
+            self._run_async_profiler(start_cmd)
             return True
         except JattachException as e:
             is_loaded = f" {self._libap_path_process}\n" in Path(f"/proc/{self.process.pid}/maps").read_text()
@@ -366,7 +365,7 @@ class AsyncProfiledProcess:
             raise
 
     def stop_async_profiler(self, with_output: bool) -> None:
-        self._run_async_profiler(self._get_stop_cmd(with_output), timeout=self._STOP_AP_TIMEOUT)
+        self._run_async_profiler(self._get_stop_cmd(with_output))
 
     def read_output(self) -> Optional[str]:
         try:
