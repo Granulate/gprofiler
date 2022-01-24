@@ -43,7 +43,7 @@ def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_p
             process=process,
             storage_dir=profiler._storage_dir,
             stop_event=profiler._stop_event,
-            buildis=False,
+            buildids=False,
             mode=profiler._mode,
             ap_safemode=0,
             ap_args="",
