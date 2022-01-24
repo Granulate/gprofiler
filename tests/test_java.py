@@ -82,8 +82,8 @@ def test_java_async_profiler_cpu_mode(
     """
     with make_java_profiler(storage_dir=str(tmp_path), frequency=999) as profiler:
         process_collapsed = snapshot_one_collaped(profiler)
-        assert_collapsed(process_collapsed, check_comm=True)
-        assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed, True)  # ensure kernels stacks exist
+        assert_collapsed(process_collapsed)
+        assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed)  # ensure kernels stacks exist
 
 
 @pytest.mark.parametrize("in_container", [True])
@@ -99,8 +99,8 @@ def test_java_async_profiler_musl_and_cpu(
     """
     with make_java_profiler(storage_dir=str(tmp_path), frequency=999) as profiler:
         process_collapsed = snapshot_one_collaped(profiler)
-        assert_collapsed(process_collapsed, check_comm=True)
-        assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed, True)  # ensure kernels stacks exist
+        assert_collapsed(process_collapsed)
+        assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed)  # ensure kernels stacks exist
 
 
 def test_java_safemode_parameters(tmp_path) -> None:
@@ -221,7 +221,7 @@ def test_async_profiler_output_written_upon_jvm_exit(tmp_path, application_pid, 
         threading.Thread(target=delayed_kill).start()
 
         process_collapsed = snapshot_one_collaped(profiler)
-        assert_collapsed(process_collapsed, check_comm=True)
+        assert_collapsed(process_collapsed)
 
         assert f"Profiled process {application_pid} exited before stopping async-profiler" in caplog.text
 
