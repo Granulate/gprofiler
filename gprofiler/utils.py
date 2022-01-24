@@ -83,13 +83,13 @@ def prctl(*argv: Any) -> int:
     global libc
     if libc is None:
         libc = ctypes.CDLL("libc.so.6", use_errno=True)
-    return libc.prctl(*argv)
+    return libc.prctl(*argv)  # type: ignore
 
 
 PR_SET_PDEATHSIG = 1
 
 
-def set_child_termination_on_parent_death():
+def set_child_termination_on_parent_death() -> int:
     ret = prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
     if ret != 0:
         errno = ctypes.get_errno()
@@ -99,10 +99,10 @@ def set_child_termination_on_parent_death():
     return ret
 
 
-def wrap_callbacks(callbacks) -> Callable:
+def wrap_callbacks(callbacks: List[Callable]) -> Callable:
     # Expects array of callback.
     # Returns one callback that call each one of them, and returns the retval of last callback
-    def wrapper():
+    def wrapper() -> Any:
         ret = None
         for cb in callbacks:
             ret = cb()
@@ -112,7 +112,8 @@ def wrap_callbacks(callbacks) -> Callable:
     return wrapper
 
 
-def start_process(cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_death: bool = True, **kwargs: Any) -> Popen:
+def start_process(cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_death: bool = True,
+                  **kwargs: Any) -> Popen:
     cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
     logger.debug(f"Running command: ({cmd_text})")
     if isinstance(cmd, str):
@@ -151,7 +152,7 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_
     return popen
 
 
-def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool], interval=0.1) -> None:
+def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool], interval: float = 0.1) -> None:
     end_time = time.monotonic() + timeout
     while True:
         if condition():
@@ -164,7 +165,7 @@ def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool],
             raise TimeoutError()
 
 
-def poll_process(process, timeout: float, stop_event: Event):
+def poll_process(process: Popen, timeout: float, stop_event: Event) -> None:
     try:
         wait_event(timeout, stop_event, lambda: process.poll() is not None)
     except StopEventSetException:
@@ -208,7 +209,7 @@ def run_process(
     kill_signal: signal.Signals = signal.SIGKILL,
     communicate: bool = True,
     stdin: bytes = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> CompletedProcess:
     stdout = None
     stderr = None
@@ -300,7 +301,7 @@ def pgrep_maps(match: str) -> List[Process]:
     processes: List[Process] = []
     for line in result.stdout.splitlines():
         assert line.startswith(b"/proc/") and line.endswith(b"/maps"), f"unexpected 'grep' line: {line!r}"
-        pid = int(line[len(b"/proc/") : -len(b"/maps")])
+        pid = int(line[len(b"/proc/"): -len(b"/maps")])
         try:
             processes.append(Process(pid))
         except psutil.NoSuchProcess:
@@ -320,7 +321,7 @@ def get_iso8601_format_time(time: datetime.datetime) -> str:
 def remove_prefix(s: str, prefix: str) -> str:
     # like str.removeprefix of Python 3.9, but this also ensures the prefix exists.
     assert s.startswith(prefix), f"{s} doesn't start with {prefix}"
-    return s[len(prefix) :]
+    return s[len(prefix):]
 
 
 def touch_path(path: str, mode: int) -> None:
@@ -349,7 +350,7 @@ def removed_path(path: str) -> Iterator[None]:
 _INSTALLED_PROGRAMS_CACHE: List[str] = []
 
 
-def assert_program_installed(program: str):
+def assert_program_installed(program: str) -> None:
     if program in _INSTALLED_PROGRAMS_CACHE:
         return
 
@@ -422,7 +423,7 @@ def atomically_symlink(target: str, link_node: str) -> None:
 
 
 class TemporaryDirectoryWithMode(TemporaryDirectory):
-    def __init__(self, *args, mode: int = None, **kwargs):
+    def __init__(self, *args: Any, mode: int = None, **kwargs: Any):
         super().__init__(*args, **kwargs)
         if mode is not None:
             os.chmod(self.name, mode)
@@ -435,7 +436,8 @@ def reset_umask() -> None:
     os.umask(0o022)
 
 
-def limit_frequency(limit: Optional[int], requested: int, msg_header: str, runtime_logger: logging.LoggerAdapter):
+def limit_frequency(limit: Optional[int], requested: int, msg_header: str, runtime_logger: logging.LoggerAdapter) \
+        -> int:
     if limit is not None and requested > limit:
         runtime_logger.warning(
             f"{msg_header}: Requested frequency ({requested}) is higher than the limit {limit}, "
@@ -480,7 +482,7 @@ def get_staticx_dir() -> Optional[str]:
     return os.getenv("STATICX_BUNDLE_DIR")
 
 
-def is_process_running(process: psutil.Process):
+def is_process_running(process: psutil.Process) -> bool:
     return process.is_running() and not process.status() == "zombie"
 
 

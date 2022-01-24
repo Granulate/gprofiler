@@ -40,7 +40,7 @@ class APIClient:
         self._init_session()
         logger.info(f"The connection to the server was successfully established (service {service!r})")
 
-    def _init_session(self):
+    def _init_session(self) -> None:
         self._session: Session = requests.Session()
         self._session.headers.update({"GPROFILER-API-KEY": self._key, "GPROFILER-SERVICE-NAME": self._service})
 
