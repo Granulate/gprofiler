@@ -17,12 +17,9 @@ from tests.utils import assert_function_in_collapsed, snapshot_one_collaped
 
 # adds the "status" command to AsyncProfiledProcess from gProfiler.
 class AsyncProfiledProcessForTests(AsyncProfiledProcess):
-    _STATUS_AP_TIMEOUT = 3
-
     def status_async_profiler(self):
         self._run_async_profiler(
             self._get_base_cmd() + [f"status,log={self._log_path_process},file={self._output_path_process}"],
-            timeout=self._STATUS_AP_TIMEOUT,
         )
 
 
