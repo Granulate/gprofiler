@@ -105,10 +105,6 @@ def test_java_async_profiler_musl_and_cpu(
 
 def test_java_safemode_parameters(tmp_path) -> None:
     with pytest.raises(AssertionError) as excinfo:
-        make_java_profiler(storage_dir=str(tmp_path), java_async_profiler_safemode=0)
-    assert "async-profiler safemode must be set to 127 in --java-safemode" in str(excinfo.value)
-
-    with pytest.raises(AssertionError) as excinfo:
         make_java_profiler(storage_dir=str(tmp_path), java_version_check=False)
     assert "Java version checks are mandatory in --java-safemode" in str(excinfo.value)
 
