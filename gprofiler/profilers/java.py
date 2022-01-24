@@ -584,11 +584,6 @@ class JavaProfiler(ProcessProfilerBase):
                 f" --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS}"
             )
 
-        if java_safemode == JAVA_SAFEMODE_ALL:
-            assert (
-                self._ap_safemode == 127
-            ), f"async-profiler safemode must be set to 127 in --java-safemode={JAVA_SAFEMODE_ALL} (or --java-safemode)"
-
     def _disable_profiling(self, cause: str):
         if self._safemode_disable_reason is None and cause in self._java_safemode:
             logger.warning("Java profiling has been disabled, will avoid profiling any new java processes", cause=cause)
