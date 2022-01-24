@@ -228,10 +228,7 @@ def test_async_profiler_output_written_upon_jvm_exit(tmp_path, application_pid, 
 
 # test only once
 @pytest.mark.parametrize("in_container", [False])
-def test_async_profiler_timeout_stop(tmp_path, application_pid, assert_collapsed, caplog) -> None:
-    """
-    Make sure that async-profiler stops after the given output.
-    """
+def test_async_profiler_stops_after_given_timeout(tmp_path, application_pid, assert_collapsed, caplog) -> None:
     caplog.set_level(logging.DEBUG)
 
     process = psutil.Process(application_pid)
