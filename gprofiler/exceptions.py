@@ -4,6 +4,7 @@
 #
 import signal
 import subprocess
+from typing import List, Union
 
 
 class StopEventSetException(Exception):
@@ -24,6 +25,15 @@ class CalledProcessError(subprocess.CalledProcessError):
         else:
             base = f"Command '{self.cmd}' returned non-zero exit status {self.returncode}. "
         return f"{base}\nstdout: {self.stdout}\nstderr: {self.stderr}"
+
+
+class CalledProcessTimeoutError(CalledProcessError):
+    def __init__(self, timeout: float, returncode: int, cmd: Union[str, List[str]], output=None, stderr=None):
+        super().__init__(returncode, cmd, output, stderr)
+        self.timeout = timeout
+
+    def __str__(self):
+        return f"Timed out after {self.timeout} seconds\n" + super().__str__()
 
 
 class ProgramMissingException(Exception):

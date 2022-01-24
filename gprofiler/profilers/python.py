@@ -9,13 +9,18 @@ import resource
 import signal
 from collections import Counter, defaultdict
 from pathlib import Path
-from subprocess import Popen, TimeoutExpired
+from subprocess import Popen
 from threading import Event
 from typing import Dict, List, Optional
 
 from psutil import NoSuchProcess, Process
 
-from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
+from gprofiler.exceptions import (
+    CalledProcessError,
+    CalledProcessTimeoutError,
+    ProcessStoppedException,
+    StopEventSetException,
+)
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_many_collapsed, parse_one_collapsed_file
@@ -133,7 +138,7 @@ class PySpyProfiler(ProcessProfilerBase):
                 )
             except ProcessStoppedException:
                 raise StopEventSetException
-            except TimeoutExpired:
+            except CalledProcessTimeoutError:
                 logger.error(f"Profiling with py-spy timed out on process {process.pid}")
                 raise
             except CalledProcessError as e:

@@ -316,7 +316,7 @@ class AsyncProfiledProcess:
         try:
             # kill jattach with SIGTERM if it hangs. it will go down
             run_process(cmd, stop_event=self._stop_event, timeout=self._JATTACH_TIMEOUT, kill_signal=signal.SIGTERM)
-        except CalledProcessError as e:
+        except CalledProcessError as e:  # catches timeouts as well
             if os.path.exists(self._log_path_host):
                 log = Path(self._log_path_host)
                 ap_log = log.read_text()
