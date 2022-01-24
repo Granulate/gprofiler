@@ -36,7 +36,7 @@ class ProfilerInterface:
     def stop(self) -> None:
         pass
 
-    def __enter__(self):
+    def __enter__(self) -> "ProfilerInterface":
         self.start()
         return self
 

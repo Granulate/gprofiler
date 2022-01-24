@@ -14,7 +14,7 @@ logger = get_logger_adapter(__name__)
 # themselves (which is what we do here).
 # see https://mypy.readthedocs.io/en/stable/common_issues.html#variables-vs-type-aliases
 class GProfilerKernelMessagesProvider(DefaultKernelMessagesProvider):  # type: ignore
-    def on_missed(self):
+    def on_missed(self) -> None:
         logger.warning("Missed some kernel messages.")
 
 

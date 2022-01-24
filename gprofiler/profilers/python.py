@@ -9,6 +9,7 @@ import resource
 import signal
 from collections import Counter, defaultdict
 from pathlib import Path
+from re import Match
 from subprocess import Popen, TimeoutExpired
 from threading import Event
 from typing import Dict, List, Optional
@@ -48,7 +49,7 @@ def _add_versions_to_process_stacks(process: Process, stacks: StackToSampleCount
         modules_paths = (match.group("filename") for match in _module_name_in_stack.finditer(stack))
         packages_versions = get_modules_versions(modules_paths, process)
 
-        def _replace_module_name(module_name_match):
+        def _replace_module_name(module_name_match: Match):
             package_info = packages_versions.get(module_name_match.group("filename"))
             if package_info is not None:
                 package_name, package_version = package_info
@@ -94,7 +95,7 @@ class PySpyProfiler(ProcessProfilerBase):
         super().__init__(frequency, duration, stop_event, storage_dir)
         self.add_versions = add_versions
 
-    def _make_command(self, pid: int, output_path: str):
+    def _make_command(self, pid: int, output_path: str) -> List[str]:
         return [
             resource_path("python/py-spy"),
             "record",
@@ -225,7 +226,7 @@ class PythonEbpfProfiler(ProfilerBase):
         raise PythonEbpfError(process.returncode, process.args, stdout, stderr)
 
     @classmethod
-    def _check_output(cls, process: Popen, output_path: Path):
+    def _check_output(cls, process: Popen, output_path: Path) -> None:
         if not glob.glob(f"{str(output_path)}.*"):
             cls._pyperf_error(process)
 
@@ -297,7 +298,7 @@ class PythonEbpfProfiler(ProfilerBase):
         else:
             self._check_output(process, self.output_path)
 
-    def start(self):
+    def start(self) -> None:
         logger.info("Starting profiling of Python processes with PyPerf")
         cmd = [
             resource_path(self.PYPERF_RESOURCE),
@@ -374,7 +375,7 @@ class PythonEbpfProfiler(ProfilerBase):
             self.process = None
         return code
 
-    def stop(self):
+    def stop(self) -> None:
         code = self._terminate()
         if code is not None:
             logger.info("Finished profiling Python processes with PyPerf")

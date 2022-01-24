@@ -6,7 +6,7 @@ import datetime
 import gzip
 import json
 from io import BytesIO
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Any
 
 import requests
 from requests import Session
@@ -103,22 +103,22 @@ class APIClient:
             resp.raise_for_status()
         return resp.json()
 
-    def get(self, path: str, data=None, **kwargs) -> Dict:
+    def get(self, path: str, data: Optional[Dict] = None, **kwargs: Any) -> Dict:
         return self._send_request("GET", path, data, **kwargs)
 
-    def post(self, path: str, data=None, **kwargs) -> Dict:
+    def post(self, path: str, data: Optional[Dict] = None, **kwargs: Any) -> Dict:
         return self._send_request("POST", path, data, **kwargs)
 
-    def put(self, path: str, data=None, **kwargs) -> Dict:
+    def put(self, path: str, data: Optional[Dict] = None, **kwargs: Any) -> Dict:
         return self._send_request("PUT", path, data, **kwargs)
 
-    def patch(self, path: str, data=None, **kwargs) -> Dict:
+    def patch(self, path: str, data: Optional[Dict] = None, **kwargs: Any) -> Dict:
         return self._send_request("PATCH", path, data, **kwargs)
 
-    def delete(self, path: str, data=None, **kwargs) -> Dict:
+    def delete(self, path: str, data: Optional[Dict] = None, **kwargs: Any) -> Dict:
         return self._send_request("DELETE", path, data, **kwargs)
 
-    def get_health(self):
+    def get_health(self) -> Dict:
         return self.get("health_check")
 
     def submit_profile(

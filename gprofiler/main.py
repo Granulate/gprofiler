@@ -13,6 +13,7 @@ import sys
 import time
 from pathlib import Path
 from threading import Event
+from types import FrameType
 from typing import Iterable, Optional
 
 import configargparse
@@ -64,7 +65,7 @@ SIGINT_RATELIMIT = 0.5
 last_signal_ts: Optional[float] = None
 
 
-def sigint_handler(sig, frame):
+def sigint_handler(sig: int, frame: Optional[FrameType]) -> None:
     global last_signal_ts
     ts = time.monotonic()
     # no need for atomicity here: we can't get another SIGINT before this one returns.
@@ -88,7 +89,7 @@ class GProfiler:
         usage_logger: UsageLoggerInterface,
         user_args: UserArgs,
         duration: int,
-        include_container_names=True,
+        include_container_names: bool = True,
         profile_api_version: Optional[str] = None,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         controller_process: Optional[Process] = None,
@@ -142,11 +143,11 @@ class GProfiler:
         yield from self.process_profilers
         yield self.system_profiler
 
-    def __enter__(self):
+    def __enter__(self) -> "GProfiler":
         self.start()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.stop()
 
     def _update_last_output(self, last_output_name: str, output_path: str) -> None:
@@ -203,7 +204,7 @@ class GProfiler:
             logger.info(f"Saved flamegraph to {flamegraph_path}")
 
     @staticmethod
-    def _strip_container_data(collapsed_data):
+    def _strip_container_data(collapsed_data: str) -> str:
         lines = []
         for line in collapsed_data.splitlines():
             if line.startswith("#"):
@@ -211,7 +212,7 @@ class GProfiler:
             lines.append(line[line.find(";") + 1 :])
         return "\n".join(lines)
 
-    def start(self):
+    def start(self) -> None:
         self._stop_event.clear()
         self._system_metrics_monitor.start()
 
@@ -228,7 +229,7 @@ class GProfiler:
                 logger.warning(f"Failed to start {prof.__class__.__name__}, continuing without it", exc_info=True)
                 self.process_profilers.remove(prof)
 
-    def stop(self):
+    def stop(self) -> None:
         logger.info("Stopping ...")
         self._stop_event.set()
         self._system_metrics_monitor.stop()
@@ -236,7 +237,7 @@ class GProfiler:
         for prof in self.all_profilers:
             prof.stop()
 
-    def _snapshot(self):
+    def _snapshot(self) -> None:
         local_start_time = datetime.datetime.utcnow()
         monotonic_start_time = time.monotonic()
         process_profilers_futures = []
@@ -315,7 +316,7 @@ class GProfiler:
             else:
                 logger.info("Successfully uploaded profiling data to the server")
 
-    def _send_remote_logs(self):
+    def _send_remote_logs(self) -> None:
         """
         The function is safe to call without wrapping with try/except block, the function should does the exception
         handling by itself.
@@ -330,7 +331,7 @@ class GProfiler:
         else:
             logger.debug("Successfully uploaded logs to the server")
 
-    def run_single(self):
+    def run_single(self) -> None:
         with self:
             # In case of single run mode, use the same id for run_id and cycle_id
             self._state.set_cycle_id(self._state.run_id)
@@ -339,7 +340,7 @@ class GProfiler:
             finally:
                 self._send_remote_logs()  # function is safe, wrapped with try/except block inside
 
-    def run_continuous(self):
+    def run_continuous(self) -> None:
         with self:
             self._usage_logger.init_cycles()
 

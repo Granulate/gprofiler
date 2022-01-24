@@ -11,7 +11,7 @@ import sys
 import time
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Any
 
 import distro  # type: ignore
 import psutil
@@ -198,7 +198,7 @@ def get_hostname() -> str:
     return hostname
 
 
-def _initialize_system_info():
+def _initialize_system_info() -> Any:
     # initialized first
     global hostname
     hostname = "<unknown>"
@@ -210,7 +210,7 @@ def _initialize_system_info():
     # move to host mount NS for distro & ldd.
     # now, distro will read the files on host.
     # also move to host UTS NS for the hostname.
-    def get_infos():
+    def get_infos() -> Any:
         nonlocal distribution, libc_version, mac_address, local_ip
         global hostname
 

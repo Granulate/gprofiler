@@ -172,7 +172,7 @@ def _get_python_full_version(process: Process) -> Optional[str]:
 _STANDARD_LIB_PATTERN = re.compile(r"/python\d\.\d\d?/(?!.*(site|dist)-packages)")
 
 
-def _populate_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]], process: Process):
+def _populate_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]], process: Process) -> None:
     py_version = None
 
     for path in result:
@@ -213,7 +213,7 @@ def _get_packages_files(process: Process, packages_path: str) -> Dict[str, Tuple
 _warned_no__normalized_cached = False
 
 
-def _populate_packages_versions(packages_versions: Dict[str, Optional[Tuple[str, str]]], process: Process):
+def _populate_packages_versions(packages_versions: Dict[str, Optional[Tuple[str, str]]], process: Process) -> None:
     # A little monkey patch to prevent pkg_resources from converting "/proc/{pid}/root/" to "/".
     # This function resolves symlinks and makes paths absolute for comparison purposes which isn't required
     # for our usage.

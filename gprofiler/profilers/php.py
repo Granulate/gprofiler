@@ -69,7 +69,7 @@ class PHPSpyProfiler(ProfilerBase):
         self._output_path = Path(self._storage_dir) / f"phpspy.{random_prefix()}.col"
         self._process_filter = php_process_filter
 
-    def start(self):
+    def start(self) -> None:
         logger.info("Starting profiling of PHP processes with phpspy")
         phpspy_path = resource_path(self.PHPSPY_RESOURCE)
         cmd = [
@@ -212,12 +212,12 @@ class PHPSpyProfiler(ProfilerBase):
             self._process = None
         return code
 
-    def stop(self):
+    def stop(self) -> None:
         code = self._terminate()
         if code is not None:
             logger.info("Finished profiling PHP processes with phpspy")
 
-    def _process_stderr(self, stderr: str):
+    def _process_stderr(self, stderr: str) -> None:
         skip_re = self._get_stderr_skip_regex()
         lines = stderr.splitlines()
         for line in lines:
