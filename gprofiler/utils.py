@@ -24,7 +24,7 @@ from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Callable, Iterator, List, Optional, Tuple, Union
+from typing import Callable, Iterator, List, Optional, Tuple, Union, Any
 
 import importlib_resources
 import psutil
@@ -79,7 +79,7 @@ def get_process_nspid(pid: int) -> Optional[int]:
 libc: Optional[ctypes.CDLL] = None
 
 
-def prctl(*argv):
+def prctl(*argv: Any) -> int:
     global libc
     if libc is None:
         libc = ctypes.CDLL("libc.so.6", use_errno=True)
@@ -99,7 +99,7 @@ def set_child_termination_on_parent_death():
     return ret
 
 
-def wrap_callbacks(callbacks):
+def wrap_callbacks(callbacks) -> Callable:
     # Expects array of callback.
     # Returns one callback that call each one of them, and returns the retval of last callback
     def wrapper():
@@ -112,7 +112,7 @@ def wrap_callbacks(callbacks):
     return wrapper
 
 
-def start_process(cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_death: bool = True, **kwargs) -> Popen:
+def start_process(cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_death: bool = True, **kwargs: Any) -> Popen:
     cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
     logger.debug(f"Running command: ({cmd_text})")
     if isinstance(cmd, str):

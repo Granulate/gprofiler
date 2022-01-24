@@ -2,7 +2,8 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-from granulate_utils.linux.kernel_messages import DefaultKernelMessagesProvider, EmptyKernelMessagesProvider
+from granulate_utils.linux.kernel_messages import DefaultKernelMessagesProvider, EmptyKernelMessagesProvider, \
+    KernelMessagesProvider
 
 from gprofiler.log import get_logger_adapter
 
@@ -17,7 +18,7 @@ class GProfilerKernelMessagesProvider(DefaultKernelMessagesProvider):  # type: i
         logger.warning("Missed some kernel messages.")
 
 
-def get_kernel_messages_provider():
+def get_kernel_messages_provider() -> KernelMessagesProvider:
     if DefaultKernelMessagesProvider is EmptyKernelMessagesProvider:
         logger.info("Profilee error monitoring is not supported for this system.")
         return DefaultKernelMessagesProvider()

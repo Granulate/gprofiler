@@ -15,7 +15,7 @@ logger = get_logger_adapter(__name__)
 
 
 class DockerClient:
-    def __init__(self):
+    def __init__(self) -> None:
         try:
             self._client = docker.from_env()
         except Exception:

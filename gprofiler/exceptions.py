@@ -15,7 +15,7 @@ class ProcessStoppedException(Exception):
 
 
 class CalledProcessError(subprocess.CalledProcessError):
-    def __str__(self):
+    def __str__(self) -> str:
         if self.returncode and self.returncode < 0:
             try:
                 base = f"Command '{self.cmd}' died with {signal.Signals(-self.returncode)!r}."
@@ -36,7 +36,7 @@ class APIError(Exception):
         self.message = message
         self.full_data = full_data
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.message
 
 

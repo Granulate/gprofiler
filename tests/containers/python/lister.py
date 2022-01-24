@@ -6,23 +6,23 @@
 import os
 from threading import Thread
 
-import yaml  # type: ignore
+import yaml
 
 
-def lister():
+def lister() -> None:
     os.listdir("/")  # have some kernel stacks
 
 
-def burner():
+def burner() -> None:
     while True:  # have some Python stacks
         pass
 
 
-def parser():
+def parser() -> None:
     while True:
         # Have some package stacks.
         # Notice the name of the package name (PyYAML) is different from the name of the module (yaml)
-        yaml.parse("")
+        yaml.parse("")  # type: ignore
 
 
 if __name__ == "__main__":
