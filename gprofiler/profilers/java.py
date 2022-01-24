@@ -29,6 +29,7 @@ from granulate_utils.java import (
 from granulate_utils.linux import ns, proc_events
 from granulate_utils.linux.ns import get_proc_root_path, resolve_proc_root_links, run_in_ns
 from granulate_utils.linux.oom import get_oom_entry
+from granulate_utils.linux.process import is_process_running
 from granulate_utils.linux.signals import get_signal_entry
 from packaging.version import Version
 from psutil import Process
@@ -42,7 +43,6 @@ from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
-    is_process_running,
     pgrep_maps,
     process_comm,
     remove_path,

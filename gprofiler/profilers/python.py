@@ -13,6 +13,7 @@ from subprocess import Popen
 from threading import Event
 from typing import Dict, List, Optional
 
+from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import (
@@ -29,7 +30,6 @@ from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
-    is_process_running,
     pgrep_maps,
     poll_process,
     process_comm,
