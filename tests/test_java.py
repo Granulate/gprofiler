@@ -9,6 +9,7 @@ import threading
 import time
 from collections import Counter
 from pathlib import Path
+from threading import Event
 
 import psutil
 import pytest
@@ -22,7 +23,7 @@ from tests.utils import assert_function_in_collapsed, make_java_profiler, snapsh
 class AsyncProfiledProcessForTests(AsyncProfiledProcess):
     def status_async_profiler(self):
         self._run_async_profiler(
-            self._get_base_cmd() + [f"status,log={self._log_path_process},file={self._output_path_process}"]
+            self._get_base_cmd() + [f"status,log={self._log_path_process},file={self._output_path_process}"],
         )
 
 
@@ -41,6 +42,7 @@ def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_p
         with AsyncProfiledProcess(
             process=process,
             storage_dir=profiler._storage_dir,
+            stop_event=profiler._stop_event,
             buildis=False,
             mode=profiler._mode,
             ap_safemode=0,
@@ -52,7 +54,8 @@ def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_p
         with AsyncProfiledProcessForTests(
             process=process,
             storage_dir=profiler._storage_dir,
-            buildis=False,
+            stop_event=profiler._stop_event,
+            buildids=False,
             mode="itimer",
             ap_safemode=0,
             ap_args="",
@@ -234,7 +237,13 @@ def test_async_profiler_timeout_stop(tmp_path, application_pid, assert_collapsed
     process = psutil.Process(application_pid)
     timeout_s = 5
     with AsyncProfiledProcessForTests(
-        process=process, storage_dir=str(tmp_path), buildids=False, mode="itimer", ap_safemode=0, ap_args=""
+        process=process,
+        storage_dir=str(tmp_path),
+        stop_event=Event(),
+        buildids=False,
+        mode="itimer",
+        ap_safemode=0,
+        ap_args="",
     ) as ap_proc:
         assert ap_proc.start_async_profiler(frequency_to_ap_interval(11), ap_timeout=timeout_s)
 

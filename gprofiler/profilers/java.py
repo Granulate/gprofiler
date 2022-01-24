@@ -11,6 +11,7 @@ import shutil
 import signal
 from collections import Counter
 from enum import Enum
+from itertools import dropwhile
 from pathlib import Path
 from threading import Event
 from typing import List, Optional, Set
@@ -21,9 +22,11 @@ from granulate_utils.java import (
     NATIVE_FRAMES_REGEX,
     SIGINFO_REGEX,
     VM_INFO_REGEX,
+    is_java_fatal_signal,
+    java_exit_code_to_signo,
     locate_hotspot_error_file,
 )
-from granulate_utils.linux import proc_events
+from granulate_utils.linux import ns, proc_events
 from granulate_utils.linux.ns import get_proc_root_path, resolve_proc_root_links, run_in_ns
 from granulate_utils.linux.oom import get_oom_entry
 from granulate_utils.linux.signals import get_signal_entry
@@ -39,7 +42,6 @@ from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
-    get_process_nspid,
     is_process_running,
     pgrep_maps,
     process_comm,
@@ -134,16 +136,22 @@ class AsyncProfiledProcess:
     OUTPUT_FORMAT = "collapsed"
     OUTPUTS_MODE = 0o622  # readable by root, writable by all
 
+    # timeouts in seconds
+    _FDTRANSFER_TIMEOUT = 10
+    _JATTACH_TIMEOUT = 10  # higher than jattach's timeout
+
     def __init__(
         self,
         process: Process,
         storage_dir: str,
+        stop_event: Event,
         buildids: bool,
         mode: str,
         ap_safemode: int,
         ap_args: str,
     ):
         self.process = process
+        self._stop_event = stop_event
         # access the process' root via its topmost parent/ancestor which uses the same mount namespace.
         # this allows us to access the files after the process exits:
         # * for processes that run in host mount NS - their ancestor is always available (it's going to be PID 1)
@@ -154,7 +162,7 @@ class AsyncProfiledProcess:
         self._process_root = get_proc_root_path(process)
         self._cmdline = process.cmdline()
         self._cwd = process.cwd()
-        self._nspid = get_process_nspid(self.process.pid)
+        self._nspid = ns.get_process_nspid(self.process.pid)
 
         # not using storage_dir for AP itself on purpose: this path should remain constant for the lifetime
         # of the target process, so AP is loaded exactly once (if we have multiple paths, AP can be loaded
@@ -222,11 +230,6 @@ class AsyncProfiledProcess:
         return path if os.path.exists(path) else None
 
     def locate_hotspot_error_file(self) -> Optional[str]:
-        # nspid is required
-        if self._nspid is None:
-            # TODO: fix get_process_nspid so it always succeeds
-            return None
-
         for path in locate_hotspot_error_file(self._nspid, self._cmdline):
             realpath = self._existing_realpath(path)
             if realpath is not None:
@@ -319,8 +322,9 @@ class AsyncProfiledProcess:
 
     def _run_async_profiler(self, cmd: List[str]) -> None:
         try:
-            run_process(cmd)
-        except CalledProcessError as e:
+            # kill jattach with SIGTERM if it hangs. it will go down
+            run_process(cmd, stop_event=self._stop_event, timeout=self._JATTACH_TIMEOUT, kill_signal=signal.SIGTERM)
+        except CalledProcessError as e:  # catches timeouts as well
             if os.path.exists(self._log_path_host):
                 log = Path(self._log_path_host)
                 ap_log = log.read_text()
@@ -337,7 +341,12 @@ class AsyncProfiledProcess:
         """
         Start fdtransfer; it will fork & exit once ready, so we can continue with jattach.
         """
-        run_process([fdtransfer_path(), str(self.process.pid)], communicate=False)
+        run_process(
+            [fdtransfer_path(), str(self.process.pid)],
+            stop_event=self._stop_event,
+            timeout=self._FDTRANSFER_TIMEOUT,
+            communicate=False,
+        )
 
     def start_async_profiler(self, interval: int, second_try: bool = False, ap_timeout: int = 0) -> bool:
         """
@@ -396,6 +405,11 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
     # We are taking the version from the first line, and the build number and vm name from the last line
 
     lines = version_string.splitlines()
+
+    # the version always starts with "openjdk version" or "java version". strip all lines
+    # before that.
+    lines = list(dropwhile(lambda l: not ("openjdk version" in l or "java version" in l), lines))
+
     # version is always in quotes
     _, version_str, _ = lines[0].split('"')
     build_str = lines[2].split("(build ")[1]
@@ -513,6 +527,7 @@ class JavaProfiler(ProcessProfilerBase):
     # once the timeout triggers, AP remains stopped, so if it triggers before we tried to stop
     # AP ourselves, we'll be in messed up state. hence, we add 30s which is enough.
     _AP_EXTRA_TIMEOUT_S = 30
+    _JAVA_VERSION_TIMEOUT = 5
 
     def __init__(
         self,
@@ -591,9 +606,9 @@ class JavaProfiler(ProcessProfilerBase):
     def _is_jvm_version_supported(self, java_version_cmd_output: str) -> bool:
         try:
             jvm_version = parse_jvm_version(java_version_cmd_output)
-            logger.info(f"Checking support for java version {jvm_version}")
-        except Exception as e:
-            logger.exception(f"Failed to parse java -version output {java_version_cmd_output}: {e}")
+            logger.info("Checking support for java version", jvm_version=jvm_version)
+        except Exception:
+            logger.exception("Failed to parse java -version output", java_version_cmd_output=java_version_cmd_output)
             return False
 
         if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
@@ -610,25 +625,21 @@ class JavaProfiler(ProcessProfilerBase):
 
         return True
 
-    @staticmethod
-    def _get_java_version(process: Process) -> str:
-        nspid = get_process_nspid(process.pid)
-        if nspid is not None:
-            # this has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
-            # in that case, the libraries would have been replaced as well, and therefore we're actually checking
-            # the version of the now installed Java, and not the running one.
-            # but since this is used for the "JDK type" check, it's good enough - we don't expect that to change.
-            # this whole check, however, is growing to be too complex, and we should consider other approaches
-            # for it:
-            # 1. purely in async-profiler - before calling any APIs that might harm blacklisted JDKs, we can
-            #    check the JDK type in async-profiler itself.
-            # 2. assume JDK type by the path, e.g the "java" Docker image has
-            #    "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java" which means "OpenJDK". needs to be checked for
-            #    other JDK types.
-            java_path = f"/proc/{nspid}/exe"
-        else:
-            # TODO fix get_process_nspid() for all cases.
-            java_path = os.readlink(f"/proc/{process.pid}/exe")
+    def _get_java_version(self, process: Process) -> str:
+        nspid = ns.get_process_nspid(process.pid)
+
+        # this has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
+        # in that case, the libraries would have been replaced as well, and therefore we're actually checking
+        # the version of the now installed Java, and not the running one.
+        # but since this is used for the "JDK type" check, it's good enough - we don't expect that to change.
+        # this whole check, however, is growing to be too complex, and we should consider other approaches
+        # for it:
+        # 1. purely in async-profiler - before calling any APIs that might harm blacklisted JDKs, we can
+        #    check the JDK type in async-profiler itself.
+        # 2. assume JDK type by the path, e.g the "java" Docker image has
+        #    "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java" which means "OpenJDK". needs to be checked for
+        #    other JDK types.
+        java_path = f"/proc/{nspid}/exe"
 
         java_version_cmd_output = None
 
@@ -639,7 +650,9 @@ class JavaProfiler(ProcessProfilerBase):
                 [
                     java_path,
                     "-version",
-                ]
+                ],
+                stop_event=self._stop_event,
+                timeout=self._JAVA_VERSION_TIMEOUT,
             )
 
         # doesn't work without changing PID NS as well (I'm getting ENOENT for libjli.so)
@@ -732,12 +745,7 @@ class JavaProfiler(ProcessProfilerBase):
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
         with AsyncProfiledProcess(
-            process,
-            self._storage_dir,
-            self._buildids,
-            self._mode,
-            self._ap_safemode,
-            self._ap_args,
+            process, self._storage_dir, self._stop_event, self._buildids, self._mode, self._ap_safemode, self._ap_args
         ) as ap_proc:
             return self._profile_ap_process(ap_proc, comm)
 
@@ -834,24 +842,14 @@ class JavaProfiler(ProcessProfilerBase):
         if tid in self._profiled_pids:
             self._pids_to_remove.add(tid)
 
-            if os.WIFSIGNALED(exit_code):
-                signo = os.WTERMSIG(exit_code)
-            elif exit_code == 0x8F00:
-                # java exits with 143 upon SIGTERM
-                signo = signal.SIGTERM.value
-            else:
-                # not a signal - don't report it.
+            signo = java_exit_code_to_signo(exit_code)
+            if signo is None:
+                # not a signal, do not report
                 return
 
             logger.warning("async-profiled Java process exited with signal", pid=tid, signal=signo)
 
-            # SIGABRT is what JVMs (at least HotSpot) exit with upon a VM error (e.g after writing the hs_err file).
-            # SIGKILL is the result of OOM.
-            # SIGSEGV is added because in some extreme cases, the signal handler (which usually ends up with SIGABRT)
-            # causes another SIGSEGV (possibly in some loop), and eventually Java really dies with SIGSEGV.
-            # Other signals (such as SIGTERM which is common) are ignored until proven relevant
-            # to hard errors such as crashes. (SIGTERM, for example, is used as containers' stop signal)
-            if signo in (signal.SIGABRT.value, signal.SIGKILL.value, signal.SIGSEGV.value):
+            if is_java_fatal_signal(signo):
                 self._disable_profiling(JavaSafemodeOptions.PROFILED_SIGNALED)
 
     def _handle_kernel_messages(self, messages):
