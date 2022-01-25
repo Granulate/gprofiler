@@ -302,11 +302,11 @@ class AsyncProfiledProcess:
         return f",{self._ap_args}" if self._ap_args else ""
 
     def _get_ap_output_args(self) -> str:
-        return f"file={self._output_path_process},{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS}"
+        return f",file={self._output_path_process},{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS}"
 
     def _get_start_cmd(self, interval: int, ap_timeout: int) -> List[str]:
         return self._get_base_cmd() + [
-            f"start,event={self._mode},"
+            f"start,event={self._mode}"
             f"{self._get_ap_output_args()},interval={interval},"
             f"log={self._log_path_process}{',buildids' if self._buildids else ''}"
             f"{',fdtransfer' if self._mode == 'cpu' else ''}"
