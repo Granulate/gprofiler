@@ -29,7 +29,7 @@ from granulate_utils.java import (
 from granulate_utils.linux import ns, proc_events
 from granulate_utils.linux.ns import get_proc_root_path, resolve_proc_root_links, run_in_ns
 from granulate_utils.linux.oom import get_oom_entry
-from granulate_utils.linux.process import is_process_running
+from granulate_utils.linux.process import is_process_running, process_exe
 from granulate_utils.linux.signals import get_signal_entry
 from packaging.version import Version
 from psutil import Process
@@ -669,7 +669,8 @@ class JavaProfiler(ProcessProfilerBase):
         return True
 
     def _is_jvm_profiling_supported(self, process: Process) -> bool:
-        process_basename = os.path.basename(process.exe())
+        exe = process_exe(process)
+        process_basename = os.path.basename(exe)
         if JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS in self._java_safemode:
             # TODO we can get the "java" binary by extracting the java home from the libjvm path,
             # then check with that instead (if exe isn't java)
@@ -678,7 +679,7 @@ class JavaProfiler(ProcessProfilerBase):
                     "Non-java basenamed process, skipping... (disable "
                     f" --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS} to profile it anyway)",
                     pid=process.pid,
-                    exe=process.exe(),
+                    exe=exe,
                 )
                 return False
 

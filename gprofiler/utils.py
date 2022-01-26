@@ -29,6 +29,7 @@ from typing import Callable, Iterator, List, Optional, Tuple, Union
 import importlib_resources
 import psutil
 from granulate_utils.linux.ns import run_in_ns
+from granulate_utils.linux.process import process_exe
 from psutil import Process
 
 from gprofiler.exceptions import (
@@ -266,7 +267,7 @@ def pgrep_exe(match: str) -> List[Process]:
     procs = []
     for process in psutil.process_iter():
         try:
-            if pattern.match(process.exe()):
+            if pattern.match(process_exe(process)):
                 procs.append(process)
         except psutil.NoSuchProcess:  # process might have died meanwhile
             continue
