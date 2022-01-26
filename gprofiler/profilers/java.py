@@ -90,16 +90,18 @@ JAVA_SAFEMODE_DEFAULT_OPTIONS = [
 
 
 class JattachException(CalledProcessError):
-    def __init__(self, returncode, cmd, stdout, stderr, target_pid: int, ap_log: str):
+    def __init__(self, returncode, cmd, stdout, stderr, target_pid: int, ap_log: str, is_loaded: bool):
         super().__init__(returncode, cmd, stdout, stderr)
         self._target_pid = target_pid
         self._ap_log = ap_log
+        self.is_loaded = is_loaded
 
     def __str__(self):
         ap_log = self._ap_log.strip()
         if not ap_log:
             ap_log = "(empty)"
-        return super().__str__() + f"\nJava PID: {self._target_pid}\nasync-profiler log:\n{ap_log}"
+        loaded_msg = f"async-profiler DSO was{'' if self.is_loaded else ' not'} loaded"
+        return super().__str__() + f"\nJava PID: {self._target_pid}\n{loaded_msg}\nasync-profiler log:\n{ap_log}"
 
     def get_ap_log(self) -> str:
         return self._ap_log
@@ -327,7 +329,10 @@ class AsyncProfiledProcess:
             else:
                 ap_log = "(log file doesn't exist)"
 
-            raise JattachException(e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log) from None
+            is_loaded = f" {self._libap_path_process}\n" in Path(f"/proc/{self.process.pid}/maps").read_text()
+            raise JattachException(
+                e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, is_loaded
+            ) from None
 
     def _run_fdtransfer(self) -> None:
         """
@@ -352,16 +357,13 @@ class AsyncProfiledProcess:
             self._run_async_profiler(start_cmd)
             return True
         except JattachException as e:
-            is_loaded = f" {self._libap_path_process}\n" in Path(f"/proc/{self.process.pid}/maps").read_text()
-            if is_loaded:
+            if e.is_loaded:
                 if (
                     e.returncode == 200  # 200 == AP's COMMAND_ERROR
                     and e.get_ap_log() == "[ERROR] Profiler already started\n"
                 ):
                     # profiler was already running
                     return False
-
-            logger.warning(f"async-profiler DSO was{'' if is_loaded else ' not'} loaded into {self.process.pid}")
             raise
 
     def stop_async_profiler(self, with_output: bool) -> None:
