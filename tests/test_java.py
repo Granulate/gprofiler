@@ -9,19 +9,23 @@ import threading
 import time
 from collections import Counter
 from pathlib import Path
+from subprocess import Popen
 from threading import Event
+from typing import Optional
 
 import psutil
 import pytest
+from docker.models.containers import Container
+from pytest import LogCaptureFixture, MonkeyPatch
 from packaging.version import Version
 
 from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler, frequency_to_ap_interval, parse_jvm_version
-from tests.utils import assert_function_in_collapsed, make_java_profiler, snapshot_one_collaped
+from tests.utils import assert_function_in_collapsed, make_java_profiler, snapshot_one_collaped, AssertInCollapsed
 
 
 # adds the "status" command to AsyncProfiledProcess from gProfiler.
 class AsyncProfiledProcessForTests(AsyncProfiledProcess):
-    def status_async_profiler(self):
+    def status_async_profiler(self) -> None:
         self._run_async_profiler(
             self._get_base_cmd() + [f"status,log={self._log_path_process},file={self._output_path_process}"],
         )
@@ -32,7 +36,8 @@ def runtime() -> str:
     return "java"
 
 
-def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_path, caplog):
+def test_async_profiler_already_running(application_pid: int, assert_collapsed: AssertInCollapsed,
+                                        tmp_path: Path, caplog: LogCaptureFixture) -> None:
     """
     Test we're able to restart async-profiler in case it's already running in the process and get results normally.
     """
@@ -75,7 +80,7 @@ def test_async_profiler_already_running(application_pid, assert_collapsed, tmp_p
 def test_java_async_profiler_cpu_mode(
     tmp_path: Path,
     application_pid: int,
-    assert_collapsed,
+    assert_collapsed: AssertInCollapsed,
 ) -> None:
     """
     Run Java in a container and enable async-profiler in CPU mode, make sure we get kernel stacks.
@@ -96,7 +101,7 @@ def test_java_async_profiler_cpu_mode(
 def test_java_async_profiler_musl_and_cpu(
     tmp_path: Path,
     application_pid: int,
-    assert_collapsed,
+    assert_collapsed: AssertInCollapsed,
 ) -> None:
     """
     Run Java in an Alpine-based container and enable async-profiler in CPU mode, make sure that musl profiling
@@ -108,14 +113,15 @@ def test_java_async_profiler_musl_and_cpu(
         assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed)  # ensure kernels stacks exist
 
 
-def test_java_safemode_parameters(tmp_path) -> None:
+def test_java_safemode_parameters(tmp_path: Path) -> None:
     with pytest.raises(AssertionError) as excinfo:
         make_java_profiler(storage_dir=str(tmp_path), java_version_check=False)
     assert "Java version checks are mandatory in --java-safemode" in str(excinfo.value)
 
 
 def test_java_safemode_version_check(
-    tmp_path, monkeypatch, caplog, application_docker_container, application_process
+    tmp_path: Path, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture, application_docker_container: Container,
+        application_process: Optional[Popen]
 ) -> None:
     monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (Version("8.999"), 0))
 
@@ -131,7 +137,8 @@ def test_java_safemode_version_check(
 
 
 def test_java_safemode_build_number_check(
-    tmp_path, monkeypatch, caplog, application_docker_container, application_process
+    tmp_path: Path, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture, application_docker_container: Container,
+        application_process: Optional[Popen]
 ) -> None:
     with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
         process = profiler._select_processes_to_profile()[0]
@@ -153,7 +160,8 @@ def test_java_safemode_build_number_check(
         (True, [], False),  # containerized (other params are ignored)
     ],
 )
-def test_hotspot_error_file(application_pid, tmp_path, monkeypatch, caplog):
+def test_hotspot_error_file(application_pid: int, tmp_path: Path, monkeypatch: MonkeyPatch,
+                            caplog: LogCaptureFixture) -> None:
     start_async_profiler = AsyncProfiledProcess.start_async_profiler
 
     # Simulate crashing process
@@ -178,7 +186,8 @@ def test_hotspot_error_file(application_pid, tmp_path, monkeypatch, caplog):
     assert profiler._safemode_disable_reason is not None
 
 
-def test_disable_java_profiling(application_pid, tmp_path, monkeypatch, caplog):
+def test_disable_java_profiling(application_pid: int, tmp_path: Path, monkeypatch: MonkeyPatch,
+                                caplog: LogCaptureFixture) -> None:
     caplog.set_level(logging.DEBUG)
 
     profiler = make_java_profiler(storage_dir=str(tmp_path))
@@ -191,7 +200,8 @@ def test_disable_java_profiling(application_pid, tmp_path, monkeypatch, caplog):
     assert "Java profiling has been disabled, skipping profiling of all java process" in caplog.text
 
 
-def test_already_loaded_async_profiler_profiling_failure(tmp_path, monkeypatch, caplog, application_pid) -> None:
+def test_already_loaded_async_profiler_profiling_failure(tmp_path: Path, monkeypatch: MonkeyPatch,
+                                                         caplog: LogCaptureFixture, application_pid: int) -> None:
     with monkeypatch.context() as m:
         m.setattr("gprofiler.profilers.java.TEMPORARY_STORAGE_PATH", "/tmp/fake_gprofiler_tmp")
         with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
@@ -208,7 +218,9 @@ def test_already_loaded_async_profiler_profiling_failure(tmp_path, monkeypatch, 
 # test only once; and don't test in container - as it will go down once we kill the Java app.
 @pytest.mark.parametrize("in_container", [False])
 @pytest.mark.parametrize("check_app_exited", [False])  # we're killing it, the exit check will raise.
-def test_async_profiler_output_written_upon_jvm_exit(tmp_path, application_pid, assert_collapsed, caplog) -> None:
+def test_async_profiler_output_written_upon_jvm_exit(tmp_path: Path, application_pid: int,
+                                                     assert_collapsed: AssertInCollapsed,
+                                                     caplog: LogCaptureFixture) -> None:
     """
     Make sure async-profiler writes output upon process exit (and we manage to read it correctly)
     """
@@ -230,7 +242,9 @@ def test_async_profiler_output_written_upon_jvm_exit(tmp_path, application_pid, 
 
 # test only once
 @pytest.mark.parametrize("in_container", [False])
-def test_async_profiler_stops_after_given_timeout(tmp_path, application_pid, assert_collapsed, caplog) -> None:
+def test_async_profiler_stops_after_given_timeout(tmp_path: Path, application_pid: int,
+                                                  assert_collapsed: AssertInCollapsed,
+                                                  caplog: LogCaptureFixture) -> None:
     caplog.set_level(logging.DEBUG)
 
     process = psutil.Process(application_pid)

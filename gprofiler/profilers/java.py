@@ -60,7 +60,7 @@ from gprofiler.utils.perf import can_i_use_perf_events
 logger = get_logger_adapter(__name__)
 
 
-def frequency_to_ap_interval(frequency: int):
+def frequency_to_ap_interval(frequency: int) -> int:
     # async-profiler accepts interval between samples (nanoseconds)
     return int((1 / frequency) * 1_000_000_000)
 

@@ -2,7 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 from threading import Event
-from typing import Dict, List, Mapping, Optional, Tuple, Any
+from typing import Dict, List, Mapping, Optional, Tuple, Any, Counter, Callable
 
 from docker import DockerClient
 from docker.models.containers import Container
@@ -98,7 +98,10 @@ def chmod_path_parts(path: Path, add_mode: int) -> None:
         os.chmod(subpath, os.stat(subpath).st_mode | add_mode)
 
 
-def assert_function_in_collapsed(function_name: str, collapsed: Mapping[str, int]) -> None:
+AssertInCollapsed = Callable[[StackToSampleCount], None]
+
+
+def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) -> None:
     print(f"collapsed: {collapsed}")
     assert any(
         (function_name in record) for record in collapsed.keys()

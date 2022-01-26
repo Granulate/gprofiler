@@ -4,7 +4,7 @@
 #
 import signal
 import subprocess
-from typing import List, Union
+from typing import List, Union, Any
 
 
 class StopEventSetException(Exception):
@@ -28,11 +28,12 @@ class CalledProcessError(subprocess.CalledProcessError):
 
 
 class CalledProcessTimeoutError(CalledProcessError):
-    def __init__(self, timeout: float, returncode: int, cmd: Union[str, List[str]], output=None, stderr=None):
+    def __init__(self, timeout: float, returncode: int, cmd: Union[str, List[str]], output: Any = None,
+                 stderr: Any = None):
         super().__init__(returncode, cmd, output, stderr)
         self.timeout = timeout
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Timed out after {self.timeout} seconds\n" + super().__str__()
 
 
