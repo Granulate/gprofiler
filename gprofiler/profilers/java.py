@@ -52,6 +52,7 @@ from gprofiler.utils import (
     touch_path,
     wait_event,
 )
+from gprofiler.utils.perf import can_i_use_perf_events
 
 logger = get_logger_adapter(__name__)
 
@@ -94,6 +95,8 @@ JAVA_SAFEMODE_DEFAULT_OPTIONS = [
 ]
 
 JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 0  # all off
+
+SUPPORTED_AP_MODES = ["cpu", "itimer"]
 
 
 class JattachException(CalledProcessError):
@@ -477,10 +480,10 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
         ProfilerArgument(
             "--java-async-profiler-mode",
             dest="java_async_profiler_mode",
-            choices=["cpu", "itimer"],
-            default="itimer",
-            help="Select async-profiler's mode: 'cpu' (based on perf_events & fdtransfer) or 'itimer' (no perf_events)."
-            " Defaults to '%(default)s'.",
+            choices=SUPPORTED_AP_MODES + ["auto"],
+            default="auto",
+            help="Select async-profiler's mode: 'cpu' (based on perf_events & fdtransfer), 'itimer' (no perf_events)"
+            " or 'auto' (select 'cpu' if perf_events are available; otherwise 'itimer'). Defaults to '%(default)s'.",
         ),
         ProfilerArgument(
             "--java-async-profiler-safemode",
@@ -554,7 +557,7 @@ class JavaProfiler(ProcessProfilerBase):
         self._simple_version_check = java_version_check
         if not self._simple_version_check:
             logger.warning("Java version checks are disabled")
-        self._mode = java_async_profiler_mode
+        self._init_ap_mode(java_async_profiler_mode)
         self._ap_safemode = java_async_profiler_safemode
         self._ap_args = java_async_profiler_args
         self._init_java_safemode(java_safemode)
@@ -566,6 +569,14 @@ class JavaProfiler(ProcessProfilerBase):
         self._kernel_messages_provider = get_kernel_messages_provider()
         self._enabled_proc_events = False
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
+
+    def _init_ap_mode(self, ap_mode: str) -> None:
+        if ap_mode == "auto":
+            ap_mode = "cpu" if can_i_use_perf_events() else "itimer"
+            logger.debug("Auto selected AP mode", ap_mode=ap_mode)
+
+        assert ap_mode in SUPPORTED_AP_MODES, f"unexpected ap mode: {ap_mode}"
+        self._mode = ap_mode
 
     def _init_java_safemode(self, java_safemode: str) -> None:
         if java_safemode == JAVA_SAFEMODE_ALL:

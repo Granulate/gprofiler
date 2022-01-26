@@ -80,7 +80,12 @@ def test_java_async_profiler_cpu_mode(
     """
     Run Java in a container and enable async-profiler in CPU mode, make sure we get kernel stacks.
     """
-    with make_java_profiler(storage_dir=str(tmp_path), frequency=999) as profiler:
+    with make_java_profiler(
+        storage_dir=str(tmp_path),
+        frequency=999,
+        # this ensures auto selection picks CPU by default, if possible.
+        java_async_profiler_mode="auto",
+    ) as profiler:
         process_collapsed = snapshot_one_collaped(profiler)
         assert_collapsed(process_collapsed)
         assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed)  # ensure kernels stacks exist
