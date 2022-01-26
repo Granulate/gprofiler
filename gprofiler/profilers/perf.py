@@ -14,7 +14,8 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.merge import ProcessToStackSampleCounters, merge_global_perfs
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils import perf_path, run_process, start_process, wait_event, wait_for_file_by_prefix
+from gprofiler.utils import run_process, start_process, wait_event, wait_for_file_by_prefix
+from gprofiler.utils.perf import perf_path
 
 logger = get_logger_adapter(__name__)
 
