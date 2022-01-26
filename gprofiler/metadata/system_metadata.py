@@ -11,13 +11,14 @@ import sys
 import time
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Dict, Optional, Tuple, Any
+from typing import Dict, Optional, Tuple, Any, cast
 
 import distro  # type: ignore
 import psutil
 
 from gprofiler.log import get_logger_adapter
-from gprofiler.utils import is_pyinstaller, run_in_ns, run_process
+from gprofiler.utils import is_pyinstaller, run_process
+from granulate_utils.linux.ns import run_in_ns
 
 logger = get_logger_adapter(__name__)
 hostname: Optional[str] = None
@@ -84,7 +85,7 @@ def get_local_ip() -> str:
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         s.connect(("8.8.8.8", 53))
-        return s.getsockname()[0]
+        return cast(str, s.getsockname()[0])
     except socket.error:
         return "unknown"
     finally:
@@ -124,8 +125,8 @@ def get_mac_address() -> str:
 
         # okay, not loopback, get its MAC address.
         res = fcntl.ioctl(s.fileno(), 0x8927, iface)  # SIOCGIFHWADDR
-        address = struct.unpack(f"{IFNAMSIZ}sH{MAC_BYTES_LEN}s", res[: IFNAMSIZ + SIZE_OF_SHORT + MAC_BYTES_LEN])[2]
-        mac = struct.unpack(f"{MAC_BYTES_LEN}B", address)
+        address_bytes = struct.unpack(f"{IFNAMSIZ}sH{MAC_BYTES_LEN}s", res[: IFNAMSIZ + SIZE_OF_SHORT + MAC_BYTES_LEN])[2]
+        mac = struct.unpack(f"{MAC_BYTES_LEN}B", address_bytes)
         address = ":".join(["%02X" % i for i in mac])
         return address
 

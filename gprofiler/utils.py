@@ -210,7 +210,7 @@ def run_process(
     communicate: bool = True,
     stdin: bytes = None,
     **kwargs: Any,
-) -> CompletedProcess:
+) -> "CompletedProcess[bytes]":
     stdout = None
     stderr = None
     with start_process(cmd, via_staticx, **kwargs) as process:
@@ -243,14 +243,14 @@ def run_process(
             raise
         retcode = process.poll()
         assert retcode is not None  # only None if child has not terminated
-    result: CompletedProcess = CompletedProcess(process.args, retcode, stdout, stderr)
+    result: CompletedProcess[bytes] = CompletedProcess(process.args, retcode, stdout, stderr)
 
     logger.debug(f"({process.args!r}) exit code: {result.returncode}")
     if not suppress_log:
         if result.stdout:
-            logger.debug(f"({process.args!r}) stdout: {result.stdout}")
+            logger.debug(f"({process.args!r}) stdout: {result.stdout.decode()}")
         if result.stderr:
-            logger.debug(f"({process.args!r}) stderr: {result.stderr}")
+            logger.debug(f"({process.args!r}) stderr: {result.stderr.decode()}")
     if check and retcode != 0:
         raise CalledProcessError(retcode, process.args, output=stdout, stderr=stderr)
     return result

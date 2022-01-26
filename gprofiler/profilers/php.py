@@ -12,7 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
-from typing import List, Optional, Pattern
+from typing import List, Optional, Pattern, cast
 
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters
@@ -109,9 +109,9 @@ class PHPSpyProfiler(ProfilerBase):
 
         # Set the stderr fd as non-blocking so the read operation on it won't block if no data is available.
         fcntl.fcntl(
-            self._process.stderr.fileno(),
+            self._process.stderr.fileno(),  # type: ignore
             fcntl.F_SETFL,
-            fcntl.fcntl(self._process.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK,
+            fcntl.fcntl(self._process.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK,  # type: ignore
         )
 
         # Ignoring type since _process.stderr is typed as Optional[IO[Any]] which doesn't have the `read1` method.
@@ -161,7 +161,7 @@ class PHPSpyProfiler(ProfilerBase):
                 raise CorruptedPHPSpyOutputException(
                     f"Couldn't extract metadata via regex '{re_expr.pattern}', line '{metadata_line}'"
                 )
-            return match.group(1)
+            return cast(str, match.group(1))
 
         results: ProcessToStackSampleCounters = defaultdict(Counter)
 

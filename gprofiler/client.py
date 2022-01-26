@@ -6,7 +6,7 @@ import datetime
 import gzip
 import json
 from io import BytesIO
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Any
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Any, cast
 
 import requests
 from requests import Session
@@ -63,7 +63,7 @@ class APIClient:
         self,
         method: str,
         path: str,
-        data: Optional[Dict],
+        data: Any,
         files: Dict = None,
         timeout: float = DEFAULT_REQUEST_TIMEOUT,
         api_version: str = None,
@@ -101,21 +101,21 @@ class APIClient:
                 raise APIError(resp.text)
         else:
             resp.raise_for_status()
-        return resp.json()
+        return cast(dict, resp.json())
 
-    def get(self, path: str, data: Optional[Dict] = None, **kwargs: Any) -> Dict:
+    def get(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("GET", path, data, **kwargs)
 
-    def post(self, path: str, data: Optional[Dict] = None, **kwargs: Any) -> Dict:
+    def post(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("POST", path, data, **kwargs)
 
-    def put(self, path: str, data: Optional[Dict] = None, **kwargs: Any) -> Dict:
+    def put(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("PUT", path, data, **kwargs)
 
-    def patch(self, path: str, data: Optional[Dict] = None, **kwargs: Any) -> Dict:
+    def patch(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("PATCH", path, data, **kwargs)
 
-    def delete(self, path: str, data: Optional[Dict] = None, **kwargs: Any) -> Dict:
+    def delete(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("DELETE", path, data, **kwargs)
 
     def get_health(self) -> Dict:

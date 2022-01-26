@@ -4,13 +4,13 @@
 #
 
 from collections import Counter
-from typing import Dict, MutableMapping, Tuple
+from typing import Dict, MutableMapping, Tuple, Union, Optional
 
 import configargparse
 
 StackToSampleCount = Counter
 ProcessToStackSampleCounters = MutableMapping[int, StackToSampleCount]
-UserArgs = Dict[str, Tuple[int, bool, str]]
+UserArgs = Dict[str, Optional[Union[int, bool, str]]]
 
 
 def positive_integer(value_str: str) -> int:

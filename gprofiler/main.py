@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from threading import Event
 from types import FrameType
-from typing import Iterable, Optional
+from typing import Iterable, Optional, cast, Any
 
 import configargparse
 from granulate_utils.linux.ns import is_running_in_init_pid
@@ -22,17 +22,16 @@ from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
 
 from gprofiler import __version__, merge
-from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
+from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
 from gprofiler.docker_client import DockerClient
-from gprofiler.exceptions import SystemProfilerInitFailure
-from gprofiler.gprofiler_types import UserArgs, positive_integer
+from gprofiler.exceptions import SystemProfilerInitFailure, APIError
+from gprofiler.gprofiler_types import UserArgs, positive_integer, ProcessToStackSampleCounters
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
-from gprofiler.merge import ProcessToStackSampleCounters
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
 from gprofiler.profilers.factory import get_profilers
-from gprofiler.profilers.profiler_base import NoopProfiler, ProfilerInterface
+from gprofiler.profilers.profiler_base import NoopProfiler, ProfilerInterface, ProcessProfilerBase
 from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
@@ -81,7 +80,7 @@ class GProfiler:
         output_dir: str,
         flamegraph: bool,
         rotating_output: bool,
-        client: APIClient,
+        client: Optional[APIClient],
         collect_metrics: bool,
         collect_metadata: bool,
         identify_applications: bool,
@@ -227,7 +226,7 @@ class GProfiler:
 
                 # others - are ignored, with a warning.
                 logger.warning(f"Failed to start {prof.__class__.__name__}, continuing without it", exc_info=True)
-                self.process_profilers.remove(prof)
+                self.process_profilers.remove(cast(ProcessProfilerBase, prof))
 
     def stop(self) -> None:
         logger.info("Stopping ...")
@@ -243,10 +242,10 @@ class GProfiler:
         process_profilers_futures = []
         for prof in self.process_profilers:
             prof_future = self._executor.submit(prof.snapshot)
-            prof_future.name = prof.name
+            prof_future.name = prof.name  # type: ignore
             process_profilers_futures.append(prof_future)
         system_future = self._executor.submit(self.system_profiler.snapshot)
-        system_future.name = "system"
+        system_future.name = "system"  # type: ignore
 
         process_profiles: ProcessToStackSampleCounters = {}
         for future in concurrent.futures.as_completed(process_profilers_futures):
@@ -254,7 +253,7 @@ class GProfiler:
             try:
                 process_profiles.update(future.result())
             except Exception:
-                logger.exception(f"{future.name} profiling failed")
+                logger.exception(f"{future.name} profiling failed")  # type: ignore
 
         local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
 
@@ -364,7 +363,7 @@ class GProfiler:
                     break
 
 
-def parse_cmd_args():
+def parse_cmd_args() -> Any:
     parser = configargparse.ArgumentParser(
         description="gprofiler",
         auto_env_var_prefix="gprofiler_",
@@ -565,7 +564,7 @@ def parse_cmd_args():
     return args
 
 
-def _add_profilers_arguments(parser):
+def _add_profilers_arguments(parser: configargparse.ArgumentParser) -> None:
     registry = get_profilers_registry()
     for name, config in registry.items():
         arg_group = parser.add_argument_group(name)
@@ -591,7 +590,7 @@ def _add_profilers_arguments(parser):
             arg_group.add_argument(name, **profiler_arg_kwargs)
 
 
-def verify_preconditions(args):
+def verify_preconditions(args: Any) -> None:
     if not is_root():
         print("Must run gprofiler as root, please re-run.", file=sys.stderr)
         sys.exit(1)
@@ -639,7 +638,7 @@ def log_system_info() -> None:
     logger.info(f"Hostname: {system_info.hostname}")
 
 
-def main():
+def main() -> None:
     args = parse_cmd_args()
     verify_preconditions(args)
     state = init_state()

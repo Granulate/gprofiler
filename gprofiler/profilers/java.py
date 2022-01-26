@@ -12,8 +12,9 @@ from collections import Counter
 from enum import Enum
 from itertools import dropwhile
 from pathlib import Path
+from subprocess import CompletedProcess
 from threading import Event
-from typing import List, Optional, Set, Any
+from typing import List, Optional, Set, Any, cast
 
 import psutil
 from granulate_utils.java import (
@@ -26,6 +27,7 @@ from granulate_utils.java import (
     locate_hotspot_error_file,
 )
 from granulate_utils.linux import proc_events
+from granulate_utils.linux.kernel_messages import KernelMessage
 from granulate_utils.linux.ns import get_proc_root_path, resolve_proc_root_links, run_in_ns
 from granulate_utils.linux.oom import get_oom_entry
 from granulate_utils.linux.signals import get_signal_entry
@@ -199,7 +201,7 @@ class AsyncProfiledProcess:
 
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         # ignore_errors because we are deleting paths via /proc/pid/root - and the pid
         # we're using might have gone down already.
         # remove them as best effort.
@@ -623,7 +625,7 @@ class JavaProfiler(ProcessProfilerBase):
             # TODO fix get_process_nspid() for all cases.
             java_path = os.readlink(f"/proc/{process.pid}/exe")
 
-        java_version_cmd_output = None
+        java_version_cmd_output: Optional[CompletedProcess[bytes]] = None
 
         def _run_java_version() -> None:
             nonlocal java_version_cmd_output
@@ -768,7 +770,7 @@ class JavaProfiler(ProcessProfilerBase):
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
             return parse_one_collapsed(output, comm)
 
-    def _check_hotspot_error(self, ap_proc) -> None:
+    def _check_hotspot_error(self, ap_proc: AsyncProfiledProcess) -> None:
         pid = ap_proc.process.pid
         error_file = ap_proc.locate_hotspot_error_file()
         if not error_file:
@@ -833,7 +835,7 @@ class JavaProfiler(ProcessProfilerBase):
             if is_java_fatal_signal(signo):
                 self._disable_profiling(JavaSafemodeOptions.PROFILED_SIGNALED)
 
-    def _handle_kernel_messages(self, messages) -> None:
+    def _handle_kernel_messages(self, messages: List[KernelMessage]) -> None:
         for message in messages:
             _, _, text = message
             oom_entry = get_oom_entry(text)
