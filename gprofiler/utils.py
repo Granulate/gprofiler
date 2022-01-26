@@ -486,10 +486,6 @@ def get_staticx_dir() -> Optional[str]:
     return os.getenv("STATICX_BUNDLE_DIR")
 
 
-def is_process_running(process: psutil.Process):
-    return process.is_running() and not process.status() == "zombie"
-
-
 def get_kernel_release() -> Tuple[int, int]:
     """Return Linux kernel version as (major, minor) tuple."""
     major_str, minor_str = os.uname().release.split(".", maxsplit=2)[:2]
