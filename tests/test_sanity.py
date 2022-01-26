@@ -47,7 +47,7 @@ def test_java_from_host(
     ) as profiler:
         _ = assert_application_name  # Required for mypy unused argument warning
         process_collapsed = snapshot_one_collaped(profiler)
-        assert_collapsed(process_collapsed, check_comm=True)
+        assert_collapsed(process_collapsed)
 
 
 @pytest.mark.parametrize("runtime", ["python"])
@@ -62,7 +62,7 @@ def test_pyspy(
     with PySpyProfiler(1000, 3, Event(), str(tmp_path), add_versions=True) as profiler:
         # not using snapshot_one_collaped because there are multiple Python processes running usually.
         process_collapsed = profiler.snapshot().get(application_pid)
-        assert_collapsed(process_collapsed, check_comm=True)
+        assert_collapsed(process_collapsed)
         assert_function_in_collapsed("PyYAML==6.0", process_collapsed)  # Ensure package info is presented
         # Ensure Python version is presented
         assert python_version is not None, "Failed to find python version"
@@ -79,7 +79,7 @@ def test_phpspy(
         1000, PHPSPY_DURATION, Event(), str(tmp_path), php_process_filter="php", php_mode="phpspy"
     ) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
-        assert_collapsed(process_collapsed, check_comm=True)
+        assert_collapsed(process_collapsed)
 
 
 @pytest.mark.parametrize("runtime", ["ruby"])
@@ -91,7 +91,7 @@ def test_rbspy(
 ) -> None:
     with RbSpyProfiler(1000, 3, Event(), str(tmp_path), "rbspy") as profiler:
         process_collapsed = snapshot_one_collaped(profiler)
-        assert_collapsed(process_collapsed, check_comm=True)
+        assert_collapsed(process_collapsed)
 
 
 @pytest.mark.parametrize("runtime", ["nodejs"])
@@ -105,7 +105,7 @@ def test_nodejs(
         1000, 6, Event(), str(tmp_path), perf_mode="fp", perf_inject=True, perf_dwarf_stack_size=0
     ) as profiler:
         process_collapsed = profiler.snapshot().get(application_pid)
-        assert_collapsed(process_collapsed, check_comm=True)
+        assert_collapsed(process_collapsed)
 
 
 @pytest.mark.parametrize("runtime", ["python"])
@@ -122,10 +122,10 @@ def test_python_ebpf(
     with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path), add_versions=True) as profiler:
         collapsed = profiler.snapshot()
         process_collapsed = collapsed.get(application_pid)
-        assert_collapsed(process_collapsed, check_comm=True)
-        assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed, True)  # ensure kernels stacks exist
+        assert_collapsed(process_collapsed)
+        assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed)  # ensure kernels stacks exist
         assert_function_in_collapsed(
-            "_PyEval_EvalFrameDefault_[pn]", process_collapsed, True
+            "_PyEval_EvalFrameDefault_[pn]", process_collapsed
         )  # ensure native user stacks exist
         assert_function_in_collapsed("PyYAML==6.0", process_collapsed)  # ensure package info is presented
         # ensure Python version is presented

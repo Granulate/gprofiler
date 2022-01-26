@@ -1,6 +1,7 @@
 import os
 import subprocess
 from pathlib import Path
+from threading import Event
 from typing import Dict, List, Mapping, Optional, Tuple
 
 from docker import DockerClient
@@ -8,6 +9,7 @@ from docker.models.containers import Container
 from docker.models.images import Image
 
 from gprofiler.gprofiler_types import StackToSampleCount
+from gprofiler.profilers.java import JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE, JAVA_SAFEMODE_ALL, JavaProfiler
 from gprofiler.profilers.profiler_base import ProfilerInterface
 
 RUNTIME_PROFILERS = [
@@ -97,7 +99,7 @@ def chmod_path_parts(path: Path, add_mode: int) -> None:
         os.chmod(subpath, os.stat(subpath).st_mode | add_mode)
 
 
-def assert_function_in_collapsed(function_name: str, collapsed: Mapping[str, int], check_comm: bool = False) -> None:
+def assert_function_in_collapsed(function_name: str, collapsed: Mapping[str, int]) -> None:
     print(f"collapsed: {collapsed}")
     assert any(
         (function_name in record) for record in collapsed.keys()
@@ -108,3 +110,32 @@ def snapshot_one_collaped(profiler: ProfilerInterface) -> StackToSampleCount:
     result = profiler.snapshot()
     assert len(result) == 1
     return next(iter(result.values()))
+
+
+def make_java_profiler(
+    frequency: int = 11,
+    duration: int = 1,
+    stop_event: Event = Event(),
+    storage_dir: str = None,
+    java_async_profiler_buildids: bool = False,
+    java_version_check: bool = True,
+    java_async_profiler_mode: str = "cpu",
+    java_async_profiler_safemode: int = JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
+    java_async_profiler_args: str = "",
+    java_safemode: str = JAVA_SAFEMODE_ALL,
+    java_mode: str = "ap",
+) -> JavaProfiler:
+    assert storage_dir is not None
+    return JavaProfiler(
+        frequency=frequency,
+        duration=duration,
+        stop_event=stop_event,
+        storage_dir=storage_dir,
+        java_async_profiler_buildids=java_async_profiler_buildids,
+        java_version_check=java_version_check,
+        java_async_profiler_mode=java_async_profiler_mode,
+        java_async_profiler_safemode=java_async_profiler_safemode,
+        java_async_profiler_args=java_async_profiler_args,
+        java_safemode=java_safemode,
+        java_mode=java_mode,
+    )

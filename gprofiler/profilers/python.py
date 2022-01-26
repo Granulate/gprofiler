@@ -9,13 +9,19 @@ import resource
 import signal
 from collections import Counter, defaultdict
 from pathlib import Path
-from subprocess import Popen, TimeoutExpired
+from subprocess import Popen
 from threading import Event
 from typing import Dict, List, Optional
 
+from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
 
-from gprofiler.exceptions import CalledProcessError, ProcessStoppedException, StopEventSetException
+from gprofiler.exceptions import (
+    CalledProcessError,
+    CalledProcessTimeoutError,
+    ProcessStoppedException,
+    StopEventSetException,
+)
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_many_collapsed, parse_one_collapsed_file
@@ -24,7 +30,6 @@ from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
-    is_process_running,
     pgrep_maps,
     poll_process,
     process_comm,
@@ -133,7 +138,7 @@ class PySpyProfiler(ProcessProfilerBase):
                 )
             except ProcessStoppedException:
                 raise StopEventSetException
-            except TimeoutExpired:
+            except CalledProcessTimeoutError:
                 logger.error(f"Profiling with py-spy timed out on process {process.pid}")
                 raise
             except CalledProcessError as e:
@@ -190,12 +195,13 @@ class PythonEbpfProfiler(ProfilerBase):
     PYPERF_RESOURCE = "python/pyperf/PyPerf"
     _GET_FS_OFFSET_RESOURCE = "python/pyperf/get_fs_offset"
     _GET_STACK_OFFSET_RESOURCE = "python/pyperf/get_stack_offset"
-    events_buffer_pages = 256  # 1mb and needs to be physically contiguous
+    _EVENTS_BUFFER_PAGES = 256  # 1mb and needs to be physically contiguous
     # 28mb (each symbol is 224 bytes), but needn't be physicall contiguous so don't care
-    symbols_map_size = 131072
-    dump_signal = signal.SIGUSR2
-    dump_timeout = 5  # seconds
-    poll_timeout = 10  # seconds
+    _SYMBOLS_MAP_SIZE = 131072
+    _DUMP_SIGNAL = signal.SIGUSR2
+    _DUMP_TIMEOUT = 5  # seconds
+    _POLL_TIMEOUT = 10  # seconds
+    _GET_OFFSETS_TIMEOUT = 5  # seconds
 
     def __init__(
         self,
@@ -246,7 +252,11 @@ class PythonEbpfProfiler(ProfilerBase):
             run_process(["mount", "-t", "debugfs", "none", "/sys/kernel/debug"])
 
     def _get_offset(self, prog: str) -> int:
-        return int(run_process(resource_path(prog)).stdout.strip())
+        return int(
+            run_process(
+                resource_path(prog), stop_event=self._stop_event, timeout=self._GET_OFFSETS_TIMEOUT
+            ).stdout.strip()
+        )
 
     def _kernel_fs_offset(self) -> int:
         try:
@@ -290,7 +300,7 @@ class PythonEbpfProfiler(ProfilerBase):
         ] + self._offset_args()
         process = start_process(cmd, via_staticx=True)
         try:
-            poll_process(process, self.poll_timeout, self._stop_event)
+            poll_process(process, self._POLL_TIMEOUT, self._stop_event)
         except TimeoutError:
             process.kill()
             raise
@@ -306,9 +316,9 @@ class PythonEbpfProfiler(ProfilerBase):
             "-F",
             str(self._frequency),
             "--events-buffer-pages",
-            str(self.events_buffer_pages),
+            str(self._EVENTS_BUFFER_PAGES),
             "--symbols-map-size",
-            str(self.symbols_map_size),
+            str(self._SYMBOLS_MAP_SIZE),
             # Duration is irrelevant here, we want to run continuously.
         ] + self._offset_args()
 
@@ -322,7 +332,7 @@ class PythonEbpfProfiler(ProfilerBase):
         # wait until the transient data file appears - because once returning from here, PyPerf may
         # be polled via snapshot() and we need it to finish installing its signal handler.
         try:
-            wait_event(self.poll_timeout, self._stop_event, lambda: os.path.exists(self.output_path))
+            wait_event(self._POLL_TIMEOUT, self._stop_event, lambda: os.path.exists(self.output_path))
         except TimeoutError:
             process.kill()
             logger.error(f"PyPerf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
@@ -332,11 +342,11 @@ class PythonEbpfProfiler(ProfilerBase):
 
     def _dump(self) -> Path:
         assert self.process is not None, "profiling not started!"
-        self.process.send_signal(self.dump_signal)
+        self.process.send_signal(self._DUMP_SIGNAL)
 
         try:
             # important to not grab the transient data file - hence the following '.'
-            output = wait_for_file_by_prefix(f"{self.output_path}.", self.dump_timeout, self._stop_event)
+            output = wait_for_file_by_prefix(f"{self.output_path}.", self._DUMP_TIMEOUT, self._stop_event)
             # PyPerf outputs sampling & error counters every interval (after writing the output file), print them.
             # also, makes sure its output pipe doesn't fill up.
             # using read1() which performs just a single read() call and doesn't read until EOF
