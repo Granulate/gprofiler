@@ -30,7 +30,7 @@ def test_java_from_host(
     tmp_path: Path,
     application_pid: int,
     assert_application_name: Callable,
-    assert_collapsed,
+    assert_collapsed: Callable[[Mapping[str, int]], None],
 ) -> None:
     with JavaProfiler(
         1000,

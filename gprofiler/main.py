@@ -13,8 +13,8 @@ import sys
 import time
 from pathlib import Path
 from threading import Event
-from types import FrameType
-from typing import Iterable, Optional, cast, Any
+from types import FrameType, TracebackType
+from typing import Iterable, Optional, cast, Any, Type
 
 import configargparse
 from granulate_utils.linux.ns import is_running_in_init_pid
@@ -146,7 +146,8 @@ class GProfiler:
         self.start()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException],
+                 exc_ctb: Optional[TracebackType]) -> None:
         self.stop()
 
     def _update_last_output(self, last_output_name: str, output_path: str) -> None:
@@ -265,7 +266,8 @@ class GProfiler:
             )
             raise
         metadata = (
-            get_current_metadata(self._static_metadata) if self._collect_metadata else {"hostname": get_hostname()}
+            get_current_metadata(cast(Metadata, self._static_metadata)) if self._collect_metadata
+            else {"hostname": get_hostname()}
         )
         metrics = self._system_metrics_monitor.get_metrics()
         if NoopProfiler.is_noop_profiler(self.system_profiler):

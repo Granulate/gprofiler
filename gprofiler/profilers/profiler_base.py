@@ -5,7 +5,8 @@
 
 import concurrent.futures
 from threading import Event
-from typing import List, Optional
+from types import TracebackType
+from typing import List, Optional, Type
 
 from psutil import NoSuchProcess, Process
 
@@ -40,7 +41,8 @@ class ProfilerInterface:
         self.start()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException],
+                 exc_ctb: Optional[TracebackType]) -> None:
         self.stop()
 
 

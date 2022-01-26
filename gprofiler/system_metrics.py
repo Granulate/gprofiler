@@ -70,7 +70,7 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
 
     def _continuously_poll_memory(self, polling_rate_seconds: int) -> None:
         while not self._stop_event.is_set():
-            current_ram_percent = psutil.virtual_memory().percent
+            current_ram_percent = psutil.virtual_memory().percent  # type: ignore
             self._mem_percentages.append(current_ram_percent)
             self._stop_event.wait(timeout=polling_rate_seconds)
 

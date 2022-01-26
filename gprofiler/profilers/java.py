@@ -14,7 +14,8 @@ from itertools import dropwhile
 from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event
-from typing import List, Optional, Set, Any, cast
+from types import TracebackType
+from typing import List, Optional, Set, Any, cast, Type
 
 import psutil
 from granulate_utils.java import (
@@ -201,7 +202,8 @@ class AsyncProfiledProcess:
 
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException],
+                 exc_ctb: Optional[TracebackType]) -> None:
         # ignore_errors because we are deleting paths via /proc/pid/root - and the pid
         # we're using might have gone down already.
         # remove them as best effort.
@@ -807,7 +809,7 @@ class JavaProfiler(ProcessProfilerBase):
         super().start()
         try:
             # needs to run in init net NS - see netlink_kernel_create() call on init_net in cn_init().
-            run_in_ns(["net"], lambda: proc_events.register_exit_callback(self._proc_exit_callback), 1)
+            run_in_ns(["net"], lambda: proc_events.register_exit_callback(self._proc_exit_callback), 1)  # type: ignore
         except Exception:
             logger.warning("Failed to enable proc_events listener for exited Java processes", exc_info=True)
         else:

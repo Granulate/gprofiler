@@ -1,7 +1,7 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, Tuple
+from typing import Dict, List, Mapping, Optional, Tuple, Any
 
 from docker import DockerClient
 from docker.models.containers import Container
@@ -25,8 +25,8 @@ def run_privileged_container(
     image: Image,
     command: List[str],
     volumes: Dict[str, Dict[str, str]] = None,
-    auto_remove=True,
-    **extra_kwargs,
+    auto_remove: bool = True,
+    **extra_kwargs: Any,
 ) -> Tuple[Optional[Container], str]:
     if volumes is None:
         volumes = {}
@@ -56,13 +56,13 @@ def run_privileged_container(
     return container, logs
 
 
-def _no_errors(logs: str):
+def _no_errors(logs: str) -> None:
     # example line: [2021-06-12 10:13:57,528] ERROR: gprofiler: ruby profiling failed
     assert "] ERROR: " not in logs, "found ERRORs in gProfiler logs!"
 
 
 def run_gprofiler_in_container(
-    docker_client: DockerClient, image: Image, command: List[str], **kwargs
+    docker_client: DockerClient, image: Image, command: List[str], **kwargs: Any
 ) -> Tuple[Optional[Container], str]:
     """
     Wrapper around run_privileged_container() that also verifies there are not ERRORs in gProfiler's output log.

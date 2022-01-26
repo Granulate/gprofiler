@@ -2,10 +2,13 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+from pathlib import Path
 from threading import Event
+from typing import Callable, Mapping
 
 import pytest
 from docker import DockerClient
+from docker.models.containers import Container
 from docker.models.images import Image
 
 from gprofiler.profilers.python import PythonProfiler
@@ -27,9 +30,9 @@ def application_docker_image(docker_client: DockerClient) -> Image:
 
 @pytest.mark.parametrize("in_container", [True])
 def test_python_select_by_libpython(
-    tmp_path,
-    application_docker_container,
-    assert_collapsed,
+    tmp_path: Path,
+    application_docker_container: Container,
+    assert_collapsed: Callable[[Mapping[str, int]], None],
 ) -> None:
     """
     Tests that profiling of processes running Python, whose basename(readlink("/proc/pid/exe")) isn't "python".

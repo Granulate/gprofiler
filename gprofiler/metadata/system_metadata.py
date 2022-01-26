@@ -179,7 +179,7 @@ def get_static_system_info() -> SystemInfo:
         kernel_version=uname.version,
         system_name=uname.system,
         processors=cpu_count,
-        memory_capacity_mb=round(psutil.virtual_memory().total / 1024 / 1024),
+        memory_capacity_mb=round(psutil.virtual_memory().total / 1024 / 1024),  # type: ignore
         hostname=hostname,
         os_name=os_name,
         os_release=os_release,
