@@ -334,6 +334,8 @@ In this mode, gProfiler uses runtime-specific profilers only, and their results 
 
 # Building
 
+Note: this process builds from source all of the profilers used by gProfiler. It's recommended to use machines with at least 8 cores and 16 GB of RAM (memory is more important, as your build may fail with OOM if you have less memory available).
+
 ## Container
 
 * x86_64: `./scripts/build_x86_64_container.sh -t gprofiler` will create a local image `gprofiler`.

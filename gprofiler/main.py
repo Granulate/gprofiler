@@ -18,6 +18,7 @@ from typing import Iterable, Optional, cast, Any, Type
 
 import configargparse
 from granulate_utils.linux.ns import is_running_in_init_pid
+from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
 
@@ -42,7 +43,6 @@ from gprofiler.utils import (
     atomically_symlink,
     get_iso8601_format_time,
     grab_gprofiler_mutex,
-    is_process_running,
     is_root,
     reset_umask,
     resource_path,
@@ -191,6 +191,8 @@ class GProfiler:
                         [resource_path("burn"), "convert", "--type=folded"],
                         suppress_log=True,
                         stdin=stripped_collapsed_data.encode(),
+                        stop_event=self._stop_event,
+                        timeout=10,
                     ).stdout.decode(),
                 )
                 .replace("{{{START_TIME}}}", start_ts)

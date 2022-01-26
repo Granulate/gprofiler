@@ -287,7 +287,7 @@ def runtime_specific_args(runtime: str) -> List[str]:
 
 
 @fixture
-def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int], bool], None]:
+def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int]], None]:
     function_name = {
         "java": "Fibonacci.main",
         "python": "burner",
