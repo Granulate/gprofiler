@@ -13,7 +13,7 @@ from subprocess import Popen
 from threading import Event
 from typing import Dict, List, Optional
 
-from granulate_utils.linux.process import is_process_running
+from granulate_utils.linux.process import is_process_running, process_exe
 from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import (
@@ -174,7 +174,7 @@ class PySpyProfiler(ProcessProfilerBase):
                 # when invoked on pypy.
                 # I'm checking for "pypy" in the basename here. I'm not aware of libpypy being directly loaded
                 # into non-pypy processes, if we ever encounter that - we can check the maps instead
-                if os.path.basename(process.exe()).startswith("pypy"):
+                if os.path.basename(process_exe(process)).startswith("pypy"):
                     continue
 
                 filtered_procs.append(process)
