@@ -3,10 +3,15 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
-import concurrent.futures
-from threading import Event
-from typing import List, Optional
+import sched
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures._base import Future
+from threading import Event, Lock, Thread
+from typing import Dict, List, Optional
 
+from granulate_utils.linux.proc_events import register_exec_callback, unregister_exec_callback
+from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import StopEventSetException
@@ -92,33 +97,147 @@ class ProcessProfilerBase(ProfilerBase):
     def _select_processes_to_profile(self) -> List[Process]:
         raise NotImplementedError
 
-    def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
+    def _profile_process(self, process: Process, duration: int) -> Optional[StackToSampleCount]:
         raise NotImplementedError
+
+    def _notify_selected_processes(self, processes: List[Process]) -> None:
+        pass
+
+    def _wait_for_profiles(self, futures: Dict[Future, int]) -> ProcessToStackSampleCounters:
+        results = {}
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+                if result is not None:
+                    results[futures[future]] = result
+            except StopEventSetException:
+                raise
+            except NoSuchProcess:
+                logger.debug(
+                    f"{self.__class__.__name__}: process went down during profiling {futures[future]}",
+                    exc_info=True,
+                )
+            except Exception:
+                logger.exception(f"{self.__class__.__name__}: failed to profile process {futures[future]}")
+
+        return results
 
     def snapshot(self) -> ProcessToStackSampleCounters:
         processes_to_profile = self._select_processes_to_profile()
+        self._notify_selected_processes(processes_to_profile)
+
         if not processes_to_profile:
             return {}
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes_to_profile)) as executor:
-            futures = {}
+        with ThreadPoolExecutor(max_workers=len(processes_to_profile)) as executor:
+            futures: Dict[Future, int] = {}
             for process in processes_to_profile:
-                futures[executor.submit(self._profile_process, process)] = process.pid
+                futures[executor.submit(self._profile_process, process, self._duration)] = process.pid
 
-            results = {}
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    result = future.result()
-                    if result is not None:
-                        results[futures[future]] = result
-                except StopEventSetException:
-                    raise
-                except NoSuchProcess:
-                    logger.debug(
-                        f"{self.__class__.__name__}: process went down during profiling {futures[future]}",
-                        exc_info=True,
-                    )
-                except Exception:
-                    logger.exception(f"{self.__class__.__name__}: failed to profile process {futures[future]}")
+            return self._wait_for_profiles(futures)
 
+
+class SpawningProcessProfilerBase(ProcessProfilerBase):
+    """
+    Enhances ProcessProfilerBase with tracking of newly spawned processes.
+    """
+
+    _SCHED_THREAD_INTERVAL = 0.1
+    _BACKOFF_INIT = 0.1
+    # so we wait up to 1.5 seconds
+    _BACKOFF_MAX = 0.8
+
+    def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str):
+        super().__init__(frequency, duration, stop_event, storage_dir)
+        self._submit_lock = Lock()
+        self._threads: Optional[ThreadPoolExecutor] = None
+        self._start_ts: Optional[float] = None
+        self._enabled_proc_events = False
+        self._futures: Dict[Future, int] = {}
+        self._sched = sched.scheduler()
+        self._sched_stop = False
+        self._sched_thread = Thread(target=self._sched_thread_run)
+
+    def _should_profile_process(self, pid: int) -> bool:
+        raise NotImplementedError
+
+    def _notify_selected_processes(self, processes: List[Process]) -> None:
+        # TODO ensure PIDs in _proc_exec_callback don't intersect with "processes"?
+        # now we start watching for new processes.
+        self._start_profiling_spawning()
+
+    @property
+    def _is_profiling_spawning(self) -> bool:
+        return self._threads is not None
+
+    def _start_profiling_spawning(self) -> None:
+        with self._submit_lock:
+            self._start_ts = time.monotonic()
+            self._threads = ThreadPoolExecutor()
+
+    def _stop_profiling_spawning(self) -> None:
+        with self._submit_lock:
+            self._start_ts = None
+            self._threads = None
+
+    def _proc_exec_callback(self, tid: int, pid: int) -> None:
+        self._sched.enter(self._BACKOFF_INIT, 0, self._check_process, (Process(pid), self._BACKOFF_INIT))
+
+    def start(self) -> None:
+        super().start()
+
+        self._sched_thread.start()
+
+        try:
+            register_exec_callback(self._proc_exec_callback)
+        except Exception:
+            logger.warning("Failed to enable proc_events listener for executed processes", exc_info=True)
+        else:
+            self._enabled_proc_events = True
+
+    def stop(self) -> None:
+        super().stop()
+
+        if self._enabled_proc_events:
+            unregister_exec_callback(self._proc_exec_callback)
+            self._enabled_proc_events = False
+
+        self._sched_stop = True
+        self._sched_thread.join()
+
+    def snapshot(self) -> ProcessToStackSampleCounters:
+        results = super().snapshot()
+
+        # wait for one duration, in case snapshot() found no processes
+        self._stop_event.wait(self._duration)
+
+        self._stop_profiling_spawning()
+        results_spawned = self._wait_for_profiles(self._futures)
+        self._futures = {}
+
+        # should not intersect
+        assert set(results).intersection(results_spawned) == set()
+        results.update(results_spawned)
         return results
+
+    def _sched_thread_run(self):
+        while not (self._stop_event.is_set() or self._sched_stop):
+            self._sched.run()
+            self._stop_event.wait(0.1)
+
+    def _check_process(self, process: Process, interval: float) -> None:
+        # TODO try-except and ignore NoSuchProcess
+        if is_process_running(process) and self._is_profiling_spawning:
+            if self._should_profile_process(process.pid):
+                # check again, with the lock this time
+                with self._submit_lock:
+                    if self._is_profiling_spawning:
+                        # TODO ensure > 0 etc
+                        print("starting at interval", interval)
+                        assert self._start_ts is not None and self._threads is not None
+                        duration = self._duration - (time.monotonic() - self._start_ts)
+                        self._futures[self._threads.submit(self._profile_process, process, int(duration))] = process.pid
+            else:
+                if interval < self._BACKOFF_MAX:
+                    new_interval = interval * 2
+                    self._sched.enter(new_interval, 0, self._check_process, (process, new_interval))
