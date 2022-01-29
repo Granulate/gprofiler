@@ -84,7 +84,7 @@ RUN ./burn_build.sh
 # these are only relevant for modern kernels, so there's no real reason to build them on CentOS 7 anyway.
 FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-helpers
 
-RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; apt-get update && apt install -y \
+RUN apt-get update && apt install -y \
     clang-10 \
     libelf-dev \
     make \
@@ -107,7 +107,7 @@ FROM centos${GPROFILER_BUILDER} AS build-stage
 RUN yum install -y git
 
 # these are needed to build PyPerf, which we don't build on Aarch64, hence not installing them here.
-RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; yum install -y \
+RUN yum install -y \
     curl \
     cmake \
     patch \
@@ -119,22 +119,22 @@ RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; yum install -y \
     ncurses-devel \
     elfutils-libelf-devel
 
-RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; yum install -y centos-release-scl-rh
+RUN yum install -y centos-release-scl-rh
 # mostly taken from https://github.com/iovisor/bcc/blob/master/INSTALL.md#install-and-compile-llvm
-RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; yum install -y devtoolset-8 \
-    llvm-toolset-7 \
-    llvm-toolset-7-llvm-devel \
-    llvm-toolset-7-llvm-static \
-    llvm-toolset-7-clang-devel \
+RUN yum install -y devtoolset-8 \
+    llvm-toolset-7.0 \
+    llvm-toolset-7.0-llvm-devel \
+    llvm-toolset-7.0-llvm-static \
+    llvm-toolset-7.0-clang-devel \
     devtoolset-8-elfutils-libelf-devel
 
 COPY ./scripts/libunwind_build.sh .
-RUN if [ $(uname -m) = "aarch64" ]; then exit 0; fi; ./libunwind_build.sh
+RUN ./libunwind_build.sh
 
 WORKDIR /bcc
 
 COPY ./scripts/pyperf_build.sh .
-RUN if [ $(uname -m) != "aarch64" ]; then source scl_source enable devtoolset-8 llvm-toolset-7; fi && source ./pyperf_build.sh
+RUN source scl_source enable devtoolset-8 llvm-toolset-7.0 && source ./pyperf_build.sh
 
 
 # gProfiler part
