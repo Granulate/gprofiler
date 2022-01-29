@@ -119,13 +119,8 @@ class PySpyProfiler(ProcessProfilerBase):
             "--full-filenames",
         ]
 
-    def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
-        try:
-            logger.info(
-                f"Profiling process {process.pid} with py-spy", cmdline=process.cmdline(), no_extra_to_server=True
-            )
-        except NoSuchProcess:
-            return None
+    def _profile_process(self, process: Process) -> StackToSampleCount:
+        logger.info(f"Profiling process {process.pid} with py-spy", cmdline=process.cmdline(), no_extra_to_server=True)
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):
