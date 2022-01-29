@@ -233,7 +233,6 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
                 with self._submit_lock:
                     if self._is_profiling_spawning:
                         # TODO ensure > 0 etc
-                        print("starting at interval", interval)
                         assert self._start_ts is not None and self._threads is not None
                         duration = self._duration - (time.monotonic() - self._start_ts)
                         self._futures[self._threads.submit(self._profile_process, process, int(duration))] = process.pid
