@@ -602,11 +602,15 @@ class JavaProfiler(ProcessProfilerBase):
             logger.warning("Java profiling has been disabled, will avoid profiling any new java processes", cause=cause)
             self._safemode_disable_reason = cause
 
-    def _profiling_skipped_stack(self, reason: str, comm: str) -> StackToSampleCount:
+    @staticmethod
+    def _profiling_error_stack(what: str, reason: str, comm: str) -> StackToSampleCount:
         # return 1 sample, it will be scaled later in merge_profiles().
         # if --perf-mode=none mode is used, it will not, but we don't have anything logical to
         # do here in that case :/
-        return Counter({f"{comm};[Profiling skipped: {reason}]": 1})
+        return Counter({f"{comm};[Profiling {what}: {reason}]": 1})
+
+    def _profiling_skipped_stack(self, reason: str, comm: str) -> StackToSampleCount:
+        return self._profiling_error_stack("skipped", reason, comm)
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -733,7 +737,7 @@ class JavaProfiler(ProcessProfilerBase):
 
         return False
 
-    def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
+    def _profile_process(self, process: Process) -> StackToSampleCount:
         comm = process_comm(process)
 
         if self._safemode_disable_reason is not None:
@@ -758,7 +762,7 @@ class JavaProfiler(ProcessProfilerBase):
         ) as ap_proc:
             return self._profile_ap_process(ap_proc, comm)
 
-    def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str) -> Optional[StackToSampleCount]:
+    def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str) -> StackToSampleCount:
         started = ap_proc.start_async_profiler(self._interval, ap_timeout=self._ap_timeout)
         if not started:
             logger.info(f"Found async-profiler already started on {ap_proc.process.pid}, trying to stop it...")
@@ -791,7 +795,7 @@ class JavaProfiler(ProcessProfilerBase):
         output = ap_proc.read_output()
         if output is None:
             logger.warning(f"Profiled process {ap_proc.process.pid} exited before reading the output")
-            return None
+            return self._profiling_error_stack("error", "process exited before reading the output", comm)
         else:
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
             return parse_one_collapsed(output, comm)
