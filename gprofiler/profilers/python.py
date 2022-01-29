@@ -119,8 +119,14 @@ class PySpyProfiler(ProcessProfilerBase):
             "--full-filenames",
         ]
 
+    @staticmethod
+    def _profiling_error_stack(reason: str, comm: str) -> StackToSampleCount:
+        # like _profiling_skipped_stack of java.py
+        return Counter({f"{comm};[Profiling error: {reason}]": 1})
+
     def _profile_process(self, process: Process) -> StackToSampleCount:
         logger.info(f"Profiling process {process.pid} with py-spy", cmdline=process.cmdline(), no_extra_to_server=True)
+        comm = process_comm(process)
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):
@@ -142,11 +148,11 @@ class PySpyProfiler(ProcessProfilerBase):
                     and not is_process_running(process)
                 ):
                     logger.debug(f"Profiled process {process.pid} exited before py-spy could start")
-                    return None
+                    return self._profiling_error_stack(comm, "process exited before py-spy started")
                 raise
 
             logger.info(f"Finished profiling process {process.pid} with py-spy")
-            parsed = parse_one_collapsed_file(Path(local_output_path), process_comm(process))
+            parsed = parse_one_collapsed_file(Path(local_output_path), comm)
             if self.add_versions:
                 parsed = _add_versions_to_process_stacks(process, parsed)
             return parsed
