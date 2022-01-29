@@ -56,7 +56,7 @@ class RbSpyProfiler(ProcessProfilerBase):
             str(pid),
         ]
 
-    def _profile_process(self, process: Process) -> StackToSampleCount:
+    def _profile_process(self, process: Process, duration: int) -> StackToSampleCount:
         logger.info(
             f"Profiling process {process.pid} with rbspy", cmdline=" ".join(process.cmdline()), no_extra_to_server=True
         )
@@ -67,7 +67,7 @@ class RbSpyProfiler(ProcessProfilerBase):
                 run_process(
                     self._make_command(process.pid, local_output_path),
                     stop_event=self._stop_event,
-                    timeout=self._duration + self._EXTRA_TIMEOUT,
+                    timeout=duration + self._EXTRA_TIMEOUT,
                     kill_signal=signal.SIGKILL,
                 )
             except ProcessStoppedException:
