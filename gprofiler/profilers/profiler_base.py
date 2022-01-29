@@ -92,7 +92,7 @@ class ProcessProfilerBase(ProfilerBase):
     def _select_processes_to_profile(self) -> List[Process]:
         raise NotImplementedError
 
-    def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
+    def _profile_process(self, process: Process) -> StackToSampleCount:
         raise NotImplementedError
 
     def snapshot(self) -> ProcessToStackSampleCounters:
