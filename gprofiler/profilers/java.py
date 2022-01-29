@@ -39,7 +39,7 @@ from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampl
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed
-from gprofiler.profilers.profiler_base import ProcessProfilerBase
+from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
@@ -514,7 +514,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
         ),
     ],
 )
-class JavaProfiler(ProcessProfilerBase):
+class JavaProfiler(SpawningProcessProfilerBase):
     JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
     # Major -> (min version, min build number of version)
     MINIMAL_SUPPORTED_VERSIONS = {
@@ -733,7 +733,7 @@ class JavaProfiler(ProcessProfilerBase):
 
         return False
 
-    def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
+    def _profile_process(self, process: Process, duration: int) -> Optional[StackToSampleCount]:
         comm = process_comm(process)
 
         if self._safemode_disable_reason is not None:
@@ -756,9 +756,11 @@ class JavaProfiler(ProcessProfilerBase):
         with AsyncProfiledProcess(
             process, self._storage_dir, self._stop_event, self._buildids, self._mode, self._ap_safemode, self._ap_args
         ) as ap_proc:
-            return self._profile_ap_process(ap_proc, comm)
+            return self._profile_ap_process(ap_proc, comm, duration)
 
-    def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str) -> Optional[StackToSampleCount]:
+    def _profile_ap_process(
+        self, ap_proc: AsyncProfiledProcess, comm: str, duration: int
+    ) -> Optional[StackToSampleCount]:
         started = ap_proc.start_async_profiler(self._interval, ap_timeout=self._ap_timeout)
         if not started:
             logger.info(f"Found async-profiler already started on {ap_proc.process.pid}, trying to stop it...")
@@ -775,7 +777,7 @@ class JavaProfiler(ProcessProfilerBase):
                 )
 
         try:
-            wait_event(self._duration, self._stop_event, lambda: not is_process_running(ap_proc.process), interval=1)
+            wait_event(duration, self._stop_event, lambda: not is_process_running(ap_proc.process), interval=1)
         except TimeoutError:
             # Process still running. We will stop the profiler in finally block.
             pass
@@ -828,6 +830,10 @@ class JavaProfiler(ProcessProfilerBase):
             # continue - _profile_process will return an appropriate error for each process selected for
             # profiling.
         return pgrep_maps(r"^.+/libjvm\.so$")
+
+    def _should_profile_process(self, pid: int):
+        # TODO use psutil or at least make this code raise NoSuchProcess when appropriate.
+        return any(line.endswith("/libjvm.so") for line in Path(f"/proc/{pid}/maps").read_text().splitlines())
 
     def start(self) -> None:
         super().start()
