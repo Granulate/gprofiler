@@ -4,7 +4,7 @@
 #
 from pathlib import Path
 from threading import Event
-from typing import Callable, List, Mapping, Optional, Counter, Any
+from typing import Any, Callable, Counter, List, Mapping, Optional
 
 import pytest
 from docker import DockerClient
@@ -22,7 +22,7 @@ from tests.utils import (
     RUNTIME_PROFILERS,
     assert_function_in_collapsed,
     run_gprofiler_in_container,
-    snapshot_one_collaped
+    snapshot_one_collaped,
 )
 
 

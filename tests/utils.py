@@ -2,7 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 from threading import Event
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from docker import DockerClient
 from docker.models.containers import Container

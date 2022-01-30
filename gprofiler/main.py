@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from threading import Event
 from types import FrameType, TracebackType
-from typing import Iterable, Optional, cast, Any, Type
+from typing import Any, Iterable, Optional, Type, cast
 
 import configargparse
 from granulate_utils.linux.ns import is_running_in_init_pid
@@ -25,14 +25,14 @@ from requests import RequestException, Timeout
 from gprofiler import __version__, merge
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
 from gprofiler.docker_client import DockerClient
-from gprofiler.exceptions import SystemProfilerInitFailure, APIError
-from gprofiler.gprofiler_types import UserArgs, positive_integer, ProcessToStackSampleCounters
+from gprofiler.exceptions import APIError, SystemProfilerInitFailure
+from gprofiler.gprofiler_types import ProcessToStackSampleCounters, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
 from gprofiler.profilers.factory import get_profilers
-from gprofiler.profilers.profiler_base import NoopProfiler, ProfilerInterface, ProcessProfilerBase
+from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
@@ -146,8 +146,12 @@ class GProfiler:
         self.start()
         return self
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException],
-                 exc_ctb: Optional[TracebackType]) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_ctb: Optional[TracebackType],
+    ) -> None:
         self.stop()
 
     def _update_last_output(self, last_output_name: str, output_path: str) -> None:

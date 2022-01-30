@@ -12,7 +12,7 @@ from pathlib import Path
 from re import Match
 from subprocess import Popen
 from threading import Event
-from typing import Dict, List, Optional, NoReturn, cast
+from typing import Dict, List, NoReturn, Optional, cast
 
 from granulate_utils.linux.process import is_process_running, process_exe
 from psutil import NoSuchProcess, Process

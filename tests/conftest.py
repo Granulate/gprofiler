@@ -9,16 +9,14 @@ from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 from time import sleep
-from typing import Callable, Generator, Iterable, List, Mapping, Optional, Iterator, cast, Any
+from typing import Any, Callable, Generator, Iterable, Iterator, List, Mapping, Optional, cast
 
 import docker
-
 from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 from psutil import Process
-from pytest import FixtureRequest
-from pytest import fixture
+from pytest import FixtureRequest, fixture
 
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.metadata.application_identifiers import get_application_name

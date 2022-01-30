@@ -16,7 +16,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event
 from types import TracebackType
-from typing import List, Optional, Set, Any, cast, Type
+from typing import Any, List, Optional, Set, Type, cast
 
 import psutil
 from granulate_utils.java import (
@@ -220,8 +220,12 @@ class AsyncProfiledProcess:
 
         return self
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException],
-                 exc_ctb: Optional[TracebackType]) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_ctb: Optional[TracebackType],
+    ) -> None:
         # ignore_errors because we are deleting paths via /proc/pid/root - and the pid
         # we're using might have gone down already.
         # remove them as best effort.

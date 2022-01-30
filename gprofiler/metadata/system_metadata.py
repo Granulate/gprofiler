@@ -11,14 +11,14 @@ import sys
 import time
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Dict, Optional, Tuple, Any, cast
+from typing import Any, Dict, Optional, Tuple, cast
 
 import distro  # type: ignore
 import psutil
+from granulate_utils.linux.ns import run_in_ns
 
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import is_pyinstaller, run_process
-from granulate_utils.linux.ns import run_in_ns
 
 logger = get_logger_adapter(__name__)
 hostname: Optional[str] = None

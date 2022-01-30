@@ -18,7 +18,7 @@ from gprofiler.utils import limit_frequency
 logger = get_logger_adapter(__name__)
 
 
-T = TypeVar('T', bound='ProfilerInterface')
+T = TypeVar("T", bound="ProfilerInterface")
 
 
 class ProfilerInterface:
@@ -44,8 +44,12 @@ class ProfilerInterface:
         self.start()
         return self
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException],
-                 exc_ctb: Optional[TracebackType]) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_ctb: Optional[TracebackType],
+    ) -> None:
         self.stop()
 
 

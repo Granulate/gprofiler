@@ -24,7 +24,7 @@ from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Callable, Iterator, List, Optional, Tuple, Union, Any
+from typing import Any, Callable, Iterator, List, Optional, Tuple, Union
 
 import importlib_resources
 import psutil

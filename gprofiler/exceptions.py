@@ -4,7 +4,7 @@
 #
 import signal
 import subprocess
-from typing import List, Union, Any
+from typing import Any, List, Union
 
 
 class StopEventSetException(Exception):
