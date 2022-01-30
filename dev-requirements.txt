@@ -7,3 +7,4 @@ types-requests==0.1.9
 types-dataclasses==0.1.5
 types-psutil==5.8.19
 types-PyYAML==6.0.3
+types-pkg-resources==0.1.3
