@@ -13,6 +13,8 @@ from docker.models.images import Image
 
 from gprofiler.profilers.python import PythonProfiler
 from tests import CONTAINERS_DIRECTORY
+from tests.conftest import AssertInCollapsed
+from tests.type_utils import cast_away_optional
 
 
 @pytest.fixture
@@ -32,7 +34,7 @@ def application_docker_image(docker_client: DockerClient) -> Image:
 def test_python_select_by_libpython(
     tmp_path: Path,
     application_docker_container: Container,
-    assert_collapsed: Callable[[Mapping[str, int]], None],
+    assert_collapsed: AssertInCollapsed,
 ) -> None:
     """
     Tests that profiling of processes running Python, whose basename(readlink("/proc/pid/exe")) isn't "python".
@@ -41,6 +43,6 @@ def test_python_select_by_libpython(
     """
     with PythonProfiler(1000, 1, Event(), str(tmp_path), "pyspy", True, None) as profiler:
         process_collapsed = profiler.snapshot()
-    collapsed = process_collapsed.get(application_docker_container.attrs["State"]["Pid"])
+    collapsed = cast_away_optional(process_collapsed.get(application_docker_container.attrs["State"]["Pid"]))
     assert_collapsed(collapsed)
     assert all(stack.startswith("shmython") for stack in collapsed.keys())

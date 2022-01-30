@@ -6,7 +6,7 @@
 import concurrent.futures
 from threading import Event
 from types import TracebackType
-from typing import List, Optional, Type
+from typing import List, Optional, Type, TypeVar
 
 from psutil import NoSuchProcess, Process
 
@@ -16,6 +16,9 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.utils import limit_frequency
 
 logger = get_logger_adapter(__name__)
+
+
+T = TypeVar('T', bound='ProfilerInterface')
 
 
 class ProfilerInterface:
@@ -37,7 +40,7 @@ class ProfilerInterface:
     def stop(self) -> None:
         pass
 
-    def __enter__(self) -> "ProfilerInterface":
+    def __enter__(self: T) -> T:
         self.start()
         return self
 

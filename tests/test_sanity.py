@@ -17,11 +17,12 @@ from gprofiler.profilers.php import PHPSpyProfiler
 from gprofiler.profilers.python import PySpyProfiler, PythonEbpfProfiler
 from gprofiler.profilers.ruby import RbSpyProfiler
 from tests import PHPSPY_DURATION
+from tests.conftest import AssertInCollapsed
 from tests.utils import (
     RUNTIME_PROFILERS,
     assert_function_in_collapsed,
     run_gprofiler_in_container,
-    snapshot_one_collaped, AssertInCollapsed,
+    snapshot_one_collaped
 )
 
 

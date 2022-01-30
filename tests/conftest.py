@@ -20,6 +20,7 @@ from psutil import Process
 from pytest import FixtureRequest
 from pytest import fixture
 
+from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.metadata.application_identifiers import get_application_name
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
 from tests.utils import assert_function_in_collapsed, chmod_path_parts
@@ -286,8 +287,11 @@ def runtime_specific_args(runtime: str) -> List[str]:
     }.get(runtime, [])
 
 
+AssertInCollapsed = Callable[[StackToSampleCount], None]
+
+
 @fixture
-def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int]], None]:
+def assert_collapsed(runtime: str) -> AssertInCollapsed:
     function_name = {
         "java": "Fibonacci.main",
         "python": "burner",

@@ -11,7 +11,7 @@ from collections import Counter
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
-from typing import Optional
+from typing import Optional, Any
 
 import psutil
 import pytest
@@ -20,7 +20,9 @@ from pytest import LogCaptureFixture, MonkeyPatch
 from packaging.version import Version
 
 from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler, frequency_to_ap_interval, parse_jvm_version
-from tests.utils import assert_function_in_collapsed, make_java_profiler, snapshot_one_collaped, AssertInCollapsed
+from tests.conftest import AssertInCollapsed
+from tests.type_utils import cast_away_optional
+from tests.utils import assert_function_in_collapsed, make_java_profiler, snapshot_one_collaped
 
 
 # adds the "status" command to AsyncProfiledProcess from gProfiler.
@@ -44,6 +46,7 @@ def test_async_profiler_already_running(application_pid: int, assert_collapsed: 
     caplog.set_level(logging.INFO)
     with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
         process = profiler._select_processes_to_profile()[0]
+
         with AsyncProfiledProcess(
             process=process,
             storage_dir=profiler._storage_dir,
@@ -65,9 +68,9 @@ def test_async_profiler_already_running(application_pid: int, assert_collapsed: 
             ap_safemode=0,
             ap_args="",
         ) as ap_proc:
-            ap_proc.status_async_profiler()
+            ap_proc.status_async_profiler()  # type: ignore
             # printed the output file, see ACTION_STATUS case in async-profiler/profiler.cpp
-            assert "Profiling is running for " in ap_proc.read_output()
+            assert "Profiling is running for " in cast_away_optional(ap_proc.read_output())
 
         # then start again
         collapsed = snapshot_one_collaped(profiler)
@@ -131,9 +134,8 @@ def test_java_safemode_version_check(
         collapsed = snapshot_one_collaped(profiler)
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
-    assert next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records)).gprofiler_adapter_extra[
-        "jvm_version"
-    ] == repr(jvm_version)
+    log_record = next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records))
+    assert log_record.gprofiler_adapter_extra["jvm_version"] == repr(jvm_version)  # type: ignore
 
 
 def test_java_safemode_build_number_check(
@@ -147,9 +149,8 @@ def test_java_safemode_build_number_check(
         collapsed = snapshot_one_collaped(profiler)
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
-    assert next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records)).gprofiler_adapter_extra[
-        "jvm_version"
-    ] == repr(jvm_version)
+    log_record = next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records))
+    assert log_record.gprofiler_adapter_extra["jvm_version"] == repr(jvm_version)  # type: ignore
 
 
 @pytest.mark.parametrize(
@@ -165,7 +166,7 @@ def test_hotspot_error_file(application_pid: int, tmp_path: Path, monkeypatch: M
     start_async_profiler = AsyncProfiledProcess.start_async_profiler
 
     # Simulate crashing process
-    def sap_and_crash(self, *args, **kwargs):
+    def sap_and_crash(self: AsyncProfiledProcess, *args: Any, **kwargs: Any) -> bool:
         result = start_async_profiler(self, *args, **kwargs)
         self.process.send_signal(signal.SIGBUS)
         return result
@@ -228,7 +229,7 @@ def test_async_profiler_output_written_upon_jvm_exit(tmp_path: Path, application
 
     with make_java_profiler(storage_dir=str(tmp_path), duration=10) as profiler:
 
-        def delayed_kill():
+        def delayed_kill() -> None:
             time.sleep(3)
             os.kill(application_pid, signal.SIGINT)
 
@@ -260,11 +261,11 @@ def test_async_profiler_stops_after_given_timeout(tmp_path: Path, application_pi
     ) as ap_proc:
         assert ap_proc.start_async_profiler(frequency_to_ap_interval(11), ap_timeout=timeout_s)
 
-        ap_proc.status_async_profiler()
-        assert "Profiling is running for " in ap_proc.read_output()
+        ap_proc.status_async_profiler()  # type: ignore
+        assert "Profiling is running for " in cast_away_optional(ap_proc.read_output())
 
         # let the timeout trigger
         time.sleep(timeout_s)
 
-        ap_proc.status_async_profiler()
-        assert "Profiler is not active\n" in ap_proc.read_output()
+        ap_proc.status_async_profiler()  # type: ignore
+        assert "Profiler is not active\n" in cast_away_optional(ap_proc.read_output())
