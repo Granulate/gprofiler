@@ -178,6 +178,8 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
     def _stop_profiling_spawning(self) -> None:
         with self._submit_lock:
             self._start_ts = None
+            assert self._threads is not None
+            self._threads.shutdown()  # waits (although - all are done by now)
             self._threads = None
 
     def _proc_exec_callback(self, tid: int, pid: int) -> None:
