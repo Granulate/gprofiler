@@ -249,10 +249,10 @@ class GProfiler:
         process_profilers_futures = []
         for prof in self.process_profilers:
             prof_future = self._executor.submit(prof.snapshot)
-            prof_future.name = prof.name  # type: ignore
+            prof_future.name = prof.name  # type: ignore # hack, add the profiler's name to the Future object
             process_profilers_futures.append(prof_future)
         system_future = self._executor.submit(self.system_profiler.snapshot)
-        system_future.name = "system"  # type: ignore
+        system_future.name = "system"  # type: ignore # hack, add the profiler's name to the Future object
 
         process_profiles: ProcessToStackSampleCounters = {}
         for future in concurrent.futures.as_completed(process_profilers_futures):
