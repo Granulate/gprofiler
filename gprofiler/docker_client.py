@@ -3,7 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import re
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, cast
 
 import docker
 
@@ -101,6 +101,6 @@ class DockerClient:
         for line in cgroup.split():
             found = CONTAINER_ID_PATTERN.findall(line)
             if found:
-                return found[-1]  # type: ignore
+                return cast(str, found[-1])
 
         return None

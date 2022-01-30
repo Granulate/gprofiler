@@ -24,7 +24,7 @@ from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Any, Callable, Iterator, List, Optional, Tuple, Union
+from typing import Any, Callable, Iterator, List, Optional, Tuple, Union, cast
 
 import importlib_resources
 import psutil
@@ -71,7 +71,7 @@ def prctl(*argv: Any) -> int:
     global libc
     if libc is None:
         libc = ctypes.CDLL("libc.so.6", use_errno=True)
-    return libc.prctl(*argv)  # type: ignore
+    return cast(int, libc.prctl(*argv))
 
 
 PR_SET_PDEATHSIG = 1

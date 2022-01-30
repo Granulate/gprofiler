@@ -9,10 +9,9 @@ import resource
 import signal
 from collections import Counter, defaultdict
 from pathlib import Path
-from re import Match
 from subprocess import Popen
 from threading import Event
-from typing import Dict, List, NoReturn, Optional, cast
+from typing import Dict, List, Match, NoReturn, Optional, cast
 
 from granulate_utils.linux.process import is_process_running, process_exe
 from psutil import NoSuchProcess, Process
