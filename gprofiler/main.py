@@ -272,7 +272,8 @@ class GProfiler:
             )
             raise
         metadata = (
-            get_current_metadata(cast(Metadata, self._static_metadata)) if self._collect_metadata
+            get_current_metadata(cast(Metadata, self._static_metadata))
+            if self._collect_metadata
             else {"hostname": get_hostname()}
         )
         metrics = self._system_metrics_monitor.get_metrics()

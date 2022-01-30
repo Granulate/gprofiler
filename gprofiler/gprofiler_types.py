@@ -4,7 +4,7 @@
 #
 
 from collections import Counter
-from typing import Dict, MutableMapping, Optional, Tuple, Union
+from typing import Dict, MutableMapping, Optional, Union
 
 import configargparse
 

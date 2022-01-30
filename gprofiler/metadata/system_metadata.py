@@ -125,7 +125,9 @@ def get_mac_address() -> str:
 
         # okay, not loopback, get its MAC address.
         res = fcntl.ioctl(s.fileno(), 0x8927, iface)  # SIOCGIFHWADDR
-        address_bytes = struct.unpack(f"{IFNAMSIZ}sH{MAC_BYTES_LEN}s", res[: IFNAMSIZ + SIZE_OF_SHORT + MAC_BYTES_LEN])[2]
+        address_bytes = struct.unpack(f"{IFNAMSIZ}sH{MAC_BYTES_LEN}s", res[: IFNAMSIZ + SIZE_OF_SHORT + MAC_BYTES_LEN])[
+            2
+        ]
         mac = struct.unpack(f"{MAC_BYTES_LEN}B", address_bytes)
         address = ":".join(["%02X" % i for i in mac])
         return address

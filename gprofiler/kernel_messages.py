@@ -2,8 +2,11 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-from granulate_utils.linux.kernel_messages import DefaultKernelMessagesProvider, EmptyKernelMessagesProvider, \
-    KernelMessagesProvider
+from granulate_utils.linux.kernel_messages import (
+    DefaultKernelMessagesProvider,
+    EmptyKernelMessagesProvider,
+    KernelMessagesProvider,
+)
 
 from gprofiler.log import get_logger_adapter
 

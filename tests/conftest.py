@@ -119,8 +119,9 @@ def check_app_exited() -> bool:
 
 
 @fixture
-def application_process(in_container: bool, command_line: List[str], check_app_exited: bool)\
-        -> Iterator[Optional[subprocess.Popen]]:
+def application_process(
+    in_container: bool, command_line: List[str], check_app_exited: bool
+) -> Iterator[Optional[subprocess.Popen]]:
     if in_container:
         yield None
         return

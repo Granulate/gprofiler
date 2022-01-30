@@ -100,8 +100,9 @@ def wrap_callbacks(callbacks: List[Callable]) -> Callable:
     return wrapper
 
 
-def start_process(cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_death: bool = True,
-                  **kwargs: Any) -> Popen:
+def start_process(
+    cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_death: bool = True, **kwargs: Any
+) -> Popen:
     cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
     logger.debug(f"Running command: ({cmd_text})")
     if isinstance(cmd, str):
@@ -308,7 +309,7 @@ def pgrep_maps(match: str) -> List[Process]:
     processes: List[Process] = []
     for line in result.stdout.splitlines():
         assert line.startswith(b"/proc/") and line.endswith(b"/maps"), f"unexpected 'grep' line: {line!r}"
-        pid = int(line[len(b"/proc/"): -len(b"/maps")])
+        pid = int(line[len(b"/proc/") : -len(b"/maps")])
         try:
             processes.append(Process(pid))
         except psutil.NoSuchProcess:
@@ -328,7 +329,7 @@ def get_iso8601_format_time(time: datetime.datetime) -> str:
 def remove_prefix(s: str, prefix: str) -> str:
     # like str.removeprefix of Python 3.9, but this also ensures the prefix exists.
     assert s.startswith(prefix), f"{s} doesn't start with {prefix}"
-    return s[len(prefix):]
+    return s[len(prefix) :]
 
 
 def touch_path(path: str, mode: int) -> None:
@@ -443,8 +444,9 @@ def reset_umask() -> None:
     os.umask(0o022)
 
 
-def limit_frequency(limit: Optional[int], requested: int, msg_header: str, runtime_logger: logging.LoggerAdapter) \
-        -> int:
+def limit_frequency(
+    limit: Optional[int], requested: int, msg_header: str, runtime_logger: logging.LoggerAdapter
+) -> int:
     if limit is not None and requested > limit:
         runtime_logger.warning(
             f"{msg_header}: Requested frequency ({requested}) is higher than the limit {limit}, "

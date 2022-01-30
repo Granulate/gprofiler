@@ -38,8 +38,9 @@ def runtime() -> str:
     return "java"
 
 
-def test_async_profiler_already_running(application_pid: int, assert_collapsed: AssertInCollapsed,
-                                        tmp_path: Path, caplog: LogCaptureFixture) -> None:
+def test_async_profiler_already_running(
+    application_pid: int, assert_collapsed: AssertInCollapsed, tmp_path: Path, caplog: LogCaptureFixture
+) -> None:
     """
     Test we're able to restart async-profiler in case it's already running in the process and get results normally.
     """

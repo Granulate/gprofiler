@@ -16,7 +16,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event
 from types import TracebackType
-from typing import Any, List, Optional, Set, Type, cast
+from typing import Any, List, Optional, Set, Type
 
 import psutil
 from granulate_utils.java import (
@@ -103,7 +103,9 @@ SUPPORTED_AP_MODES = ["cpu", "itimer"]
 
 
 class JattachException(CalledProcessError):
-    def __init__(self, returncode: int, cmd: Any, stdout: Any, stderr: Any, target_pid: int, ap_log: str, is_loaded: bool):
+    def __init__(
+        self, returncode: int, cmd: Any, stdout: Any, stderr: Any, target_pid: int, ap_log: str, is_loaded: bool
+    ):
         super().__init__(returncode, cmd, stdout, stderr)
         self._target_pid = target_pid
         self._ap_log = ap_log

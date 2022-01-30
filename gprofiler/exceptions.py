@@ -28,8 +28,9 @@ class CalledProcessError(subprocess.CalledProcessError):
 
 
 class CalledProcessTimeoutError(CalledProcessError):
-    def __init__(self, timeout: float, returncode: int, cmd: Union[str, List[str]], output: Any = None,
-                 stderr: Any = None):
+    def __init__(
+        self, timeout: float, returncode: int, cmd: Union[str, List[str]], output: Any = None, stderr: Any = None
+    ):
         super().__init__(returncode, cmd, output, stderr)
         self.timeout = timeout
 

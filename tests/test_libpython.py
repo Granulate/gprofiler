@@ -4,7 +4,6 @@
 #
 from pathlib import Path
 from threading import Event
-from typing import Callable, Mapping
 
 import pytest
 from docker import DockerClient
