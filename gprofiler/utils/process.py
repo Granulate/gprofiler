@@ -5,11 +5,15 @@
 
 from pathlib import Path
 
-from psutil import Process
+from psutil import NoSuchProcess, Process
 
 
 def process_comm(process: Process) -> str:
-    status = Path(f"/proc/{process.pid}/status").read_text()
+    try:
+        status = Path(f"/proc/{process.pid}/status").read_text()
+    except FileNotFoundError:
+        raise NoSuchProcess(process.pid)
+
     name_line = status.splitlines()[0]
     assert name_line.startswith("Name:\t")
     return name_line.split("\t", 1)[1]
