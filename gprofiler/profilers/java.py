@@ -832,8 +832,7 @@ class JavaProfiler(ProcessProfilerBase):
     def start(self) -> None:
         super().start()
         try:
-            # needs to run in init net NS - see netlink_kernel_create() call on init_net in cn_init().
-            run_in_ns(["net"], lambda: proc_events.register_exit_callback(self._proc_exit_callback), 1)
+            proc_events.register_exit_callback(self._proc_exit_callback)
         except Exception:
             logger.warning("Failed to enable proc_events listener for exited Java processes", exc_info=True)
         else:
