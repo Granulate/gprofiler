@@ -32,7 +32,6 @@ from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     pgrep_maps,
     poll_process,
-    process_comm,
     random_prefix,
     removed_path,
     resource_path,
@@ -41,6 +40,7 @@ from gprofiler.utils import (
     wait_event,
     wait_for_file_by_prefix,
 )
+from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
 
