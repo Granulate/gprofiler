@@ -26,7 +26,6 @@ from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampl
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_many_collapsed, parse_one_collapsed_file
 from gprofiler.metadata.py_module_version import get_modules_versions
-from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
@@ -395,9 +394,6 @@ class PythonEbpfProfiler(ProfilerBase):
     # py-spy is like pyspy, it's confusing and I mix between them
     possible_modes=["auto", "pyperf", "pyspy", "py-spy", "disabled"],
     default_mode="auto",
-    # we build pyspy for both, pyperf only for x86_64.
-    # TODO: this inconsistency shows that py-spy and pyperf should have different Profiler classes,
-    # we should split them in the future.
     supported_archs=["x86_64", "aarch64"],
     profiler_mode_argument_help="Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), "
     "pyspy (always use py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails)"
@@ -442,11 +438,6 @@ class PythonProfiler(ProfilerInterface):
             python_mode = "pyspy"
 
         assert python_mode in ("auto", "pyperf", "pyspy"), f"unexpected mode: {python_mode}"
-
-        if get_arch() != "x86_64":
-            if python_mode == "pyperf":
-                logger.warning("PyPerf is supported only on x86_64, falling back to py-spy")
-            python_mode = "pyspy"
 
         if python_mode in ("auto", "pyperf"):
             self._ebpf_profiler = self._create_ebpf_profiler(
