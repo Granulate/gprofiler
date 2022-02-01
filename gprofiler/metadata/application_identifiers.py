@@ -101,6 +101,27 @@ class _GunicornApplicationIdentifier(_ApplicationIdentifier):
         return f"gunicorn: {_append_python_module_to_proc_wd(process, wsgi_app_spec)}"
 
 
+class _GunicornTitleApplicationIdentifier(_ApplicationIdentifier):
+    """
+    This generates appids from gunicorns that use setproctitle to change their name,
+    and thus appear like "gunicorn: worker [my.wsgi:app]".
+    See:
+        setproctitle():
+        https://github.com/benoitc/gunicorn/blob/60d0474a6f5604597180f435a6a03b016783885b/gunicorn/util.py#L50
+        title format:
+        https://github.com/benoitc/gunicorn/blob/60d0474a6f5604597180f435a6a03b016783885b/gunicorn/arbiter.py#L580
+    """
+
+    def get_application_name(self, process: Process) -> Optional[str]:
+        cmdline = process.cmdline()
+        # There should be one entry in the commandline, starting with "gunicorn: ",
+        # and the rest should be empty strings per Process.cmdline() (I suppose that setproctitle
+        # zeros out the arguments array).
+        if cmdline[0].startswith("gunicorn: ") and len(list(filter(lambda s: s, cmdline))) == 1:
+            return cmdline[0]
+        return None
+
+
 class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
     @staticmethod
     def _find_wsgi_from_config_file(process: Process) -> Optional[str]:
@@ -224,6 +245,7 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
 # Please note that the order matter, because the FIRST matching identifier will be used.
 # so when adding new identifiers pay attention to the order.
 _APPLICATION_IDENTIFIER = [
+    _GunicornTitleApplicationIdentifier(),
     _GunicornApplicationIdentifier(),
     _UwsgiApplicationIdentifier(),
     _CeleryApplicationIdentifier(),
