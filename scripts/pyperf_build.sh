@@ -5,7 +5,7 @@
 #
 set -e
 
-git clone --depth 1 -b aarch64 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard fd3cd7510161a2b7b02a5aff234e4a71b8e8486c
+git clone --depth 1 -b aarch64 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard b33dd19493fc7fc3c5c76935f17b2a67c7b30c9c
 
 mkdir build
 cd build
