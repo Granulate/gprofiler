@@ -120,11 +120,12 @@ RUN yum install -y \
 
 RUN yum install -y centos-release-scl-rh
 # mostly taken from https://github.com/iovisor/bcc/blob/master/INSTALL.md#install-and-compile-llvm
-RUN yum install -y devtoolset-8 \
-    llvm-toolset-7.0 \
-    llvm-toolset-7.0-llvm-devel \
-    llvm-toolset-7.0-llvm-static \
-    llvm-toolset-7.0-clang-devel \
+# on x86_64, the package is named llvm-toolset-7. on aarch64, it is named llvm-toolset-7.0...
+RUN if [ $(uname -m) = "aarch64" ]; then v="7.0"; else v="7"; fi; yum install -y devtoolset-8 \
+    llvm-toolset-$v \
+    llvm-toolset-$v-llvm-devel \
+    llvm-toolset-$v-llvm-static \
+    llvm-toolset-$v-clang-devel \
     devtoolset-8-elfutils-libelf-devel
 
 COPY ./scripts/libunwind_build.sh .
@@ -205,7 +206,7 @@ COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # we use list_needed_libs.sh to list the dynamic dependencies of *all* of our resources,
 # and make staticx pack them as well.
 # using scl here to get the proper LD_LIBRARY_PATH set
-RUN source scl_source enable devtoolset-8 llvm-toolset-7.0 && libs=$(./scripts/list_needed_libs.sh) && staticx $libs dist/gprofiler dist/gprofiler
+RUN if [ $(uname -m) = "aarch64" ]; then v="7.0"; else v="7"; fi; source scl_source enable devtoolset-8 llvm-toolset-$v && libs=$(./scripts/list_needed_libs.sh) && staticx $libs dist/gprofiler dist/gprofiler
 
 FROM scratch AS export-stage
 
