@@ -5,10 +5,17 @@
 #
 set -e
 
-git clone --depth 1 -b aarch64 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard aba6bdc0dcf089128b5d74f4b30ee0d86b56567b
+git clone --depth 1 -b aarch64 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard bb466dfa4ab315e1dd457b708090cc84552e01e7
 
 mkdir build
 cd build
-# TODO -DENABLE_LLVM_SHARED only for aarch exe
-cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root -DENABLE_LLVM_SHARED=1 ..
+
+SHARED_ARG=""
+# need in aarch64 as mentioned here: https://github.com/iovisor/bcc/issues/3333#issuecomment-803432248
+# container mdoe doesn't want it - we don't have the libs bundled.
+# exe mode in x86_64 works fine so I don't change it.
+if [ $(uname -m) = "aarch64" ] && [ "$1" == "exe" ]; then
+    SHARED_ARG=" -DENABLE_LLVM_SHARED=1"
+fi
+cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root $SHARED_ARG ..
 make -C examples/cpp/pyperf -j -l VERBOSE=1 install

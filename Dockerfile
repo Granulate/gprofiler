@@ -71,7 +71,7 @@ RUN ./libunwind_build.sh
 WORKDIR /bcc
 
 COPY ./scripts/pyperf_build.sh .
-RUN ./pyperf_build.sh
+RUN ./pyperf_build.sh container
 
 # phpspy
 FROM ubuntu${PHPSPY_BUILDER_UBUNTU} AS phpspy-builder

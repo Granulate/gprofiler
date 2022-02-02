@@ -134,7 +134,7 @@ RUN ./libunwind_build.sh
 WORKDIR /bcc
 
 COPY ./scripts/pyperf_build.sh .
-RUN source scl_source enable devtoolset-8 llvm-toolset-7.0 && source ./pyperf_build.sh
+RUN source scl_source enable devtoolset-8 llvm-toolset-7.0 && source ./pyperf_build.sh exe
 
 
 # gProfiler part
