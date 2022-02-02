@@ -117,7 +117,7 @@ class _GunicornTitleApplicationIdentifier(_ApplicationIdentifier):
         # There should be one entry in the commandline, starting with "gunicorn: ",
         # and the rest should be empty strings per Process.cmdline() (I suppose that setproctitle
         # zeros out the arguments array).
-        if cmdline[0].startswith("gunicorn: ") and len(list(filter(lambda s: s, cmdline))) == 1:
+        if _get_cli_arg_by_index(cmdline, 0).startswith("gunicorn: ") and len(list(filter(lambda s: s, cmdline))) == 1:
             return cmdline[0]
         return None
 
