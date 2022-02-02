@@ -310,6 +310,7 @@ class PythonEbpfProfiler(ProfilerBase):
         logger.info("Starting profiling of Python processes with PyPerf")
         cmd = [
             resource_path(self.PYPERF_RESOURCE),
+            "-v",
             "--output",
             str(self.output_path),
             "-F",
