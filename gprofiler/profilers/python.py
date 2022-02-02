@@ -311,6 +311,7 @@ class PythonEbpfProfiler(ProfilerBase):
         cmd = [
             resource_path(self.PYPERF_RESOURCE),
             "-v",
+            "999",
             "--output",
             str(self.output_path),
             "-F",
