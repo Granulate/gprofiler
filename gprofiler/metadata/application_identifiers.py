@@ -85,7 +85,14 @@ class _ApplicationIdentifier(metaclass=ABCMeta):
         pass
 
 
-class _GunicornApplicationIdentifier(_ApplicationIdentifier):
+class _GunicornApplicationIdentifierBase(_ApplicationIdentifier):
+    def gunicorn_to_application_name(self, wsgi_app_spec: str, process: Process) -> str:
+        # strips the :app
+        wsgi_app = wsgi_app_spec.split(":", maxsplit=1)[0]
+        return f"gunicorn: {_append_python_module_to_proc_wd(process, wsgi_app)}"
+
+
+class _GunicornApplicationIdentifier(_GunicornApplicationIdentifierBase):
     def get_application_name(self, process: Process) -> Optional[str]:
         # As of gunicorn documentation the WSGI module name most probably will come from the cmdline and not from the
         # config file / environment variables (they added the option to specify `wsgi_app`
@@ -97,8 +104,32 @@ class _GunicornApplicationIdentifier(_ApplicationIdentifier):
             return None
 
         # wsgi app specification will come always as the last argument (if hasn't been specified config file)
-        wsgi_app_spec = process.cmdline()[-1].split(":", maxsplit=1)[0]
-        return f"gunicorn: {_append_python_module_to_proc_wd(process, wsgi_app_spec)}"
+        return self.gunicorn_to_application_name(process.cmdline()[-1], process)
+
+
+class _GunicornTitleApplicationIdentifier(_GunicornApplicationIdentifierBase):
+    """
+    This generates appids from gunicorns that use setproctitle to change their name,
+    and thus appear like "gunicorn: worker [my.wsgi:app]".
+    See:
+        setproctitle():
+        https://github.com/benoitc/gunicorn/blob/60d0474a6f5604597180f435a6a03b016783885b/gunicorn/util.py#L50
+        title format:
+        https://github.com/benoitc/gunicorn/blob/60d0474a6f5604597180f435a6a03b016783885b/gunicorn/arbiter.py#L580
+    """
+
+    _GUNICORN_TITLE_PROC_NAME = re.compile(r"^gunicorn: (?:(?:master)|(?:worker)) \[([^\]]*)\]$")
+
+    def get_application_name(self, process: Process) -> Optional[str]:
+        cmdline = process.cmdline()
+        # There should be one entry in the commandline, starting with "gunicorn: ",
+        # and the rest should be empty strings per Process.cmdline() (I suppose that setproctitle
+        # zeros out the arguments array).
+        if _get_cli_arg_by_index(cmdline, 0).startswith("gunicorn: ") and len(list(filter(lambda s: s, cmdline))) == 1:
+            m = self._GUNICORN_TITLE_PROC_NAME.match(cmdline[0])
+            if m is not None:
+                return self.gunicorn_to_application_name(m.group(1), process)
+        return None
 
 
 class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
@@ -224,6 +255,7 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
 # Please note that the order matter, because the FIRST matching identifier will be used.
 # so when adding new identifiers pay attention to the order.
 _APPLICATION_IDENTIFIER = [
+    _GunicornTitleApplicationIdentifier(),
     _GunicornApplicationIdentifier(),
     _UwsgiApplicationIdentifier(),
     _CeleryApplicationIdentifier(),
