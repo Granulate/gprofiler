@@ -69,7 +69,7 @@ def test_async_profiler_already_running(
             ap_safemode=0,
             ap_args="",
         ) as ap_proc:
-            ap_proc.status_async_profiler()  # type: ignore
+            ap_proc.status_async_profiler()
             # printed the output file, see ACTION_STATUS case in async-profiler/profiler.cpp
             assert "Profiling is running for " in cast_away_optional(ap_proc.read_output())
 
@@ -271,11 +271,11 @@ def test_async_profiler_stops_after_given_timeout(
     ) as ap_proc:
         assert ap_proc.start_async_profiler(frequency_to_ap_interval(11), ap_timeout=timeout_s)
 
-        ap_proc.status_async_profiler()  # type: ignore
+        ap_proc.status_async_profiler()
         assert "Profiling is running for " in cast_away_optional(ap_proc.read_output())
 
         # let the timeout trigger
         time.sleep(timeout_s)
 
-        ap_proc.status_async_profiler()  # type: ignore
+        ap_proc.status_async_profiler()
         assert "Profiler is not active\n" in cast_away_optional(ap_proc.read_output())

@@ -16,7 +16,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event
 from types import TracebackType
-from typing import Any, List, Optional, Set, Type
+from typing import Any, List, Optional, Set, Type, TypeVar
 
 import psutil
 from granulate_utils.java import (
@@ -137,6 +137,9 @@ def get_ap_version() -> str:
     return Path(resource_path("java/async-profiler-version")).read_text()
 
 
+T = TypeVar("T", bound="AsyncProfiledProcess")
+
+
 class AsyncProfiledProcess:
     """
     Represents a process profiled with async-profiler.
@@ -206,7 +209,7 @@ class AsyncProfiledProcess:
         self._ap_safemode = ap_safemode
         self._ap_args = ap_args
 
-    def __enter__(self) -> "AsyncProfiledProcess":
+    def __enter__(self: T) -> T:
         os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
         os.makedirs(self._storage_dir_host, 0o755, exist_ok=True)
 
