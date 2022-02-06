@@ -260,7 +260,8 @@ class GProfiler:
             try:
                 process_profiles.update(future.result())
             except Exception:
-                logger.exception(f"{future.name} profiling failed")  # type: ignore
+                future_name = future.name  # type: ignore # hack, add the profiler's name to the Future object
+                logger.exception(f"{future_name} profiling failed")
 
         local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
 

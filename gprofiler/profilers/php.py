@@ -108,10 +108,11 @@ class PHPSpyProfiler(ProfilerBase):
             self._process = process
 
         # Set the stderr fd as non-blocking so the read operation on it won't block if no data is available.
+        assert self._process.stderr is not None
         fcntl.fcntl(
-            self._process.stderr.fileno(),  # type: ignore
+            self._process.stderr.fileno(),
             fcntl.F_SETFL,
-            fcntl.fcntl(self._process.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK,  # type: ignore
+            fcntl.fcntl(self._process.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK,
         )
 
         # Ignoring type since _process.stderr is typed as Optional[IO[Any]] which doesn't have the `read1` method.

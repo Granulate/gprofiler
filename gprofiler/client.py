@@ -6,7 +6,7 @@ import datetime
 import gzip
 import json
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast, IO
 
 import requests
 from requests import Session
@@ -82,7 +82,7 @@ class APIClient:
             buffer = BytesIO()
             with gzip.open(buffer, mode="wt", encoding="utf-8") as gzip_file:
                 try:
-                    json.dump(data, gzip_file, ensure_ascii=False)  # type: ignore
+                    json.dump(data, cast(IO[str], gzip_file), ensure_ascii=False)
                 except TypeError:
                     # This should only happen while in development, and is used to get a more indicative error.
                     bad_json = str(data)

@@ -139,7 +139,8 @@ def test_java_safemode_version_check(
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
     log_record = next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records))
-    assert log_record.gprofiler_adapter_extra["jvm_version"] == repr(jvm_version)  # type: ignore
+    log_extra = log_record.gprofiler_adapter_extra  # type: ignore
+    assert log_extra["jvm_version"] == repr(jvm_version)
 
 
 def test_java_safemode_build_number_check(
@@ -157,7 +158,8 @@ def test_java_safemode_build_number_check(
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
     log_record = next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records))
-    assert log_record.gprofiler_adapter_extra["jvm_version"] == repr(jvm_version)  # type: ignore
+    log_extra = log_record.gprofiler_adapter_extra  # type: ignore
+    assert log_extra["jvm_version"] == repr(jvm_version)
 
 
 @pytest.mark.parametrize(
