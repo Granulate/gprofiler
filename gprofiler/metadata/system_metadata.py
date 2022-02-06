@@ -114,7 +114,7 @@ def get_mac_address() -> str:
     outbytes = struct.unpack("iL", fcntl.ioctl(s.fileno(), 0x8912, ifconf))[0]  # SIOCGIFCONF
     data = buf.tobytes()[:outbytes]
     for index in range(0, len(data), SIZE_OF_STUCT_ifreq):
-        iface = data[index: index + SIZE_OF_STUCT_ifreq]
+        iface = data[index : index + SIZE_OF_STUCT_ifreq]
 
         # iface is now a struct ifreq which starts with the interface name.
         # we can use it for further calls.
