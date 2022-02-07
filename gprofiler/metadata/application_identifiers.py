@@ -6,7 +6,7 @@ import configparser
 import os.path
 import re
 from abc import ABCMeta, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from granulate_utils.linux.ns import resolve_host_path
 from psutil import NoSuchProcess, Process
@@ -218,13 +218,6 @@ class _PySparkApplicationIdentifier(_ApplicationIdentifier):
 
 
 class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
-    @staticmethod
-    def is_python_app(process: Process) -> bool:
-        if not _is_python_bin(_get_cli_arg_by_index(process.cmdline(), 0)):
-            return False
-
-        return _is_python_m_proc(process) or (len(process.cmdline()) >= 2 and process.cmdline()[1].endswith(".py"))
-
     def get_application_name(self, process: Process) -> Optional[str]:
         if not _is_python_bin(_get_cli_arg_by_index(process.cmdline(), 0)):
             return None
@@ -265,15 +258,15 @@ _APPLICATION_IDENTIFIER = [
 ]
 
 
-def get_application_name(pid: int) -> Optional[str]:
+def get_application_name(process: Union[int, Process]) -> Optional[str]:
     """
     Tries to identify the application running in a given process, application identification is fully heuristic,
     heuristics are being made on each application type available differ from each other and those their
     "heuristic level".
     """
     try:
-        process = Process(pid)
-
+        if isinstance(process, int):
+            process = Process(process)
     # pid may be (-1) so we can catch also ValueError
     except (NoSuchProcess, ValueError):
         return None
