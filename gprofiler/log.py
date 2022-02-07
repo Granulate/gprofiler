@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, MutableMapping, Optional, Tup
 
 from requests import RequestException
 
-from gprofiler.exceptions import APIError
-from gprofiler.state import State, UninitializedStateException, get_state
+from gprofiler.exceptions import APIError, UninitializedStateException
+from gprofiler.state import State, get_state
 
 if TYPE_CHECKING:
     from gprofiler.client import APIClient
@@ -75,28 +75,28 @@ class GProfilerLoggingAdapter(logging.LoggerAdapter):
         logging_kwargs["extra"] = extra
         return msg, logging_kwargs
 
-    def debug(self, msg: Any, *args, no_server_log: bool = False, **kwargs) -> None:
+    def debug(self, msg: Any, *args: Any, no_server_log: bool = False, **kwargs: Any) -> None:
         super().debug(msg, *args, no_server_log=no_server_log, **kwargs)
 
-    def info(self, msg: Any, *args, no_server_log: bool = False, **kwargs) -> None:
+    def info(self, msg: Any, *args: Any, no_server_log: bool = False, **kwargs: Any) -> None:
         super().info(msg, *args, no_server_log=no_server_log, **kwargs)
 
-    def warning(self, msg: Any, *args, no_server_log: bool = False, **kwargs) -> None:
+    def warning(self, msg: Any, *args: Any, no_server_log: bool = False, **kwargs: Any) -> None:
         super().warning(msg, *args, no_server_log=no_server_log, **kwargs)
 
-    def warn(self, msg: Any, *args, no_server_log: bool = False, **kwargs) -> None:
+    def warn(self, msg: Any, *args: Any, no_server_log: bool = False, **kwargs: Any) -> None:
         super().warn(msg, *args, no_server_log=no_server_log, **kwargs)
 
-    def error(self, msg: Any, *args, no_server_log: bool = False, **kwargs) -> None:
+    def error(self, msg: Any, *args: Any, no_server_log: bool = False, **kwargs: Any) -> None:
         super().error(msg, *args, no_server_log=no_server_log, **kwargs)
 
-    def exception(self, msg: Any, *args, no_server_log: bool = False, **kwargs) -> None:
+    def exception(self, msg: Any, *args: Any, no_server_log: bool = False, **kwargs: Any) -> None:
         super().exception(msg, *args, no_server_log=no_server_log, **kwargs)
 
-    def critical(self, msg: Any, *args, no_server_log: bool = False, **kwargs) -> None:
+    def critical(self, msg: Any, *args: Any, no_server_log: bool = False, **kwargs: Any) -> None:
         super().critical(msg, *args, no_server_log=no_server_log, **kwargs)
 
-    def log(self, level: int, msg: Any, *args, no_server_log: bool = False, **kwargs) -> None:
+    def log(self, level: int, msg: Any, *args: Any, no_server_log: bool = False, **kwargs: Any) -> None:
         super().log(level, msg, *args, no_server_log=no_server_log, **kwargs)
 
 
@@ -120,7 +120,7 @@ class RemoteLogsHandler(logging.Handler):
         # The formatter is needed to format tracebacks
         self.setFormatter(logging.Formatter())
 
-    def init_api_client(self, api_client: "APIClient"):
+    def init_api_client(self, api_client: "APIClient") -> None:
         self._api_client = api_client
 
     def emit(self, record: LogRecord) -> None:
@@ -134,7 +134,7 @@ class RemoteLogsHandler(logging.Handler):
             self._truncated = True
             self._logs[: -self.MAX_BUFFERED_RECORDS] = []
 
-    def _make_dict_record(self, record: LogRecord):
+    def _make_dict_record(self, record: LogRecord) -> Dict[str, Any]:
         formatted_timestamp = datetime.datetime.utcfromtimestamp(record.created).isoformat()
         extra = record.gprofiler_adapter_extra  # type: ignore
 
@@ -177,7 +177,7 @@ class RemoteLogsHandler(logging.Handler):
             CYCLE_ID_KEY: cycle_id,
         }
 
-    def try_send_log_to_server(self):
+    def try_send_log_to_server(self) -> None:
         assert self._api_client is not None, "APIClient is not initialized, can't send logs to server"
         # Snapshot the current num logs because logs list might be extended meanwhile.
         logs_count = len(self._logs)

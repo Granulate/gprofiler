@@ -4,7 +4,7 @@
 #
 import signal
 import subprocess
-from typing import List, Union
+from typing import Any, List, Union
 
 
 class StopEventSetException(Exception):
@@ -16,7 +16,7 @@ class ProcessStoppedException(Exception):
 
 
 class CalledProcessError(subprocess.CalledProcessError):
-    def __str__(self):
+    def __str__(self) -> str:
         if self.returncode and self.returncode < 0:
             try:
                 base = f"Command '{self.cmd}' died with {signal.Signals(-self.returncode)!r}."
@@ -28,11 +28,13 @@ class CalledProcessError(subprocess.CalledProcessError):
 
 
 class CalledProcessTimeoutError(CalledProcessError):
-    def __init__(self, timeout: float, returncode: int, cmd: Union[str, List[str]], output=None, stderr=None):
+    def __init__(
+        self, timeout: float, returncode: int, cmd: Union[str, List[str]], output: Any = str, stderr: Any = str
+    ):
         super().__init__(returncode, cmd, output, stderr)
         self.timeout = timeout
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Timed out after {self.timeout} seconds\n" + super().__str__()
 
 
@@ -46,7 +48,7 @@ class APIError(Exception):
         self.message = message
         self.full_data = full_data
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.message
 
 

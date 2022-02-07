@@ -16,7 +16,8 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed_file
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
-from gprofiler.utils import pgrep_maps, process_comm, random_prefix, removed_path, resource_path, run_process
+from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
+from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
 
@@ -36,7 +37,7 @@ class RbSpyProfiler(ProcessProfilerBase):
         super().__init__(frequency, duration, stop_event, storage_dir)
         assert ruby_mode == "rbspy", "Ruby profiler should not be initialized, wrong ruby_mode value given"
 
-    def _make_command(self, pid: int, output_path: str):
+    def _make_command(self, pid: int, output_path: str) -> List[str]:
         return [
             resource_path(self.RESOURCE_PATH),
             "record",

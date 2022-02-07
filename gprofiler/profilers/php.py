@@ -12,7 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
-from typing import List, Optional, Pattern
+from typing import List, Optional, Pattern, cast
 
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters
@@ -69,7 +69,7 @@ class PHPSpyProfiler(ProfilerBase):
         self._output_path = Path(self._storage_dir) / f"phpspy.{random_prefix()}.col"
         self._process_filter = php_process_filter
 
-    def start(self):
+    def start(self) -> None:
         logger.info("Starting profiling of PHP processes with phpspy")
         phpspy_path = resource_path(self.PHPSPY_RESOURCE)
         cmd = [
@@ -108,6 +108,7 @@ class PHPSpyProfiler(ProfilerBase):
             self._process = process
 
         # Set the stderr fd as non-blocking so the read operation on it won't block if no data is available.
+        assert self._process.stderr is not None
         fcntl.fcntl(
             self._process.stderr.fileno(),
             fcntl.F_SETFL,
@@ -161,7 +162,7 @@ class PHPSpyProfiler(ProfilerBase):
                 raise CorruptedPHPSpyOutputException(
                     f"Couldn't extract metadata via regex '{re_expr.pattern}', line '{metadata_line}'"
                 )
-            return match.group(1)
+            return cast(str, match.group(1))
 
         results: ProcessToStackSampleCounters = defaultdict(Counter)
 
@@ -212,12 +213,12 @@ class PHPSpyProfiler(ProfilerBase):
             self._process = None
         return code
 
-    def stop(self):
+    def stop(self) -> None:
         code = self._terminate()
         if code is not None:
             logger.info("Finished profiling PHP processes with phpspy")
 
-    def _process_stderr(self, stderr: str):
+    def _process_stderr(self, stderr: str) -> None:
         skip_re = self._get_stderr_skip_regex()
         lines = stderr.splitlines()
         for line in lines:
