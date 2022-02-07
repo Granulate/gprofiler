@@ -2,14 +2,13 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import re
-from typing import Dict, List, Optional, Set, cast
+from typing import Dict, List, Optional, Set
 
 import docker
+from granulate_utils.linux.containers import get_process_container_id
+from psutil import NoSuchProcess
 
 from gprofiler.log import get_logger_adapter
-
-CONTAINER_ID_PATTERN = re.compile(r"[a-f0-9]{64}")
 
 logger = get_logger_adapter(__name__)
 
@@ -54,8 +53,11 @@ class DockerClient:
 
     def _safely_get_process_container_name(self, pid: int) -> Optional[str]:
         try:
-            container_id = self._get_process_container_id(pid)
-            if container_id is None:
+            try:
+                container_id = get_process_container_id(pid)
+                if container_id is None:
+                    return None
+            except NoSuchProcess:
                 return None
             return self._get_container_name(container_id)
         except Exception:
@@ -85,22 +87,3 @@ class DockerClient:
         running_containers = self._client.containers.list()
         for container in running_containers:
             self._container_id_to_name_cache[container.id] = container.name
-
-    @staticmethod
-    def _get_process_container_id(pid: int) -> Optional[str]:
-        # ECS uses /ecs/uuid/container-id
-        # standard Docker uses /docker/container-id
-        # k8s uses /kubepods/{burstable,besteffort}/uuid/container-id
-        try:
-            with open(f"/proc/{pid}/cgroup", "r") as cgroup_file:
-                cgroup = cgroup_file.read()
-        except FileNotFoundError:
-            # The process died before we got to this point
-            return None
-
-        for line in cgroup.split():
-            found = CONTAINER_ID_PATTERN.findall(line)
-            if found:
-                return cast(str, found[-1])
-
-        return None
