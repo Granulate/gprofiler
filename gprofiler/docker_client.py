@@ -14,7 +14,7 @@ logger = get_logger_adapter(__name__)
 
 
 class DockerClient:
-    def __init__(self):
+    def __init__(self) -> None:
         try:
             self._client = docker.from_env()
         except Exception:
@@ -31,7 +31,7 @@ class DockerClient:
         self._current_container_names: Set[str] = set()
         self._container_id_to_name_cache: Dict[str, Optional[str]] = {}
 
-    def reset_cache(self):
+    def reset_cache(self) -> None:
         self._pid_to_container_name_cache.clear()
         self._current_container_names.clear()
 
@@ -64,7 +64,7 @@ class DockerClient:
             logger.warning(f"Could not get a container name for PID {pid}", exc_info=True)
             return None
 
-    def _get_container_name(self, container_id) -> Optional[str]:
+    def _get_container_name(self, container_id: str) -> Optional[str]:
         if container_id in self._container_id_to_name_cache:
             container_name = self._container_id_to_name_cache[container_id]
             if container_name is not None:
@@ -81,7 +81,7 @@ class DockerClient:
             self._current_container_names.add(container_name)
         return container_name
 
-    def _refresh_container_names_cache(self):
+    def _refresh_container_names_cache(self) -> None:
         # We re-fetch all of the currently running containers, so in order to keep the cache small we clear it
         self._container_id_to_name_cache.clear()
         running_containers = self._client.containers.list()

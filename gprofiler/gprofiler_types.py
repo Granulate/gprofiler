@@ -4,24 +4,24 @@
 #
 
 from collections import Counter
-from typing import Dict, MutableMapping, Tuple
+from typing import Dict, MutableMapping, Optional, Union
 
 import configargparse
 
 StackToSampleCount = Counter
 ProcessToStackSampleCounters = MutableMapping[int, StackToSampleCount]
-UserArgs = Dict[str, Tuple[int, bool, str]]
+UserArgs = Dict[str, Optional[Union[int, bool, str]]]
 
 
-def positive_integer(value) -> int:
-    value = int(value)
+def positive_integer(value_str: str) -> int:
+    value = int(value_str)
     if value <= 0:
         raise configargparse.ArgumentTypeError("invalid positive integer value: {!r}".format(value))
     return value
 
 
-def nonnegative_integer(value) -> int:
-    value = int(value)
+def nonnegative_integer(value_str: str) -> int:
+    value = int(value_str)
     if value < 0:
         raise configargparse.ArgumentTypeError("invalid non-negative integer value: {!r}".format(value))
     return value

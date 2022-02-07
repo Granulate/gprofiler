@@ -137,7 +137,7 @@ def add_highest_avg_depth_stacks_per_process(
     fp_perf: ProcessToStackSampleCounters,
     fp_to_dwarf_sample_ratio: float,
     merged_pid_to_stacks_counters: ProcessToStackSampleCounters,
-):
+) -> None:
     for pid, fp_collapsed_stacks_counters in fp_perf.items():
         if pid not in dwarf_perf:
             merged_pid_to_stacks_counters[pid] = fp_collapsed_stacks_counters
@@ -224,7 +224,7 @@ def _make_profile_metadata(
     return "# " + json.dumps(profile_metadata)
 
 
-def _get_container_name(pid: int, docker_client: Optional[DockerClient], add_container_names: bool):
+def _get_container_name(pid: int, docker_client: Optional[DockerClient], add_container_names: bool) -> str:
     return docker_client.get_container_name(pid) if add_container_names and docker_client is not None else ""
 
 

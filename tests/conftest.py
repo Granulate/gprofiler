@@ -9,15 +9,16 @@ from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 from time import sleep
-from typing import Callable, Generator, Iterable, List, Mapping, Optional
+from typing import Any, Callable, Generator, Iterable, Iterator, List, Mapping, Optional, cast
 
 import docker
 from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 from psutil import Process
-from pytest import fixture
+from pytest import FixtureRequest, fixture
 
+from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.metadata.application_identifiers import get_application_name
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
 from tests.utils import assert_function_in_collapsed, chmod_path_parts
@@ -40,7 +41,7 @@ def profiler_type() -> str:
 
 
 @contextmanager
-def chdir(path):
+def chdir(path: Path) -> Iterator[None]:
     cwd = os.getcwd()
     try:
         os.chdir(path)
@@ -50,8 +51,9 @@ def chdir(path):
 
 
 @fixture(params=[False, True])
-def in_container(request) -> bool:
-    return request.param
+def in_container(request: FixtureRequest) -> bool:
+    return cast(bool, request.param)  # type: ignore # SubRequest isn't exported yet,
+    # https://github.com/pytest-dev/pytest/issues/7469
 
 
 @fixture
@@ -89,7 +91,7 @@ def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
 
 
 @fixture
-def gprofiler_exe(request, tmp_path: Path) -> Path:
+def gprofiler_exe(request: FixtureRequest, tmp_path: Path) -> Path:
     precompiled = request.config.getoption("--executable")
     if precompiled is not None:
         return Path(precompiled)
@@ -118,13 +120,15 @@ def check_app_exited() -> bool:
 
 
 @fixture
-def application_process(in_container: bool, command_line: List[str], check_app_exited: bool):
+def application_process(
+    in_container: bool, command_line: List[str], check_app_exited: bool
+) -> Iterator[Optional[subprocess.Popen]]:
     if in_container:
         yield None
         return
     else:
         # run as non-root to catch permission errors, etc.
-        def lower_privs():
+        def lower_privs() -> None:
             os.setgid(1000)
             os.setuid(1000)
 
@@ -255,7 +259,7 @@ def output_directory(tmp_path: Path) -> Path:
 def application_pid(
     in_container: bool, application_process: subprocess.Popen, application_docker_container: Container
 ) -> int:
-    pid = application_docker_container.attrs["State"]["Pid"] if in_container else application_process.pid
+    pid: int = application_docker_container.attrs["State"]["Pid"] if in_container else application_process.pid
 
     # Application might be run using "sh -c ...", we detect the case and return the "real" application pid
     process = Process(pid)
@@ -283,8 +287,11 @@ def runtime_specific_args(runtime: str) -> List[str]:
     }.get(runtime, [])
 
 
+AssertInCollapsed = Callable[[StackToSampleCount], None]
+
+
 @fixture
-def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int]], None]:
+def assert_collapsed(runtime: str) -> AssertInCollapsed:
     function_name = {
         "java": "Fibonacci.main",
         "python": "burner",
@@ -311,7 +318,7 @@ def assert_application_name(application_pid: int, runtime: str, in_container: bo
 
 
 @fixture
-def exec_container_image(request, docker_client: DockerClient) -> Optional[Image]:
+def exec_container_image(request: FixtureRequest, docker_client: DockerClient) -> Optional[Image]:
     image_name = request.config.getoption("--exec-container-image")
     if image_name is None:
         return None
@@ -344,7 +351,7 @@ def profiler_flags(runtime: str, profiler_type: str) -> List[str]:
     return flags
 
 
-def pytest_addoption(parser):
+def pytest_addoption(parser: Any) -> None:
     parser.addoption("--exec-container-image", action="store", default=None)
     parser.addoption("--executable", action="store", default=None)
 
@@ -360,4 +367,4 @@ def python_version(in_container: bool, application_docker_container: Container) 
         output = subprocess.check_output("python --version", stderr=subprocess.STDOUT, shell=True)
 
     # Output is expected to look like e.g. "Python 3.9.7"
-    return output.decode().strip().split()[-1]
+    return cast(str, output.decode().strip().split()[-1])

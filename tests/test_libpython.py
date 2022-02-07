@@ -2,14 +2,17 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+from pathlib import Path
 from threading import Event
 
 import pytest
 from docker import DockerClient
+from docker.models.containers import Container
 from docker.models.images import Image
 
 from gprofiler.profilers.python import PythonProfiler
 from tests import CONTAINERS_DIRECTORY
+from tests.conftest import AssertInCollapsed
 
 
 @pytest.fixture
@@ -27,9 +30,9 @@ def application_docker_image(docker_client: DockerClient) -> Image:
 
 @pytest.mark.parametrize("in_container", [True])
 def test_python_select_by_libpython(
-    tmp_path,
-    application_docker_container,
-    assert_collapsed,
+    tmp_path: Path,
+    application_docker_container: Container,
+    assert_collapsed: AssertInCollapsed,
 ) -> None:
     """
     Tests that profiling of processes running Python, whose basename(readlink("/proc/pid/exe")) isn't "python".
@@ -38,6 +41,6 @@ def test_python_select_by_libpython(
     """
     with PythonProfiler(1000, 1, Event(), str(tmp_path), "pyspy", True, None) as profiler:
         process_collapsed = profiler.snapshot()
-    collapsed = process_collapsed.get(application_docker_container.attrs["State"]["Pid"])
+    collapsed = process_collapsed[application_docker_container.attrs["State"]["Pid"]]
     assert_collapsed(collapsed)
     assert all(stack.startswith("shmython") for stack in collapsed.keys())

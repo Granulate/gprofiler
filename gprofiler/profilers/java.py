@@ -13,8 +13,10 @@ from collections import Counter
 from enum import Enum
 from itertools import dropwhile
 from pathlib import Path
+from subprocess import CompletedProcess
 from threading import Event
-from typing import List, Optional, Set
+from types import TracebackType
+from typing import Any, List, Optional, Set, Type, TypeVar
 
 import psutil
 from granulate_utils.java import (
@@ -27,6 +29,7 @@ from granulate_utils.java import (
     locate_hotspot_error_file,
 )
 from granulate_utils.linux import ns, proc_events
+from granulate_utils.linux.kernel_messages import KernelMessage
 from granulate_utils.linux.ns import get_proc_root_path, resolve_proc_root_links, run_in_ns
 from granulate_utils.linux.oom import get_oom_entry
 from granulate_utils.linux.process import is_process_running, process_exe
@@ -57,7 +60,7 @@ from gprofiler.utils.process import process_comm
 logger = get_logger_adapter(__name__)
 
 
-def frequency_to_ap_interval(frequency: int):
+def frequency_to_ap_interval(frequency: int) -> int:
     # async-profiler accepts interval between samples (nanoseconds)
     return int((1 / frequency) * 1_000_000_000)
 
@@ -100,13 +103,15 @@ SUPPORTED_AP_MODES = ["cpu", "itimer"]
 
 
 class JattachException(CalledProcessError):
-    def __init__(self, returncode, cmd, stdout, stderr, target_pid: int, ap_log: str, is_loaded: bool):
+    def __init__(
+        self, returncode: int, cmd: Any, stdout: Any, stderr: Any, target_pid: int, ap_log: str, is_loaded: bool
+    ):
         super().__init__(returncode, cmd, stdout, stderr)
         self._target_pid = target_pid
         self._ap_log = ap_log
         self.is_loaded = is_loaded
 
-    def __str__(self):
+    def __str__(self) -> str:
         ap_log = self._ap_log.strip()
         if not ap_log:
             ap_log = "(empty)"
@@ -130,6 +135,9 @@ def fdtransfer_path() -> str:
 @functools.lru_cache(maxsize=1)
 def get_ap_version() -> str:
     return Path(resource_path("java/async-profiler-version")).read_text()
+
+
+T = TypeVar("T", bound="AsyncProfiledProcess")
 
 
 class AsyncProfiledProcess:
@@ -201,7 +209,7 @@ class AsyncProfiledProcess:
         self._ap_safemode = ap_safemode
         self._ap_args = ap_args
 
-    def __enter__(self):
+    def __enter__(self: T) -> T:
         os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
         os.makedirs(self._storage_dir_host, 0o755, exist_ok=True)
 
@@ -217,7 +225,12 @@ class AsyncProfiledProcess:
 
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_ctb: Optional[TracebackType],
+    ) -> None:
         # ignore_errors because we are deleting paths via /proc/pid/root - and the pid
         # we're using might have gone down already.
         # remove them as best effort.
@@ -397,7 +410,7 @@ class JvmVersion:
         self.build = build
         self.name = name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"JvmVersion({self.version}, {self.build!r}, {self.name!r})"
 
 
@@ -597,7 +610,7 @@ class JavaProfiler(ProcessProfilerBase):
                 f" --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS}"
             )
 
-    def _disable_profiling(self, cause: str):
+    def _disable_profiling(self, cause: str) -> None:
         if self._safemode_disable_reason is None and cause in self._java_safemode:
             logger.warning("Java profiling has been disabled, will avoid profiling any new java processes", cause=cause)
             self._safemode_disable_reason = cause
@@ -649,7 +662,7 @@ class JavaProfiler(ProcessProfilerBase):
         #    other JDK types.
         java_path = f"/proc/{nspid}/exe"
 
-        java_version_cmd_output = None
+        java_version_cmd_output: Optional[CompletedProcess[bytes]] = None
 
         def _run_java_version() -> None:
             nonlocal java_version_cmd_output
@@ -796,7 +809,7 @@ class JavaProfiler(ProcessProfilerBase):
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
             return parse_one_collapsed(output, comm)
 
-    def _check_hotspot_error(self, ap_proc):
+    def _check_hotspot_error(self, ap_proc: AsyncProfiledProcess) -> None:
         pid = ap_proc.process.pid
         error_file = ap_proc.locate_hotspot_error_file()
         if not error_file:
@@ -844,7 +857,7 @@ class JavaProfiler(ProcessProfilerBase):
             self._enabled_proc_events = False
         super().stop()
 
-    def _proc_exit_callback(self, tid: int, pid: int, exit_code: int):
+    def _proc_exit_callback(self, tid: int, pid: int, exit_code: int) -> None:
         # Notice that we only check the exit code of the main thread here.
         # It's assumed that an error in any of the Java threads will be reflected in the exit code of the main thread.
         if tid in self._profiled_pids:
@@ -860,7 +873,7 @@ class JavaProfiler(ProcessProfilerBase):
             if is_java_fatal_signal(signo):
                 self._disable_profiling(JavaSafemodeOptions.PROFILED_SIGNALED)
 
-    def _handle_kernel_messages(self, messages):
+    def _handle_kernel_messages(self, messages: List[KernelMessage]) -> None:
         for message in messages:
             _, _, text = message
             oom_entry = get_oom_entry(text)
@@ -887,7 +900,7 @@ class JavaProfiler(ProcessProfilerBase):
                 logger.warning("Profiled PID shows in kernel message line", line=text)
                 self._disable_profiling(JavaSafemodeOptions.PID_IN_KERNEL_MESSAGES)
 
-    def _handle_new_kernel_messages(self):
+    def _handle_new_kernel_messages(self) -> None:
         try:
             messages = list(self._kernel_messages_provider.iter_new_messages())
         except Exception:

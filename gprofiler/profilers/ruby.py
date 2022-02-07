@@ -37,7 +37,7 @@ class RbSpyProfiler(ProcessProfilerBase):
         super().__init__(frequency, duration, stop_event, storage_dir)
         assert ruby_mode == "rbspy", "Ruby profiler should not be initialized, wrong ruby_mode value given"
 
-    def _make_command(self, pid: int, output_path: str):
+    def _make_command(self, pid: int, output_path: str) -> List[str]:
         return [
             resource_path(self.RESOURCE_PATH),
             "record",

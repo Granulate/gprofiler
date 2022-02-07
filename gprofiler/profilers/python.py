@@ -11,7 +11,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
-from typing import Dict, List, Optional
+from typing import Dict, List, Match, NoReturn, Optional, cast
 
 from granulate_utils.linux.process import is_process_running, process_exe
 from psutil import NoSuchProcess, Process
@@ -53,12 +53,12 @@ def _add_versions_to_process_stacks(process: Process, stacks: StackToSampleCount
         modules_paths = (match.group("filename") for match in _module_name_in_stack.finditer(stack))
         packages_versions = get_modules_versions(modules_paths, process)
 
-        def _replace_module_name(module_name_match):
+        def _replace_module_name(module_name_match: Match) -> str:
             package_info = packages_versions.get(module_name_match.group("filename"))
             if package_info is not None:
                 package_name, package_version = package_info
                 return "({} [{}=={}])".format(module_name_match.group("module_info"), package_name, package_version)
-            return module_name_match.group()
+            return cast(str, module_name_match.group())
 
         new_stack = _module_name_in_stack.sub(_replace_module_name, stack)
         new_stacks[new_stack] = stacks[stack]
@@ -99,7 +99,7 @@ class PySpyProfiler(ProcessProfilerBase):
         super().__init__(frequency, duration, stop_event, storage_dir)
         self.add_versions = add_versions
 
-    def _make_command(self, pid: int, output_path: str):
+    def _make_command(self, pid: int, output_path: str) -> List[str]:
         return [
             resource_path("python/py-spy"),
             "record",
@@ -214,14 +214,14 @@ class PythonEbpfProfiler(ProfilerBase):
         user_stacks_pages: Optional[int] = None,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
-        self.process = None
+        self.process: Optional[Popen] = None
         self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
         self.add_versions = add_versions
         self.user_stacks_pages = user_stacks_pages
         self._kernel_offsets: Dict[str, int] = {}
 
     @classmethod
-    def _pyperf_error(cls, process: Popen):
+    def _pyperf_error(cls, process: Popen) -> NoReturn:
         # opened in pipe mode, so these aren't None.
         assert process.stdout is not None
         assert process.stderr is not None
@@ -231,7 +231,7 @@ class PythonEbpfProfiler(ProfilerBase):
         raise PythonEbpfError(process.returncode, process.args, stdout, stderr)
 
     @classmethod
-    def _check_output(cls, process: Popen, output_path: Path):
+    def _check_output(cls, process: Popen, output_path: Path) -> None:
         if not glob.glob(f"{str(output_path)}.*"):
             cls._pyperf_error(process)
 
@@ -307,7 +307,7 @@ class PythonEbpfProfiler(ProfilerBase):
         else:
             self._check_output(process, self.output_path)
 
-    def start(self):
+    def start(self) -> None:
         logger.info("Starting profiling of Python processes with PyPerf")
         cmd = [
             resource_path(self.PYPERF_RESOURCE),
@@ -335,7 +335,10 @@ class PythonEbpfProfiler(ProfilerBase):
             wait_event(self._POLL_TIMEOUT, self._stop_event, lambda: os.path.exists(self.output_path))
         except TimeoutError:
             process.kill()
-            logger.error(f"PyPerf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
+            assert process.stdout is not None and process.stderr is not None
+            stdout = process.stdout.read()
+            stderr = process.stderr.read()
+            logger.error(f"PyPerf failed to start. stdout {stdout!r} stderr {stderr!r}")
             raise
         else:
             self.process = process
@@ -353,7 +356,7 @@ class PythonEbpfProfiler(ProfilerBase):
             # (unlike Popen.communicate())
             assert self.process is not None
             # Python 3.6 doesn't have read1() without size argument :/
-            logger.debug(f"PyPerf output: {self.process.stderr.read1(4096)}")
+            logger.debug(f"PyPerf output: {self.process.stderr.read1(4096)}")  # type: ignore
             return output
         except TimeoutError:
             # error flow :(
@@ -384,7 +387,7 @@ class PythonEbpfProfiler(ProfilerBase):
             self.process = None
         return code
 
-    def stop(self):
+    def stop(self) -> None:
         code = self._terminate()
         if code is not None:
             logger.info("Finished profiling Python processes with PyPerf")
