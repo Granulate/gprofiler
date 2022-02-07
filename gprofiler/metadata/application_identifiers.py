@@ -86,9 +86,8 @@ class _ApplicationIdentifier(metaclass=ABCMeta):
 
 class _GunicornApplicationIdentifierBase(_ApplicationIdentifier):
     def gunicorn_to_application_name(self, wsgi_app_spec: str, process: Process) -> str:
-        # strips the :app
-        wsgi_app = wsgi_app_spec.split(":", maxsplit=1)[0]
-        return f"gunicorn: {_append_python_module_to_proc_wd(process, wsgi_app)}"
+        wsgi_app_file = wsgi_app_spec.split(":", maxsplit=1)[0]
+        return f"gunicorn: {wsgi_app_spec} ({_append_python_module_to_proc_wd(process, wsgi_app_file)})"
 
 
 class _GunicornApplicationIdentifier(_GunicornApplicationIdentifierBase):
@@ -202,7 +201,7 @@ class _CeleryApplicationIdentifier(_ApplicationIdentifier):
             )
             return None
 
-        return f"celery: {_append_python_module_to_proc_wd(process, app_name)}"
+        return f"celery: {app_name} ({_append_python_module_to_proc_wd(process, app_name)})"
 
 
 class _PySparkApplicationIdentifier(_ApplicationIdentifier):
@@ -227,7 +226,7 @@ class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
 
         arg_1 = _get_cli_arg_by_index(process.cmdline(), 1)
         if arg_1.endswith(".py"):
-            return f"python: {_append_python_module_to_proc_wd(process, arg_1)}"
+            return f"python: {arg_1} ({_append_python_module_to_proc_wd(process, arg_1)})"
 
         return None
 
@@ -241,7 +240,7 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
         if jar_arg is _NON_AVAILABLE_ARG:
             return None
 
-        return f"java: {_append_file_to_proc_wd(process, jar_arg)}"
+        return f"java: {jar_arg} ({_append_file_to_proc_wd(process, jar_arg)})"
 
 
 # Please note that the order matter, because the FIRST matching identifier will be used.
