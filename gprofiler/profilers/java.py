@@ -44,7 +44,6 @@ from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     pgrep_maps,
-    process_comm,
     remove_path,
     remove_prefix,
     resource_path,
@@ -53,6 +52,7 @@ from gprofiler.utils import (
     wait_event,
 )
 from gprofiler.utils.perf import can_i_use_perf_events
+from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
 

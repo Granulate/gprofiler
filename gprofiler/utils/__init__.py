@@ -457,13 +457,6 @@ def random_prefix() -> str:
     return "".join(random.choice(string.ascii_letters) for _ in range(16))
 
 
-def process_comm(process: Process) -> str:
-    status = Path(f"/proc/{process.pid}/status").read_text()
-    name_line = status.splitlines()[0]
-    assert name_line.startswith("Name:\t")
-    return name_line.split("\t", 1)[1]
-
-
 PERF_EVENT_MLOCK_KB = "/proc/sys/kernel/perf_event_mlock_kb"
 
 
