@@ -8,7 +8,7 @@ import re
 from abc import ABCMeta, abstractmethod
 from typing import List, Optional, Union
 
-from granulate_utils.linux.ns import resolve_host_path
+from granulate_utils.linux.ns import resolve_host_path, resolve_proc_root_links
 from psutil import NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter
@@ -73,10 +73,9 @@ def _append_python_module_to_proc_wd(process: Process, module: str) -> str:
 
 
 def _append_file_to_proc_wd(process: Process, file_path: str) -> str:
-    if os.path.isabs(file_path):
-        return os.path.realpath(file_path)
-
-    return os.path.realpath(os.path.join(process.cwd(), file_path))
+    # if file_path is absolute, then the process.cwd() is removed.
+    file_path = os.path.join(process.cwd(), file_path)
+    return resolve_proc_root_links(f"/proc/{process.pid}/root", file_path)
 
 
 class _ApplicationIdentifier(metaclass=ABCMeta):
