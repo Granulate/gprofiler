@@ -18,53 +18,53 @@ def process_with_cmdline(cmdline: List[str]) -> Mock:
 
 
 def test_gunicorn_title():
-    assert f"gunicorn: {PROCESS_CWD}/my/wsgi.py" == get_application_name(
+    assert f"gunicorn: my.wsgi:app ({PROCESS_CWD}/my/wsgi.py)" == get_application_name(
         process_with_cmdline(["gunicorn: master [my.wsgi:app]"])
     )
-    assert f"gunicorn: {PROCESS_CWD}/my/wsgi.py" == get_application_name(
+    assert f"gunicorn: my.wsgi:app ({PROCESS_CWD}/my/wsgi.py)" == get_application_name(
         process_with_cmdline(["gunicorn: worker [my.wsgi:app]"])
     )
 
 
 def test_gunicorn():
-    assert f"gunicorn: {PROCESS_CWD}/my/wsgi.py" == get_application_name(
+    assert f"gunicorn: my.wsgi:app ({PROCESS_CWD}/my/wsgi.py)" == get_application_name(
         process_with_cmdline(["gunicorn", "a", "b", "my.wsgi:app"])
     )
-    assert f"gunicorn: {PROCESS_CWD}/my/wsgi.py" == get_application_name(
+    assert f"gunicorn: my.wsgi:app ({PROCESS_CWD}/my/wsgi.py)" == get_application_name(
         process_with_cmdline(["python", "/path/to/gunicorn", "a", "b", "my.wsgi:app"])
     )
-    assert "gunicorn: /path/to/my/wsgi.py" == get_application_name(
+    assert "gunicorn: /path/to/my/wsgi:app (/path/to/my/wsgi.py)" == get_application_name(
         process_with_cmdline(["python", "/path/to/gunicorn", "a", "b", "/path/to/my/wsgi:app"])
     )
 
 
 def test_celery():
     # celery -A
-    assert f"celery: {PROCESS_CWD}/app1.py" == get_application_name(
+    assert f"celery: app1 ({PROCESS_CWD}/app1.py)" == get_application_name(
         process_with_cmdline(["celery", "a", "b", "-A", "app1"])
     )
-    assert "celery: /path/to/app1.py" == get_application_name(
+    assert "celery: /path/to/app1 (/path/to/app1.py)" == get_application_name(
         process_with_cmdline(["celery", "a", "b", "-A", "/path/to/app1"])
     )
     # python celery -A
-    assert f"celery: {PROCESS_CWD}/app1.py" == get_application_name(
+    assert f"celery: app1 ({PROCESS_CWD}/app1.py)" == get_application_name(
         process_with_cmdline(["python", "/path/to/celery", "a", "b", "-A", "app1"])
     )
-    assert "celery: /path/to/app1.py" == get_application_name(
+    assert "celery: /path/to/app1 (/path/to/app1.py)" == get_application_name(
         process_with_cmdline(["python", "/path/to/celery", "a", "b", "-A", "/path/to/app1"])
     )
     # --app app
-    assert f"celery: {PROCESS_CWD}/app2.py" == get_application_name(
+    assert f"celery: app2 ({PROCESS_CWD}/app2.py)" == get_application_name(
         process_with_cmdline(["celery", "a", "b", "--app", "app2"])
     )
-    assert "celery: /path/to/app2.py" == get_application_name(
+    assert "celery: /path/to/app2 (/path/to/app2.py)" == get_application_name(
         process_with_cmdline(["celery", "a", "b", "--app", "/path/to/app2"])
     )
     # --app=app
-    assert f"celery: {PROCESS_CWD}/app3.py" == get_application_name(
+    assert f"celery: app3 ({PROCESS_CWD}/app3.py)" == get_application_name(
         process_with_cmdline(["celery", "a", "b", "--app=app3"])
     )
-    assert "celery: /path/to/app3.py" == get_application_name(
+    assert "celery: /path/to/app3 (/path/to/app3.py)" == get_application_name(
         process_with_cmdline(["celery", "a", "b", "--app=/path/to/app3"])
     )
 
@@ -79,7 +79,11 @@ def test_python():
     assert "python: -m myapp" == get_application_name(process_with_cmdline(["python3", "-m", "myapp"]))
     assert "python: -m myapp" == get_application_name(process_with_cmdline(["python3.8", "-m", "myapp"]))
     assert "python: -m myapp" == get_application_name(process_with_cmdline(["python2", "-m", "myapp"]))
-    assert "python: -m myapp" == get_application_name(process_with_cmdline(["python2.7", "-m", "myapp"]))
+    assert "python: -m myapp.x.y" == get_application_name(process_with_cmdline(["python2.7", "-m", "myapp.x.y"]))
     # python mod.py
-    assert "python: /path/to/mod.py" == get_application_name(process_with_cmdline(["python2.7", "/path/to/mod.py"]))
-    assert f"python: {PROCESS_CWD}/mod.py" == get_application_name(process_with_cmdline(["python2.7", "mod.py"]))
+    assert "python: /path/to/mod.py (/path/to/mod.py)" == get_application_name(
+        process_with_cmdline(["python2.7", "/path/to/mod.py"])
+    )
+    assert f"python: mod.py ({PROCESS_CWD}/mod.py)" == get_application_name(
+        process_with_cmdline(["python2.7", "mod.py"])
+    )
