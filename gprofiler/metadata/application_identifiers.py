@@ -218,13 +218,6 @@ class _PySparkApplicationIdentifier(_ApplicationIdentifier):
 
 
 class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
-    @staticmethod
-    def is_python_app(process: Process) -> bool:
-        if not _is_python_bin(_get_cli_arg_by_index(process.cmdline(), 0)):
-            return False
-
-        return _is_python_m_proc(process) or (len(process.cmdline()) >= 2 and process.cmdline()[1].endswith(".py"))
-
     def get_application_name(self, process: Process) -> Optional[str]:
         if not _is_python_bin(_get_cli_arg_by_index(process.cmdline(), 0)):
             return None
