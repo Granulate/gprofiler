@@ -17,7 +17,7 @@ def process_with_cmdline(cmdline: List[str]) -> Mock:
     return process
 
 
-def test_gunicorn_title():
+def test_gunicorn_title() -> None:
     assert f"gunicorn: my.wsgi:app ({PROCESS_CWD}/my/wsgi.py)" == get_application_name(
         process_with_cmdline(["gunicorn: master [my.wsgi:app]"])
     )
@@ -26,7 +26,7 @@ def test_gunicorn_title():
     )
 
 
-def test_gunicorn():
+def test_gunicorn() -> None:
     assert f"gunicorn: my.wsgi:app ({PROCESS_CWD}/my/wsgi.py)" == get_application_name(
         process_with_cmdline(["gunicorn", "a", "b", "my.wsgi:app"])
     )
@@ -38,7 +38,7 @@ def test_gunicorn():
     )
 
 
-def test_celery():
+def test_celery() -> None:
     # celery -A
     assert f"celery: app1 ({PROCESS_CWD}/app1.py)" == get_application_name(
         process_with_cmdline(["celery", "a", "b", "-A", "app1"])
@@ -69,11 +69,11 @@ def test_celery():
     )
 
 
-def test_pyspark():
+def test_pyspark() -> None:
     assert "pyspark" == get_application_name(process_with_cmdline(["python", "-m", "pyspark.daemon"]))
 
 
-def test_python():
+def test_python() -> None:
     # python -m & different python bins
     assert "python: -m myapp" == get_application_name(process_with_cmdline(["python", "-m", "myapp"]))
     assert "python: -m myapp" == get_application_name(process_with_cmdline(["python3", "-m", "myapp"]))
