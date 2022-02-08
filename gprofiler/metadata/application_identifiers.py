@@ -6,7 +6,7 @@ import configparser
 import os.path
 import re
 from abc import ABCMeta, abstractmethod
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 from granulate_utils.linux.ns import resolve_host_path, resolve_proc_root_links
 from psutil import NoSuchProcess, Process
@@ -135,25 +135,25 @@ class _GunicornTitleApplicationIdentifier(_GunicornApplicationIdentifierBase):
 
 class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
     @staticmethod
-    def _find_wsgi_from_config_file(process: Process) -> Optional[str]:
+    def _find_wsgi_from_config_file(process: Process) -> Tuple[Optional[str], Optional[str]]:
         # works for --ini and --ini-paste
         for arg in process.cmdline():
             if arg.endswith(".ini"):
                 config_file = arg
                 break
         else:
-            return None
+            return None, None
 
         config = configparser.ConfigParser(strict=False)
         config.read(resolve_host_path(process, os.path.join(process.cwd(), config_file)))
         try:
             # Note that `ConfigParser.get` doesn't act like `dict.get` and raises exceptions if section/option
             # isn't found.
-            return config.get("uwsgi", "module")
+            return config_file, config.get("uwsgi", "module")
         except (configparser.NoSectionError, configparser.NoOptionError):
             pass
 
-        return None
+        return config_file, None
 
     def get_application_name(self, process: Process) -> Optional[str]:
         if "uwsgi" != os.path.basename(_get_cli_arg_by_index(process.cmdline(), 0)):
@@ -165,9 +165,9 @@ class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
         if wsgi_arg is not _NON_AVAILABLE_ARG:
             return f"uwsgi: {wsgi_arg} ({_append_python_module_to_proc_wd(process, wsgi_arg)})"
 
-        wsgi_config = self._find_wsgi_from_config_file(process)
+        wsgi_config_file, wsgi_config = self._find_wsgi_from_config_file(process)
         if wsgi_config is not None:
-            return f"uwsgi: {_append_python_module_to_proc_wd(process, wsgi_config)}"
+            return f"uwsgi: {wsgi_config_file} ({_append_python_module_to_proc_wd(process, wsgi_config)})"
 
         _logger.warning(
             f"{self.__class__.__name__} Couldn't find uwsgi wsgi module, both from cmdline and from config file",
