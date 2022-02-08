@@ -75,7 +75,10 @@ def _append_python_module_to_proc_wd(process: Process, module: str) -> str:
 def _append_file_to_proc_wd(process: Process, file_path: str) -> str:
     # if file_path is absolute, then the process.cwd() is removed.
     file_path = os.path.join(process.cwd(), file_path)
-    return resolve_proc_root_links(f"/proc/{process.pid}/root", file_path)
+    proc_root = f"/proc/{process.pid}/root"
+    resolved = resolve_proc_root_links(proc_root, file_path)
+    assert resolved.startswith(proc_root), resolved
+    return resolved[len(proc_root):]
 
 
 class _ApplicationIdentifier(metaclass=ABCMeta):
