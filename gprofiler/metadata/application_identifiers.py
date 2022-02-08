@@ -133,6 +133,7 @@ class _GunicornTitleApplicationIdentifier(_GunicornApplicationIdentifierBase):
 class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
     @staticmethod
     def _find_wsgi_from_config_file(process: Process) -> Optional[str]:
+        # works for --ini and --ini-paste
         for arg in process.cmdline():
             if arg.endswith(".ini"):
                 config_file = arg
