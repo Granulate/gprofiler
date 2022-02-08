@@ -140,11 +140,8 @@ class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
         else:
             return None
 
-        if not os.path.isabs(config_file):
-            config_file = os.path.join(process.cwd(), config_file)
-
         config = configparser.ConfigParser(strict=False)
-        config.read(resolve_host_path(process, config_file))
+        config.read(resolve_host_path(process, os.path.join(process.cwd(), config_file)))
         try:
             # Note that `ConfigParser.get` doesn't act like `dict.get` and raises exceptions if section/option
             # isn't found.
