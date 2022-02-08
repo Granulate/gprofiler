@@ -76,6 +76,9 @@ def test_uwsgi_ini_file(monkeypatch: MonkeyPatch) -> None:
     assert f"uwsgi: my.ini ({PROCESS_CWD}/mymod.py)" == get_application_name(
         process_with_cmdline(["uwsgi", "a", "b", "--ini-paste=my.ini"])
     )
+    # --ini with no uwsgi section
+    config = "[app:blabla]\nxx = yy\n\n"
+    assert "uwsgi: my.ini" == get_application_name(process_with_cmdline(["uwsgi", "a", "b", "--ini", "my.ini"]))
 
 
 def test_celery() -> None:

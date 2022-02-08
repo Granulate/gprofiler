@@ -180,7 +180,7 @@ class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
             cmdline=process.cmdline(),
             no_extra_to_server=True,
         )
-        return None
+        return f"uwsgi: {wsgi_config_file}"
 
 
 class _CeleryApplicationIdentifier(_ApplicationIdentifier):
