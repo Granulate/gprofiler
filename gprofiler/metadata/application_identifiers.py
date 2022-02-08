@@ -6,7 +6,7 @@ import configparser
 import os.path
 import re
 from abc import ABCMeta, abstractmethod
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, TextIO, Tuple, Union
 
 from granulate_utils.linux.ns import resolve_host_path, resolve_proc_root_links
 from psutil import NoSuchProcess, Process
@@ -134,18 +134,24 @@ class _GunicornTitleApplicationIdentifier(_GunicornApplicationIdentifierBase):
 
 
 class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
+    # separated so that we can mock it easily in the tests
     @staticmethod
-    def _find_wsgi_from_config_file(process: Process) -> Tuple[Optional[str], Optional[str]]:
-        # works for --ini and --ini-paste
-        for arg in process.cmdline():
-            if arg.endswith(".ini"):
-                config_file = arg
-                break
-        else:
+    def _open_uwsgi_config_file(process: Process, config_file: str) -> TextIO:
+        return open(resolve_host_path(process, os.path.join(process.cwd(), config_file)))
+
+    @classmethod
+    def _find_wsgi_from_config_file(cls, process: Process) -> Tuple[Optional[str], Optional[str]]:
+        cmdline = process.cmdline()
+
+        config_file = _get_cli_arg_by_name(cmdline, "--ini", check_for_equals_arg=True)
+        if config_file is _NON_AVAILABLE_ARG:
+            config_file = _get_cli_arg_by_name(cmdline, "--ini-paste", check_for_equals_arg=True)
+
+        if config_file is _NON_AVAILABLE_ARG:
             return None, None
 
         config = configparser.ConfigParser(strict=False)
-        config.read(resolve_host_path(process, os.path.join(process.cwd(), config_file)))
+        config.read_file(cls._open_uwsgi_config_file(process, config_file))
         try:
             # Note that `ConfigParser.get` doesn't act like `dict.get` and raises exceptions if section/option
             # isn't found.
