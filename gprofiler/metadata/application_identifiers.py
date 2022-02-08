@@ -157,7 +157,7 @@ class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
             return None
 
         wsgi_arg = _get_cli_arg_by_name(process.cmdline(), "-w") or _get_cli_arg_by_name(
-            process.cmdline(), "--wsgi-file"
+            process.cmdline(), "--wsgi-file", check_for_equals_arg=True
         )
         if wsgi_arg is not _NON_AVAILABLE_ARG:
             return f"uwsgi: {_append_python_module_to_proc_wd(process, wsgi_arg)}"
