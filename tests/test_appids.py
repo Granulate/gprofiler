@@ -2,10 +2,14 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-from typing import List
+from io import StringIO
+from typing import List, TextIO
 from unittest.mock import Mock
 
-from gprofiler.metadata.application_identifiers import get_application_name
+from psutil import Process
+from pytest import MonkeyPatch
+
+from gprofiler.metadata.application_identifiers import _UwsgiApplicationIdentifier, get_application_name
 
 PROCESS_CWD = "/my/dir"
 
@@ -47,6 +51,30 @@ def test_uwsgi_wsgi_file() -> None:
     )
     assert f"uwsgi: my.wsgi ({PROCESS_CWD}/my/wsgi.py)" == get_application_name(
         process_with_cmdline(["uwsgi", "a", "b", "--wsgi-file=my.wsgi"])
+    )
+
+
+def test_uwsgi_ini_file(monkeypatch: MonkeyPatch) -> None:
+    config = "[app:blabla]\nxx = yy\n\n[uwsgi]\nmodule = mymod"
+
+    def get_uwsgi_config(process: Process, config_file: str) -> TextIO:
+        return StringIO(config)
+
+    monkeypatch.setattr(_UwsgiApplicationIdentifier, "_open_uwsgi_config_file", get_uwsgi_config)
+
+    # --ini
+    assert f"uwsgi: my.ini ({PROCESS_CWD}/mymod.py)" == get_application_name(
+        process_with_cmdline(["uwsgi", "a", "b", "--ini", "my.ini"])
+    )
+    assert f"uwsgi: my.ini ({PROCESS_CWD}/mymod.py)" == get_application_name(
+        process_with_cmdline(["uwsgi", "a", "b", "--ini=my.ini"])
+    )
+    # --ini-paste
+    assert f"uwsgi: my.ini ({PROCESS_CWD}/mymod.py)" == get_application_name(
+        process_with_cmdline(["uwsgi", "a", "b", "--ini-paste", "my.ini"])
+    )
+    assert f"uwsgi: my.ini ({PROCESS_CWD}/mymod.py)" == get_application_name(
+        process_with_cmdline(["uwsgi", "a", "b", "--ini-paste=my.ini"])
     )
 
 
