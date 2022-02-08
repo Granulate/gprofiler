@@ -78,7 +78,7 @@ def _append_file_to_proc_wd(process: Process, file_path: str) -> str:
     proc_root = f"/proc/{process.pid}/root"
     resolved = resolve_proc_root_links(proc_root, file_path)
     assert resolved.startswith(proc_root), resolved
-    return resolved[len(proc_root):]
+    return resolved[len(proc_root) :]
 
 
 class _ApplicationIdentifier(metaclass=ABCMeta):
@@ -163,7 +163,7 @@ class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
             process.cmdline(), "--wsgi-file", check_for_equals_arg=True
         )
         if wsgi_arg is not _NON_AVAILABLE_ARG:
-            return f"uwsgi: {_append_python_module_to_proc_wd(process, wsgi_arg)}"
+            return f"uwsgi: {wsgi_arg} ({_append_python_module_to_proc_wd(process, wsgi_arg)})"
 
         wsgi_config = self._find_wsgi_from_config_file(process)
         if wsgi_config is not None:

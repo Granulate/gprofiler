@@ -38,6 +38,18 @@ def test_gunicorn() -> None:
     )
 
 
+def test_uwsgi_wsgi_file() -> None:
+    assert f"uwsgi: my.wsgi ({PROCESS_CWD}/my/wsgi.py)" == get_application_name(
+        process_with_cmdline(["uwsgi", "a", "b", "-w", "my.wsgi"])
+    )
+    assert f"uwsgi: my.wsgi ({PROCESS_CWD}/my/wsgi.py)" == get_application_name(
+        process_with_cmdline(["uwsgi", "a", "b", "--wsgi-file", "my.wsgi"])
+    )
+    assert f"uwsgi: my.wsgi ({PROCESS_CWD}/my/wsgi.py)" == get_application_name(
+        process_with_cmdline(["uwsgi", "a", "b", "--wsgi-file=my.wsgi"])
+    )
+
+
 def test_celery() -> None:
     # celery -A
     assert f"celery: app1 ({PROCESS_CWD}/app1.py)" == get_application_name(
