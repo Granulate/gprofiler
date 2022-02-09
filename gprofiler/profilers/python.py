@@ -119,11 +119,6 @@ class PySpyProfiler(ProcessProfilerBase):
             "--full-filenames",
         ]
 
-    @staticmethod
-    def _profiling_error_stack(reason: str, comm: str) -> StackToSampleCount:
-        # like _profiling_skipped_stack of java.py
-        return Counter({f"{comm};[Profiling error: {reason}]": 1})
-
     def _profile_process(self, process: Process) -> StackToSampleCount:
         logger.info(f"Profiling process {process.pid} with py-spy", cmdline=process.cmdline(), no_extra_to_server=True)
         comm = process_comm(process)
@@ -148,7 +143,7 @@ class PySpyProfiler(ProcessProfilerBase):
                     and not is_process_running(process)
                 ):
                     logger.debug(f"Profiled process {process.pid} exited before py-spy could start")
-                    return self._profiling_error_stack(comm, "process exited before py-spy started")
+                    return self._profiling_error_stack("error", comm, "process exited before py-spy started")
                 raise
 
             logger.info(f"Finished profiling process {process.pid} with py-spy")

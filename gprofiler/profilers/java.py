@@ -9,7 +9,6 @@ import os
 import re
 import shutil
 import signal
-from collections import Counter
 from enum import Enum
 from itertools import dropwhile
 from pathlib import Path
@@ -614,13 +613,6 @@ class JavaProfiler(ProcessProfilerBase):
         if self._safemode_disable_reason is None and cause in self._java_safemode:
             logger.warning("Java profiling has been disabled, will avoid profiling any new java processes", cause=cause)
             self._safemode_disable_reason = cause
-
-    @staticmethod
-    def _profiling_error_stack(what: str, reason: str, comm: str) -> StackToSampleCount:
-        # return 1 sample, it will be scaled later in merge_profiles().
-        # if --perf-mode=none mode is used, it will not, but we don't have anything logical to
-        # do here in that case :/
-        return Counter({f"{comm};[Profiling {what}: {reason}]": 1})
 
     def _profiling_skipped_stack(self, reason: str, comm: str) -> StackToSampleCount:
         return self._profiling_error_stack("skipped", reason, comm)

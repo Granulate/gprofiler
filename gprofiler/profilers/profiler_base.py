@@ -4,6 +4,7 @@
 #
 
 import concurrent.futures
+from collections import Counter
 from threading import Event
 from types import TracebackType
 from typing import List, Optional, Type, TypeVar
@@ -103,6 +104,13 @@ class ProcessProfilerBase(ProfilerBase):
 
     def _profile_process(self, process: Process) -> StackToSampleCount:
         raise NotImplementedError
+
+    @staticmethod
+    def _profiling_error_stack(what: str, reason: str, comm: str) -> StackToSampleCount:
+        # return 1 sample, it will be scaled later in merge_profiles().
+        # if --perf-mode=none mode is used, it will not, but we don't have anything logical to
+        # do here in that case :/
+        return Counter({f"{comm};[Profiling {what}: {reason}]": 1})
 
     def snapshot(self) -> ProcessToStackSampleCounters:
         processes_to_profile = self._select_processes_to_profile()
