@@ -4,6 +4,7 @@
 #
 
 import concurrent.futures
+from collections import Counter
 from threading import Event
 from types import TracebackType
 from typing import List, Optional, Type, TypeVar
@@ -14,6 +15,7 @@ from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import limit_frequency
+from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
 
@@ -101,8 +103,15 @@ class ProcessProfilerBase(ProfilerBase):
     def _select_processes_to_profile(self) -> List[Process]:
         raise NotImplementedError
 
-    def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
+    def _profile_process(self, process: Process) -> StackToSampleCount:
         raise NotImplementedError
+
+    @staticmethod
+    def _profiling_error_stack(what: str, reason: str, comm: str) -> StackToSampleCount:
+        # return 1 sample, it will be scaled later in merge_profiles().
+        # if --perf-mode=none mode is used, it will not, but we don't have anything logical to
+        # do here in that case :/
+        return Counter({f"{comm};[Profiling {what}: {reason}]": 1})
 
     def snapshot(self) -> ProcessToStackSampleCounters:
         processes_to_profile = self._select_processes_to_profile()
@@ -112,22 +121,31 @@ class ProcessProfilerBase(ProfilerBase):
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes_to_profile)) as executor:
             futures = {}
             for process in processes_to_profile:
-                futures[executor.submit(self._profile_process, process)] = process.pid
+                try:
+                    comm = process_comm(process)
+                except NoSuchProcess:
+                    continue
+
+                futures[executor.submit(self._profile_process, process)] = (process.pid, comm)
 
             results = {}
             for future in concurrent.futures.as_completed(futures):
+                pid, comm = futures[future]
                 try:
                     result = future.result()
-                    if result is not None:
-                        results[futures[future]] = result
+                    assert result is not None
                 except StopEventSetException:
                     raise
                 except NoSuchProcess:
                     logger.debug(
-                        f"{self.__class__.__name__}: process went down during profiling {futures[future]}",
+                        f"{self.__class__.__name__}: process went down during profiling {pid} ({comm})",
                         exc_info=True,
                     )
-                except Exception:
-                    logger.exception(f"{self.__class__.__name__}: failed to profile process {futures[future]}")
+                    result = self._profiling_error_stack("error", "process went down during profiling", comm)
+                except Exception as e:
+                    logger.exception(f"{self.__class__.__name__}: failed to profile process {pid} ({comm})")
+                    result = self._profiling_error_stack("error", f"exception {type(e).__name__}", comm)
+
+                results[pid] = result
 
         return results
