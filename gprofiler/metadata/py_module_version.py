@@ -147,7 +147,8 @@ def _get_libpython_path(process: Process) -> Optional[str]:
 
 
 # Matches PY_VERSION in Python's binary
-_PY_VERSION_STRING_PATTERN = re.compile(rb"(?<=\D)(?:2\.7|3\.1?\d)\.\d\d?(?=\x00)")
+# Notice that we'll match only 2.7 and 3.5-3.12
+_PY_VERSION_STRING_PATTERN = re.compile(rb"(?<=\D)(?:2\.7|3\.(?:[5-9]|1[0-2]))\.\d\d?(?=\x00)")
 
 
 @functools.lru_cache(maxsize=128)
@@ -161,11 +162,11 @@ def _get_python_full_version(process: Process) -> Optional[str]:
         return None
 
     with f:
-        for line in f.readlines():
-            match = _PY_VERSION_STRING_PATTERN.search(line)
-            if match is not None:
-                return match.group().decode()
-    return None
+        matches = _PY_VERSION_STRING_PATTERN.findall(f.read())
+    if len(matches) != 1:
+        # If we didn't match anything or for some reason matched more than once just don't get the version
+        return None
+    return matches[0].decode()
 
 
 # Standard library modules are identified by being under a pythonx.y dir and *not* under site/dist-packages
