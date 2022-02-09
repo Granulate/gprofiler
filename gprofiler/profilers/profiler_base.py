@@ -15,6 +15,7 @@ from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import limit_frequency
+from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
 
@@ -120,22 +121,31 @@ class ProcessProfilerBase(ProfilerBase):
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(processes_to_profile)) as executor:
             futures = {}
             for process in processes_to_profile:
-                futures[executor.submit(self._profile_process, process)] = process.pid
+                try:
+                    comm = process_comm(process)
+                except NoSuchProcess:
+                    continue
+
+                futures[executor.submit(self._profile_process, process)] = (process.pid, comm)
 
             results = {}
             for future in concurrent.futures.as_completed(futures):
+                pid, comm = futures[future]
                 try:
                     result = future.result()
-                    if result is not None:
-                        results[futures[future]] = result
+                    assert result is not None
                 except StopEventSetException:
                     raise
                 except NoSuchProcess:
                     logger.debug(
-                        f"{self.__class__.__name__}: process went down during profiling {futures[future]}",
+                        f"{self.__class__.__name__}: process went down during profiling {pid} ({comm})",
                         exc_info=True,
                     )
-                except Exception:
-                    logger.exception(f"{self.__class__.__name__}: failed to profile process {futures[future]}")
+                    result = self._profiling_error_stack("error", "process went down during profiling", comm)
+                except Exception as e:
+                    logger.exception(f"{self.__class__.__name__}: failed to profile process {pid} ({comm})")
+                    result = self._profiling_error_stack("error", str(e), comm)
+
+                results[pid] = result
 
         return results
