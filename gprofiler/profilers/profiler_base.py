@@ -144,7 +144,7 @@ class ProcessProfilerBase(ProfilerBase):
                     result = self._profiling_error_stack("error", "process went down during profiling", comm)
                 except Exception as e:
                     logger.exception(f"{self.__class__.__name__}: failed to profile process {pid} ({comm})")
-                    result = self._profiling_error_stack("error", str(e), comm)
+                    result = self._profiling_error_stack("error", f"exception {type(e).__name__}", comm)
 
                 results[pid] = result
 
