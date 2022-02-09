@@ -151,7 +151,8 @@ class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
             return None, None
 
         config = configparser.ConfigParser(strict=False)
-        config.read_file(cls._open_uwsgi_config_file(process, config_file))
+        with cls._open_uwsgi_config_file(process, config_file) as f:
+            config.read_file(f)
         try:
             # Note that `ConfigParser.get` doesn't act like `dict.get` and raises exceptions if section/option
             # isn't found.
