@@ -166,7 +166,7 @@ def _get_python_full_version(process: Process) -> Optional[str]:
     if len(matches) != 1:
         # If we didn't match anything or for some reason matched more than once just don't get the version
         return None
-    return matches[0].decode()
+    return str(matches[0].decode())  # Explicitly cast to str to silence mypy
 
 
 # Standard library modules are identified by being under a pythonx.y dir and *not* under site/dist-packages
