@@ -268,6 +268,38 @@ gcloud dataproc clusters create <CLUSTER NAME> \
   - Replace `<CLUSTER NAME>` with the cluster name you wish to use
   - Replace `<REGION>` with the region you wish to use
 
+
+## Running on AWS EMR
+To run gProfiler on your AWS EMR cluster, you should create a bootstrap action that will launch the gProfiler on each
+node upon bootstrap. The full process should be:
+1. Create a bootstrap script (bash script) that will launch the gProfiler upon bootstrap, the script
+can look like this:
+```bash
+#!/bin/bash
+wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler_$(uname -m) -O gprofiler
+sudo chmod +x gprofiler
+sudo sh -c "setsid ./gprofiler -cu --token \"<TOKEN>\" --service-name \"SERVICE\" > /dev/null 2>&1 &"
+```
+  Make sure to:
+  - Replace `<TOKEN>` with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
+  - Replace `<SERVICE>` with the service name you wish to use.
+2. Upload the script to an S3 bucket, for example: `s3://my-s3-bucket/grofiler-bootstrap.sh` 
+3. Create the EMR cluster with bootstrap-action to run the bootstrap script, this can be done both from the AWS Console and AWS CLI.
+   - AWS Console Example:
+     - Create an EMR Cluster from the AWS Console
+     - Select `Go to advanced options`
+     - Proceed to Step 3 - *General Cluster Settings*
+     - Expand *Bootstrap Actions* section
+     - Add Action of type *Custom Action*
+     - Fill in script location with the appropriate script location on your S3, for example `s3://my-s3-bucket/grofiler-bootstrap.sh`
+     
+   - AWS CLI Example: 
+     ```bash
+     aws emr create-cluster --name MY-Cluster ... --bootstrap-actions "Path=s3://my-s3-bucket/grofiler-bootstrap.sh"
+     ```
+     
+
+
 ### Debugging problems
 If you are experiencing issues with your gProfiler installation (such as no flamegraphs available in the [Performance Studio](https://profiler.granulate.io)
 after waiting for more than 1 hour) you can look at gProfiler's logs and see if there are any errors. \
