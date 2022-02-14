@@ -283,7 +283,7 @@ sudo sh -c "setsid ./gprofiler -cu --token \"<TOKEN>\" --service-name \"SERVICE\
   Make sure to:
   - Replace `<TOKEN>` with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
   - Replace `<SERVICE>` with the service name you wish to use.
-2. Upload the script to an S3 bucket, for example: `s3://my-s3-bucket/grofiler-bootstrap.sh` 
+2. Upload the script to an S3 bucket, for example: `s3://my-s3-bucket/gprofiler-bootstrap.sh` 
 3. Create the EMR cluster with bootstrap-action to run the bootstrap script, this can be done both from the AWS Console and AWS CLI.
    - AWS Console Example:
      - Create an EMR Cluster from the AWS Console
@@ -291,11 +291,11 @@ sudo sh -c "setsid ./gprofiler -cu --token \"<TOKEN>\" --service-name \"SERVICE\
      - Proceed to Step 3 - *General Cluster Settings*
      - Expand *Bootstrap Actions* section
      - Add Action of type *Custom Action*
-     - Fill in script location with the appropriate script location on your S3, for example `s3://my-s3-bucket/grofiler-bootstrap.sh`
-     ![img](https://user-images.githubusercontent.com/33522503/153854671-5b7a8b20-0587-49cd-a843-7b9a42dc09f6.png)
+     - Fill in script location with the appropriate script location on your S3, for example `s3://my-s3-bucket/gprofiler-bootstrap.sh`
+     ![img](https://user-images.githubusercontent.com/33522503/153876647-5f844c46-8d62-4d89-b612-9616043f1825.png)
    - AWS CLI Example: 
      ```bash
-     aws emr create-cluster --name MY-Cluster ... --bootstrap-actions "Path=s3://my-s3-bucket/grofiler-bootstrap.sh"
+     aws emr create-cluster --name MY-Cluster ... --bootstrap-actions "Path=s3://my-s3-bucket/gprofiler-bootstrap.sh"
      ```
 
 ### Debugging problems
