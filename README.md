@@ -283,6 +283,35 @@ If you have more than one initialization script, try running the command with an
 By default, gProfiler's output is written to the Dataproc initialization script output file (`/var/log/dataproc-initialization-script-{Incrementing number}.log`).
 If you wish to disable this behaviour, change the `enable-stdout` metadata variable value to "0" (the default is "1").
 
+## Running on AWS EMR
+To run gProfiler on your AWS EMR cluster, you should create a bootstrap action that will launch the gProfiler on each
+node upon bootstrap. The full process should be:
+1. Create a bootstrap script (bash script) that will launch the gProfiler upon bootstrap, the script
+can look like this:
+```bash
+#!/bin/bash
+wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler_$(uname -m) -O gprofiler
+sudo chmod +x gprofiler
+sudo sh -c "setsid ./gprofiler -cu --token \"<TOKEN>\" --service-name \"SERVICE\" > /dev/null 2>&1 &"
+```
+  Make sure to:
+  - Replace `<TOKEN>` with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
+  - Replace `<SERVICE>` with the service name you wish to use.
+2. Upload the script to an S3 bucket, for example: `s3://my-s3-bucket/gprofiler-bootstrap.sh` 
+3. Create the EMR cluster with bootstrap-action to run the bootstrap script, this can be done both from the AWS Console and AWS CLI.
+   - AWS Console Example:
+     - Create an EMR Cluster from the AWS Console
+     - Select `Go to advanced options`
+     - Proceed to Step 3 - *General Cluster Settings*
+     - Expand *Bootstrap Actions* section
+     - Add Action of type *Custom Action*
+     - Fill in script location with the appropriate script location on your S3, for example `s3://my-s3-bucket/gprofiler-bootstrap.sh`
+     ![img](https://user-images.githubusercontent.com/33522503/153876647-5f844c46-8d62-4d89-b612-9616043f1825.png)
+   - AWS CLI Example: 
+     ```bash
+     aws emr create-cluster --name MY-Cluster ... --bootstrap-actions "Path=s3://my-s3-bucket/gprofiler-bootstrap.sh"
+     ```
+
 ## Running from source
 gProfiler requires Python 3.6+ to run.
 
