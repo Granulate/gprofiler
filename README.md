@@ -292,13 +292,11 @@ sudo sh -c "setsid ./gprofiler -cu --token \"<TOKEN>\" --service-name \"SERVICE\
      - Expand *Bootstrap Actions* section
      - Add Action of type *Custom Action*
      - Fill in script location with the appropriate script location on your S3, for example `s3://my-s3-bucket/grofiler-bootstrap.sh`
-     
+     ![img](https://user-images.githubusercontent.com/33522503/153854671-5b7a8b20-0587-49cd-a843-7b9a42dc09f6.png)
    - AWS CLI Example: 
      ```bash
      aws emr create-cluster --name MY-Cluster ... --bootstrap-actions "Path=s3://my-s3-bucket/grofiler-bootstrap.sh"
      ```
-     
-
 
 ### Debugging problems
 If you are experiencing issues with your gProfiler installation (such as no flamegraphs available in the [Performance Studio](https://profiler.granulate.io)
