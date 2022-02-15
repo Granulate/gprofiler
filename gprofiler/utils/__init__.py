@@ -254,9 +254,9 @@ def run_process(
     logger.debug(f"({process.args!r}) exit code: {result.returncode}")
     if not suppress_log:
         if result.stdout:
-            logger.debug(f"({process.args!r}) stdout: {result.stdout.decode()}")
+            logger.debug(f"({process.args!r}) stdout: {result.stdout.decode()!r}")
         if result.stderr:
-            logger.debug(f"({process.args!r}) stderr: {result.stderr.decode()}")
+            logger.debug(f"({process.args!r}) stderr: {result.stderr.decode()!r}")
     if reraise_exc is not None:
         raise reraise_exc
     elif check and retcode != 0:
