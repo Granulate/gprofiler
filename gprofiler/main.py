@@ -24,7 +24,7 @@ from requests import RequestException, Timeout
 
 from gprofiler import __version__, merge
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
-from gprofiler.docker_client import DockerClient
+from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.exceptions import APIError, SystemProfilerInitFailure
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
@@ -128,9 +128,9 @@ class GProfiler:
             logger.exception("System profiler initialization has failed, exiting...")
             sys.exit(1)
         if include_container_names and profile_api_version != "v1":
-            self._docker_client: Optional[DockerClient] = DockerClient()
+            self._container_names_client: Optional[ContainerNamesClient] = ContainerNamesClient()
         else:
-            self._docker_client = None
+            self._container_names_client = None
         self._usage_logger = usage_logger
         if collect_metrics:
             self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
@@ -282,7 +282,7 @@ class GProfiler:
             assert system_result == {}, system_result  # should be empty!
             merged_result, total_samples = merge.concatenate_profiles(
                 process_profiles,
-                self._docker_client,
+                self._container_names_client,
                 self._profile_api_version != "v1",
                 self._identify_applications,
                 metadata,
@@ -293,7 +293,7 @@ class GProfiler:
             merged_result, total_samples = merge.merge_profiles(
                 system_result,
                 process_profiles,
-                self._docker_client,
+                self._container_names_client,
                 self._profile_api_version != "v1",
                 self._identify_applications,
                 metadata,
