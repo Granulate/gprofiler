@@ -8,12 +8,13 @@ import random
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Iterable, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from gprofiler.docker_client import DockerClient
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.application_identifiers import get_application_name
+from gprofiler.metadata.application_metadata import get_application_metadata
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.system_metrics import Metrics
 
@@ -257,13 +258,28 @@ def concatenate_profiles(
     """
     total_samples = 0
     lines = []
+    application_metadata: List[Optional[Dict]] = [None]
 
     for pid, stacks in process_profiles.items():
-        container_name = _get_container_name(pid, docker_client, enrichment_options.container_names)
+        # generate application name
         application_name = get_application_name(pid) if enrichment_options.application_identifiers else None
         if application_name is not None:
             application_name = f"appid: {application_name}"
-        prefix = (container_name + ";") if enrichment_options.container_names else ""
+
+        # generate metadata
+        if enrichment_options.application_metadata:
+            app_metadata = get_application_metadata(pid)
+        else:
+            app_metadata = None
+        if app_metadata not in application_metadata:
+            application_metadata.append(app_metadata)
+        idx = application_metadata.index(app_metadata)
+        application_prefix = (f"{idx};") if enrichment_options.application_metadata else ""
+
+        # generate container name
+        container_name = _get_container_name(pid, docker_client, enrichment_options.container_names)
+        container_prefix = (container_name + ";") if enrichment_options.container_names else ""
+
         for stack, count in stacks.items():
             if enrichment_options.application_identifiers and application_name is not None:
                 # insert the app name between the first frame and all others
@@ -274,7 +290,7 @@ def concatenate_profiles(
                     stack = f"{stack};{application_name}"
 
             total_samples += count
-            lines.append(f"{prefix}{stack} {count}")
+            lines.append(f"{application_prefix}{container_prefix}{stack} {count}")
 
     lines.insert(0, _make_profile_metadata(docker_client, enrichment_options.container_names, metadata, metrics))
     return "\n".join(lines), total_samples
