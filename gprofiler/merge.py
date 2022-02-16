@@ -36,11 +36,13 @@ class EnrichmentOptions:
     Profile enrichment options:
     * container_names: Include container names for each stack in result profile
     * application_identifiers: Attempt to produce & include appid frames for each stack in result profile
+    * application_metadata: Include specialized metadata per application, e.g for Python - the Python version
     """
 
-    def __init__(self, container_names: bool, application_identifiers: bool):
+    def __init__(self, container_names: bool, application_identifiers: bool, application_metadata: bool):
         self.container_names = container_names
         self.application_identifiers = application_identifiers
+        self.application_metadata = application_metadata
 
 
 def parse_one_collapsed(collapsed: str, add_comm: Optional[str] = None) -> StackToSampleCount:

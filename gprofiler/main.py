@@ -540,6 +540,14 @@ def parse_cmd_args() -> Any:
     )
 
     parser.add_argument(
+        "--disable-application-metadata",
+        action="store_false",
+        default=True,
+        dest="application_metadata",
+        help="Disable collection of application metadata",
+    )
+
+    parser.add_argument(
         "--controller-pid",
         default=None,
         type=int,
@@ -715,7 +723,9 @@ def main() -> None:
         if client is not None and remote_logs_handler is not None:
             remote_logs_handler.init_api_client(client)
 
-        enrichment_options = EnrichmentOptions(not args.disable_container_names, args.identify_applications)
+        enrichment_options = EnrichmentOptions(
+            not args.disable_container_names, args.identify_applications, args.application_metadata
+        )
 
         gprofiler = GProfiler(
             args.output_dir,
