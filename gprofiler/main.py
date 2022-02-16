@@ -22,12 +22,13 @@ from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
 
-from gprofiler import __version__, merge
+from gprofiler import __version__
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
 from gprofiler.docker_client import DockerClient
 from gprofiler.exceptions import APIError, SystemProfilerInitFailure
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
+from gprofiler.merge import EnrichmentOptions, concatenate_profiles, merge_profiles
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
@@ -83,12 +84,11 @@ class GProfiler:
         client: Optional[APIClient],
         collect_metrics: bool,
         collect_metadata: bool,
-        identify_applications: bool,
+        enrichment_options: EnrichmentOptions,
         state: State,
         usage_logger: UsageLoggerInterface,
         user_args: UserArgs,
         duration: int,
-        include_container_names: bool = True,
         profile_api_version: Optional[str] = None,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         controller_process: Optional[Process] = None,
@@ -102,7 +102,7 @@ class GProfiler:
         self._profile_api_version = profile_api_version
         self._collect_metrics = collect_metrics
         self._collect_metadata = collect_metadata
-        self._identify_applications = identify_applications
+        self._enrichment_options = enrichment_options
         self._stop_event = Event()
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
@@ -127,7 +127,7 @@ class GProfiler:
         except SystemProfilerInitFailure:
             logger.exception("System profiler initialization has failed, exiting...")
             sys.exit(1)
-        if include_container_names and profile_api_version != "v1":
+        if self._enrichment_options.container_names and profile_api_version != "v1":
             self._docker_client: Optional[DockerClient] = DockerClient()
         else:
             self._docker_client = None
@@ -280,22 +280,20 @@ class GProfiler:
         metrics = self._system_metrics_monitor.get_metrics()
         if NoopProfiler.is_noop_profiler(self.system_profiler):
             assert system_result == {}, system_result  # should be empty!
-            merged_result, total_samples = merge.concatenate_profiles(
+            merged_result, total_samples = concatenate_profiles(
                 process_profiles,
                 self._docker_client,
-                self._profile_api_version != "v1",
-                self._identify_applications,
+                self._enrichment_options,
                 metadata,
                 metrics,
             )
 
         else:
-            merged_result, total_samples = merge.merge_profiles(
+            merged_result, total_samples = merge_profiles(
                 system_result,
                 process_profiles,
                 self._docker_client,
-                self._profile_api_version != "v1",
-                self._identify_applications,
+                self._enrichment_options,
                 metadata,
                 metrics,
             )
@@ -717,6 +715,8 @@ def main() -> None:
         if client is not None and remote_logs_handler is not None:
             remote_logs_handler.init_api_client(client)
 
+        enrichment_options = EnrichmentOptions(not args.disable_container_names, args.identify_applications)
+
         gprofiler = GProfiler(
             args.output_dir,
             args.flamegraph,
@@ -724,12 +724,11 @@ def main() -> None:
             client,
             args.collect_metrics,
             args.collect_metadata,
-            args.identify_applications,
+            enrichment_options,
             state,
             usage_logger,
             args.__dict__,
             args.duration,
-            not args.disable_container_names,
             args.profile_api_version,
             remote_logs_handler,
             controller_process,

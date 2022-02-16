@@ -31,6 +31,18 @@ SAMPLE_REGEX = re.compile(
 FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \((.*)\)$")
 
 
+class EnrichmentOptions:
+    """
+    Profile enrichment options:
+    * container_names: Include container names for each stack in result profile
+    * application_identifiers: Attempt to produce & include appid frames for each stack in result profile
+    """
+
+    def __init__(self, container_names: bool, application_identifiers: bool):
+        self.container_names = container_names
+        self.application_identifiers = application_identifiers
+
+
 def parse_one_collapsed(collapsed: str, add_comm: Optional[str] = None) -> StackToSampleCount:
     """
     Parse a stack-collapsed listing.
@@ -231,8 +243,7 @@ def _get_container_name(pid: int, docker_client: Optional[DockerClient], add_con
 def concatenate_profiles(
     process_profiles: ProcessToStackSampleCounters,
     docker_client: Optional[DockerClient],
-    add_container_names: bool,
-    identify_applications: bool,
+    enrichment_options: EnrichmentOptions,
     metadata: Metadata,
     metrics: Metrics,
 ) -> Tuple[str, int]:
@@ -246,13 +257,13 @@ def concatenate_profiles(
     lines = []
 
     for pid, stacks in process_profiles.items():
-        container_name = _get_container_name(pid, docker_client, add_container_names)
-        application_name = get_application_name(pid) if identify_applications else None
+        container_name = _get_container_name(pid, docker_client, enrichment_options.container_names)
+        application_name = get_application_name(pid) if enrichment_options.application_identifiers else None
         if application_name is not None:
             application_name = f"appid: {application_name}"
-        prefix = (container_name + ";") if add_container_names else ""
+        prefix = (container_name + ";") if enrichment_options.container_names else ""
         for stack, count in stacks.items():
-            if identify_applications and application_name is not None:
+            if enrichment_options.application_identifiers and application_name is not None:
                 # insert the app name between the first frame and all others
                 try:
                     first_frame, others = stack.split(";", maxsplit=1)
@@ -263,7 +274,7 @@ def concatenate_profiles(
             total_samples += count
             lines.append(f"{prefix}{stack} {count}")
 
-    lines.insert(0, _make_profile_metadata(docker_client, add_container_names, metadata, metrics))
+    lines.insert(0, _make_profile_metadata(docker_client, enrichment_options.container_names, metadata, metrics))
     return "\n".join(lines), total_samples
 
 
@@ -271,8 +282,7 @@ def merge_profiles(
     perf_pid_to_stacks_counter: ProcessToStackSampleCounters,
     process_profiles: ProcessToStackSampleCounters,
     docker_client: Optional[DockerClient],
-    add_container_names: bool,
-    identify_applications: bool,
+    enrichment_options: EnrichmentOptions,
     metadata: Metadata,
     metrics: Metrics,
 ) -> Tuple[str, int]:
@@ -299,6 +309,4 @@ def merge_profiles(
         # swap them: use the samples from the runtime profiler.
         perf_pid_to_stacks_counter[pid] = scaled_stacks
 
-    return concatenate_profiles(
-        perf_pid_to_stacks_counter, docker_client, add_container_names, identify_applications, metadata, metrics
-    )
+    return concatenate_profiles(perf_pid_to_stacks_counter, docker_client, enrichment_options, metadata, metrics)
