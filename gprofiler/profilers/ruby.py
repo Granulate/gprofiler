@@ -33,7 +33,7 @@ class RubyMetadta(ApplicationMetadata):
     def _get_ruby_version(cls, process: Process, stop_event: Event) -> str:
         ruby_path = f"/proc/{get_process_nspid(process.pid)}/exe"
 
-        def _run_ruby_version() -> CompletedProcess[bytes]:
+        def _run_ruby_version() -> "CompletedProcess[bytes]":
             return run_process(
                 [
                     ruby_path,

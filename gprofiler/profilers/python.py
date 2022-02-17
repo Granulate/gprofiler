@@ -92,7 +92,7 @@ class PythonMetadta(ApplicationMetadata):
     def _get_python_version(cls, process: Process, stop_event: Event) -> str:
         python_path = f"/proc/{get_process_nspid(process.pid)}/exe"
 
-        def _run_python_version() -> CompletedProcess[bytes]:
+        def _run_python_version() -> "CompletedProcess[bytes]":
             return run_process(
                 [
                     python_path,

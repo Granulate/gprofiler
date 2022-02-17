@@ -142,7 +142,7 @@ def get_java_version(process: Process, stop_event: Event) -> str:
     #    other JDK types.
     java_path = f"/proc/{nspid}/exe"
 
-    def _run_java_version() -> CompletedProcess[bytes]:
+    def _run_java_version() -> "CompletedProcess[bytes]":
         return run_process(
             [
                 java_path,
