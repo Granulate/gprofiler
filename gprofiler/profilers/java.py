@@ -658,12 +658,8 @@ class JavaProfiler(ProcessProfilerBase):
         #    other JDK types.
         java_path = f"/proc/{nspid}/exe"
 
-        java_version_cmd_output: Optional[CompletedProcess[bytes]] = None
-
-        def _run_java_version() -> None:
-            nonlocal java_version_cmd_output
-
-            java_version_cmd_output = run_process(
+        def _run_java_version() -> CompletedProcess[bytes]:
+            return run_process(
                 [
                     java_path,
                     "-version",
@@ -673,13 +669,8 @@ class JavaProfiler(ProcessProfilerBase):
             )
 
         # doesn't work without changing PID NS as well (I'm getting ENOENT for libjli.so)
-        run_in_ns(["pid", "mnt"], _run_java_version, process.pid)
-
-        if java_version_cmd_output is None:
-            raise Exception("Failed to get java version")
-
         # Version is printed to stderr
-        return java_version_cmd_output.stderr.decode()
+        return run_in_ns(["pid", "mnt"], _run_java_version, process.pid).stderr.decode()
 
     def _check_jvm_type_supported(self, process: Process, java_version_output: str) -> bool:
         if not self._is_jvm_type_supported(java_version_output):
