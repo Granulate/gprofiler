@@ -154,7 +154,7 @@ def get_java_version(process: Process, stop_event: Event) -> str:
 
     # doesn't work without changing PID NS as well (I'm getting ENOENT for libjli.so)
     # Version is printed to stderr
-    return run_in_ns(["pid", "mnt"], _run_java_version, process.pid).stderr.decode()
+    return run_in_ns(["pid", "mnt"], _run_java_version, process.pid).stderr.decode().strip()
 
 
 class JavaMetadta(ApplicationMetadata):

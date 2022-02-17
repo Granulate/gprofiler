@@ -43,7 +43,7 @@ class RubyMetadta(ApplicationMetadata):
                 timeout=cls._RUBY_VERSION_TIMEOUT,
             )
 
-        return run_in_ns(["pid", "mnt"], _run_ruby_version, process.pid).stdout.decode()
+        return run_in_ns(["pid", "mnt"], _run_ruby_version, process.pid).stdout.decode().strip()
 
     @classmethod
     def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict:

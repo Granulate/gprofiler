@@ -103,12 +103,12 @@ class PythonMetadta(ApplicationMetadata):
             )
 
         cp = run_in_ns(["pid", "mnt"], _run_python_version, process.pid)
-        version = cp.stdout.decode()
+        version = cp.stdout.decode().strip()
         if version:
             return version
 
         # Python 2 prints to stderr
-        return cp.stderr.decode()
+        return cp.stderr.decode().strip()
 
     @classmethod
     def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict:
