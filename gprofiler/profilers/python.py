@@ -9,10 +9,11 @@ import resource
 import signal
 from collections import Counter, defaultdict
 from pathlib import Path
-from subprocess import Popen
+from subprocess import CompletedProcess, Popen
 from threading import Event
 from typing import Dict, List, Match, NoReturn, Optional, cast
 
+from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from granulate_utils.linux.process import is_process_running, process_exe
 from psutil import NoSuchProcess, Process
 
@@ -25,6 +26,7 @@ from gprofiler.exceptions import (
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_many_collapsed, parse_one_collapsed_file
+from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
@@ -40,6 +42,7 @@ from gprofiler.utils import (
     wait_event,
     wait_for_file_by_prefix,
 )
+from gprofiler.utils.elf import get_elf_buildid
 from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
@@ -80,6 +83,42 @@ def _add_versions_to_stacks(
         result[pid] = _add_versions_to_process_stacks(process, stack_to_sample_count)
 
     return result
+
+
+class PythonMetadta(ApplicationMetadata):
+    _PYTHON_VERSION_TIMEOUT = 3
+
+    @classmethod
+    def _get_python_version(cls, process: Process, stop_event: Event) -> str:
+        python_path = f"/proc/{get_process_nspid(process.pid)}/exe"
+
+        def _run_python_version() -> CompletedProcess[bytes]:
+            return run_process(
+                [
+                    python_path,
+                    "-V",
+                ],
+                stop_event=stop_event,
+                timeout=cls._PYTHON_VERSION_TIMEOUT,
+            )
+
+        return run_in_ns(["pid", "mnt"], _run_python_version, process.pid).stdout.decode()
+
+    @classmethod
+    def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict:
+        # python version
+        version = cls._get_python_version(process, stop_event)
+        # python buildid & libpython builid, if exists
+        python_buildid = get_elf_buildid(f"/proc/{process.pid}/exe")
+        for m in process.memory_maps():
+            if "/libpython" in m.path:
+                # don't need resolve_proc_root_links here - paths in /proc/pid/maps are normalized.
+                libpython_builid = get_elf_buildid(f"/proc/{process.pid}/root/{m.path}")
+                break
+        else:
+            libpython_builid = None
+
+        return {"python_version": version, "python_buildid": python_buildid, "libpython_builid": libpython_builid}
 
 
 class PySpyProfiler(ProcessProfilerBase):
