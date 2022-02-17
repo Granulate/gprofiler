@@ -5,21 +5,61 @@
 import os
 import signal
 from pathlib import Path
+from subprocess import CompletedProcess
 from threading import Event
-from typing import List, Optional
+from typing import Dict, List, Optional
 
+from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from psutil import Process
 
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.merge import parse_one_collapsed_file
+from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
+from gprofiler.utils.elf import get_elf_buildid
 from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
+
+
+class RubyMetadta(ApplicationMetadata):
+    _RUBY_VERSION_TIMEOUT = 3
+
+    @classmethod
+    def _get_ruby_version(cls, process: Process, stop_event: Event) -> str:
+        ruby_path = f"/proc/{get_process_nspid(process.pid)}/exe"
+
+        def _run_ruby_version() -> CompletedProcess[bytes]:
+            return run_process(
+                [
+                    ruby_path,
+                    "--version",
+                ],
+                stop_event=stop_event,
+                timeout=cls._RUBY_VERSION_TIMEOUT,
+            )
+
+        return run_in_ns(["pid", "mnt"], _run_ruby_version, process.pid).stdout.decode()
+
+    @classmethod
+    def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict:
+        # ruby version
+        version = cls._get_ruby_version(process, stop_event)
+        # ruby buildid & libruby builid, if exists
+        ruby_buildid = get_elf_buildid(f"/proc/{process.pid}/exe")
+        for m in process.memory_maps():
+            if "/libruby" in m.path:
+                # don't need resolve_proc_root_links here - paths in /proc/pid/maps are normalized.
+                libruby_builid = get_elf_buildid(f"/proc/{process.pid}/root/{m.path}")
+                break
+        else:
+            libruby_builid = None
+
+        return {"ruby_version": version, "ruby_buildid": ruby_buildid, "libruby_builid": libruby_builid}
 
 
 @register_profiler(
