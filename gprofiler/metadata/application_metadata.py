@@ -9,22 +9,19 @@ from typing import Dict, Optional, Union
 from granulate_utils.linux.process import is_process_running
 from psutil import Process
 
-from gprofiler.utils.elf import get_elf_buildid
-
 
 def get_application_metadata(process: Union[int, Process]) -> Optional[Dict]:
-    pid = process if isinstance(process, int) else process.pid
-    try:
-        buildid = get_elf_buildid(f"/proc/{pid}/exe") if pid != 0 else None
-    except FileNotFoundError:
-        buildid = None
-    return {"build_id": buildid}
+    return ApplicationMetadata.get_metadata(process if isinstance(process, Process) else Process(process))
 
 
 class ApplicationMetadata:
     _CACHE_CLEAR_ON_SIZE = 16384
     _cache: Dict[Process, Optional[Dict]] = {}
     _cache_clear_lock = Lock()
+
+    @classmethod
+    def get_metadata(cls, process: Process) -> Optional[Dict]:
+        return cls._cache.get(process)
 
     @classmethod
     def _clear_cache(cls) -> None:
