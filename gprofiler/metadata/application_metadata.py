@@ -7,11 +7,19 @@ from threading import Event, Lock
 from typing import Dict, Optional, Union
 
 from granulate_utils.linux.process import is_process_running
-from psutil import Process
+from psutil import NoSuchProcess, Process
 
 
 def get_application_metadata(process: Union[int, Process]) -> Optional[Dict]:
-    return ApplicationMetadata.get_metadata(process if isinstance(process, Process) else Process(process))
+    if process in (0, -1):  # funny values retrieved by perf
+        return None
+
+    try:
+        process = process if isinstance(process, Process) else Process(process)
+    except NoSuchProcess:
+        return None
+
+    return ApplicationMetadata.get_metadata(process)
 
 
 class ApplicationMetadata:
