@@ -101,6 +101,7 @@ class RbSpyProfiler(ProcessProfilerBase):
         logger.info(
             f"Profiling process {process.pid} with rbspy", cmdline=" ".join(process.cmdline()), no_extra_to_server=True
         )
+        RubyMetadta.update_metadata(process, self._stop_event)
 
         local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):

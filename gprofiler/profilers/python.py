@@ -160,6 +160,7 @@ class PySpyProfiler(ProcessProfilerBase):
 
     def _profile_process(self, process: Process) -> StackToSampleCount:
         logger.info(f"Profiling process {process.pid} with py-spy", cmdline=process.cmdline(), no_extra_to_server=True)
+        PythonMetadta.update_metadata(process, self._stop_event)
         comm = process_comm(process)
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
@@ -412,6 +413,8 @@ class PythonEbpfProfiler(ProfilerBase):
         parsed = parse_many_collapsed(collapsed_text)
         if self.add_versions:
             parsed = _add_versions_to_stacks(parsed)
+        for pid in parsed:
+            PythonMetadta.update_metadata(Process(pid), self._stop_event)
         return parsed
 
     def _terminate(self) -> Optional[int]:
