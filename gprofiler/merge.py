@@ -220,7 +220,11 @@ def _parse_perf_script(script: Optional[str]) -> ProcessToStackSampleCounters:
 
 
 def _make_profile_metadata(
-    docker_client: Optional[DockerClient], add_container_names: bool, metadata: Metadata, metrics: Metrics
+    docker_client: Optional[DockerClient],
+    add_container_names: bool,
+    metadata: Metadata,
+    metrics: Metrics,
+    application_metadata: List[Optional[Dict]],
 ) -> str:
     if docker_client is not None and add_container_names:
         container_names = docker_client.container_names
@@ -235,6 +239,7 @@ def _make_profile_metadata(
         "container_names_enabled": enabled,
         "metadata": metadata,
         "metrics": metrics.__dict__,
+        "application_metadata": application_metadata,
     }
     return "# " + json.dumps(profile_metadata)
 
@@ -292,7 +297,12 @@ def concatenate_profiles(
             total_samples += count
             lines.append(f"{application_prefix}{container_prefix}{stack} {count}")
 
-    lines.insert(0, _make_profile_metadata(docker_client, enrichment_options.container_names, metadata, metrics))
+    lines.insert(
+        0,
+        _make_profile_metadata(
+            docker_client, enrichment_options.container_names, metadata, metrics, application_metadata
+        ),
+    )
     return "\n".join(lines), total_samples
 
 

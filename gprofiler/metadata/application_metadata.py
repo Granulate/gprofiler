@@ -7,6 +7,13 @@ from typing import Dict, Optional, Union
 
 from psutil import Process
 
+from gprofiler.utils.elf import get_elf_buildid
+
 
 def get_application_metadata(process: Union[int, Process]) -> Optional[Dict]:
-    return None
+    pid = process if isinstance(process, int) else process.pid
+    try:
+        buildid = get_elf_buildid(f"/proc/{pid}/exe") if pid != 0 else None
+    except FileNotFoundError:
+        buildid = None
+    return {"build_id": buildid}
