@@ -102,7 +102,13 @@ class PythonMetadta(ApplicationMetadata):
                 timeout=cls._PYTHON_VERSION_TIMEOUT,
             )
 
-        return run_in_ns(["pid", "mnt"], _run_python_version, process.pid).stdout.decode()
+        cp = run_in_ns(["pid", "mnt"], _run_python_version, process.pid)
+        version = cp.stdout.decode()
+        if version:
+            return version
+
+        # Python 2 prints to stderr
+        return cp.stderr.decode()
 
     @classmethod
     def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict:
