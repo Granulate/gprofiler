@@ -39,7 +39,7 @@ def runtime() -> str:
     return "java"
 
 
-@flaky(max_runs=2)
+@flaky(max_runs=2)  # type: ignore
 def test_async_profiler_already_running(
     application_pid: int, assert_collapsed: AssertInCollapsed, tmp_path: Path, caplog: LogCaptureFixture
 ) -> None:
