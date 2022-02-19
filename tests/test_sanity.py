@@ -128,12 +128,12 @@ def test_python_ebpf(
         assert_function_in_collapsed(
             "_PyEval_EvalFrameDefault_[pn]", process_collapsed
         )  # ensure native user stacks exist
-        # ensure class name exist for instance methods
+        # ensure class name exists for instance methods
         assert_function_in_collapsed("lister.Burner.burner", process_collapsed)
-        # ensure class name exist for class methods
+        # ensure class name exists for class methods
         assert_function_in_collapsed("lister.Lister.lister", process_collapsed)
-        assert_function_in_collapsed("PyYAML==6.0", process_collapsed)  # ensure package info is present
-        # ensure Python version is present
+        assert_function_in_collapsed("PyYAML==6.0", process_collapsed)  # ensure package info exists
+        # ensure Python version exists
         assert python_version is not None, "Failed to find python version"
         assert_function_in_collapsed(f"standard-library=={python_version}", process_collapsed)
 
