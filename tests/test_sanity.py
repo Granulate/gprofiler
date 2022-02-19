@@ -124,7 +124,7 @@ def test_python_ebpf(
         try:
             collapsed = profiler.snapshot()
         except UnicodeDecodeError as e:
-            print(repr(e.object))
+            print(repr(e.object))  # print the faulty binary data
             raise
         process_collapsed = collapsed[application_pid]
         assert_collapsed(process_collapsed)
