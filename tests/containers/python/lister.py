@@ -9,13 +9,16 @@ from threading import Thread
 import yaml
 
 
-def lister() -> None:
-    os.listdir("/")  # have some kernel stacks
+class Lister(object):
+    @classmethod
+    def lister(cls) -> None:
+        os.listdir("/")  # have some kernel stacks & Python stacks from a class method
 
 
-def burner() -> None:
-    while True:  # have some Python stacks
-        pass
+class Burner(object):
+    def burner(self) -> None:
+        while True:  # have some Python stacks from an instance method
+            pass
 
 
 def parser() -> None:
@@ -26,7 +29,8 @@ def parser() -> None:
 
 
 if __name__ == "__main__":
-    Thread(target=burner).start()
+    Thread(target=Burner().burner).start()
     Thread(target=parser).start()
+    lister = Lister()
     while True:
-        lister()
+        lister.lister()
