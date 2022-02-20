@@ -17,7 +17,8 @@ logger = get_logger_adapter(__name__)
 class ContainerNamesClient:
     def __init__(self) -> None:
         try:
-            self._containers_client = ContainersClient()
+            self._containers_client: Optional[ContainersClient] = ContainersClient()
+            logger.info(f"Discovered container runtimes: {self._containers_client.get_runtimes()}")
         except NoContainerRuntimesError:
             logger.warning(
                 "Could not find a Docker daemon or CRI-compatible daemon, profiling data will not"
@@ -25,7 +26,7 @@ class ContainerNamesClient:
                 " please open a new issue here:"
                 " https://github.com/Granulate/gprofiler/issues/new"
             )
-        logger.info(f"Discovered container runtimes: {self._containers_client.get_runtimes()}")
+            self._containers_client = None
 
         self._pid_to_container_name_cache: Dict[int, str] = {}
         self._current_container_names: Set[str] = set()
@@ -82,5 +83,5 @@ class ContainerNamesClient:
     def _refresh_container_names_cache(self) -> None:
         # We re-fetch all of the currently running containers, so in order to keep the cache small we clear it
         self._container_id_to_name_cache.clear()
-        for container in self._containers_client.list_containers():
+        for container in self._containers_client.list_containers() if self._containers_client is not None else []:
             self._container_id_to_name_cache[container.id] = container.name
