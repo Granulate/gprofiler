@@ -25,6 +25,7 @@ class ContainerNamesClient:
                 " please open a new issue here:"
                 " https://github.com/Granulate/gprofiler/issues/new"
             )
+        logger.info(f"Discovered container runtimes: {self._containers_client.get_runtimes()}")
 
         self._pid_to_container_name_cache: Dict[int, str] = {}
         self._current_container_names: Set[str] = set()
