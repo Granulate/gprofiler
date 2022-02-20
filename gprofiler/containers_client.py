@@ -5,6 +5,7 @@
 from typing import Dict, List, Optional, Set
 
 from granulate_utils.containers.client import ContainersClient
+from granulate_utils.exceptions import NoContainerRuntimesError
 from granulate_utils.linux.containers import get_process_container_id
 from psutil import NoSuchProcess
 
@@ -15,7 +16,16 @@ logger = get_logger_adapter(__name__)
 
 class ContainerNamesClient:
     def __init__(self) -> None:
-        self._containers_client = ContainersClient()
+        try:
+            self._containers_client = ContainersClient()
+        except NoContainerRuntimesError:
+            logger.warning(
+                "Could not find a Docker daemon or CRI-compatible daemon, profiling data will not"
+                " include the container names. If you do have a containers runtime and it's not supported,"
+                " please open a new issue here:"
+                " https://github.com/Granulate/gprofiler/issues/new"
+            )
+
         self._pid_to_container_name_cache: Dict[int, str] = {}
         self._current_container_names: Set[str] = set()
         self._container_id_to_name_cache: Dict[str, Optional[str]] = {}
