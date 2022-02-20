@@ -30,13 +30,39 @@ jobs:
     - name: Run linters
       run: ./lint.sh --ci
 
-  build-container-and-test:
+  build-container:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
+    # more nicely. the tests will then be able to use the built image.
+    - name: Build gProfiler image
+      run: ./scripts/build_x86_64_container.sh -t gprofiler
+
+    - name: Export gProfiler image
+      run: mkdir -p output && docker image save gprofiler > output/gprofiler.img
+
+    - name: Upload the image artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: gprofiler.img
+        path: output/
+        retention-days: 1
+
+  test:
+    needs: build-container
+
+    runs-on: ubuntu-latest
+
     strategy:
       fail-fast: false  # helps detecting flakiness / errors specific to one Python version
       matrix:
         python-version: [3.6, 3.7, 3.8.8, 3.9.2, 3.10.0]
-
-    runs-on: ubuntu-latest
 
     steps:
     - name: Set up Python ${{ matrix.python-version }}
@@ -62,10 +88,15 @@ jobs:
       with:
         submodules: true
 
-      # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
-      # more nicely. the tests will then be able to use the built image.
-    - name: Build gProfiler image
-      run: ./scripts/build_x86_64_container.sh -t gprofiler
+    - name: Download the executable from previous job
+      uses: actions/download-artifact@v2
+      with:
+        name: gprofiler.img
+        path: output/
+
+    # used for next step (Copy resources ...) and also used in the tests themselves.
+    - name: Import gProfiler image
+      run: docker image load < output/gprofiler.img
 
     - name: Copy resources from gProfiler image
       run: ./scripts/copy_resources_from_image.sh gprofiler
