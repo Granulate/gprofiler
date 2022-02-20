@@ -12,6 +12,8 @@ from time import sleep
 from typing import Any, Callable, Generator, Iterable, Iterator, List, Mapping, Optional, cast
 
 import docker
+import pytest
+from _pytest.config import Config
 from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
@@ -354,6 +356,15 @@ def profiler_flags(runtime: str, profiler_type: str) -> List[str]:
 def pytest_addoption(parser: Any) -> None:
     parser.addoption("--exec-container-image", action="store", default=None)
     parser.addoption("--executable", action="store", default=None)
+
+
+def pytest_collection_modifyitems(session: pytest.Session, config: Config, items: List[pytest.Item]) -> None:
+    # run container tests before others.
+    # when run in the CI, tests running the profiler on the host break, failing to execute local programs (e.g grep)
+    # for whatever reason.
+    # I assumed it has something to do with the bootstrap process of the runner, and indeed by running the container
+    # tests first we were alleviated of those issues.
+    items.sort(key=lambda i: not i.name.startswith("test_from_container"))
 
 
 @fixture
