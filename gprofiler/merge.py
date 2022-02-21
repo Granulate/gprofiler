@@ -10,7 +10,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
-from gprofiler.docker_client import DockerClient
+from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.application_identifiers import get_application_name
@@ -220,15 +220,15 @@ def _parse_perf_script(script: Optional[str]) -> ProcessToStackSampleCounters:
 
 
 def _make_profile_metadata(
-    docker_client: Optional[DockerClient],
+    container_names_client: Optional[ContainerNamesClient],
     add_container_names: bool,
     metadata: Metadata,
     metrics: Metrics,
     application_metadata: List[Optional[Dict]],
 ) -> str:
-    if docker_client is not None and add_container_names:
-        container_names = docker_client.container_names
-        docker_client.reset_cache()
+    if container_names_client is not None and add_container_names:
+        container_names = container_names_client.container_names
+        container_names_client.reset_cache()
         enabled = True
     else:
         container_names = []
@@ -244,13 +244,19 @@ def _make_profile_metadata(
     return "# " + json.dumps(profile_metadata)
 
 
-def _get_container_name(pid: int, docker_client: Optional[DockerClient], add_container_names: bool) -> str:
-    return docker_client.get_container_name(pid) if add_container_names and docker_client is not None else ""
+def _get_container_name(
+    pid: int, container_names_client: Optional[ContainerNamesClient], add_container_names: bool
+) -> str:
+    return (
+        container_names_client.get_container_name(pid)
+        if add_container_names and container_names_client is not None
+        else ""
+    )
 
 
 def concatenate_profiles(
     process_profiles: ProcessToStackSampleCounters,
-    docker_client: Optional[DockerClient],
+    container_names_client: Optional[ContainerNamesClient],
     enrichment_options: EnrichmentOptions,
     metadata: Metadata,
     metrics: Metrics,
@@ -282,7 +288,7 @@ def concatenate_profiles(
         application_prefix = (f"{idx};") if enrichment_options.application_metadata else ""
 
         # generate container name
-        container_name = _get_container_name(pid, docker_client, enrichment_options.container_names)
+        container_name = _get_container_name(pid, container_names_client, enrichment_options.container_names)
         container_prefix = (container_name + ";") if enrichment_options.container_names else ""
 
         for stack, count in stacks.items():
@@ -300,7 +306,7 @@ def concatenate_profiles(
     lines.insert(
         0,
         _make_profile_metadata(
-            docker_client, enrichment_options.container_names, metadata, metrics, application_metadata
+            container_names_client, enrichment_options.container_names, metadata, metrics, application_metadata
         ),
     )
     return "\n".join(lines), total_samples
@@ -309,7 +315,7 @@ def concatenate_profiles(
 def merge_profiles(
     perf_pid_to_stacks_counter: ProcessToStackSampleCounters,
     process_profiles: ProcessToStackSampleCounters,
-    docker_client: Optional[DockerClient],
+    container_names_client: Optional[ContainerNamesClient],
     enrichment_options: EnrichmentOptions,
     metadata: Metadata,
     metrics: Metrics,
@@ -337,4 +343,6 @@ def merge_profiles(
         # swap them: use the samples from the runtime profiler.
         perf_pid_to_stacks_counter[pid] = scaled_stacks
 
-    return concatenate_profiles(perf_pid_to_stacks_counter, docker_client, enrichment_options, metadata, metrics)
+    return concatenate_profiles(
+        perf_pid_to_stacks_counter, container_names_client, enrichment_options, metadata, metrics
+    )

@@ -113,7 +113,6 @@ Run the following to have gProfiler running continuously, uploading to Granulate
 docker pull granulate/gprofiler:latest
 docker run --name granulate-gprofiler -d --restart=on-failure:10 \
     --pid=host --userns=host --privileged \
-    -v /var/run/docker.sock:/var/run/docker.sock \
 	granulate/gprofiler:latest -cu --token <token> --service-name <service> [options]
 ```
 

@@ -121,15 +121,23 @@ def test_python_ebpf(
 ) -> None:
     _ = assert_application_name  # Required for mypy unused argument warning
     with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path), add_versions=True) as profiler:
-        collapsed = profiler.snapshot()
+        try:
+            collapsed = profiler.snapshot()
+        except UnicodeDecodeError as e:
+            print(repr(e.object))  # print the faulty binary data
+            raise
         process_collapsed = collapsed[application_pid]
         assert_collapsed(process_collapsed)
         assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed)  # ensure kernels stacks exist
         assert_function_in_collapsed(
             "_PyEval_EvalFrameDefault_[pn]", process_collapsed
         )  # ensure native user stacks exist
-        assert_function_in_collapsed("PyYAML==6.0", process_collapsed)  # ensure package info is presented
-        # ensure Python version is presented
+        # ensure class name exists for instance methods
+        assert_function_in_collapsed("lister.Burner.burner", process_collapsed)
+        # ensure class name exists for class methods
+        assert_function_in_collapsed("lister.Lister.lister", process_collapsed)
+        assert_function_in_collapsed("PyYAML==6.0", process_collapsed)  # ensure package info exists
+        # ensure Python version exists
         assert python_version is not None, "Failed to find python version"
         assert_function_in_collapsed(f"standard-library=={python_version}", process_collapsed)
 
