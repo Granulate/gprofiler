@@ -19,10 +19,6 @@ spec:
       labels:
         app: granulate-gprofiler
     spec:
-      volumes:
-        - name: docker-sock # Allow containers to fetch the names
-          hostPath:
-            path: /var/run/docker.sock
       hostPID: true
       securityContext:
         runAsUser: 0
@@ -41,9 +37,6 @@ spec:
               memory: 1Gi
           image: index.docker.io/granulate/gprofiler:latest
           imagePullPolicy: Always
-          volumeMounts:
-            - name: docker-sock
-              mountPath: /var/run/docker.sock
           args:
             - -cu
             - --token
