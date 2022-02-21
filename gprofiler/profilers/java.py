@@ -33,6 +33,7 @@ from granulate_utils.linux.ns import get_proc_root_path, resolve_proc_root_links
 from granulate_utils.linux.oom import get_oom_entry
 from granulate_utils.linux.process import is_process_running, process_exe
 from granulate_utils.linux.signals import get_signal_entry
+from granulate_utils.java import DETECTED_JAVA_PROCESSES_REGEX
 from packaging.version import Version
 from psutil import Process
 
@@ -836,7 +837,7 @@ class JavaProfiler(ProcessProfilerBase):
             logger.debug("Java profiling has been disabled, skipping profiling of all java processes")
             # continue - _profile_process will return an appropriate error for each process selected for
             # profiling.
-        return pgrep_maps(r"^.+/libjvm\.so$")
+        return pgrep_maps(DETECTED_JAVA_PROCESSES_REGEX)
 
     def start(self) -> None:
         super().start()

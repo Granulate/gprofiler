@@ -14,6 +14,7 @@ from threading import Event
 from typing import Dict, List, Match, NoReturn, Optional, cast
 
 from granulate_utils.linux.process import is_process_running, process_exe
+from granulate_utils.python import DETECTED_PYTHON_PROCESSES_REGEX, _BLACKLISTED_PYTHON_PROCS
 from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import (
@@ -84,7 +85,6 @@ def _add_versions_to_stacks(
 
 class PySpyProfiler(ProcessProfilerBase):
     MAX_FREQUENCY = 50
-    _BLACKLISTED_PYTHON_PROCS = ["unattended-upgrades", "networkd-dispatcher", "supervisord", "tuned"]
     _EXTRA_TIMEOUT = 10  # give py-spy some seconds to run (added to the duration)
 
     def __init__(
@@ -154,15 +154,13 @@ class PySpyProfiler(ProcessProfilerBase):
 
     def _select_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
-        for process in pgrep_maps(
-            r"(?:^.+/(?:lib)?python[^/]*$)|(?:^.+/site-packages/.+?$)|(?:^.+/dist-packages/.+?$)"
-        ):
+        for process in pgrep_maps(DETECTED_PYTHON_PROCESSES_REGEX):
             try:
                 if process.pid == os.getpid():
                     continue
 
                 cmdline = process.cmdline()
-                if any(item in cmdline for item in self._BLACKLISTED_PYTHON_PROCS):
+                if any(item in cmdline for item in _BLACKLISTED_PYTHON_PROCS):
                     continue
 
                 # PyPy is called pypy3 or pypy (for 2)
