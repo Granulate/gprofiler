@@ -7,7 +7,7 @@ import signal
 from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from psutil import Process
@@ -46,7 +46,7 @@ class RubyMetadta(ApplicationMetadata):
         return run_in_ns(["pid", "mnt"], _run_ruby_version, process.pid).stdout.decode().strip()
 
     @classmethod
-    def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict:
+    def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict[str, Any]:
         # ruby version
         version = cls._get_ruby_version(process, stop_event)
         # ruby buildid & libruby builid, if exists
@@ -59,7 +59,9 @@ class RubyMetadta(ApplicationMetadata):
         else:
             libruby_builid = None
 
-        return {"ruby_version": version, "ruby_buildid": ruby_buildid, "libruby_builid": libruby_builid}
+        md = {"ruby_version": version, "ruby_buildid": ruby_buildid, "libruby_builid": libruby_builid}
+        md.update(super().make_application_metadata(process, stop_event))
+        return md
 
 
 @register_profiler(

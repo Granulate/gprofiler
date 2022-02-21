@@ -159,7 +159,7 @@ def get_java_version(process: Process, stop_event: Event) -> str:
 
 class JavaMetadta(ApplicationMetadata):
     @classmethod
-    def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict:
+    def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict[str, Any]:
         version = get_java_version(process, stop_event)
         # libjvm buildid
         for m in process.memory_maps():
@@ -170,7 +170,9 @@ class JavaMetadta(ApplicationMetadata):
         else:
             libjvm_buildid = None
 
-        return {"java_version": version, "libjvm_buildid": libjvm_buildid}
+        md = {"java_version": version, "libjvm_buildid": libjvm_buildid}
+        md.update(super().make_application_metadata(process, stop_event))
+        return md
 
 
 @functools.lru_cache(maxsize=1)

@@ -4,10 +4,12 @@
 #
 
 from threading import Event, Lock
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
+
+from gprofiler.utils.elf import get_process_execfn
 
 
 def get_application_metadata(process: Union[int, Process]) -> Optional[Dict]:
@@ -46,5 +48,5 @@ class ApplicationMetadata:
             cls._cache[process] = cls.make_application_metadata(process, stop_event)
 
     @classmethod
-    def make_application_metadata(cls, process: Process, stop_event: Event) -> Optional[Dict]:
-        return None
+    def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict[str, Any]:
+        return {"exe": process.exe(), "execfn": get_process_execfn(process)}

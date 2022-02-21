@@ -11,7 +11,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from subprocess import CompletedProcess, Popen
 from threading import Event
-from typing import Dict, List, Match, NoReturn, Optional, cast
+from typing import Any, Dict, List, Match, NoReturn, Optional, cast
 
 from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from granulate_utils.linux.process import is_process_running, process_exe
@@ -111,7 +111,7 @@ class PythonMetadta(ApplicationMetadata):
         return cp.stderr.decode().strip()
 
     @classmethod
-    def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict:
+    def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict[str, Any]:
         # python version
         version = cls._get_python_version(process, stop_event)
         # python buildid & libpython builid, if exists
@@ -124,7 +124,9 @@ class PythonMetadta(ApplicationMetadata):
         else:
             libpython_builid = None
 
-        return {"python_version": version, "python_buildid": python_buildid, "libpython_builid": libpython_builid}
+        md = {"python_version": version, "python_buildid": python_buildid, "libpython_builid": libpython_builid}
+        md.update(super().make_application_metadata(process, stop_event))
+        return md
 
 
 class PySpyProfiler(ProcessProfilerBase):
