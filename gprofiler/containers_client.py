@@ -41,12 +41,17 @@ class ContainerNamesClient:
         return list(self._current_container_names)
 
     def get_container_name(self, pid: int) -> str:
+        if self._containers_client is None:
+            return ""
+
         if pid in self._pid_to_container_name_cache:
             return self._pid_to_container_name_cache[pid]
+
         container_name: Optional[str] = self._safely_get_process_container_name(pid)
         if container_name is None:
             self._pid_to_container_name_cache[pid] = ""
             return ""
+
         self._pid_to_container_name_cache[pid] = container_name
         return container_name
 
