@@ -18,4 +18,12 @@ function fix_legacy_repos() {
 fix_legacy_repos
 yum install -y centos-release-scl
 fix_legacy_repos  # fix again, after adding new scl repos
-yum install -y devtoolset-7-toolchain make java-1.8.0-openjdk-devel glibc-static git
+# install with retries - this tends to fail in the CI for networking reasons.
+retries=5
+counter=0
+until yum install -y devtoolset-7-toolchain make java-1.8.0-openjdk-devel glibc-static git
+do
+   [[ counter -eq $retries ]] && echo "yum install failed $retries times!" && exit 1
+   echo "Trying yum install again... $counter"
+   ((counter++))
+done
