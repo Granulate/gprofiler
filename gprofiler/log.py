@@ -138,6 +138,13 @@ class RemoteLogsHandler(logging.Handler):
         formatted_timestamp = datetime.datetime.utcfromtimestamp(record.created).isoformat()
         extra = record.gprofiler_adapter_extra  # type: ignore
 
+        run_id = extra.pop(RUN_ID_KEY, None)
+        if run_id is None:
+            self._logger.error("state.run_id is not defined! probably a bug!")
+            run_id = ""
+
+        cycle_id = extra.pop(CYCLE_ID_KEY, "")
+
         # We don't want to serialize a JSON inside JSON but either don't want to fail record because of extra
         # serialization, so we test if the extra can be serialized and have a fail-safe.
         try:
@@ -147,13 +154,6 @@ class RemoteLogsHandler(logging.Handler):
                 f"Can't serialize extra (extra={extra!r}), sending empty extra", bad_extra=repr(extra)
             )
             extra = {}
-
-        run_id = extra.pop(RUN_ID_KEY, None)
-        if run_id is None:
-            self._logger.error("state.run_id is not defined! probably a bug!")
-            run_id = ""
-
-        cycle_id = extra.pop(CYCLE_ID_KEY, "")
 
         assert self.formatter is not None
         if record.exc_info:
