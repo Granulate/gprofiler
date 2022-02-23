@@ -623,7 +623,7 @@ class JavaProfiler(ProcessProfilerBase):
     def _is_jvm_version_supported(self, java_version_cmd_output: str) -> bool:
         try:
             jvm_version = parse_jvm_version(java_version_cmd_output)
-            logger.info("Checking support for java version", jvm_version=jvm_version)
+            logger.info("Checking support for java version", jvm_version=repr(jvm_version))
         except Exception:
             logger.exception("Failed to parse java -version output", java_version_cmd_output=java_version_cmd_output)
             return False
