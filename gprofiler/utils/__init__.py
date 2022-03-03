@@ -241,6 +241,7 @@ def run_process(
                             raise
         except TimeoutExpired:
             returncode, stdout, stderr = _reap_process(process, kill_signal)
+            logger.debug(f"({process.args!r}) was killed with signal {kill_signal} due to timeout")
             assert timeout is not None
             reraise_exc = CalledProcessTimeoutError(timeout, returncode, cmd, stdout, stderr)
         except BaseException as e:  # noqa
