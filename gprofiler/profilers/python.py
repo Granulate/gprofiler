@@ -14,7 +14,7 @@ from threading import Event
 from typing import Dict, List, Match, NoReturn, Optional, cast
 
 from granulate_utils.linux.process import is_process_running, process_exe
-from granulate_utils.python import DETECTED_PYTHON_PROCESSES_REGEX, _BLACKLISTED_PYTHON_PROCS
+from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PROCESSES_REGEX
 from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import (

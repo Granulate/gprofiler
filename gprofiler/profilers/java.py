@@ -20,6 +20,7 @@ from typing import Any, List, Optional, Set, Type, TypeVar
 import psutil
 from granulate_utils.java import (
     CONTAINER_INFO_REGEX,
+    DETECTED_JAVA_PROCESSES_REGEX,
     NATIVE_FRAMES_REGEX,
     SIGINFO_REGEX,
     VM_INFO_REGEX,
@@ -33,7 +34,6 @@ from granulate_utils.linux.ns import get_proc_root_path, resolve_proc_root_links
 from granulate_utils.linux.oom import get_oom_entry
 from granulate_utils.linux.process import is_process_running, process_exe
 from granulate_utils.linux.signals import get_signal_entry
-from granulate_utils.java import DETECTED_JAVA_PROCESSES_REGEX
 from packaging.version import Version
 from psutil import Process
 
