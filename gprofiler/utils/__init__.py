@@ -43,7 +43,8 @@ from gprofiler.log import get_logger_adapter
 
 logger = get_logger_adapter(__name__)
 
-TEMPORARY_STORAGE_PATH = "/tmp/gprofiler_tmp"
+GPROFILER_DIRECTORY_NAME = "gprofiler_tmp"
+TEMPORARY_STORAGE_PATH = f"/tmp/{GPROFILER_DIRECTORY_NAME}"
 
 gprofiler_mutex: Optional[socket.socket] = None
 
