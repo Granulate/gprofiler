@@ -192,6 +192,7 @@ def _reap_process(process: Popen, kill_signal: signal.Signals) -> Tuple[int, str
     # kill the process and read its output so far
     process.send_signal(kill_signal)
     process.wait()
+    logger.debug(f"({process.args!r}) was killed by us with signal {kill_signal} due to timeout or stop request")
     stdout, stderr = process.communicate()
     returncode = process.poll()
     assert returncode is not None  # only None if child has not terminated
@@ -241,7 +242,6 @@ def run_process(
                             raise
         except TimeoutExpired:
             returncode, stdout, stderr = _reap_process(process, kill_signal)
-            logger.debug(f"({process.args!r}) was killed with signal {kill_signal} due to timeout")
             assert timeout is not None
             reraise_exc = CalledProcessTimeoutError(timeout, returncode, cmd, stdout, stderr)
         except BaseException as e:  # noqa
