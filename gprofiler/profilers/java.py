@@ -221,8 +221,7 @@ class AsyncProfiledProcess:
         touch_path(self._output_path_host, self.OUTPUTS_MODE)
         self._recreate_log()
         # copy libasyncProfiler.so if needed
-        if not os.path.exists(self._libap_path_host):
-            self._copy_libap()
+        self._copy_libap()
 
         return self
 
