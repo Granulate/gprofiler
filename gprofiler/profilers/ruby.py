@@ -59,9 +59,9 @@ class RubyMetadta(ApplicationMetadata):
         else:
             libruby_builid = None
 
-        md = {"ruby_version": version, "ruby_buildid": ruby_buildid, "libruby_builid": libruby_builid}
-        md.update(super().make_application_metadata(process, stop_event))
-        return md
+        metadata = {"ruby_version": version, "ruby_buildid": ruby_buildid, "libruby_builid": libruby_builid}
+        metadata.update(super().make_application_metadata(process, stop_event))
+        return metadata
 
 
 @register_profiler(

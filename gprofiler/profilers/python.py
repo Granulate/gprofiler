@@ -125,9 +125,9 @@ class PythonMetadta(ApplicationMetadata):
         else:
             libpython_builid = None
 
-        md = {"python_version": version, "python_buildid": python_buildid, "libpython_builid": libpython_builid}
-        md.update(super().make_application_metadata(process, stop_event))
-        return md
+        metadata = {"python_version": version, "python_buildid": python_buildid, "libpython_builid": libpython_builid}
+        metadata.update(super().make_application_metadata(process, stop_event))
+        return metadata
 
 
 class PySpyProfiler(ProcessProfilerBase):

@@ -171,9 +171,9 @@ class JavaMetadta(ApplicationMetadata):
         else:
             libjvm_buildid = None
 
-        md = {"java_version": version, "libjvm_buildid": libjvm_buildid}
-        md.update(super().make_application_metadata(process, stop_event))
-        return md
+        metadata = {"java_version": version, "libjvm_buildid": libjvm_buildid}
+        metadata.update(super().make_application_metadata(process, stop_event))
+        return metadata
 
 
 @functools.lru_cache(maxsize=1)
