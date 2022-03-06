@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Set, Type, TypeVar
 import psutil
 from granulate_utils.java import (
     CONTAINER_INFO_REGEX,
+    DETECTED_JAVA_PROCESSES_REGEX,
     NATIVE_FRAMES_REGEX,
     SIGINFO_REGEX,
     VM_INFO_REGEX,
@@ -98,7 +99,7 @@ JAVA_SAFEMODE_DEFAULT_OPTIONS = [
     JavaSafemodeOptions.HSERR.value,
 ]
 
-JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 0  # all off
+JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 64  # StackRecovery.JAVA_STATE
 
 SUPPORTED_AP_MODES = ["cpu", "itimer"]
 
@@ -676,7 +677,7 @@ class JavaProfiler(ProcessProfilerBase):
     def _is_jvm_version_supported(self, java_version_cmd_output: str) -> bool:
         try:
             jvm_version = parse_jvm_version(java_version_cmd_output)
-            logger.info("Checking support for java version", jvm_version=jvm_version)
+            logger.info("Checking support for java version", jvm_version=repr(jvm_version))
         except Exception:
             logger.exception("Failed to parse java -version output", java_version_cmd_output=java_version_cmd_output)
             return False
@@ -852,7 +853,7 @@ class JavaProfiler(ProcessProfilerBase):
             logger.debug("Java profiling has been disabled, skipping profiling of all java processes")
             # continue - _profile_process will return an appropriate error for each process selected for
             # profiling.
-        return pgrep_maps(r"^.+/libjvm\.so$")
+        return pgrep_maps(DETECTED_JAVA_PROCESSES_REGEX)
 
     def start(self) -> None:
         super().start()
