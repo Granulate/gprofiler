@@ -13,7 +13,7 @@ from psutil import NoSuchProcess, Process
 
 def get_elf_buildid(path: str) -> Optional[str]:
     """
-    Gets the build ID embedded in an ELF file  section as an hex string,
+    Gets the build ID embedded in an ELF file section as a hex string,
     or None if not present.
     """
     with open(path, "rb") as f:
