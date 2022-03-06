@@ -145,6 +145,6 @@ class APIClient:
                 "gpid": gpid,
             },
             timeout=self._upload_timeout,
-            api_version="v2" if profile_api_version is None else profile_api_version,
+            api_version="v3" if profile_api_version is None else profile_api_version,
             params={"samples": str(total_samples), "version": __version__},
         )
