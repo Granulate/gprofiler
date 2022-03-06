@@ -124,7 +124,7 @@ class JattachException(CalledProcessError):
         return self._ap_log
 
 
-JAVA_VERSION_TIMEOUT = 5
+_JAVA_VERSION_TIMEOUT = 5
 
 
 def get_java_version(process: Process, stop_event: Event) -> str:
@@ -150,7 +150,7 @@ def get_java_version(process: Process, stop_event: Event) -> str:
                 "-version",
             ],
             stop_event=stop_event,
-            timeout=JAVA_VERSION_TIMEOUT,
+            timeout=_JAVA_VERSION_TIMEOUT,
         )
 
     # doesn't work without changing PID NS as well (I'm getting ENOENT for libjli.so)
