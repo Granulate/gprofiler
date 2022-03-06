@@ -737,7 +737,7 @@ class JavaProfiler(ProcessProfilerBase):
             # the resolved path of TEMPORARY_STORAGE_PATH might be different from TEMPORARY_STORAGE_PATH itself,
             # and in the mmap.path we're seeing the resolved path. it's a hassle to resolve it here - this
             # check is good enough, possibly only too strict, not too loose.
-            if "libasyncProfiler.so" in mmap.path and GPROFILER_DIRECTORY_NAME in mmap.path:
+            if "libasyncProfiler.so" in mmap.path and GPROFILER_DIRECTORY_NAME not in mmap.path:
                 logger.warning(
                     "Non-gProfiler async-profiler is already loaded to the target process."
                     f" Disable --java-safemode={JavaSafemodeOptions.AP_LOADED_CHECK} to bypass this check.",
