@@ -91,6 +91,11 @@ class PythonMetadta(ApplicationMetadata):
 
     @classmethod
     def _get_python_version(cls, process: Process, stop_event: Event) -> str:
+        if not os.path.basename(process.exe()).startswith("python"):
+            # TODO: for dynamic executables, find the python binary that works with the loaded libpython, and
+            # check it instead. For static executables embedding libpython - :shrug:
+            raise NotImplementedError
+
         python_path = f"/proc/{get_process_nspid(process.pid)}/exe"
 
         def _run_python_version() -> "CompletedProcess[bytes]":
@@ -114,7 +119,11 @@ class PythonMetadta(ApplicationMetadata):
     @classmethod
     def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict[str, Any]:
         # python version
-        version = cls._get_python_version(process, stop_event)
+        try:
+            version: Optional[str] = cls._get_python_version(process, stop_event)
+        except Exception:
+            version = None
+
         # python buildid & libpython builid, if exists
         python_buildid = get_elf_buildid(f"/proc/{process.pid}/exe")
         for m in process.memory_maps():
