@@ -45,6 +45,7 @@ from gprofiler.merge import parse_one_collapsed
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
+    GPROFILER_DIRECTORY_NAME,
     TEMPORARY_STORAGE_PATH,
     pgrep_maps,
     remove_path,
@@ -732,7 +733,11 @@ class JavaProfiler(ProcessProfilerBase):
             return False
 
         for mmap in process.memory_maps():
-            if "libasyncProfiler.so" in mmap.path and not mmap.path.startswith(TEMPORARY_STORAGE_PATH):
+            # checking only with GPROFILER_DIRECTORY_NAME and not TEMPORARY_STORAGE_PATH;
+            # the resolved path of TEMPORARY_STORAGE_PATH might be different from TEMPORARY_STORAGE_PATH itself,
+            # and in the mmap.path we're seeing the resolved path. it's a hassle to resolve it here - this
+            # check is good enough, possibly only too strict, not too loose.
+            if "libasyncProfiler.so" in mmap.path and f"/{GPROFILER_DIRECTORY_NAME}/" not in mmap.path:
                 logger.warning(
                     "Non-gProfiler async-profiler is already loaded to the target process."
                     f" Disable --java-safemode={JavaSafemodeOptions.AP_LOADED_CHECK} to bypass this check.",
