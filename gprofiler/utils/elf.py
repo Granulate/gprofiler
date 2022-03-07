@@ -44,6 +44,19 @@ def get_elf_id(path: str) -> str:
     return f"sha1:{hashlib.sha1(open(path, 'rb').read()).hexdigest()}"
 
 
+def get_mapped_dso_elf_id(process: Process, dso_part: str) -> Optional[str]:
+    """
+    Searches for a DSO path containing "dso_part" and gets its elfid.
+    Returns None if not found.
+    """
+    for m in process.memory_maps():
+        if dso_part in m.path:
+            # don't need resolve_proc_root_links here - paths in /proc/pid/maps are normalized.
+            return get_elf_id(f"/proc/{process.pid}/root/{m.path}")
+    else:
+        return None
+
+
 _AUXV_ENTRY = struct.Struct("LL")
 
 AT_EXECFN = 31

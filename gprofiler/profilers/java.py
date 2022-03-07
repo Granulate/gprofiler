@@ -55,7 +55,7 @@ from gprofiler.utils import (
     touch_path,
     wait_event,
 )
-from gprofiler.utils.elf import get_elf_id
+from gprofiler.utils.elf import get_mapped_dso_elf_id
 from gprofiler.utils.perf import can_i_use_perf_events
 from gprofiler.utils.process import process_comm
 
@@ -163,15 +163,10 @@ class JavaMetadta(ApplicationMetadata):
     def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict[str, Any]:
         version = get_java_version(process, stop_event)
         # libjvm elfid
-        for m in process.memory_maps():
-            if "/libjvm" in m.path:
-                # don't need resolve_proc_root_links here - paths in /proc/pid/maps are normalized.
-                libjvm_elfid: Optional[str] = get_elf_id(f"/proc/{process.pid}/root/{m.path}")
-                break
-        else:
-            libjvm_elfid = None
+        libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")
 
         metadata = {"java_version": version, "libjvm_elfid": libjvm_elfid}
+
         metadata.update(super().make_application_metadata(process, stop_event))
         return metadata
 

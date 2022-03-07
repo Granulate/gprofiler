@@ -43,7 +43,7 @@ from gprofiler.utils import (
     wait_event,
     wait_for_file_by_prefix,
 )
-from gprofiler.utils.elf import get_elf_id
+from gprofiler.utils.elf import get_elf_id, get_mapped_dso_elf_id
 from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
@@ -126,15 +126,10 @@ class PythonMetadta(ApplicationMetadata):
 
         # python id & libpython id, if exists
         python_elfid = get_elf_id(f"/proc/{process.pid}/exe")
-        for m in process.memory_maps():
-            if "/libpython" in m.path:
-                # don't need resolve_proc_root_links here - paths in /proc/pid/maps are normalized.
-                libpython_elfid: Optional[str] = get_elf_id(f"/proc/{process.pid}/root/{m.path}")
-                break
-        else:
-            libpython_elfid = None
+        libpython_elfid = get_mapped_dso_elf_id(process, "/libpython")
 
         metadata = {"python_version": version, "python_elfid": python_elfid, "libpython_elfid": libpython_elfid}
+
         metadata.update(super().make_application_metadata(process, stop_event))
         return metadata
 
