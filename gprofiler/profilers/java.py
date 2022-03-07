@@ -52,7 +52,7 @@ from gprofiler.utils import (
     touch_path,
     wait_event,
 )
-from gprofiler.utils.fs import atomic_copy
+from gprofiler.utils.fs import safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
 from gprofiler.utils.process import process_comm
 
@@ -276,7 +276,7 @@ class AsyncProfiledProcess:
                 os.chmod(
                     libap_resource, 0o755
                 )  # make it accessible for all; needed with PyInstaller, which extracts files as 0700
-                atomic_copy(libap_resource, self._libap_path_host)
+                safe_copy(libap_resource, self._libap_path_host)
 
     def _recreate_log(self) -> None:
         touch_path(self._log_path_host, self.OUTPUTS_MODE)
