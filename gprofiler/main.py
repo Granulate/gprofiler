@@ -76,6 +76,14 @@ def sigint_handler(sig: int, frame: Optional[FrameType]) -> None:
         raise KeyboardInterrupt
 
 
+def _container_names_supproted(profile_api_version: str) -> bool:
+    return Version(profile_api_version) > Version("v1")
+
+
+def _application_metadata_supported(profile_api_version: str) -> bool:
+    return Version(profile_api_version) > Version("v2")
+
+
 class GProfiler:
     def __init__(
         self,
@@ -128,7 +136,7 @@ class GProfiler:
         except SystemProfilerInitFailure:
             logger.exception("System profiler initialization has failed, exiting...")
             sys.exit(1)
-        if self._enrichment_options.container_names and profile_api_version != "v1":
+        if self._enrichment_options.container_names:
             self._container_names_client: Optional[ContainerNamesClient] = ContainerNamesClient()
         else:
             self._container_names_client = None
@@ -725,9 +733,9 @@ def main() -> None:
             remote_logs_handler.init_api_client(client)
 
         enrichment_options = EnrichmentOptions(
-            Version(args.profile_api_version) >= Version("v2") and not args.disable_container_names,
-            args.identify_applications,
-            Version(args.profile_api_version) >= Version("v3") and args.application_metadata,
+            not args.disable_container_names and _container_names_supproted(args.profile_api_version),
+            args.identify_applications,  # supported always - this just adds a frame.
+            args.application_metadata and _application_metadata_supported(args.profile_api_version),
         )
 
         gprofiler = GProfiler(
