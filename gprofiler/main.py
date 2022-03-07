@@ -19,6 +19,7 @@ from typing import Any, Iterable, Optional, Type, cast
 import configargparse
 from granulate_utils.linux.ns import is_running_in_init_pid
 from granulate_utils.linux.process import is_process_running
+from packaging.version import Version
 from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
 
@@ -89,7 +90,7 @@ class GProfiler:
         usage_logger: UsageLoggerInterface,
         user_args: UserArgs,
         duration: int,
-        profile_api_version: Optional[str] = None,
+        profile_api_version: str,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         controller_process: Optional[Process] = None,
     ):
@@ -502,9 +503,9 @@ def parse_cmd_args() -> Any:
         "--profile-api-version",
         action="store",
         dest="profile_api_version",
-        default=None,
-        choices=["v1"],
-        help="Use a legacy API version to upload profiles to the Performance Studio",
+        default="v3",
+        choices=["v1", "v2", "v3"],
+        help="Use a legacy API version to upload profiles to the Performance Studio. This might disable some features.",
     )
 
     parser.add_argument(
@@ -724,7 +725,9 @@ def main() -> None:
             remote_logs_handler.init_api_client(client)
 
         enrichment_options = EnrichmentOptions(
-            not args.disable_container_names, args.identify_applications, args.application_metadata
+            Version(args.profile_api_version) >= Version("v2") and not args.disable_container_names,
+            args.identify_applications,
+            Version(args.profile_api_version) >= Version("v3") and args.application_metadata,
         )
 
         gprofiler = GProfiler(
