@@ -424,7 +424,10 @@ class PythonEbpfProfiler(ProfilerBase):
         if self.add_versions:
             parsed = _add_versions_to_stacks(parsed)
         for pid in parsed:
-            PythonMetadta.update_metadata(Process(pid), self._stop_event)
+            try:
+                PythonMetadta.update_metadata(Process(pid), self._stop_event)
+            except NoSuchProcess:
+                continue
         return parsed
 
     def _terminate(self) -> Optional[int]:
