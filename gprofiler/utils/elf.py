@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
+import hashlib
 import struct
 from typing import Optional, cast
 
@@ -27,6 +28,20 @@ def get_elf_buildid(path: str) -> Optional[str]:
                 return cast(str, note.n_desc)
         else:
             return None
+
+
+def get_elf_id(path: str) -> str:
+    """
+    Gets an identifier for this ELF.
+    We prefer to use buildids. If a buildid does not exist for an ELF file,
+    we instead grab its SHA1.
+    """
+    buildid = get_elf_buildid(path)
+    if buildid is not None:
+        return f"buildid:{buildid}"
+
+    # hash in one chunk
+    return f"sha1:{hashlib.sha1(open(path, 'rb').read()).hexdigest()}"
 
 
 _AUXV_ENTRY = struct.Struct("LL")

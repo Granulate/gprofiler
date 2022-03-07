@@ -20,7 +20,7 @@ from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
-from gprofiler.utils.elf import get_elf_buildid
+from gprofiler.utils.elf import get_elf_id
 from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
@@ -49,17 +49,17 @@ class RubyMetadta(ApplicationMetadata):
     def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict[str, Any]:
         # ruby version
         version = cls._get_ruby_version(process, stop_event)
-        # ruby buildid & libruby builid, if exists
-        ruby_buildid = get_elf_buildid(f"/proc/{process.pid}/exe")
+        # ruby elfid & libruby elfid, if exists
+        ruby_elfid = get_elf_id(f"/proc/{process.pid}/exe")
         for m in process.memory_maps():
             if "/libruby" in m.path:
                 # don't need resolve_proc_root_links here - paths in /proc/pid/maps are normalized.
-                libruby_builid = get_elf_buildid(f"/proc/{process.pid}/root/{m.path}")
+                libruby_elfid: Optional[str] = get_elf_id(f"/proc/{process.pid}/root/{m.path}")
                 break
         else:
-            libruby_builid = None
+            libruby_elfid = None
 
-        metadata = {"ruby_version": version, "ruby_buildid": ruby_buildid, "libruby_builid": libruby_builid}
+        metadata = {"ruby_version": version, "ruby_elfid": ruby_elfid, "libruby_elfid": libruby_elfid}
         metadata.update(super().make_application_metadata(process, stop_event))
         return metadata
 
