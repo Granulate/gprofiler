@@ -724,10 +724,13 @@ def main() -> None:
             )
         except APIError as e:
             logger.error(f"Server error: {e}")
-            return
+            sys.exit(1)
         except RequestException as e:
-            logger.error(f"Failed to connect to server: {e}")
-            return
+            logger.error(
+                "Failed to connect to server. It might be blocked by your security rules / firewall,"
+                f" or you might require a proxy to access it from your environment? {e}"
+            )
+            sys.exit(1)
 
         if client is not None and remote_logs_handler is not None:
             remote_logs_handler.init_api_client(client)

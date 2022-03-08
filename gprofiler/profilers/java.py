@@ -2,18 +2,16 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import errno
 import functools
 import json
 import os
 import re
-import shutil
 import signal
 from enum import Enum
 from itertools import dropwhile
 from pathlib import Path
 from subprocess import CompletedProcess
-from threading import Event
+from threading import Event, Lock
 from types import TracebackType
 from typing import Any, Dict, List, Optional, Set, Type, TypeVar
 
@@ -46,6 +44,7 @@ from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
+    GPROFILER_DIRECTORY_NAME,
     TEMPORARY_STORAGE_PATH,
     pgrep_maps,
     remove_path,
@@ -56,10 +55,13 @@ from gprofiler.utils import (
     wait_event,
 )
 from gprofiler.utils.elf import get_mapped_dso_elf_id
+from gprofiler.utils.fs import safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
 from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
+
+libap_copy_lock = Lock()
 
 
 def frequency_to_ap_interval(frequency: int) -> int:
@@ -269,8 +271,7 @@ class AsyncProfiledProcess:
         touch_path(self._output_path_host, self.OUTPUTS_MODE)
         self._recreate_log()
         # copy libasyncProfiler.so if needed
-        if not os.path.exists(self._libap_path_host):
-            self._copy_libap()
+        self._copy_libap()
 
         return self
 
@@ -310,36 +311,22 @@ class AsyncProfiledProcess:
 
     def _copy_libap(self) -> None:
         # copy *is* racy with respect to other processes running in the same namespace, because they all use
-        # the same directory for libasyncProfiler.so, as we don't want to create too many copies of it that
-        # will waste disk space.
-        # my attempt here is to produce a race-free way of ensuring libasyncProfiler.so was fully copied
-        # to a *single* path, per namespace.
-        # newer kernels (>3.15 for ext4) have the renameat2 syscall, with RENAME_NOREPLACE, which lets you
-        # atomically move a file without replacing if the target already exists.
-        # this function operates similarly on directories. if you rename(dir_a, dir_b) then dir_b is replaced
-        # with dir_a iff it's empty. this gives us the same semantics.
-        # so, we create a temporary directory on the same filesystem (so move is atomic) in a race-free way
-        # by including the PID in its name; then we move it.
-        # TODO: if we ever move away from the multithreaded model, we can get rid of this complexity
-        # by ensuring a known order of execution.
-        ap_dir_host_tmp = f"{self._ap_dir_host}.{self.process.pid}"
-        os.makedirs(ap_dir_host_tmp)
-        libap_tmp = os.path.join(ap_dir_host_tmp, "libasyncProfiler.so")
-        shutil.copy(
-            resource_path(os.path.join("java", "musl" if self._is_musl() else "glibc", "libasyncProfiler.so")),
-            libap_tmp,
-        )
-        os.chmod(libap_tmp, 0o755)  # make it accessible for all; needed with PyInstaller, which extracts files as 0700
-        try:
-            os.rename(ap_dir_host_tmp, self._ap_dir_host)
-        except OSError as e:
-            if e.errno == errno.ENOTEMPTY:
-                # remove our copy
-                shutil.rmtree(ap_dir_host_tmp)
-                # it should have been created by somene else.
-                assert os.path.exists(self._libap_path_host)
-            else:
-                raise
+        # the same directory for libasyncProfiler.so.
+        # therefore, we need to synchronize copies from different threads that profile different processes.
+        if os.path.exists(self._libap_path_host):
+            # all good
+            return
+
+        with libap_copy_lock:
+            if not os.path.exists(self._libap_path_host):
+                # atomically copy it
+                libap_resource = resource_path(
+                    os.path.join("java", "musl" if self._is_musl() else "glibc", "libasyncProfiler.so")
+                )
+                os.chmod(
+                    libap_resource, 0o755
+                )  # make it accessible for all; needed with PyInstaller, which extracts files as 0700
+                safe_copy(libap_resource, self._libap_path_host)
 
     def _recreate_log(self) -> None:
         touch_path(self._log_path_host, self.OUTPUTS_MODE)
@@ -741,7 +728,11 @@ class JavaProfiler(ProcessProfilerBase):
             return False
 
         for mmap in process.memory_maps():
-            if "libasyncProfiler.so" in mmap.path and not mmap.path.startswith(TEMPORARY_STORAGE_PATH):
+            # checking only with GPROFILER_DIRECTORY_NAME and not TEMPORARY_STORAGE_PATH;
+            # the resolved path of TEMPORARY_STORAGE_PATH might be different from TEMPORARY_STORAGE_PATH itself,
+            # and in the mmap.path we're seeing the resolved path. it's a hassle to resolve it here - this
+            # check is good enough, possibly only too strict, not too loose.
+            if "libasyncProfiler.so" in mmap.path and f"/{GPROFILER_DIRECTORY_NAME}/" not in mmap.path:
                 logger.warning(
                     "Non-gProfiler async-profiler is already loaded to the target process."
                     f" Disable --java-safemode={JavaSafemodeOptions.AP_LOADED_CHECK} to bypass this check.",
