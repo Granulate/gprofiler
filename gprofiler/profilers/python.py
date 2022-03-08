@@ -17,6 +17,7 @@ from granulate_utils.linux.process import is_process_running, process_exe
 from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PROCESSES_REGEX
 from psutil import NoSuchProcess, Process
 
+import gprofiler.merge
 from gprofiler.exceptions import (
     CalledProcessError,
     CalledProcessTimeoutError,
@@ -25,7 +26,6 @@ from gprofiler.exceptions import (
 )
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
-from gprofiler.merge import parse_many_collapsed, parse_one_collapsed_file
 from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
@@ -147,7 +147,7 @@ class PySpyProfiler(ProcessProfilerBase):
                 raise
 
             logger.info(f"Finished profiling process {process.pid} with py-spy")
-            parsed = parse_one_collapsed_file(Path(local_output_path), comm)
+            parsed = gprofiler.merge.parse_one_collapsed_file(Path(local_output_path), comm)
             if self.add_versions:
                 parsed = _add_versions_to_process_stacks(process, parsed)
             return parsed
@@ -368,7 +368,7 @@ class PythonEbpfProfiler(ProfilerBase):
         finally:
             # always remove, even if we get read/decode errors
             collapsed_path.unlink()
-        parsed = parse_many_collapsed(collapsed_text)
+        parsed = gprofiler.merge.parse_many_collapsed(collapsed_text)
         if self.add_versions:
             parsed = _add_versions_to_stacks(parsed)
         return parsed
