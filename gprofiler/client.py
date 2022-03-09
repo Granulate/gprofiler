@@ -6,7 +6,7 @@ import datetime
 import gzip
 import json
 from io import BytesIO
-from typing import IO, TYPE_CHECKING, Any, Dict, List, Tuple, cast
+from typing import IO, TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 import requests
 from requests import Session
@@ -127,7 +127,7 @@ class APIClient:
         end_time: datetime.datetime,
         profile: str,
         total_samples: int,
-        profile_api_version: str,
+        profile_api_version: Optional[str],
         spawn_time: float,
         metrics: "Metrics",
         gpid: str,
@@ -145,6 +145,6 @@ class APIClient:
                 "gpid": gpid,
             },
             timeout=self._upload_timeout,
-            api_version=profile_api_version,
+            api_version="v2" if profile_api_version is None else profile_api_version,
             params={"samples": str(total_samples), "version": __version__},
         )

@@ -19,7 +19,6 @@ from typing import Any, Iterable, Optional, Type, cast
 import configargparse
 from granulate_utils.linux.ns import is_running_in_init_pid
 from granulate_utils.linux.process import is_process_running
-from packaging.version import Version
 from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
 
@@ -74,14 +73,6 @@ def sigint_handler(sig: int, frame: Optional[FrameType]) -> None:
     if last_signal_ts is None or ts > last_signal_ts + SIGINT_RATELIMIT:
         last_signal_ts = ts
         raise KeyboardInterrupt
-
-
-def _container_names_supproted(profile_api_version: str) -> bool:
-    return Version(profile_api_version) > Version("v1")
-
-
-def _application_metadata_supported(profile_api_version: str) -> bool:
-    return Version(profile_api_version) > Version("v2")
 
 
 class GProfiler:
@@ -511,8 +502,8 @@ def parse_cmd_args() -> Any:
         "--profile-api-version",
         action="store",
         dest="profile_api_version",
-        default="v3",
-        choices=["v1", "v2", "v3"],
+        default=None,
+        choices=["v1"],
         help="Use a legacy API version to upload profiles to the Performance Studio. This might disable some features.",
     )
 
@@ -736,9 +727,9 @@ def main() -> None:
             remote_logs_handler.init_api_client(client)
 
         enrichment_options = EnrichmentOptions(
-            not args.disable_container_names and _container_names_supproted(args.profile_api_version),
+            not args.disable_container_names and args.profile_api_version != "v1",
             args.identify_applications,  # supported always - this just adds a frame.
-            args.application_metadata and _application_metadata_supported(args.profile_api_version),
+            args.application_metadata and args.profile_api_version != "v1",
         )
 
         gprofiler = GProfiler(
