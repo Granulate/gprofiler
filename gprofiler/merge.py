@@ -222,7 +222,8 @@ def _make_profile_metadata(
     add_container_names: bool,
     metadata: Metadata,
     metrics: Metrics,
-    application_metadata: List[Optional[Dict]],
+    application_metadata: Optional[List[Optional[Dict]]],
+    application_metadata_enabled: bool,
 ) -> str:
     if container_names_client is not None and add_container_names:
         container_names = container_names_client.container_names
@@ -238,6 +239,7 @@ def _make_profile_metadata(
         "metadata": metadata,
         "metrics": metrics.__dict__,
         "application_metadata": application_metadata,
+        "application_metadata_enabled": application_metadata_enabled,
     }
     return "# " + json.dumps(profile_metadata)
 
@@ -304,7 +306,12 @@ def concatenate_profiles(
     lines.insert(
         0,
         _make_profile_metadata(
-            container_names_client, enrichment_options.container_names, metadata, metrics, application_metadata
+            container_names_client,
+            enrichment_options.container_names,
+            metadata,
+            metrics,
+            application_metadata,
+            enrichment_options.application_metadata,
         ),
     )
     return "\n".join(lines), total_samples
