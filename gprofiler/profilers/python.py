@@ -17,7 +17,7 @@ from granulate_utils.linux.process import is_process_running, process_exe
 from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PROCESSES_REGEX
 from psutil import NoSuchProcess, Process
 
-import gprofiler.merge
+from gprofiler import merge
 from gprofiler.exceptions import (
     CalledProcessError,
     CalledProcessTimeoutError,
@@ -147,7 +147,7 @@ class PySpyProfiler(ProcessProfilerBase):
                 raise
 
             logger.info(f"Finished profiling process {process.pid} with py-spy")
-            parsed = gprofiler.merge.parse_one_collapsed_file(Path(local_output_path), comm)
+            parsed = merge.parse_one_collapsed_file(Path(local_output_path), comm)
             if self.add_versions:
                 parsed = _add_versions_to_process_stacks(process, parsed)
             return parsed
@@ -368,7 +368,7 @@ class PythonEbpfProfiler(ProfilerBase):
         finally:
             # always remove, even if we get read/decode errors
             collapsed_path.unlink()
-        parsed = gprofiler.merge.parse_many_collapsed(collapsed_text)
+        parsed = merge.parse_many_collapsed(collapsed_text)
         if self.add_versions:
             parsed = _add_versions_to_stacks(parsed)
         return parsed

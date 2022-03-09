@@ -37,7 +37,7 @@ from granulate_utils.linux.signals import get_signal_entry
 from packaging.version import Version
 from psutil import Process
 
-import gprofiler.merge
+from gprofiler import merge
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.kernel_messages import get_kernel_messages_provider
@@ -809,7 +809,7 @@ class JavaProfiler(ProcessProfilerBase):
             return self._profiling_error_stack("error", "process exited before reading the output", comm)
         else:
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
-            return gprofiler.merge.parse_one_collapsed(output, comm)
+            return merge.parse_one_collapsed(output, comm)
 
     def _check_hotspot_error(self, ap_proc: AsyncProfiledProcess) -> None:
         pid = ap_proc.process.pid

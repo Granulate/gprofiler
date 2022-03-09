@@ -10,7 +10,7 @@ from typing import List, Optional
 
 from psutil import Process
 
-import gprofiler.merge
+from gprofiler import merge
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.log import get_logger_adapter
@@ -75,7 +75,7 @@ class RbSpyProfiler(ProcessProfilerBase):
                 raise StopEventSetException
 
             logger.info(f"Finished profiling process {process.pid} with rbspy")
-            return gprofiler.merge.parse_one_collapsed_file(Path(local_output_path), process_comm(process))
+            return merge.parse_one_collapsed_file(Path(local_output_path), process_comm(process))
 
     def _select_processes_to_profile(self) -> List[Process]:
         return pgrep_maps(r"(?:^.+/ruby[^/]*$)")
