@@ -41,7 +41,8 @@ def get_elf_id(path: str) -> str:
         return f"buildid:{buildid}"
 
     # hash in one chunk
-    return f"sha1:{hashlib.sha1(open(path, 'rb').read()).hexdigest()}"
+    with open(path, "rb") as f:
+        return f"sha1:{hashlib.sha1(f.read()).hexdigest()}"
 
 
 def get_mapped_dso_elf_id(process: Process, dso_part: str) -> Optional[str]:
