@@ -36,10 +36,11 @@ FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \((.*)\)$")
 @dataclass
 class EnrichmentOptions:
     """
-    Profile enrichment options:
+    Profile enrichment options.
     """
 
     container_names: bool  # Include container names for each stack in result profile
+    container_names_in_protocol: bool  # Are container names a part of the protocol? (true iff not v1)
     application_identifiers: bool  # Attempt to produce & include appid frames for each stack in result profile
     application_metadata: bool  # Include specialized metadata per application, e.g for Python - the Python version
 
@@ -285,11 +286,14 @@ def concatenate_profiles(
         if app_metadata not in application_metadata:
             application_metadata.append(app_metadata)
         idx = application_metadata.index(app_metadata)
+        # we include the application metadata frame IFF application_metadata is enabled
         application_prefix = (f"{idx};") if enrichment_options.application_metadata else ""
 
         # generate container name
+        # to maintain compatibility with old profiler versions, we include the container name frame in any case
+        # if the protocol version does not "v1, regardless of whether container_names is enabled or not.
         container_name = _get_container_name(pid, container_names_client, enrichment_options.container_names)
-        container_prefix = (container_name + ";") if enrichment_options.container_names else ""
+        container_prefix = (container_name + ";") if enrichment_options.container_names_in_protocol else ""
 
         for stack, count in stacks.items():
             if enrichment_options.application_identifiers and application_name is not None:

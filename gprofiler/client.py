@@ -132,6 +132,7 @@ class APIClient:
         metrics: "Metrics",
         gpid: str,
     ) -> Dict:
+        print(profile)
         return self.post(
             "profiles",
             {
