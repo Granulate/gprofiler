@@ -160,7 +160,7 @@ def get_java_version(process: Process, stop_event: Event) -> str:
     return run_in_ns(["pid", "mnt"], _run_java_version, process.pid).stderr.decode().strip()
 
 
-class JavaMetadta(ApplicationMetadata):
+class JavaMetadata(ApplicationMetadata):
     @classmethod
     def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict[str, Any]:
         version = get_java_version(process, stop_event)
@@ -763,7 +763,7 @@ class JavaProfiler(ProcessProfilerBase):
             self._profiled_pids.add(process.pid)
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
-        JavaMetadta.update_metadata(process, self._stop_event)
+        JavaMetadata.update_metadata(process, self._stop_event)
 
         with AsyncProfiledProcess(
             process, self._storage_dir, self._stop_event, self._buildids, self._mode, self._ap_safemode, self._ap_args

@@ -86,7 +86,7 @@ def _add_versions_to_stacks(
     return result
 
 
-class PythonMetadta(ApplicationMetadata):
+class PythonMetadata(ApplicationMetadata):
     _PYTHON_VERSION_TIMEOUT = 3
 
     @classmethod
@@ -172,7 +172,7 @@ class PySpyProfiler(ProcessProfilerBase):
 
     def _profile_process(self, process: Process) -> StackToSampleCount:
         logger.info(f"Profiling process {process.pid} with py-spy", cmdline=process.cmdline(), no_extra_to_server=True)
-        PythonMetadta.update_metadata(process, self._stop_event)
+        PythonMetadata.update_metadata(process, self._stop_event)
         comm = process_comm(process)
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
@@ -425,7 +425,7 @@ class PythonEbpfProfiler(ProfilerBase):
             parsed = _add_versions_to_stacks(parsed)
         for pid in parsed:
             try:
-                PythonMetadta.update_metadata(Process(pid), self._stop_event)
+                PythonMetadata.update_metadata(Process(pid), self._stop_event)
             except NoSuchProcess:
                 continue
         return parsed
