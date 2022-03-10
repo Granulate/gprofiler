@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, Union
 from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
 
-from gprofiler.utils.elf import get_process_execfn
+from gprofiler.utils.elf import read_process_execfn
 
 
 def get_application_metadata(process: Union[int, Process]) -> Optional[Dict]:
@@ -49,4 +49,4 @@ class ApplicationMetadata:
 
     @classmethod
     def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict[str, Any]:
-        return {"exe": process.exe(), "execfn": get_process_execfn(process)}
+        return {"exe": process.exe(), "execfn": read_process_execfn(process)}

@@ -64,7 +64,7 @@ AT_EXECFN = 31
 PATH_MAX = 4096
 
 
-def _get_process_auxv(process: Process, auxv_id: int) -> int:
+def _read_process_auxv(process: Process, auxv_id: int) -> int:
     try:
         with open(f"/proc/{process.pid}/auxv", "rb") as f:
             auxv = f.read()
@@ -91,8 +91,8 @@ def _read_process_memory(process: Process, addr: int, size: int) -> bytes:
         raise NoSuchProcess(process.pid)
 
 
-def get_process_execfn(process: Process) -> str:
+def read_process_execfn(process: Process) -> str:
     # reads process AT_EXECFN
-    addr = _get_process_auxv(process, AT_EXECFN)
+    addr = _read_process_auxv(process, AT_EXECFN)
     fn = _read_process_memory(process, addr, PATH_MAX)
     return fn[: fn.index(b"\0")].decode()
