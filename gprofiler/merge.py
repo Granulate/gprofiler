@@ -255,6 +255,67 @@ def _get_container_name(
     )
 
 
+@dataclass
+class PidStackEnrichment:
+    application_name: Optional[str]
+    application_prefix: str
+    container_prefix: str
+
+
+def _enrich_pid_stacks(
+    pid: int,
+    enrichment_options: EnrichmentOptions,
+    container_names_client: Optional[ContainerNamesClient],
+    application_metadata: List[Optional[Dict]],
+) -> PidStackEnrichment:
+    """
+    Enrichment per app (or, PID here). This includes:
+    * appid (or app name)
+    * app metadata
+    * container name
+    """
+    # generate application name
+    application_name = get_application_name(pid) if enrichment_options.application_identifiers else None
+    if application_name is not None:
+        application_name = f"appid: {application_name}"
+
+    # generate metadata
+    if enrichment_options.application_metadata:
+        app_metadata = get_application_metadata(pid)
+    else:
+        app_metadata = None
+    if app_metadata not in application_metadata:
+        application_metadata.append(app_metadata)
+    idx = application_metadata.index(app_metadata)
+    # we include the application metadata frame IFF application_metadata is enabled
+    application_prefix = (f"{idx};") if enrichment_options.application_metadata else ""
+
+    # generate container name
+    # to maintain compatibility with old profiler versions, we include the container name frame in any case
+    # if the protocol version does not "v1, regardless of whether container_names is enabled or not.
+    container_name = _get_container_name(pid, container_names_client, enrichment_options.container_names)
+    container_prefix = (container_name + ";") if enrichment_options.container_names_in_protocol else ""
+
+    return PidStackEnrichment(application_name, application_prefix, container_prefix)
+
+
+def _enrich_and_finalize_stack(
+    stack: str, count: int, enrichment_options: EnrichmentOptions, enrich_data: PidStackEnrichment
+) -> str:
+    """
+    Attach the enrichment data collected for the PID of this stack.
+    """
+    if enrichment_options.application_identifiers and enrich_data.application_name is not None:
+        # insert the app name between the first frame and all others
+        try:
+            first_frame, others = stack.split(";", maxsplit=1)
+            stack = f"{first_frame};{enrich_data.application_name};{others}"
+        except ValueError:
+            stack = f"{stack};{enrich_data.application_name}"
+
+    return f"{enrich_data.application_prefix}{enrich_data.container_prefix}{stack} {count}"
+
+
 def concatenate_profiles(
     process_profiles: ProcessToStackSampleCounters,
     container_names_client: Optional[ContainerNamesClient],
@@ -264,48 +325,17 @@ def concatenate_profiles(
 ) -> Tuple[str, int]:
     """
     Concatenate all stacks from all stack mappings in process_profiles.
-    Add "profile metadata" and metrics as the first line of the resulting collapsed file. Also,
-    prepend the container name (if requested & available) as the first frame of each
-    line.
+    Add "profile metadata" and metrics as the first line of the resulting collapsed file.
     """
     total_samples = 0
     lines = []
     application_metadata: List[Optional[Dict]] = [None]
 
     for pid, stacks in process_profiles.items():
-        # generate application name
-        application_name = get_application_name(pid) if enrichment_options.application_identifiers else None
-        if application_name is not None:
-            application_name = f"appid: {application_name}"
-
-        # generate metadata
-        if enrichment_options.application_metadata:
-            app_metadata = get_application_metadata(pid)
-        else:
-            app_metadata = None
-        if app_metadata not in application_metadata:
-            application_metadata.append(app_metadata)
-        idx = application_metadata.index(app_metadata)
-        # we include the application metadata frame IFF application_metadata is enabled
-        application_prefix = (f"{idx};") if enrichment_options.application_metadata else ""
-
-        # generate container name
-        # to maintain compatibility with old profiler versions, we include the container name frame in any case
-        # if the protocol version does not "v1, regardless of whether container_names is enabled or not.
-        container_name = _get_container_name(pid, container_names_client, enrichment_options.container_names)
-        container_prefix = (container_name + ";") if enrichment_options.container_names_in_protocol else ""
-
+        enrich_data = _enrich_pid_stacks(pid, enrichment_options, container_names_client, application_metadata)
         for stack, count in stacks.items():
-            if enrichment_options.application_identifiers and application_name is not None:
-                # insert the app name between the first frame and all others
-                try:
-                    first_frame, others = stack.split(";", maxsplit=1)
-                    stack = f"{first_frame};{application_name};{others}"
-                except ValueError:
-                    stack = f"{stack};{application_name}"
-
             total_samples += count
-            lines.append(f"{application_prefix}{container_prefix}{stack} {count}")
+            lines.append(_enrich_and_finalize_stack(stack, count, enrichment_options, enrich_data))
 
     lines.insert(
         0,
