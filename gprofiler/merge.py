@@ -39,8 +39,8 @@ class EnrichmentOptions:
     Profile enrichment options.
     """
 
+    profile_api_version: str  # profile protocol version. v1 does not support container_names and application_metadata.
     container_names: bool  # Include container names for each stack in result profile
-    container_names_in_protocol: bool  # Are container names a part of the protocol? (true iff not v1)
     application_identifiers: bool  # Attempt to produce & include appid frames for each stack in result profile
     application_metadata: bool  # Include specialized metadata per application, e.g for Python - the Python version
 
@@ -287,14 +287,20 @@ def _enrich_pid_stacks(
     if app_metadata not in application_metadata:
         application_metadata.append(app_metadata)
     idx = application_metadata.index(app_metadata)
-    # we include the application metadata frame IFF application_metadata is enabled
-    application_prefix = (f"{idx};") if enrichment_options.application_metadata else ""
+    # we include the application metadata frame if application_metadata is enabled, and we're not in protocol
+    # version v1.
+    if enrichment_options.profile_api_version != "v1" and enrichment_options.application_metadata:
+        application_prefix = f"{idx};"
+    else:
+        application_prefix = ""
 
     # generate container name
     # to maintain compatibility with old profiler versions, we include the container name frame in any case
     # if the protocol version does not "v1, regardless of whether container_names is enabled or not.
-    container_name = _get_container_name(pid, container_names_client, enrichment_options.container_names)
-    container_prefix = (container_name + ";") if enrichment_options.container_names_in_protocol else ""
+    if enrichment_options.profile_api_version != "v1":
+        container_prefix = _get_container_name(pid, container_names_client, enrichment_options.container_names) + ";"
+    else:
+        container_prefix = ""
 
     return PidStackEnrichment(application_name, application_prefix, container_prefix)
 

@@ -727,12 +727,11 @@ def main() -> None:
             remote_logs_handler.init_api_client(client)
 
         enrichment_options = EnrichmentOptions(
-            container_names=args.container_names and args.profile_api_version != "v1",
-            container_names_in_protocol=args.profile_api_version != "v1",
-            application_identifiers=args.identify_applications,  # supported always - this just adds a frame.
-            application_metadata=args.application_metadata and args.profile_api_version != "v1",
+            profile_api_version=args.profile_api_version,
+            container_names=args.container_names,
+            application_identifiers=args.identify_applications,
+            application_metadata=args.application_metadata,
         )
-        assert enrichment_options.container_names_in_protocol or not enrichment_options.container_names
 
         gprofiler = GProfiler(
             args.output_dir,
