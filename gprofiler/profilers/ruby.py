@@ -29,8 +29,7 @@ logger = get_logger_adapter(__name__)
 class RubyMetadata(ApplicationMetadata):
     _RUBY_VERSION_TIMEOUT = 3
 
-    @classmethod
-    def _get_ruby_version(cls, process: Process, stop_event: Event) -> str:
+    def _get_ruby_version(self, process: Process) -> str:
         if not os.path.basename(process.exe()).startswith("ruby"):
             # TODO: for dynamic executables, find the ruby binary that works with the loaded libruby, and
             # check it instead. For static executables embedding libruby - :shrug:
@@ -44,16 +43,15 @@ class RubyMetadata(ApplicationMetadata):
                     ruby_path,
                     "--version",
                 ],
-                stop_event=stop_event,
-                timeout=cls._RUBY_VERSION_TIMEOUT,
+                stop_event=self._stop_event,
+                timeout=self._RUBY_VERSION_TIMEOUT,
             )
 
         return run_in_ns(["pid", "mnt"], _run_ruby_version, process.pid).stdout.decode().strip()
 
-    @classmethod
-    def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict[str, Any]:
+    def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         # ruby version
-        version = cls._get_ruby_version(process, stop_event)
+        version = self._get_ruby_version(process)
 
         # ruby elfid & libruby elfid, if exists
         ruby_elfid = get_elf_id(f"/proc/{process.pid}/exe")
@@ -61,7 +59,7 @@ class RubyMetadata(ApplicationMetadata):
 
         metadata = {"ruby_version": version, "ruby_elfid": ruby_elfid, "libruby_elfid": libruby_elfid}
 
-        metadata.update(super().make_application_metadata(process, stop_event))
+        metadata.update(super().make_application_metadata(process))
         return metadata
 
 
@@ -79,6 +77,7 @@ class RbSpyProfiler(ProcessProfilerBase):
     def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str, ruby_mode: str):
         super().__init__(frequency, duration, stop_event, storage_dir)
         assert ruby_mode == "rbspy", "Ruby profiler should not be initialized, wrong ruby_mode value given"
+        self._metadata = RubyMetadata(self._stop_event)
 
     def _make_command(self, pid: int, output_path: str) -> List[str]:
         return [
@@ -104,7 +103,7 @@ class RbSpyProfiler(ProcessProfilerBase):
         logger.info(
             f"Profiling process {process.pid} with rbspy", cmdline=" ".join(process.cmdline()), no_extra_to_server=True
         )
-        RubyMetadata.update_metadata(process, self._stop_event)
+        self._metadata.update_metadata(process)
 
         local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):

@@ -161,15 +161,14 @@ def get_java_version(process: Process, stop_event: Event) -> str:
 
 
 class JavaMetadata(ApplicationMetadata):
-    @classmethod
-    def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict[str, Any]:
-        version = get_java_version(process, stop_event)
+    def make_application_metadata(self, process: Process) -> Dict[str, Any]:
+        version = get_java_version(process, self._stop_event)
         # libjvm elfid
         libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")
 
         metadata = {"java_version": version, "libjvm_elfid": libjvm_elfid}
 
-        metadata.update(super().make_application_metadata(process, stop_event))
+        metadata.update(super().make_application_metadata(process))
         return metadata
 
 
@@ -617,6 +616,7 @@ class JavaProfiler(ProcessProfilerBase):
         self._kernel_messages_provider = get_kernel_messages_provider()
         self._enabled_proc_events = False
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
+        self._metadata = JavaMetadata(self._stop_event)
 
     def _init_ap_mode(self, ap_mode: str) -> None:
         if ap_mode == "auto":
@@ -763,7 +763,7 @@ class JavaProfiler(ProcessProfilerBase):
             self._profiled_pids.add(process.pid)
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
-        JavaMetadata.update_metadata(process, self._stop_event)
+        self._metadata.update_metadata(process)
 
         with AsyncProfiledProcess(
             process, self._storage_dir, self._stop_event, self._buildids, self._mode, self._ap_safemode, self._ap_args

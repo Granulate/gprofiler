@@ -89,8 +89,7 @@ def _add_versions_to_stacks(
 class PythonMetadata(ApplicationMetadata):
     _PYTHON_VERSION_TIMEOUT = 3
 
-    @classmethod
-    def _get_python_version(cls, process: Process, stop_event: Event) -> str:
+    def _get_python_version(self, process: Process) -> str:
         if not os.path.basename(process.exe()).startswith("python"):
             # TODO: for dynamic executables, find the python binary that works with the loaded libpython, and
             # check it instead. For static executables embedding libpython - :shrug:
@@ -104,8 +103,8 @@ class PythonMetadata(ApplicationMetadata):
                     python_path,
                     "-V",
                 ],
-                stop_event=stop_event,
-                timeout=cls._PYTHON_VERSION_TIMEOUT,
+                stop_event=self._stop_event,
+                timeout=self._PYTHON_VERSION_TIMEOUT,
             )
 
         cp = run_in_ns(["pid", "mnt"], _run_python_version, process.pid)
@@ -116,11 +115,10 @@ class PythonMetadata(ApplicationMetadata):
         # Python 2 prints to stderr
         return cp.stderr.decode().strip()
 
-    @classmethod
-    def make_application_metadata(cls, process: Process, stop_event: Event) -> Dict[str, Any]:
+    def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         # python version
         try:
-            version: Optional[str] = cls._get_python_version(process, stop_event)
+            version: Optional[str] = self._get_python_version(process)
         except Exception:
             version = None
 
@@ -132,7 +130,7 @@ class PythonMetadata(ApplicationMetadata):
 
         metadata = {"python_version": version, "python_elfid": python_elfid, "libpython_elfid": libpython_elfid}
 
-        metadata.update(super().make_application_metadata(process, stop_event))
+        metadata.update(super().make_application_metadata(process))
         return metadata
 
 
@@ -151,6 +149,7 @@ class PySpyProfiler(ProcessProfilerBase):
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
         self.add_versions = add_versions
+        self._metadata = PythonMetadata(self._stop_event)
 
     def _make_command(self, pid: int, output_path: str) -> List[str]:
         return [
@@ -174,7 +173,7 @@ class PySpyProfiler(ProcessProfilerBase):
 
     def _profile_process(self, process: Process) -> StackToSampleCount:
         logger.info(f"Profiling process {process.pid} with py-spy", cmdline=process.cmdline(), no_extra_to_server=True)
-        PythonMetadata.update_metadata(process, self._stop_event)
+        self._metadata.update_metadata(process)
         comm = process_comm(process)
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
@@ -267,6 +266,7 @@ class PythonEbpfProfiler(ProfilerBase):
         self.add_versions = add_versions
         self.user_stacks_pages = user_stacks_pages
         self._kernel_offsets: Dict[str, int] = {}
+        self._metadata = PythonMetadata(self._stop_event)
 
     @classmethod
     def _pyperf_error(cls, process: Popen) -> NoReturn:
@@ -427,7 +427,7 @@ class PythonEbpfProfiler(ProfilerBase):
             parsed = _add_versions_to_stacks(parsed)
         for pid in parsed:
             try:
-                PythonMetadata.update_metadata(Process(pid), self._stop_event)
+                self._metadata.update_metadata(Process(pid))
             except NoSuchProcess:
                 continue
         return parsed
