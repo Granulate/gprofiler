@@ -31,6 +31,11 @@ class RubyMetadata(ApplicationMetadata):
 
     @classmethod
     def _get_ruby_version(cls, process: Process, stop_event: Event) -> str:
+        if not os.path.basename(process.exe()).startswith("ruby"):
+            # TODO: for dynamic executables, find the ruby binary that works with the loaded libruby, and
+            # check it instead. For static executables embedding libruby - :shrug:
+            raise NotImplementedError
+
         ruby_path = f"/proc/{get_process_nspid(process.pid)}/exe"
 
         def _run_ruby_version() -> "CompletedProcess[bytes]":
