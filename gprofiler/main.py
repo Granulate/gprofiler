@@ -487,9 +487,9 @@ def parse_cmd_args() -> Any:
 
     parser.add_argument(
         "--disable-container-names",
-        action="store_true",
-        dest="disable_container_names",
-        default=False,
+        action="store_false",
+        dest="container_names",
+        default=True,
         help="gProfiler won't gather the container names of processes that run in containers",
     )
 
@@ -727,7 +727,7 @@ def main() -> None:
             remote_logs_handler.init_api_client(client)
 
         enrichment_options = EnrichmentOptions(
-            container_names=not args.disable_container_names and args.profile_api_version != "v1",
+            container_names=args.container_names and args.profile_api_version != "v1",
             container_names_in_protocol=args.profile_api_version != "v1",
             application_identifiers=args.identify_applications,  # supported always - this just adds a frame.
             application_metadata=args.application_metadata and args.profile_api_version != "v1",
