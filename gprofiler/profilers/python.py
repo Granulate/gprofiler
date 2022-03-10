@@ -124,7 +124,9 @@ class PythonMetadata(ApplicationMetadata):
         except Exception:
             version = None
 
-        # python id & libpython id, if exists
+        # python id & libpython id, if exists.
+        # if libpython exists then the python binary itself is of less importance; however, to avoid confusion
+        # we collect them both here (then we're able to know if either exist)
         python_elfid = get_elf_id(f"/proc/{process.pid}/exe")
         libpython_elfid = get_mapped_dso_elf_id(process, "/libpython")
 
