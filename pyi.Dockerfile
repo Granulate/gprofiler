@@ -100,10 +100,12 @@ RUN ./bcc_helpers_build.sh
 # bcc & gprofiler
 FROM centos${GPROFILER_BUILDER} AS build-stage
 
-RUN sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
-RUN sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
-RUN yum install -y dnf-plugins-core
-RUN dnf config-manager --set-enabled powertools
+RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
+    sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*; \
+    sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*; \
+    yum install -y dnf-plugins-core; \
+    dnf config-manager --set-enabled powertools; \
+    fi
 
 # bcc part
 # TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
@@ -160,8 +162,10 @@ COPY granulate-utils/granulate_utils granulate-utils/granulate_utils
 RUN python3 -m pip install -r requirements.txt
 
 COPY exe-requirements.txt exe-requirements.txt
-RUN ar rcs /lib64/libnss_files.a
-RUN ar rcs /lib64/libnss_dns.a
+RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
+    ! test -f /lib64/libnss_files.a && ar rcs /lib64/libnss_files.a && \
+    ! test -f /lib64/libnss_dns.a && ar rcs /lib64/libnss_dns.a; \
+    fi
 RUN python3 -m pip install -r exe-requirements.txt
 
 # copy PyPerf and stuff
