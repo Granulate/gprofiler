@@ -178,11 +178,11 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
 def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[str, Image]]:
     images = {}
     for runtime in os.listdir(str(CONTAINERS_DIRECTORY)):
-        images[runtime], _ = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime))
+        images[runtime], _ = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime), rm=True)
         musl_dockerfile = CONTAINERS_DIRECTORY / runtime / "musl.Dockerfile"
         if musl_dockerfile.exists():
             images[runtime + "_musl"], _ = docker_client.images.build(
-                path=str(CONTAINERS_DIRECTORY / runtime), dockerfile=str(musl_dockerfile)
+                path=str(CONTAINERS_DIRECTORY / runtime), dockerfile=str(musl_dockerfile), rm=True
             )
 
     yield images
