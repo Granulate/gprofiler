@@ -162,6 +162,9 @@ COPY granulate-utils/granulate_utils granulate-utils/granulate_utils
 RUN python3 -m pip install -r requirements.txt
 
 COPY exe-requirements.txt exe-requirements.txt
+# build on centos:8 of Aarch64 requires -lnss_files and -lnss_dns. the files are missing but the symbols
+# seem to be provided from another archive (e.g libc.a), so this "fix" bypasses the ld error of "missing -lnss..."
+# see https://github.com/JonathonReinhart/staticx/issues/219
 RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
     ! test -f /lib64/libnss_files.a && ar rcs /lib64/libnss_files.a && \
     ! test -f /lib64/libnss_dns.a && ar rcs /lib64/libnss_dns.a; \
