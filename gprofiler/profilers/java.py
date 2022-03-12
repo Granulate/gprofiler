@@ -515,7 +515,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
     ],
 )
 class JavaProfiler(ProcessProfilerBase):
-    JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
+    JDK_EXCLUSIONS = ["Zing"]
     # Major -> (min version, min build number of version)
     MINIMAL_SUPPORTED_VERSIONS = {
         7: (Version("7.76"), 4),
