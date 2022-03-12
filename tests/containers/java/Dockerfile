@@ -1,4 +1,5 @@
-FROM openjdk:8u275
+ARG JAVA_BASE_IMAGE=openjdk:8u275
+FROM ${JAVA_BASE_IMAGE}
 
 WORKDIR /app
 ADD Fibonacci.java /app

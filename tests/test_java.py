@@ -284,3 +284,21 @@ def test_async_profiler_stops_after_given_timeout(
 
         ap_proc.status_async_profiler()
         assert "Profiler is not active\n" in cast_away_optional(ap_proc.read_output())
+
+
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("image_suffix", ["_j9"])
+def test_sanity_j9(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed: AssertInCollapsed,
+) -> None:
+    with make_java_profiler(
+        frequency=99,
+        storage_dir=str(tmp_path),
+        java_async_profiler_mode="itimer",
+    ) as profiler:
+        assert "OpenJ9" in profiler._get_java_version(psutil.Process(application_pid))
+
+        process_collapsed = snapshot_one_collaped(profiler)
+        assert_collapsed(process_collapsed)
