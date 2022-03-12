@@ -100,6 +100,7 @@ RUN ./bcc_helpers_build.sh
 # bcc & gprofiler
 FROM centos${GPROFILER_BUILDER} AS build-stage
 
+# fix repo links for CentOS 8, and enable powertools (required to download glibc-static)
 RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
     sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*; \
     sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*; \
@@ -149,7 +150,7 @@ WORKDIR /app
 
 RUN yum install -y epel-release
 RUN yum install -y gcc python3 curl python3-pip patchelf python3-devel upx
-# needed for aarch64
+# needed for aarch64 (for staticx)
 RUN if [ $(uname -m) = "aarch64" ]; then yum install -y glibc-static zlib-devel.aarch64; fi
 # needed for aarch64, scons & wheel are needed to build staticx
 RUN if [ $(uname -m) = "aarch64" ]; then python3 -m pip install 'wheel==0.37.0' 'scons==4.2.0'; fi
