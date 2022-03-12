@@ -102,7 +102,7 @@ def test_java_async_profiler_cpu_mode(
 
 
 @pytest.mark.parametrize("in_container", [True])
-@pytest.mark.parametrize("musl", [True])
+@pytest.mark.parametrize("image_suffix", ["_musl"])
 def test_java_async_profiler_musl_and_cpu(
     tmp_path: Path,
     application_pid: int,

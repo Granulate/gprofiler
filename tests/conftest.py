@@ -191,16 +191,18 @@ def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[s
 
 
 @fixture
-def musl() -> bool:
-    # selects the musl version of an application image (e.g java:alpine)
-    return False
+def image_suffix() -> str:
+    # lets tests override this value and use a suffixed image, e.g _musl or _j9.
+    return ""
 
 
 @fixture
 def application_docker_image(
-    application_docker_images: Mapping[str, Image], runtime: str, musl: bool
+    application_docker_images: Mapping[str, Image],
+    runtime: str,
+    image_suffix: str,
 ) -> Iterable[Image]:
-    runtime = runtime + ("_musl" if musl else "")
+    runtime = runtime + image_suffix
     yield application_docker_images[runtime]
 
 
