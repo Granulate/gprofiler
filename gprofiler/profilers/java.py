@@ -55,7 +55,7 @@ from gprofiler.utils import (
 )
 from gprofiler.utils.fs import safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
-from gprofiler.utils.process import process_comm
+from gprofiler.utils.process import is_musl, process_comm
 
 logger = get_logger_adapter(__name__)
 
@@ -258,7 +258,7 @@ class AsyncProfiledProcess:
     @functools.lru_cache(maxsize=1)
     def _is_musl(self) -> bool:
         # Is target process musl-based?
-        return any("ld-musl" in m.path for m in self.process.memory_maps())
+        return is_musl(self.process)
 
     def _copy_libap(self) -> None:
         # copy *is* racy with respect to other processes running in the same namespace, because they all use
