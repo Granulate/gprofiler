@@ -133,12 +133,12 @@ class PythonMetadata(ApplicationMetadata):
         # python id & libpython id, if exists.
         # if libpython exists then the python binary itself is of less importance; however, to avoid confusion
         # we collect them both here (then we're able to know if either exist)
-        python_elfid = get_elf_id(f"/proc/{process.pid}/exe")
+        exe_elfid = get_elf_id(f"/proc/{process.pid}/exe")
         libpython_elfid = get_mapped_dso_elf_id(process, "/libpython")
 
         metadata = {
             "python_version": version,
-            "python_elfid": python_elfid,
+            "exe_elfid": exe_elfid,
             "libpython_elfid": libpython_elfid,
             "sys_maxunicode": maxunicode,
         }

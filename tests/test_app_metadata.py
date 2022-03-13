@@ -55,7 +55,7 @@ def test_python_app_metadata(
         "exe": "/usr/local/bin/python3.6",
         "execfn": "/usr/local/bin/python",
         "libpython_elfid": "buildid:0ef3fce0ef90d8f40ad9236793d30081001ee898",
-        "python_elfid": "buildid:a04b9016e15a247fbc21c91260c13e17a458ed33",
+        "exe_elfid": "buildid:a04b9016e15a247fbc21c91260c13e17a458ed33",
         "python_version": "Python 3.6.15",
         "sys_maxunicode": None,
     }

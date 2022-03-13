@@ -54,10 +54,10 @@ class RubyMetadata(ApplicationMetadata):
         version = self._get_ruby_version(process)
 
         # ruby elfid & libruby elfid, if exists
-        ruby_elfid = get_elf_id(f"/proc/{process.pid}/exe")
+        exe_elfid = get_elf_id(f"/proc/{process.pid}/exe")
         libruby_elfid = get_mapped_dso_elf_id(process, "/libruby")
 
-        metadata = {"ruby_version": version, "ruby_elfid": ruby_elfid, "libruby_elfid": libruby_elfid}
+        metadata = {"ruby_version": version, "exe_elfid": exe_elfid, "libruby_elfid": libruby_elfid}
 
         metadata.update(super().make_application_metadata(process))
         return metadata
