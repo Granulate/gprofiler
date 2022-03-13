@@ -417,10 +417,9 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
 
     # version is always in quotes
     _, version_str, _ = lines[0].split('"')
-    build_str = lines[2].split("(build ")[1]
-    assert "," in build_str, f"Didn't find comma in build information: {build_str!r}"
-    # Extra information we don't care about is placed after a comma
-    build_str = build_str[: build_str.find(",")]
+    build_str = lines[1].split("(build ")[1]
+    assert build_str.endswith(")"), f"build information does not end with ): {build_str!r}"
+    build_str = build_str[: -len(")")]
 
     if version_str.endswith("-internal") or version_str.endswith("-ea"):
         # strip the "internal" or "early access" suffixes
