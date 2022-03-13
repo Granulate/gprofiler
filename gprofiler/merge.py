@@ -14,7 +14,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata.application_identifiers import get_application_name
+from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import get_application_metadata
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.system_metrics import Metrics
@@ -275,7 +275,9 @@ def _enrich_pid_stacks(
     * container name
     """
     # generate application name
-    application_name = get_application_name(pid) if enrichment_options.application_identifiers else None
+    application_name = (
+        application_identifiers.get_application_name(pid) if enrichment_options.application_identifiers else None
+    )
     if application_name is not None:
         application_name = f"appid: {application_name}"
 

@@ -9,10 +9,10 @@ from subprocess import Popen
 from threading import Event
 from typing import List, Optional
 
+from gprofiler import merge
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters
 from gprofiler.log import get_logger_adapter
-from gprofiler.merge import merge_global_perfs
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import run_process, start_process, wait_event, wait_for_file_by_prefix
@@ -202,7 +202,7 @@ class SystemProfiler(ProfilerBase):
         for perf in self._perfs:
             perf.switch_output()
 
-        return merge_global_perfs(
+        return merge.merge_global_perfs(
             self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
             self._perf_dwarf.wait_and_script() if self._perf_dwarf is not None else None,
         )

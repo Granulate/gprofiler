@@ -5,5 +5,31 @@
 #
 set -euo pipefail
 
+# pyspy & rbspy, using the same builder for both pyspy and rbspy since they share build dependencies - rust:latest 1.52.1
+RUST_BUILDER_VERSION=@sha256:9c106c1222abe1450f45774273f36246ebf257623ed51280dbc458632d14c9fc
+# perf - ubuntu:16.04 (IIRC for older glibc, to support older kernels)
+UBUNTU_VERSION_1604=@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c
+# phpspy & pyperf - ubuntu:20.04
+UBUNTU_VERSION=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
+# async-profiler glibc - centos:7
+AP_BUILDER_CENTOS=@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e
+# async-profiler musl - alpine
+AP_BUILDER_ALPINE=@sha256:69704ef328d05a9f806b6b8502915e6a0a4faa4d72018dc42343f511490daf8a
+# burn - golang:1.16.3
+BURN_BUILDER_GOLANG=@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d84d66ef25fa345f1
+# bcc & gprofiler - centos:7
+# CentOS 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
+# this will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
+GPROFILER_BUILDER=@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e
+
 mkdir -p build/x86_64
-DOCKER_BUILDKIT=1 docker build -f pyi.Dockerfile --output type=local,dest=build/x86_64/ .
+DOCKER_BUILDKIT=1 docker build -f pyi.Dockerfile --output type=local,dest=build/x86_64/ \
+    --build-arg RUST_BUILDER_VERSION=$RUST_BUILDER_VERSION \
+    --build-arg PYPERF_BUILDER_UBUNTU=$UBUNTU_VERSION \
+    --build-arg PERF_BUILDER_UBUNTU=$UBUNTU_VERSION_1604 \
+    --build-arg PHPSPY_BUILDER_UBUNTU=$UBUNTU_VERSION \
+    --build-arg AP_BUILDER_CENTOS=$AP_BUILDER_CENTOS \
+    --build-arg AP_BUILDER_ALPINE=$AP_BUILDER_ALPINE \
+    --build-arg BURN_BUILDER_GOLANG=$BURN_BUILDER_GOLANG \
+    --build-arg GPROFILER_BUILDER=$GPROFILER_BUILDER \
+    .
