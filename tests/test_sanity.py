@@ -18,12 +18,7 @@ from gprofiler.profilers.python import PySpyProfiler, PythonEbpfProfiler
 from gprofiler.profilers.ruby import RbSpyProfiler
 from tests import PHPSPY_DURATION
 from tests.conftest import AssertInCollapsed
-from tests.utils import (
-    RUNTIME_PROFILERS,
-    assert_function_in_collapsed,
-    run_gprofiler_in_container,
-    snapshot_one_collaped,
-)
+from tests.utils import RUNTIME_PROFILERS, assert_function_in_collapsed, run_gprofiler_container, snapshot_one_collaped
 
 
 @pytest.mark.parametrize("runtime", ["java"])
@@ -158,13 +153,8 @@ def test_from_container(
 ) -> None:
     _ = application_pid  # Fixture only used for running the application.
     _ = assert_application_name  # Required for mypy unused argument warning
-    inner_output_directory = "/tmp/gprofiler"
-    volumes = {
-        str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
-    }
-
-    args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args + profiler_flags
-    run_gprofiler_in_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
-
-    collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
+    collapsed_text = run_gprofiler_container(
+        docker_client, gprofiler_docker_image, output_directory, runtime_specific_args, profiler_flags
+    )
+    collapsed = parse_one_collapsed(collapsed_text)
     assert_collapsed(collapsed)
