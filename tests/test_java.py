@@ -4,6 +4,7 @@
 #
 import logging
 import os
+import shutil
 import signal
 import threading
 import time
@@ -23,6 +24,20 @@ from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler, frequen
 from tests.conftest import AssertInCollapsed
 from tests.type_utils import cast_away_optional
 from tests.utils import assert_function_in_collapsed, make_java_profiler, snapshot_one_collaped
+
+
+def get_libjvm_path(application_pid: int) -> str:
+    libjvms = set()
+    for m in psutil.Process(application_pid).memory_maps():
+        if "/libjvm.so" in m.path:
+            libjvms.add(m.path)
+    assert len(libjvms) == 1
+    return f"/proc/{application_pid}/root/{libjvms.pop()}"
+
+
+def is_libjvm_deleted(application_pid: int) -> bool:
+    # can't use get_libjvm_path() - psutil removes "deleted" if the file actually exists...
+    return "/libjvm.so (deleted)" in Path(f"/proc/{application_pid}/maps").read_text()
 
 
 # adds the "status" command to AsyncProfiledProcess from gProfiler.
@@ -281,3 +296,23 @@ def test_async_profiler_stops_after_given_timeout(
 
         ap_proc.status_async_profiler()
         assert "Profiler is not active\n" in cast_away_optional(ap_proc.read_output())
+
+
+# test only once. in a container, so that we don't mess up the environment :)
+@pytest.mark.parametrize("in_container", [True])
+def test_java_deleted_libjvm(tmp_path: Path, application_pid: int, assert_collapsed: AssertInCollapsed) -> None:
+    """
+    Tests that we can profile processes whose libjvm was deleted, e.g because Java was upgraded.
+    """
+    assert not is_libjvm_deleted(application_pid)
+    # simulate upgrade process - file is removed and replaced by another one.
+    libjvm = get_libjvm_path(application_pid)
+    libjvm_tmp = libjvm + "."
+    shutil.copy(libjvm, libjvm_tmp)
+    os.unlink(libjvm)
+    os.rename(libjvm_tmp, libjvm)
+    assert is_libjvm_deleted(application_pid)
+
+    with make_java_profiler(storage_dir=str(tmp_path), duration=3) as profiler:
+        process_collapsed = snapshot_one_collaped(profiler)
+        assert_collapsed(process_collapsed)
