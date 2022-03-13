@@ -4,7 +4,7 @@
 #
 import json
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 
 import pytest
 from docker import DockerClient
@@ -17,12 +17,49 @@ from tests.utils import run_gprofiler_container
 
 
 @pytest.mark.parametrize(
-    "in_container,runtime,profiler_type",
+    "in_container,runtime,profiler_type,expected_metadata",
     [
-        (True, "python", "pyperf"),
+        (
+            True,
+            "python",
+            "pyperf",
+            {
+                "exe": "/usr/local/bin/python3.6",
+                "execfn": "/usr/local/bin/python",
+                "libpython_elfid": "buildid:0ef3fce0ef90d8f40ad9236793d30081001ee898",
+                "exe_elfid": "buildid:a04b9016e15a247fbc21c91260c13e17a458ed33",
+                "python_version": "Python 3.6.15",
+                "sys_maxunicode": None,
+            },
+        ),
+        (
+            True,
+            "ruby",
+            "rbspy",
+            {
+                "exe": "/usr/local/bin/ruby",
+                "execfn": "/usr/local/bin/ruby",
+                "libruby_elfid": "buildid:bf7da94bfdf3cb595ae0af450112076bdaaabee8",
+                "exe_elfid": "buildid:cbc0ab21749fe48b904fff4e73b88413270bd8ba",
+                "ruby_version": "ruby 2.6.7p197 (2021-04-05 revision 67941) [x86_64-linux]",
+            },
+        ),
+        (
+            True,
+            "java",
+            "ap",
+            {
+                "exe": "/usr/local/openjdk-8/bin/java",
+                "execfn": "/usr/local/openjdk-8/bin/java",
+                "java_version": 'openjdk version "1.8.0_275"\n'
+                "OpenJDK Runtime Environment (build 1.8.0_275-b01)\n"
+                "OpenJDK 64-Bit Server VM (build 25.275-b01, mixed mode)",
+                "libjvm_elfid": "buildid:0542486ff00153ca0bcf9f2daea9a36c428d6cde",
+            },
+        ),
     ],
 )
-def test_python_app_metadata(
+def test_app_metadata(
     docker_client: DockerClient,
     application_docker_container: Container,
     runtime_specific_args: List[str],
@@ -30,6 +67,8 @@ def test_python_app_metadata(
     output_directory: Path,
     assert_collapsed: AssertInCollapsed,
     profiler_flags: List[str],
+    expected_metadata: Dict,
+    runtime: str,
 ) -> None:
     run_gprofiler_container(
         docker_client, gprofiler_docker_image, output_directory, runtime_specific_args, profiler_flags
@@ -45,17 +84,10 @@ def test_python_app_metadata(
     metadata = json.loads(lines[0][1:])
 
     assert application_docker_container.name in metadata["containers"]
-    # find its app metadata index - find a stack line from the python app of this container
-    stack = next(filter(lambda l: application_docker_container.name in l and "python" in l, lines[1:]))
+    # find its app metadata index - find a stack line from the app of this container
+    stack = next(filter(lambda l: application_docker_container.name in l and runtime in l, lines[1:]))
     # stack begins with index
     idx = int(stack.split(";")[0])
 
     # values from the current test container
-    assert metadata["application_metadata"][idx] == {
-        "exe": "/usr/local/bin/python3.6",
-        "execfn": "/usr/local/bin/python",
-        "libpython_elfid": "buildid:0ef3fce0ef90d8f40ad9236793d30081001ee898",
-        "exe_elfid": "buildid:a04b9016e15a247fbc21c91260c13e17a458ed33",
-        "python_version": "Python 3.6.15",
-        "sys_maxunicode": None,
-    }
+    assert metadata["application_metadata"][idx] == expected_metadata
