@@ -13,7 +13,7 @@ from typing import Iterable, Optional, Tuple
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata.application_identifiers import get_application_name
+from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.system_metrics import Metrics
 
@@ -256,7 +256,7 @@ def concatenate_profiles(
 
     for pid, stacks in process_profiles.items():
         container_name = _get_container_name(pid, container_names_client, add_container_names)
-        application_name = get_application_name(pid) if identify_applications else None
+        application_name = application_identifiers.get_application_name(pid) if identify_applications else None
         if application_name is not None:
             application_name = f"appid: {application_name}"
         prefix = (container_name + ";") if add_container_names else ""
