@@ -163,7 +163,8 @@ def get_java_version(process: Process, stop_event: Event) -> str:
 class JavaMetadata(ApplicationMetadata):
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         version = get_java_version(process, self._stop_event)
-        # libjvm elfid
+        # libjvm elfid - we care only about libjvm, not about the java exe itself which is a just small program
+        # that loads other libs.
         libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")
 
         metadata = {"java_version": version, "libjvm_elfid": libjvm_elfid}
