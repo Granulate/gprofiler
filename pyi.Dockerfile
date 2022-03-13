@@ -1,25 +1,15 @@
 # parts are copied from Dockerfile
 
 # these need to be defined before any FROM - otherwise, the ARGs expand to empty strings.
-
-# pyspy & rbspy, using the same builder for both pyspy and rbspy since they share build dependencies - rust:latest 1.52.1
-ARG RUST_BUILDER_VERSION=@sha256:9c106c1222abe1450f45774273f36246ebf257623ed51280dbc458632d14c9fc
-# perf - ubuntu:16.04
-ARG PERF_BUILDER_UBUNTU=@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c
-# phpspy - ubuntu:20.04
-ARG PHPSPY_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
-# async-profiler glibc - centos:7, see explanation in Dockerfile
-ARG AP_BUILDER_CENTOS=@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e
-# async-profiler musl build
-ARG AP_BUILDER_ALPINE=@sha256:69704ef328d05a9f806b6b8502915e6a0a4faa4d72018dc42343f511490daf8a
-# burn - golang:1.16.3
-ARG BURN_BUILDER_GOLANG=@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d84d66ef25fa345f1
-# bcc & gprofiler - centos:7
-# CentOS 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
-# this will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
-ARG GPROFILER_BUILDER=@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e
-# pyperf - ubuntu 20.04
-ARG PYPERF_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
+# see build_x86_64_executable.sh and build_aarch64_executable.sh which define these.
+ARG RUST_BUILDER_VERSION
+ARG PERF_BUILDER_UBUNTU
+ARG PHPSPY_BUILDER_UBUNTU
+ARG AP_BUILDER_CENTOS
+ARG AP_BUILDER_ALPINE
+ARG BURN_BUILDER_GOLANG
+ARG GPROFILER_BUILDER
+ARG PYPERF_BUILDER_UBUNTU
 
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
