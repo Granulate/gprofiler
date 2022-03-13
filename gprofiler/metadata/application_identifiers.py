@@ -11,7 +11,10 @@ from typing import List, Optional, TextIO, Tuple, Union
 from granulate_utils.linux.ns import resolve_host_path, resolve_proc_root_links
 from psutil import NoSuchProcess, Process
 
+from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
+from gprofiler.profilers.java import jattach_path
+from gprofiler.utils import run_process
 
 _logger = get_logger_adapter(__name__)
 
@@ -244,11 +247,16 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
         if not any("libjvm.so" in m.path for m in process.memory_maps()):
             return None
 
-        jar_arg = _get_cli_arg_by_name(process.cmdline(), "-jar")
-        if jar_arg is _NON_AVAILABLE_ARG:
-            return None
+        try:
+            java_properties = run_process([jattach_path(), str(process.pid), "properties"]).stdout.decode()
+            for line in java_properties.splitlines():
+                if line.startswith("sun.java.command"):
+                    app_id = line[line.find("=") + 1 :]
+                    return f"java: {app_id} ({_append_file_to_proc_wd(process, app_id)})"
+        except CalledProcessError as e:
+            _logger.warning(f"Couldn't get Java properties for process {process.pid}: {e.stderr}")
 
-        return f"java: {jar_arg} ({_append_file_to_proc_wd(process, jar_arg)})"
+        return None
 
 
 # Please note that the order matter, because the FIRST matching identifier will be used.
