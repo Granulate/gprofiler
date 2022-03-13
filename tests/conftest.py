@@ -185,7 +185,7 @@ def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[s
             images[runtime + "_j9"], _ = docker_client.images.build(
                 path=str(CONTAINERS_DIRECTORY / runtime),
                 rm=True,
-                buildargs={"JAVA_BASE_IMAGE": "adoptopenjdk/openjdk11-openj9"},
+                buildargs={"JAVA_BASE_IMAGE": "adoptopenjdk/openjdk8-openj9"},
             )
 
         # build musl image if exists
