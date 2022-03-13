@@ -247,10 +247,6 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
         if not any("libjvm.so" in m.path for m in process.memory_maps()):
             return None
 
-        jar_arg = _get_cli_arg_by_name(process.cmdline(), "-jar")
-        if jar_arg is not _NON_AVAILABLE_ARG:
-            return f"java: {jar_arg} ({_append_file_to_proc_wd(process, jar_arg)})"
-
         try:
             java_properties = run_process([jattach_path(), str(process.pid), "properties"]).stdout.decode()
             for line in java_properties.splitlines():
