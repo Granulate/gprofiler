@@ -89,38 +89,46 @@ def _add_versions_to_stacks(
 class PythonMetadata(ApplicationMetadata):
     _PYTHON_VERSION_TIMEOUT = 3
 
-    def _get_python_version(self, process: Process) -> str:
-        if not os.path.basename(process.exe()).startswith("python"):
-            # TODO: for dynamic executables, find the python binary that works with the loaded libpython, and
-            # check it instead. For static executables embedding libpython - :shrug:
-            raise NotImplementedError
+    def _run_process_python_python(self, process: Process, args: List[str]) -> Optional[str]:
+        try:
+            if not os.path.basename(process.exe()).startswith("python"):
+                # TODO: for dynamic executables, find the python binary that works with the loaded libpython, and
+                # check it instead. For static executables embedding libpython - :shrug:
+                raise NotImplementedError
 
-        python_path = f"/proc/{get_process_nspid(process.pid)}/exe"
+            python_path = f"/proc/{get_process_nspid(process.pid)}/exe"
 
-        def _run_python_version() -> "CompletedProcess[bytes]":
-            return run_process(
-                [
-                    python_path,
-                    "-V",
-                ],
-                stop_event=self._stop_event,
-                timeout=self._PYTHON_VERSION_TIMEOUT,
-            )
+            def _run_python_version() -> "CompletedProcess[bytes]":
+                return run_process(
+                    [
+                        python_path,
+                    ]
+                    + args,
+                    stop_event=self._stop_event,
+                    timeout=self._PYTHON_VERSION_TIMEOUT,
+                )
 
-        cp = run_in_ns(["pid", "mnt"], _run_python_version, process.pid)
-        version = cp.stdout.decode().strip()
-        if version:
-            return version
+            cp = run_in_ns(["pid", "mnt"], _run_python_version, process.pid)
+            output = cp.stdout.decode().strip()
+            if not output and args == ["-V"]:
+                # if we run "python -V", Python 2 prints to stderr, so return that instead.
+                return cp.stderr.decode().strip()
 
-        # Python 2 prints to stderr
-        return cp.stderr.decode().strip()
+            return output
+        except Exception:
+            return None
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         # python version
-        try:
-            version: Optional[str] = self._get_python_version(process)
-        except Exception:
-            version = None
+        version = self._run_process_python_python(process, ["-V"])
+
+        # if python 2 - collect sys.maxunicode as well, to differentiate between ucs2 and ucs4
+        if version is not None and version.startswith("Python 2."):
+            maxunicode: Optional[str] = self._run_process_python_python(
+                process, ["-S", "-c", "import sys; print(sys.maxunicode)"]
+            )
+        else:
+            maxunicode = None
 
         # python id & libpython id, if exists.
         # if libpython exists then the python binary itself is of less importance; however, to avoid confusion
@@ -128,7 +136,12 @@ class PythonMetadata(ApplicationMetadata):
         python_elfid = get_elf_id(f"/proc/{process.pid}/exe")
         libpython_elfid = get_mapped_dso_elf_id(process, "/libpython")
 
-        metadata = {"python_version": version, "python_elfid": python_elfid, "libpython_elfid": libpython_elfid}
+        metadata = {
+            "python_version": version,
+            "python_elfid": python_elfid,
+            "libpython_elfid": libpython_elfid,
+            "sys_maxunicode": maxunicode,
+        }
 
         metadata.update(super().make_application_metadata(process))
         return metadata
