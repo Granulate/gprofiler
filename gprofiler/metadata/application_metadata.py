@@ -59,6 +59,8 @@ class ApplicationMetadata:
                 # let our caller handler this
                 raise
             except Exception:
+                # log only the first _MAX_METADATA_EXCEPTION_LOGS exceptions; I expect the same exceptions to
+                # be repeated again and again, so it's enough to log just a handful of them.
                 if self._metadata_exception_logs > self._MAX_METADATA_EXCEPTION_LOGS:
                     logger.exception(f"Exception while collecting metadata in {self.__class__.__name__}!")
             else:
