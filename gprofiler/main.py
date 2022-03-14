@@ -178,7 +178,7 @@ class GProfiler:
 
         collapsed_path = base_filename + ".col"
         Path(collapsed_path).write_text(collapsed_data)
-        stripped_collapsed_data = self._strip_container_data(collapsed_data)
+        stripped_collapsed_data = self._strip_extra_data(collapsed_data)
 
         # point last_profile.col at the new file; and possibly, delete the previous one.
         self._update_last_output("last_profile.col", collapsed_path)
@@ -209,12 +209,16 @@ class GProfiler:
 
             logger.info(f"Saved flamegraph to {flamegraph_path}")
 
-    @staticmethod
-    def _strip_container_data(collapsed_data: str) -> str:
+    def _strip_extra_data(self, collapsed_data: str) -> str:
+        """
+        Strips the container names & application metadata index, if exists.
+        """
         lines = []
         for line in collapsed_data.splitlines():
             if line.startswith("#"):
                 continue
+            if self._enrichment_options.application_metadata:
+                line = line[line.find(";") + 1 :]
             lines.append(line[line.find(";") + 1 :])
         return "\n".join(lines)
 
