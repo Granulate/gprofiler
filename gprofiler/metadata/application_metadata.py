@@ -25,7 +25,9 @@ def get_application_metadata(process: Union[int, Process]) -> Optional[Dict]:
 
 
 class ApplicationMetadata:
-    _CACHE_CLEAR_ON_SIZE = 16384
+    # chosen arbitrarily to be large enough to contain all processes we could possibly profile in one session; while
+    # not exploding memory too much.
+    _CACHE_CLEAR_ON_SIZE = 0x4000
     _cache: Dict[Process, Optional[Dict]] = {}
     _cache_clear_lock = Lock()
 
