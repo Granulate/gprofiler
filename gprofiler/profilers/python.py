@@ -11,7 +11,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from subprocess import CompletedProcess, Popen
 from threading import Event
-from typing import Any, Dict, List, Match, NoReturn, Optional, cast
+from typing import Any, Dict, List, Match, NoReturn, Optional, Tuple, cast
 
 from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from granulate_utils.linux.process import is_process_running, process_exe
@@ -89,44 +89,51 @@ def _add_versions_to_stacks(
 class PythonMetadata(ApplicationMetadata):
     _PYTHON_VERSION_TIMEOUT = 3
 
-    def _run_process_python_python(self, process: Process, args: List[str]) -> Optional[str]:
+    def _run_process_python(self, process: Process, args: List[str]) -> Tuple[str, str]:
+        if not os.path.basename(process.exe()).startswith("python"):
+            # TODO: for dynamic executables, find the python binary that works with the loaded libpython, and
+            # check it instead. For static executables embedding libpython - :shrug:
+            raise NotImplementedError
+
+        python_path = f"/proc/{get_process_nspid(process.pid)}/exe"
+
+        def _run_python_version() -> "CompletedProcess[bytes]":
+            return run_process(
+                [
+                    python_path,
+                ]
+                + args,
+                stop_event=self._stop_event,
+                timeout=self._PYTHON_VERSION_TIMEOUT,
+            )
+
+        cp = run_in_ns(["pid", "mnt"], _run_python_version, process.pid)
+        return cp.stdout.decode().strip(), cp.stderr.decode().strip()
+
+    def _get_python_version(self, process: Process) -> Optional[str]:
         try:
-            if not os.path.basename(process.exe()).startswith("python"):
-                # TODO: for dynamic executables, find the python binary that works with the loaded libpython, and
-                # check it instead. For static executables embedding libpython - :shrug:
-                raise NotImplementedError
+            stdout, stderr = self._run_process_python(process, ["-V"])
+            if stdout:
+                return stdout
+            # Python 2 prints -V to stderr, so return that instead.
+            return stderr
+        except Exception:
+            return None
 
-            python_path = f"/proc/{get_process_nspid(process.pid)}/exe"
-
-            def _run_python_version() -> "CompletedProcess[bytes]":
-                return run_process(
-                    [
-                        python_path,
-                    ]
-                    + args,
-                    stop_event=self._stop_event,
-                    timeout=self._PYTHON_VERSION_TIMEOUT,
-                )
-
-            cp = run_in_ns(["pid", "mnt"], _run_python_version, process.pid)
-            output = cp.stdout.decode().strip()
-            if not output and args == ["-V"]:
-                # if we run "python -V", Python 2 prints to stderr, so return that instead.
-                return cp.stderr.decode().strip()
-
-            return output
+    def _get_sys_maxunicode(self, process: Process) -> Optional[str]:
+        try:
+            stdout, stderr = self._run_process_python(process, ["-S", "-c", "import sys; print(sys.maxunicode)"])
+            return stdout
         except Exception:
             return None
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         # python version
-        version = self._run_process_python_python(process, ["-V"])
+        version = self._get_python_version(process)
 
         # if python 2 - collect sys.maxunicode as well, to differentiate between ucs2 and ucs4
         if version is not None and version.startswith("Python 2."):
-            maxunicode: Optional[str] = self._run_process_python_python(
-                process, ["-S", "-c", "import sys; print(sys.maxunicode)"]
-            )
+            maxunicode: Optional[str] = self._get_sys_maxunicode(process)
         else:
             maxunicode = None
 
