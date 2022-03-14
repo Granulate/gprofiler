@@ -337,7 +337,7 @@ def concatenate_profiles(
     """
     total_samples = 0
     lines = []
-    # the metadata list always containers a "null" entry with index 0 - that's the index used for all
+    # the metadata list always contains a "null" entry with index 0 - that's the index used for all
     # processes for which we didn't collect any metadata.
     application_metadata: List[Optional[Dict]] = [None]
 
