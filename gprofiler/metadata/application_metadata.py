@@ -63,6 +63,7 @@ class ApplicationMetadata:
                 # be repeated again and again, so it's enough to log just a handful of them.
                 if self._metadata_exception_logs > self._MAX_METADATA_EXCEPTION_LOGS:
                     logger.exception(f"Exception while collecting metadata in {self.__class__.__name__}!")
+                    self._metadata_exception_logs += 1
             else:
                 self._cache[process] = metadata
 
