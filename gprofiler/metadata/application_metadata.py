@@ -33,7 +33,7 @@ class ApplicationMetadata:
     _CACHE_CLEAR_ON_SIZE = 0x4000
     _cache: Dict[Process, Optional[Dict]] = {}
     _cache_clear_lock = Lock()
-    _metadata_exception_logs = 0
+    _metadata_exception_logs_count = 0
     _MAX_METADATA_EXCEPTION_LOGS = 100
 
     def __init__(self, stop_event: Event):
@@ -61,9 +61,9 @@ class ApplicationMetadata:
             except Exception:
                 # log only the first _MAX_METADATA_EXCEPTION_LOGS exceptions; I expect the same exceptions to
                 # be repeated again and again, so it's enough to log just a handful of them.
-                if self._metadata_exception_logs > self._MAX_METADATA_EXCEPTION_LOGS:
+                if self._metadata_exception_logs_count > self._MAX_METADATA_EXCEPTION_LOGS:
                     logger.exception(f"Exception while collecting metadata in {self.__class__.__name__}!")
-                    self._metadata_exception_logs += 1
+                    self._metadata_exception_logs_count += 1
             else:
                 self._cache[process] = metadata
 
