@@ -9,10 +9,11 @@ import resource
 import signal
 from collections import Counter, defaultdict
 from pathlib import Path
-from subprocess import Popen
+from subprocess import CompletedProcess, Popen
 from threading import Event
-from typing import Dict, List, Match, NoReturn, Optional, cast
+from typing import Any, Dict, List, Match, NoReturn, Optional, Tuple, cast
 
+from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from granulate_utils.linux.process import is_process_running, process_exe
 from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PROCESSES_REGEX
 from psutil import NoSuchProcess, Process
@@ -26,6 +27,7 @@ from gprofiler.exceptions import (
 )
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
@@ -41,6 +43,7 @@ from gprofiler.utils import (
     wait_event,
     wait_for_file_by_prefix,
 )
+from gprofiler.utils.elf import get_elf_id, get_mapped_dso_elf_id
 from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
@@ -83,6 +86,74 @@ def _add_versions_to_stacks(
     return result
 
 
+class PythonMetadata(ApplicationMetadata):
+    _PYTHON_VERSION_TIMEOUT = 3
+
+    def _run_process_python(self, process: Process, args: List[str]) -> Tuple[str, str]:
+        if not os.path.basename(process.exe()).startswith("python"):
+            # TODO: for dynamic executables, find the python binary that works with the loaded libpython, and
+            # check it instead. For static executables embedding libpython - :shrug:
+            raise NotImplementedError
+
+        python_path = f"/proc/{get_process_nspid(process.pid)}/exe"
+
+        def _run_python_process_in_ns() -> "CompletedProcess[bytes]":
+            return run_process(
+                [
+                    python_path,
+                ]
+                + args,
+                stop_event=self._stop_event,
+                timeout=self._PYTHON_VERSION_TIMEOUT,
+            )
+
+        cp = run_in_ns(["pid", "mnt"], _run_python_process_in_ns, process.pid)
+        return cp.stdout.decode().strip(), cp.stderr.decode().strip()
+
+    def _get_python_version(self, process: Process) -> Optional[str]:
+        try:
+            stdout, stderr = self._run_process_python(process, ["-V"])
+            if stdout:
+                return stdout
+            # Python 2 prints -V to stderr, so return that instead.
+            return stderr
+        except Exception:
+            return None
+
+    def _get_sys_maxunicode(self, process: Process) -> Optional[str]:
+        try:
+            stdout, stderr = self._run_process_python(process, ["-S", "-c", "import sys; print(sys.maxunicode)"])
+            return stdout
+        except Exception:
+            return None
+
+    def make_application_metadata(self, process: Process) -> Dict[str, Any]:
+        # python version
+        version = self._get_python_version(process)
+
+        # if python 2 - collect sys.maxunicode as well, to differentiate between ucs2 and ucs4
+        if version is not None and version.startswith("Python 2."):
+            maxunicode: Optional[str] = self._get_sys_maxunicode(process)
+        else:
+            maxunicode = None
+
+        # python id & libpython id, if exists.
+        # if libpython exists then the python binary itself is of less importance; however, to avoid confusion
+        # we collect them both here (then we're able to know if either exist)
+        exe_elfid = get_elf_id(f"/proc/{process.pid}/exe")
+        libpython_elfid = get_mapped_dso_elf_id(process, "/libpython")
+
+        metadata = {
+            "python_version": version,
+            "exe_elfid": exe_elfid,
+            "libpython_elfid": libpython_elfid,
+            "sys_maxunicode": maxunicode,
+        }
+
+        metadata.update(super().make_application_metadata(process))
+        return metadata
+
+
 class PySpyProfiler(ProcessProfilerBase):
     MAX_FREQUENCY = 50
     _EXTRA_TIMEOUT = 10  # give py-spy some seconds to run (added to the duration)
@@ -98,6 +169,7 @@ class PySpyProfiler(ProcessProfilerBase):
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
         self.add_versions = add_versions
+        self._metadata = PythonMetadata(self._stop_event)
 
     def _make_command(self, pid: int, output_path: str) -> List[str]:
         return [
@@ -121,6 +193,7 @@ class PySpyProfiler(ProcessProfilerBase):
 
     def _profile_process(self, process: Process) -> StackToSampleCount:
         logger.info(f"Profiling process {process.pid} with py-spy", cmdline=process.cmdline(), no_extra_to_server=True)
+        self._metadata.update_metadata(process)
         comm = process_comm(process)
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
@@ -213,6 +286,7 @@ class PythonEbpfProfiler(ProfilerBase):
         self.add_versions = add_versions
         self.user_stacks_pages = user_stacks_pages
         self._kernel_offsets: Dict[str, int] = {}
+        self._metadata = PythonMetadata(self._stop_event)
 
     @classmethod
     def _pyperf_error(cls, process: Popen) -> NoReturn:
@@ -371,6 +445,11 @@ class PythonEbpfProfiler(ProfilerBase):
         parsed = merge.parse_many_collapsed(collapsed_text)
         if self.add_versions:
             parsed = _add_versions_to_stacks(parsed)
+        for pid in parsed:
+            try:
+                self._metadata.update_metadata(Process(pid))
+            except NoSuchProcess:
+                continue
         return parsed
 
     def _terminate(self) -> Optional[int]:

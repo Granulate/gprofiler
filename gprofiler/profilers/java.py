@@ -13,7 +13,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event, Lock
 from types import TracebackType
-from typing import Any, List, Optional, Set, Type, TypeVar
+from typing import Any, Dict, List, Optional, Set, Type, TypeVar
 
 import psutil
 from granulate_utils.java import (
@@ -26,9 +26,9 @@ from granulate_utils.java import (
     java_exit_code_to_signo,
     locate_hotspot_error_file,
 )
-from granulate_utils.linux import ns, proc_events
+from granulate_utils.linux import proc_events
 from granulate_utils.linux.kernel_messages import KernelMessage
-from granulate_utils.linux.ns import get_proc_root_path, resolve_proc_root_links, run_in_ns
+from granulate_utils.linux.ns import get_proc_root_path, get_process_nspid, resolve_proc_root_links, run_in_ns
 from granulate_utils.linux.oom import get_oom_entry
 from granulate_utils.linux.process import is_process_running, process_exe
 from granulate_utils.linux.signals import get_signal_entry
@@ -40,6 +40,7 @@ from gprofiler.exceptions import CalledProcessError
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
@@ -53,6 +54,7 @@ from gprofiler.utils import (
     touch_path,
     wait_event,
 )
+from gprofiler.utils.elf import get_mapped_dso_elf_id
 from gprofiler.utils.fs import safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
 from gprofiler.utils.process import process_comm
@@ -124,6 +126,53 @@ class JattachException(CalledProcessError):
         return self._ap_log
 
 
+_JAVA_VERSION_TIMEOUT = 5
+
+
+def get_java_version(process: Process, stop_event: Event) -> str:
+    nspid = get_process_nspid(process.pid)
+
+    # this has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
+    # in that case, the libraries would have been replaced as well, and therefore we're actually checking
+    # the version of the now installed Java, and not the running one.
+    # but since this is used for the "JDK type" check, it's good enough - we don't expect that to change.
+    # this whole check, however, is growing to be too complex, and we should consider other approaches
+    # for it:
+    # 1. purely in async-profiler - before calling any APIs that might harm blacklisted JDKs, we can
+    #    check the JDK type in async-profiler itself.
+    # 2. assume JDK type by the path, e.g the "java" Docker image has
+    #    "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java" which means "OpenJDK". needs to be checked for
+    #    other JDK types.
+    java_path = f"/proc/{nspid}/exe"
+
+    def _run_java_version() -> "CompletedProcess[bytes]":
+        return run_process(
+            [
+                java_path,
+                "-version",
+            ],
+            stop_event=stop_event,
+            timeout=_JAVA_VERSION_TIMEOUT,
+        )
+
+    # doesn't work without changing PID NS as well (I'm getting ENOENT for libjli.so)
+    # Version is printed to stderr
+    return run_in_ns(["pid", "mnt"], _run_java_version, process.pid).stderr.decode().strip()
+
+
+class JavaMetadata(ApplicationMetadata):
+    def make_application_metadata(self, process: Process) -> Dict[str, Any]:
+        version = get_java_version(process, self._stop_event)
+        # libjvm elfid - we care only about libjvm, not about the java exe itself which is a just small program
+        # that loads other libs.
+        libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")
+
+        metadata = {"java_version": version, "libjvm_elfid": libjvm_elfid}
+
+        metadata.update(super().make_application_metadata(process))
+        return metadata
+
+
 @functools.lru_cache(maxsize=1)
 def jattach_path() -> str:
     return resource_path("java/jattach")
@@ -177,7 +226,7 @@ class AsyncProfiledProcess:
         self._process_root = get_proc_root_path(process)
         self._cmdline = process.cmdline()
         self._cwd = process.cwd()
-        self._nspid = ns.get_process_nspid(self.process.pid)
+        self._nspid = get_process_nspid(self.process.pid)
 
         # not using storage_dir for AP itself on purpose: this path should remain constant for the lifetime
         # of the target process, so AP is loaded exactly once (if we have multiple paths, AP can be loaded
@@ -532,7 +581,6 @@ class JavaProfiler(ProcessProfilerBase):
     # once the timeout triggers, AP remains stopped, so if it triggers before we tried to stop
     # AP ourselves, we'll be in messed up state. hence, we add 30s which is enough.
     _AP_EXTRA_TIMEOUT_S = 30
-    _JAVA_VERSION_TIMEOUT = 5
 
     def __init__(
         self,
@@ -569,6 +617,7 @@ class JavaProfiler(ProcessProfilerBase):
         self._kernel_messages_provider = get_kernel_messages_provider()
         self._enabled_proc_events = False
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
+        self._metadata = JavaMetadata(self._stop_event)
 
     def _init_ap_mode(self, ap_mode: str) -> None:
         if ap_mode == "auto":
@@ -630,45 +679,6 @@ class JavaProfiler(ProcessProfilerBase):
 
         return True
 
-    def _get_java_version(self, process: Process) -> str:
-        nspid = ns.get_process_nspid(process.pid)
-
-        # this has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
-        # in that case, the libraries would have been replaced as well, and therefore we're actually checking
-        # the version of the now installed Java, and not the running one.
-        # but since this is used for the "JDK type" check, it's good enough - we don't expect that to change.
-        # this whole check, however, is growing to be too complex, and we should consider other approaches
-        # for it:
-        # 1. purely in async-profiler - before calling any APIs that might harm blacklisted JDKs, we can
-        #    check the JDK type in async-profiler itself.
-        # 2. assume JDK type by the path, e.g the "java" Docker image has
-        #    "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java" which means "OpenJDK". needs to be checked for
-        #    other JDK types.
-        java_path = f"/proc/{nspid}/exe"
-
-        java_version_cmd_output: Optional[CompletedProcess[bytes]] = None
-
-        def _run_java_version() -> None:
-            nonlocal java_version_cmd_output
-
-            java_version_cmd_output = run_process(
-                [
-                    java_path,
-                    "-version",
-                ],
-                stop_event=self._stop_event,
-                timeout=self._JAVA_VERSION_TIMEOUT,
-            )
-
-        # doesn't work without changing PID NS as well (I'm getting ENOENT for libjli.so)
-        run_in_ns(["pid", "mnt"], _run_java_version, process.pid)
-
-        if java_version_cmd_output is None:
-            raise Exception("Failed to get java version")
-
-        # Version is printed to stderr
-        return java_version_cmd_output.stderr.decode()
-
     def _check_jvm_type_supported(self, process: Process, java_version_output: str) -> bool:
         if not self._is_jvm_type_supported(java_version_output):
             logger.warning("Unsupported JVM type", java_version_output=java_version_output)
@@ -691,7 +701,7 @@ class JavaProfiler(ProcessProfilerBase):
                 )
                 return False
 
-            java_version_output = self._get_java_version(process)
+            java_version_output = get_java_version(process, self._stop_event)
 
             if not self._check_jvm_type_supported(process, java_version_output):
                 return False
@@ -707,7 +717,7 @@ class JavaProfiler(ProcessProfilerBase):
                 return False
         else:
             if self._simple_version_check and process_basename == "java":
-                java_version_output = self._get_java_version(process)
+                java_version_output = get_java_version(process, self._stop_event)
                 if not self._check_jvm_type_supported(process, java_version_output):
                     return False
 
@@ -754,6 +764,8 @@ class JavaProfiler(ProcessProfilerBase):
             self._profiled_pids.add(process.pid)
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
+        self._metadata.update_metadata(process)
+
         with AsyncProfiledProcess(
             process, self._storage_dir, self._stop_event, self._buildids, self._mode, self._ap_safemode, self._ap_args
         ) as ap_proc:
