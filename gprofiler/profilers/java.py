@@ -466,9 +466,10 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
 
     # version is always in quotes
     _, version_str, _ = lines[0].split('"')
-    build_str = lines[1].split("(build ")[1]
-    assert build_str.endswith(")"), f"build information does not end with ): {build_str!r}"
-    build_str = build_str[: -len(")")]
+    # matches the build string from e.g (build 25.212-b04, mixed mode) -> "25.212-b04"
+    m = re.search(r"\(build ([^,)]+?)(?:,|\))", version_string)
+    assert m is not None, f"did not find build_str in {version_string!r}"
+    build_str = m.group(1)
 
     if version_str.endswith("-internal") or version_str.endswith("-ea"):
         # strip the "internal" or "early access" suffixes
