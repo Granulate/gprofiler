@@ -97,7 +97,7 @@ class PythonMetadata(ApplicationMetadata):
 
         python_path = f"/proc/{get_process_nspid(process.pid)}/exe"
 
-        def _run_python_version() -> "CompletedProcess[bytes]":
+        def _run_python_process_in_ns() -> "CompletedProcess[bytes]":
             return run_process(
                 [
                     python_path,
@@ -107,7 +107,7 @@ class PythonMetadata(ApplicationMetadata):
                 timeout=self._PYTHON_VERSION_TIMEOUT,
             )
 
-        cp = run_in_ns(["pid", "mnt"], _run_python_version, process.pid)
+        cp = run_in_ns(["pid", "mnt"], _run_python_process_in_ns, process.pid)
         return cp.stdout.decode().strip(), cp.stderr.decode().strip()
 
     def _get_python_version(self, process: Process) -> Optional[str]:
