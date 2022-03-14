@@ -141,7 +141,7 @@ def make_java_profiler(
     )
 
 
-def run_gprofiler_container(
+def run_gprofiler_in_container_for_one_session(
     docker_client: DockerClient,
     gprofiler_docker_image: Image,
     output_directory: Path,

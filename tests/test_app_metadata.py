@@ -13,7 +13,7 @@ from docker.models.images import Image
 
 from gprofiler.merge import parse_one_collapsed
 from tests.conftest import AssertInCollapsed
-from tests.utils import run_gprofiler_container
+from tests.utils import run_gprofiler_in_container_for_one_session
 
 
 @pytest.mark.parametrize(
@@ -70,7 +70,7 @@ def test_app_metadata(
     expected_metadata: Dict,
     runtime: str,
 ) -> None:
-    run_gprofiler_container(
+    run_gprofiler_in_container_for_one_session(
         docker_client, gprofiler_docker_image, output_directory, runtime_specific_args, profiler_flags
     )
     collapsed_text = Path(output_directory / "last_profile.col").read_text()
