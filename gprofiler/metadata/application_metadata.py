@@ -9,7 +9,10 @@ from typing import Any, Dict, Optional, Union
 from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
 
+from gprofiler.log import get_logger_adapter
 from gprofiler.utils.elf import read_process_execfn
+
+logger = get_logger_adapter(__name__)
 
 
 def get_application_metadata(process: Union[int, Process]) -> Optional[Dict]:
@@ -30,6 +33,8 @@ class ApplicationMetadata:
     _CACHE_CLEAR_ON_SIZE = 0x4000
     _cache: Dict[Process, Optional[Dict]] = {}
     _cache_clear_lock = Lock()
+    _metadata_exception_logs = 0
+    _MAX_METADATA_EXCEPTION_LOGS = 100
 
     def __init__(self, stop_event: Event):
         self._stop_event = stop_event
@@ -48,7 +53,16 @@ class ApplicationMetadata:
         if process not in self._cache:
             if len(self._cache) > self._CACHE_CLEAR_ON_SIZE:
                 self._clear_cache()
-            self._cache[process] = self.make_application_metadata(process)
+            try:
+                metadata = self.make_application_metadata(process)
+            except NoSuchProcess:
+                # let our caller handler this
+                raise
+            except Exception:
+                if self._metadata_exception_logs > self._MAX_METADATA_EXCEPTION_LOGS:
+                    logger.exception(f"Exception while collecting metadata in {self.__class__.__name__}!")
+            else:
+                self._cache[process] = metadata
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         return {"exe": process.exe(), "execfn": read_process_execfn(process)}
