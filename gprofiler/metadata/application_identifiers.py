@@ -251,7 +251,7 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
             java_properties = run_process([jattach_path(), str(process.pid), "properties"]).stdout.decode()
             for line in java_properties.splitlines():
                 if line.startswith("sun.java.command"):
-                    app_id = line[line.find("=") + 1 :]
+                    app_id = line[line.find("=") + 1 :].split(" ", 1)[0]
                     return f"java: {app_id} ({_append_file_to_proc_wd(process, app_id)})"
         except CalledProcessError as e:
             _logger.warning(f"Couldn't get Java properties for process {process.pid}: {e.stderr}")

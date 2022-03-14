@@ -11,6 +11,7 @@ from docker.models.images import Image
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.profilers.java import JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE, JAVA_SAFEMODE_ALL, JavaProfiler
 from gprofiler.profilers.profiler_base import ProfilerInterface
+from gprofiler.utils import remove_path
 
 RUNTIME_PROFILERS = [
     ("java", "ap"),
@@ -138,3 +139,27 @@ def make_java_profiler(
         java_safemode=java_safemode,
         java_mode=java_mode,
     )
+
+
+def run_gprofiler_in_container_for_one_session(
+    docker_client: DockerClient,
+    gprofiler_docker_image: Image,
+    output_directory: Path,
+    runtime_specific_args: List[str],
+    profiler_flags: List[str],
+) -> str:
+    """
+    Runs the gProfiler container image for a single profiling session, and collects the output.
+    """
+    inner_output_directory = "/tmp/gprofiler"
+    volumes = {
+        str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
+    }
+    args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args + profiler_flags
+
+    output_path = Path(output_directory / "last_profile.col")
+    remove_path(str(output_path), missing_ok=True)
+
+    run_gprofiler_in_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
+
+    return output_path.read_text()

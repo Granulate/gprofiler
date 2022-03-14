@@ -20,7 +20,13 @@ from docker.models.containers import Container
 from packaging.version import Version
 from pytest import LogCaptureFixture, MonkeyPatch
 
-from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler, frequency_to_ap_interval, parse_jvm_version
+from gprofiler.profilers.java import (
+    AsyncProfiledProcess,
+    JavaProfiler,
+    frequency_to_ap_interval,
+    get_java_version,
+    parse_jvm_version,
+)
 from gprofiler.utils.process import is_musl
 from tests.conftest import AssertInCollapsed
 from tests.type_utils import cast_away_optional
@@ -152,7 +158,7 @@ def test_java_safemode_version_check(
 
     with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
         process = profiler._select_processes_to_profile()[0]
-        jvm_version = parse_jvm_version(profiler._get_java_version(process))
+        jvm_version = parse_jvm_version(get_java_version(process, profiler._stop_event))
         collapsed = snapshot_one_collaped(profiler)
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
@@ -170,7 +176,7 @@ def test_java_safemode_build_number_check(
 ) -> None:
     with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
         process = profiler._select_processes_to_profile()[0]
-        jvm_version = parse_jvm_version(profiler._get_java_version(process))
+        jvm_version = parse_jvm_version(get_java_version(process, profiler._stop_event))
         monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (jvm_version.version, 999))
         collapsed = snapshot_one_collaped(profiler)
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
@@ -313,7 +319,7 @@ def test_sanity_j9(
         storage_dir=str(tmp_path),
         java_async_profiler_mode="itimer",
     ) as profiler:
-        assert "OpenJ9" in profiler._get_java_version(psutil.Process(application_pid))
+        assert "OpenJ9" in get_java_version(psutil.Process(application_pid), profiler._stop_event)
         process_collapsed = snapshot_one_collaped(profiler)
         assert_collapsed(process_collapsed)
 

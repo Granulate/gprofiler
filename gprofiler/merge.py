@@ -7,13 +7,15 @@ import math
 import random
 import re
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
+from gprofiler.metadata.application_metadata import get_application_metadata
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.system_metrics import Metrics
 
@@ -29,6 +31,18 @@ SAMPLE_REGEX = re.compile(
 # 0 [unknown] ([unknown])
 # 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
 FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \((.*)\)$")
+
+
+@dataclass
+class EnrichmentOptions:
+    """
+    Profile enrichment options.
+    """
+
+    profile_api_version: str  # profile protocol version. v1 does not support container_names and application_metadata.
+    container_names: bool  # Include container names for each stack in result profile
+    application_identifiers: bool  # Attempt to produce & include appid frames for each stack in result profile
+    application_metadata: bool  # Include specialized metadata per application, e.g for Python - the Python version
 
 
 def parse_one_collapsed(collapsed: str, add_comm: Optional[str] = None) -> StackToSampleCount:
@@ -209,6 +223,8 @@ def _make_profile_metadata(
     add_container_names: bool,
     metadata: Metadata,
     metrics: Metrics,
+    application_metadata: Optional[List[Optional[Dict]]],
+    application_metadata_enabled: bool,
 ) -> str:
     if container_names_client is not None and add_container_names:
         container_names = container_names_client.container_names
@@ -223,6 +239,8 @@ def _make_profile_metadata(
         "container_names_enabled": enabled,
         "metadata": metadata,
         "metrics": metrics.__dict__,
+        "application_metadata": application_metadata,
+        "application_metadata_enabled": application_metadata_enabled,
     }
     return "# " + json.dumps(profile_metadata)
 
@@ -237,42 +255,109 @@ def _get_container_name(
     )
 
 
+@dataclass
+class PidStackEnrichment:
+    application_name: Optional[str]
+    application_prefix: str
+    container_prefix: str
+
+
+def _enrich_pid_stacks(
+    pid: int,
+    enrichment_options: EnrichmentOptions,
+    container_names_client: Optional[ContainerNamesClient],
+    application_metadata: List[Optional[Dict]],
+) -> PidStackEnrichment:
+    """
+    Enrichment per app (or, PID here). This includes:
+    * appid (or app name)
+    * app metadata
+    * container name
+    """
+    # generate application name
+    application_name = (
+        application_identifiers.get_application_name(pid) if enrichment_options.application_identifiers else None
+    )
+    if application_name is not None:
+        application_name = f"appid: {application_name}"
+
+    # generate metadata
+    if enrichment_options.application_metadata:
+        app_metadata = get_application_metadata(pid)
+    else:
+        app_metadata = None
+    if app_metadata not in application_metadata:
+        application_metadata.append(app_metadata)
+    idx = application_metadata.index(app_metadata)
+    # we include the application metadata frame if application_metadata is enabled, and we're not in protocol
+    # version v1.
+    if enrichment_options.profile_api_version != "v1" and enrichment_options.application_metadata:
+        application_prefix = f"{idx};"
+    else:
+        application_prefix = ""
+
+    # generate container name
+    # to maintain compatibility with old profiler versions, we include the container name frame in any case
+    # if the protocol version does not "v1, regardless of whether container_names is enabled or not.
+    if enrichment_options.profile_api_version != "v1":
+        container_prefix = _get_container_name(pid, container_names_client, enrichment_options.container_names) + ";"
+    else:
+        container_prefix = ""
+
+    return PidStackEnrichment(application_name, application_prefix, container_prefix)
+
+
+def _enrich_and_finalize_stack(
+    stack: str, count: int, enrichment_options: EnrichmentOptions, enrich_data: PidStackEnrichment
+) -> str:
+    """
+    Attach the enrichment data collected for the PID of this stack.
+    """
+    if enrichment_options.application_identifiers and enrich_data.application_name is not None:
+        # insert the app name between the first frame and all others
+        try:
+            first_frame, others = stack.split(";", maxsplit=1)
+            stack = f"{first_frame};{enrich_data.application_name};{others}"
+        except ValueError:
+            stack = f"{stack};{enrich_data.application_name}"
+
+    return f"{enrich_data.application_prefix}{enrich_data.container_prefix}{stack} {count}"
+
+
 def concatenate_profiles(
     process_profiles: ProcessToStackSampleCounters,
     container_names_client: Optional[ContainerNamesClient],
-    add_container_names: bool,
-    identify_applications: bool,
+    enrichment_options: EnrichmentOptions,
     metadata: Metadata,
     metrics: Metrics,
 ) -> Tuple[str, int]:
     """
     Concatenate all stacks from all stack mappings in process_profiles.
-    Add "profile metadata" and metrics as the first line of the resulting collapsed file. Also,
-    prepend the container name (if requested & available) as the first frame of each
-    line.
+    Add "profile metadata" and metrics as the first line of the resulting collapsed file.
     """
     total_samples = 0
     lines = []
+    # the metadata list always contains a "null" entry with index 0 - that's the index used for all
+    # processes for which we didn't collect any metadata.
+    application_metadata: List[Optional[Dict]] = [None]
 
     for pid, stacks in process_profiles.items():
-        container_name = _get_container_name(pid, container_names_client, add_container_names)
-        application_name = application_identifiers.get_application_name(pid) if identify_applications else None
-        if application_name is not None:
-            application_name = f"appid: {application_name}"
-        prefix = (container_name + ";") if add_container_names else ""
+        enrich_data = _enrich_pid_stacks(pid, enrichment_options, container_names_client, application_metadata)
         for stack, count in stacks.items():
-            if identify_applications and application_name is not None:
-                # insert the app name between the first frame and all others
-                try:
-                    first_frame, others = stack.split(";", maxsplit=1)
-                    stack = f"{first_frame};{application_name};{others}"
-                except ValueError:
-                    stack = f"{stack};{application_name}"
-
             total_samples += count
-            lines.append(f"{prefix}{stack} {count}")
+            lines.append(_enrich_and_finalize_stack(stack, count, enrichment_options, enrich_data))
 
-    lines.insert(0, _make_profile_metadata(container_names_client, add_container_names, metadata, metrics))
+    lines.insert(
+        0,
+        _make_profile_metadata(
+            container_names_client,
+            enrichment_options.container_names,
+            metadata,
+            metrics,
+            application_metadata,
+            enrichment_options.application_metadata,
+        ),
+    )
     return "\n".join(lines), total_samples
 
 
@@ -280,8 +365,7 @@ def merge_profiles(
     perf_pid_to_stacks_counter: ProcessToStackSampleCounters,
     process_profiles: ProcessToStackSampleCounters,
     container_names_client: Optional[ContainerNamesClient],
-    add_container_names: bool,
-    identify_applications: bool,
+    enrichment_options: EnrichmentOptions,
     metadata: Metadata,
     metrics: Metrics,
 ) -> Tuple[str, int]:
@@ -309,10 +393,5 @@ def merge_profiles(
         perf_pid_to_stacks_counter[pid] = scaled_stacks
 
     return concatenate_profiles(
-        perf_pid_to_stacks_counter,
-        container_names_client,
-        add_container_names,
-        identify_applications,
-        metadata,
-        metrics,
+        perf_pid_to_stacks_counter, container_names_client, enrichment_options, metadata, metrics
     )

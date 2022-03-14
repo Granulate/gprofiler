@@ -21,7 +21,7 @@ from tests.utils import (
     RUNTIME_PROFILERS,
     assert_function_in_collapsed,
     make_java_profiler,
-    run_gprofiler_in_container,
+    run_gprofiler_in_container_for_one_session,
     snapshot_one_collaped,
 )
 
@@ -150,13 +150,8 @@ def test_from_container(
 ) -> None:
     _ = application_pid  # Fixture only used for running the application.
     _ = assert_application_name  # Required for mypy unused argument warning
-    inner_output_directory = "/tmp/gprofiler"
-    volumes = {
-        str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
-    }
-
-    args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args + profiler_flags
-    run_gprofiler_in_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
-
-    collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
+    collapsed_text = run_gprofiler_in_container_for_one_session(
+        docker_client, gprofiler_docker_image, output_directory, runtime_specific_args, profiler_flags
+    )
+    collapsed = parse_one_collapsed(collapsed_text)
     assert_collapsed(collapsed)
