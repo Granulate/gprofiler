@@ -308,7 +308,7 @@ def assert_collapsed(runtime: str) -> AssertInCollapsed:
 @fixture
 def assert_application_name(application_pid: int, runtime: str, in_container: bool) -> Generator:
     desired_names = {
-        "java": "java: Fibonacci.jar (/app/Fibonacci.jar)",
+        "java": "java: Fibonacci.jar",
         "python": "python: lister.py (/app/lister.py)",
     }
     # We test the application name only after test has finished because the test may wait until the application is
