@@ -325,6 +325,10 @@ def test_sanity_j9(
 
 
 # test only once. in a container, so that we don't mess up the environment :)
+@pytest.mark.xfail(
+    reason="AP 2.7 doesn't support, see https://github.com/jvm-profiling-tools/async-profiler/issues/572"
+    " we will fix after that's closed."
+)
 @pytest.mark.parametrize("in_container", [True])
 def test_java_deleted_libjvm(tmp_path: Path, application_pid: int, assert_collapsed: AssertInCollapsed) -> None:
     """
