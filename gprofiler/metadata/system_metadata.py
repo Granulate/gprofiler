@@ -45,15 +45,15 @@ def get_libc_version() -> Tuple[str, str]:
     except FileNotFoundError:
         ldd_version = b"ldd not found"
     # catches GLIBC & EGLIBC
-    m = re.search(br"GLIBC (.*?)\)", ldd_version)
+    m = re.search(rb"GLIBC (.*?)\)", ldd_version)
     if m is not None:
         return "glibc", decode_libc_version(m.group(1))
     # catches GNU libc
-    m = re.search(br"\(GNU libc\) (.*?)\n", ldd_version)
+    m = re.search(rb"\(GNU libc\) (.*?)\n", ldd_version)
     if m is not None:
         return "glibc", decode_libc_version(m.group(1))
     # musl
-    m = re.search(br"musl libc.*?\nVersion (.*?)\n", ldd_version, re.M)
+    m = re.search(rb"musl libc.*?\nVersion (.*?)\n", ldd_version, re.M)
     if m is not None:
         return "musl", decode_libc_version(m.group(1))
 
@@ -97,7 +97,7 @@ def get_mac_address() -> str:
     Gets the MAC address of the first non-loopback interface.
     """
 
-    assert sys.maxsize > 2 ** 32, "expected to run on 64-bit!"
+    assert sys.maxsize > 2**32, "expected to run on 64-bit!"
     SIZE_OF_STUCT_ifreq = 40  # correct for 64-bit
 
     IFNAMSIZ = 16
