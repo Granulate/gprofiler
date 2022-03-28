@@ -31,9 +31,11 @@ popd
 rm -r libunwind-1.5.0
 rm libunwind-1.5.0.tar.gz
 
-wget https://zlib.net/zlib-1.2.11.tar.xz
-tar -xf zlib-1.2.11.tar.xz
-pushd zlib-1.2.11
+ZLIB_VERSION=1.2.12
+ZLIB_FILE="zlib-$ZLIB_VERSION.tar.xz"
+wget "https://zlib.net/$ZLIB_FILE"
+tar -xf "$ZLIB_FILE"
+pushd "zlib-$ZLIB_VERSION"
 # note the use of --prefix here. it matches the directory https://github.com/benfred/remoteprocess/blob/master/build.rs expects to find libs for musl.
 # the libunwind configure may install it in /usr/local/lib for all I care, but if we override /usr/local/lib/libz... with the musl ones,
 # it won't do any good...
@@ -41,5 +43,5 @@ CC=musl-gcc ./configure --prefix=/usr/local/musl/$(uname -m)-unknown-linux-musl
 make
 make install
 popd
-rm -r zlib-1.2.11
-rm zlib-1.2.11.tar.xz
+rm -r zlib-*
+rm $ZLIB_FILE
