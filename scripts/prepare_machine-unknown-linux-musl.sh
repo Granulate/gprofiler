@@ -39,7 +39,8 @@ pushd "zlib-$ZLIB_VERSION"
 # note the use of --prefix here. it matches the directory https://github.com/benfred/remoteprocess/blob/master/build.rs expects to find libs for musl.
 # the libunwind configure may install it in /usr/local/lib for all I care, but if we override /usr/local/lib/libz... with the musl ones,
 # it won't do any good...
-CC=musl-gcc ./configure --prefix=/usr/local/musl/$(uname -m)-unknown-linux-musl --disable-shared
+# --static - we don't need the shared build, we compile everything statically anyway.
+CC=musl-gcc ./configure --prefix=/usr/local/musl/$(uname -m)-unknown-linux-musl --static
 make
 make install
 popd
