@@ -44,5 +44,4 @@ CC=musl-gcc ./configure --prefix=/usr/local/musl/$(uname -m)-unknown-linux-musl 
 make
 make install
 popd
-rm -r zlib-*
-rm $ZLIB_FILE
+rm -fr $ZLIB_FILE zlib-*
