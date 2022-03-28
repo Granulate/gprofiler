@@ -27,19 +27,25 @@ from gprofiler.profilers.java import (
     get_java_version,
     parse_jvm_version,
 )
+from gprofiler.utils import remove_prefix
+from gprofiler.utils.elf import get_elf_buildid
 from gprofiler.utils.process import is_musl
 from tests.conftest import AssertInCollapsed
 from tests.type_utils import cast_away_optional
 from tests.utils import assert_function_in_collapsed, make_java_profiler, snapshot_one_collaped
 
 
-def get_libjvm_path(application_pid: int) -> str:
-    libjvms = set()
+def get_lib_path(application_pid: int, path: str) -> str:
+    libs = set()
     for m in psutil.Process(application_pid).memory_maps():
-        if "/libjvm.so" in m.path:
-            libjvms.add(m.path)
-    assert len(libjvms) == 1
-    return f"/proc/{application_pid}/root/{libjvms.pop()}"
+        if path in m.path:
+            libs.add(m.path)
+    assert len(libs) == 1, f"found {libs!r} - expected 1"
+    return f"/proc/{application_pid}/root/{libs.pop()}"
+
+
+def get_libjvm_path(application_pid: int) -> str:
+    return get_lib_path(application_pid, "/libjvm.so")
 
 
 def is_libjvm_deleted(application_pid: int) -> bool:
@@ -324,11 +330,11 @@ def test_sanity_j9(
         assert_collapsed(process_collapsed)
 
 
-# test only once. in a container, so that we don't mess up the environment :)
 @pytest.mark.xfail(
     reason="AP 2.7 doesn't support, see https://github.com/jvm-profiling-tools/async-profiler/issues/572"
     " we will fix after that's closed."
 )
+# test only once. in a container, so that we don't mess up the environment :)
 @pytest.mark.parametrize("in_container", [True])
 def test_java_deleted_libjvm(tmp_path: Path, application_pid: int, assert_collapsed: AssertInCollapsed) -> None:
     """
@@ -346,3 +352,26 @@ def test_java_deleted_libjvm(tmp_path: Path, application_pid: int, assert_collap
     with make_java_profiler(storage_dir=str(tmp_path), duration=3) as profiler:
         process_collapsed = snapshot_one_collaped(profiler)
         assert_collapsed(process_collapsed)
+
+
+# test only in a container so that we don't mess with the environment.
+@pytest.mark.parametrize("in_container", [True])
+def test_java_async_profiler_buildids(
+    tmp_path: Path, application_pid: int, assert_collapsed: AssertInCollapsed
+) -> None:
+    """
+    Tests that async-profiler's buildid feature works.
+    """
+    libc = get_lib_path(application_pid, "/libc-")
+    buildid = get_elf_buildid(libc)
+
+    with make_java_profiler(
+        storage_dir=str(tmp_path), duration=3, frequency=99, java_async_profiler_buildids=True
+    ) as profiler:
+        process_collapsed = snapshot_one_collaped(profiler)
+        # path buildid+0xoffset_[bid]
+        # we check for libc because it has undefined symbols in all profiles :shrug:
+        assert_function_in_collapsed(
+            f"{remove_prefix(libc, f'/proc/{application_pid}/root/')} {buildid}+0x", process_collapsed
+        )
+        assert_function_in_collapsed("_[bid]", process_collapsed)
