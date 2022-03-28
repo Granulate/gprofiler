@@ -12,7 +12,7 @@ from typing import List, Optional, Type, TypeVar
 from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import StopEventSetException
-from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
+from gprofiler.gprofiler_types import AppMetadata, ProcessToProfileData, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import limit_frequency
 from gprofiler.utils.process import process_comm
@@ -33,9 +33,9 @@ class ProfilerInterface:
     def start(self) -> None:
         pass
 
-    def snapshot(self) -> ProcessToStackSampleCounters:
+    def snapshot(self) -> ProcessToProfileData:
         """
-        :returns: Mapping from pid to stacks and their counts.
+        :returns: Mapping from pid to `ProfileData`s.
         """
         raise NotImplementedError
 
@@ -84,7 +84,7 @@ class NoopProfiler(ProfilerInterface):
     No-op profiler - used as a drop-in replacement for runtime profilers, when they are disabled.
     """
 
-    def snapshot(self) -> ProcessToStackSampleCounters:
+    def snapshot(self) -> ProcessToProfileData:
         return {}
 
     @classmethod
@@ -103,15 +103,19 @@ class ProcessProfilerBase(ProfilerBase):
     def _select_processes_to_profile(self) -> List[Process]:
         raise NotImplementedError
 
-    def _profile_process(self, process: Process) -> StackToSampleCount:
+    def _profile_process(self, process: Process) -> ProcessToProfileData:
         raise NotImplementedError
 
     @staticmethod
-    def _profiling_error_stack(what: str, reason: str, comm: str) -> StackToSampleCount:
+    def _profiling_error_stack(
+        what: str, reason: str, comm: str, appid: Optional[str], app_metadata: Optional[AppMetadata]
+    ) -> ProcessToProfileData:
         # return 1 sample, it will be scaled later in merge_profiles().
         # if --perf-mode=none mode is used, it will not, but we don't have anything logical to
         # do here in that case :/
-        return Counter({f"{comm};[Profiling {what}: {reason}]": 1})
+        return ProfileData(
+            {f"{comm};[Profiling {what}: {reason}]": 1},
+        )
 
     def snapshot(self) -> ProcessToStackSampleCounters:
         processes_to_profile = self._select_processes_to_profile()

@@ -25,7 +25,7 @@ from gprofiler.exceptions import (
     ProcessStoppedException,
     StopEventSetException,
 )
-from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
+from gprofiler.gprofiler_types import ProfileData, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
@@ -191,9 +191,10 @@ class PySpyProfiler(ProcessProfilerBase):
             "--full-filenames",
         ]
 
-    def _profile_process(self, process: Process) -> StackToSampleCount:
+    def _profile_process(self, process: Process) -> ProfileData:
         logger.info(f"Profiling process {process.pid} with py-spy", cmdline=process.cmdline(), no_extra_to_server=True)
-        self._metadata.update_metadata(process)
+        appid = get_app_id(process, PYTHON_IDENTIFIERS)
+        app_metadata = self._metadata.get_and_update_metadata(process)
         comm = process_comm(process)
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
@@ -216,14 +217,16 @@ class PySpyProfiler(ProcessProfilerBase):
                     and not is_process_running(process)
                 ):
                     logger.debug(f"Profiled process {process.pid} exited before py-spy could start")
-                    return self._profiling_error_stack("error", comm, "process exited before py-spy started")
+                    return self._profiling_error_stack(
+                        "error", comm, "process exited before py-spy started", appid, app_metadata
+                    )
                 raise
 
             logger.info(f"Finished profiling process {process.pid} with py-spy")
             parsed = merge.parse_one_collapsed_file(Path(local_output_path), comm)
             if self.add_versions:
                 parsed = _add_versions_to_process_stacks(process, parsed)
-            return parsed
+            return ProfileData(parsed, appid, app_metadata)
 
     def _select_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
@@ -433,7 +436,7 @@ class PythonEbpfProfiler(ProfilerBase):
             self._terminate()
             self._pyperf_error(process)
 
-    def snapshot(self) -> ProcessToStackSampleCounters:
+    def snapshot(self) -> ProcessToProfileData:
         if self._stop_event.wait(self._duration):
             raise StopEventSetException()
         collapsed_path = self._dump()
@@ -445,12 +448,18 @@ class PythonEbpfProfiler(ProfilerBase):
         parsed = merge.parse_many_collapsed(collapsed_text)
         if self.add_versions:
             parsed = _add_versions_to_stacks(parsed)
+        profiles = {}
         for pid in parsed:
             try:
-                self._metadata.update_metadata(Process(pid))
+                process = Process(pid)
+                appid = get_app_id(process)
+                app_metadata = self._metadata.get_and_update_metadata(process)
             except NoSuchProcess:
-                continue
-        return parsed
+                appid = None
+                app_metadata = None
+
+            profiles[pid] = ProfileData(parsed[pid], appid, app_metadata)
+        return profiels
 
     def _terminate(self) -> Optional[int]:
         code = None

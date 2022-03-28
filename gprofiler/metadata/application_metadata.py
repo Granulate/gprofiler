@@ -39,18 +39,15 @@ class ApplicationMetadata:
     def __init__(self, stop_event: Event):
         self._stop_event = stop_event
 
-    @classmethod
-    def get_metadata(cls, process: Process) -> Optional[Dict]:
-        return cls._cache.get(process)
-
     def _clear_cache(self) -> None:
         with self._cache_clear_lock:
             for process in list(self._cache.keys()):
                 if not is_process_running(process):
                     del self._cache[process]
 
-    def update_metadata(self, process: Process) -> None:
-        if process not in self._cache:
+    def get_and_update_metadata(self, process: Process) -> Optional[Dict]:
+        metadata = self._cache.get(process)
+        if metadata is None:
             if len(self._cache) > self._CACHE_CLEAR_ON_SIZE:
                 self._clear_cache()
             try:
@@ -66,6 +63,8 @@ class ApplicationMetadata:
                     self._metadata_exception_logs_count += 1
             else:
                 self._cache[process] = metadata
+
+        return metadata
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         return {"exe": process.exe(), "execfn": read_process_execfn(process)}
