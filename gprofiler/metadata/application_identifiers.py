@@ -13,7 +13,7 @@ from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
-from gprofiler.profilers.java import jattach_path
+from gprofiler.profilers import java
 from gprofiler.utils import run_process
 
 _logger = get_logger_adapter(__name__)
@@ -245,7 +245,7 @@ class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
 class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
     def get_app_id(self, process: Process) -> Optional[str]:
         try:
-            java_properties = run_process([jattach_path(), str(process.pid), "properties"]).stdout.decode()
+            java_properties = run_process([java.jattach_path(), str(process.pid), "properties"]).stdout.decode()
             for line in java_properties.splitlines():
                 if line.startswith("sun.java.command"):
                     app_id = line[line.find("=") + 1 :].split(" ", 1)[0]
