@@ -109,7 +109,11 @@ def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCou
 def snapshot_one_collaped(profiler: ProfilerInterface) -> StackToSampleCount:
     result = profiler.snapshot()
     assert len(result) == 1
-    return next(iter(result.values()))
+    return next(iter(result.values())).stacks
+
+
+def snapshot_pid_collaped(profiler: ProfilerInterface, pid: int) -> StackToSampleCount:
+    return profiler.snapshot()[pid].stacks
 
 
 def make_java_profiler(

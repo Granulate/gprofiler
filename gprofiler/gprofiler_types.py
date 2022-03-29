@@ -16,9 +16,16 @@ AppMetadata = Dict[str, Any]
 
 @dataclass
 class ProfileData:
-    stackcollapse: StackToSampleCount
+    """
+    Represents data collected by gProfiler about a process.
+    First and foremost are the stacks - the raw profiling data itself.
+    Then we have other "metadata"-ish fields like the appid and the app metadata, and more
+    will come.
+    """
+
+    stacks: StackToSampleCount
     appid: Optional[str]
-    metadata: Optional[AppMetadata]
+    app_metadata: Optional[AppMetadata]
 
 
 ProcessToStackSampleCounters = MutableMapping[int, StackToSampleCount]

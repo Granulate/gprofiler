@@ -104,7 +104,7 @@ class RbSpyProfiler(ProcessProfilerBase):
             f"Profiling process {process.pid} with rbspy", cmdline=" ".join(process.cmdline()), no_extra_to_server=True
         )
         comm = process_comm(process)
-        app_metadata = self._metadata.update_and_get_metadata(process)
+        app_metadata = self._metadata.get_metadata(process)
         appid = None  # TODO: implement appids for Ruby
 
         local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")

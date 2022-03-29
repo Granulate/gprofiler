@@ -15,7 +15,7 @@ from threading import Event
 from typing import List, Optional, Pattern, cast
 
 from gprofiler.exceptions import StopEventSetException
-from gprofiler.gprofiler_types import ProcessToStackSampleCounters
+from gprofiler.gprofiler_types import ProcessToProfileData, ProcessToStackSampleCounters, ProfileData
 from gprofiler.log import get_logger_adapter
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
@@ -193,8 +193,13 @@ class PHPSpyProfiler(ProfilerBase):
             logger.warning(f"phpspy: {corrupted_stacks} corrupted stacks")
 
         profiles: ProcessToProfileData = {}
+        for pid in results:
+            # TODO: appid & app metadata for php!
+            appid = None
+            app_metadata = None
+            profiles[pid] = ProfileData(results[pid], appid, app_metadata)
 
-        return dict(results)
+        return profiles
 
     def snapshot(self) -> ProcessToProfileData:
         if self._stop_event.wait(self._duration):

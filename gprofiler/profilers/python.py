@@ -33,7 +33,7 @@ from gprofiler.gprofiler_types import (
     nonnegative_integer,
 )
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata.application_identifiers import PYTHON_IDENTIFIERS, get_app_id
+from gprofiler.metadata.application_identifiers import get_python_app_id
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
@@ -200,8 +200,8 @@ class PySpyProfiler(ProcessProfilerBase):
 
     def _profile_process(self, process: Process) -> ProfileData:
         logger.info(f"Profiling process {process.pid} with py-spy", cmdline=process.cmdline(), no_extra_to_server=True)
-        appid = get_app_id(process, PYTHON_IDENTIFIERS)
-        app_metadata = self._metadata.get_and_update_metadata(process)
+        appid = get_python_app_id(process)
+        app_metadata = self._metadata.get_metadata(process)
         comm = process_comm(process)
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
@@ -226,7 +226,9 @@ class PySpyProfiler(ProcessProfilerBase):
                     logger.debug(f"Profiled process {process.pid} exited before py-spy could start")
                     return ProfileData(
                         self._profiling_error_stack(
-                            "error", comm, "process exited before py-spy started", appid, app_metadata
+                            "error",
+                            comm,
+                            "process exited before py-spy started",
                         ),
                         appid,
                         app_metadata,
@@ -463,8 +465,8 @@ class PythonEbpfProfiler(ProfilerBase):
         for pid in parsed:
             try:
                 process = Process(pid)
-                appid = get_app_id(process)
-                app_metadata = self._metadata.get_and_update_metadata(process)
+                appid = get_python_app_id(process)
+                app_metadata = self._metadata.get_metadata(process)
             except NoSuchProcess:
                 appid = None
                 app_metadata = None
@@ -589,7 +591,7 @@ class PythonProfiler(ProfilerInterface):
         elif self._pyspy_profiler is not None:
             self._pyspy_profiler.start()
 
-    def snapshot(self) -> ProcessToStackSampleCounters:
+    def snapshot(self) -> ProcessToProfileData:
         if self._ebpf_profiler is not None:
             try:
                 return self._ebpf_profiler.snapshot()

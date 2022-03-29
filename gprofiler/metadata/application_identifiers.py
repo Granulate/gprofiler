@@ -258,7 +258,7 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
 
 # Please note that the order matter, because the FIRST matching identifier will be used.
 # so when adding new identifiers pay attention to the order.
-PYTHON_APP_IDENTIFIERS = [
+_PYTHON_APP_IDENTIFIERS = [
     _GunicornTitleApplicationIdentifier(),
     _GunicornApplicationIdentifier(),
     _UwsgiApplicationIdentifier(),
@@ -267,7 +267,7 @@ PYTHON_APP_IDENTIFIERS = [
     _PythonModuleApplicationIdentifier(),
 ]
 
-JAVA_APP_IDENTIFIERS = [
+_JAVA_APP_IDENTIFIERS: List[_ApplicationIdentifier] = [
     _JavaJarApplicationIdentifier(),
 ]
 
@@ -295,4 +295,9 @@ def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier]) -> O
     return None
 
 
-__all__ = ["get_app_id"]
+def get_python_app_id(process: Process) -> Optional[str]:
+    return get_app_id(process, _PYTHON_APP_IDENTIFIERS)
+
+
+def get_java_app_id(process: Process) -> Optional[str]:
+    return get_app_id(process, _JAVA_APP_IDENTIFIERS)

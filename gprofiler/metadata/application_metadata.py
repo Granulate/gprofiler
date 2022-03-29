@@ -33,7 +33,7 @@ class ApplicationMetadata:
                 if not is_process_running(process):
                     del self._cache[process]
 
-    def get_and_update_metadata(self, process: Process) -> Optional[Dict]:
+    def get_metadata(self, process: Process) -> Optional[Dict]:
         metadata = self._cache.get(process)
         if metadata is None:
             if len(self._cache) > self._CACHE_CLEAR_ON_SIZE:
