@@ -155,7 +155,7 @@ class PHPSpyProfiler(ProfilerBase):
         return ";".join(reversed(parsed_frames))
 
     @classmethod
-    def _parse_phpspy_output(cls, phpspy_output: str) -> ProcessToStackSampleCounters:
+    def _parse_phpspy_output(cls, phpspy_output: str) -> ProcessToProfileData:
         def extract_metadata_section(re_expr: Pattern, metadata_line: str) -> str:
             match = re_expr.match(metadata_line)
             if not match:
@@ -192,9 +192,11 @@ class PHPSpyProfiler(ProfilerBase):
         if corrupted_stacks > 0:
             logger.warning(f"phpspy: {corrupted_stacks} corrupted stacks")
 
+        profiles: ProcessToProfileData = {}
+
         return dict(results)
 
-    def snapshot(self) -> ProcessToStackSampleCounters:
+    def snapshot(self) -> ProcessToProfileData:
         if self._stop_event.wait(self._duration):
             raise StopEventSetException()
         stderr = self._process.stderr.read1(1024).decode()  # type: ignore

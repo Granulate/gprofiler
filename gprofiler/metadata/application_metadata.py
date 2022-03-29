@@ -4,7 +4,7 @@
 #
 
 from threading import Event, Lock
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
@@ -13,18 +13,6 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.utils.elf import read_process_execfn
 
 logger = get_logger_adapter(__name__)
-
-
-def get_application_metadata(process: Union[int, Process]) -> Optional[Dict]:
-    if process in (0, -1):  # funny values retrieved by perf
-        return None
-
-    try:
-        process = process if isinstance(process, Process) else Process(process)
-    except NoSuchProcess:
-        return None
-
-    return ApplicationMetadata.get_metadata(process)
 
 
 class ApplicationMetadata:

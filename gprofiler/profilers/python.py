@@ -25,8 +25,15 @@ from gprofiler.exceptions import (
     ProcessStoppedException,
     StopEventSetException,
 )
-from gprofiler.gprofiler_types import ProfileData, StackToSampleCount, nonnegative_integer
+from gprofiler.gprofiler_types import (
+    ProcessToProfileData,
+    ProcessToStackSampleCounters,
+    ProfileData,
+    StackToSampleCount,
+    nonnegative_integer,
+)
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.application_identifiers import PYTHON_IDENTIFIERS, get_app_id
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
@@ -217,8 +224,12 @@ class PySpyProfiler(ProcessProfilerBase):
                     and not is_process_running(process)
                 ):
                     logger.debug(f"Profiled process {process.pid} exited before py-spy could start")
-                    return self._profiling_error_stack(
-                        "error", comm, "process exited before py-spy started", appid, app_metadata
+                    return ProfileData(
+                        self._profiling_error_stack(
+                            "error", comm, "process exited before py-spy started", appid, app_metadata
+                        ),
+                        appid,
+                        app_metadata,
                     )
                 raise
 
@@ -459,7 +470,7 @@ class PythonEbpfProfiler(ProfilerBase):
                 app_metadata = None
 
             profiles[pid] = ProfileData(parsed[pid], appid, app_metadata)
-        return profiels
+        return profiles
 
     def _terminate(self) -> Optional[int]:
         code = None

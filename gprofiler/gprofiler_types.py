@@ -21,6 +21,7 @@ class ProfileData:
     metadata: Optional[AppMetadata]
 
 
+ProcessToStackSampleCounters = MutableMapping[int, StackToSampleCount]
 ProcessToProfileData = MutableMapping[int, ProfileData]
 
 

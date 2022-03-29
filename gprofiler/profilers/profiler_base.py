@@ -12,7 +12,7 @@ from typing import List, Optional, Type, TypeVar
 from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import StopEventSetException
-from gprofiler.gprofiler_types import AppMetadata, ProcessToProfileData, StackToSampleCount
+from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import limit_frequency
 from gprofiler.utils.process import process_comm
@@ -103,21 +103,21 @@ class ProcessProfilerBase(ProfilerBase):
     def _select_processes_to_profile(self) -> List[Process]:
         raise NotImplementedError
 
-    def _profile_process(self, process: Process) -> ProcessToProfileData:
+    def _profile_process(self, process: Process) -> ProfileData:
         raise NotImplementedError
 
     @staticmethod
     def _profiling_error_stack(
-        what: str, reason: str, comm: str, appid: Optional[str], app_metadata: Optional[AppMetadata]
-    ) -> ProcessToProfileData:
+        what: str,
+        reason: str,
+        comm: str,
+    ) -> StackToSampleCount:
         # return 1 sample, it will be scaled later in merge_profiles().
         # if --perf-mode=none mode is used, it will not, but we don't have anything logical to
         # do here in that case :/
-        return ProfileData(
-            {f"{comm};[Profiling {what}: {reason}]": 1},
-        )
+        return Counter({f"{comm};[Profiling {what}: {reason}]": 1})
 
-    def snapshot(self) -> ProcessToStackSampleCounters:
+    def snapshot(self) -> ProcessToProfileData:
         processes_to_profile = self._select_processes_to_profile()
         if not processes_to_profile:
             return {}
@@ -145,10 +145,14 @@ class ProcessProfilerBase(ProfilerBase):
                         f"{self.__class__.__name__}: process went down during profiling {pid} ({comm})",
                         exc_info=True,
                     )
-                    result = self._profiling_error_stack("error", "process went down during profiling", comm)
+                    result = ProfileData(
+                        self._profiling_error_stack("error", "process went down during profiling", comm), None, None
+                    )
                 except Exception as e:
                     logger.exception(f"{self.__class__.__name__}: failed to profile process {pid} ({comm})")
-                    result = self._profiling_error_stack("error", f"exception {type(e).__name__}", comm)
+                    result = ProfileData(
+                        self._profiling_error_stack("error", f"exception {type(e).__name__}", comm), None, None
+                    )
 
                 results[pid] = result
 

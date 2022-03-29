@@ -6,7 +6,7 @@ import configparser
 import os.path
 import re
 from abc import ABCMeta, abstractmethod
-from typing import List, Optional, TextIO, Tuple, Union
+from typing import List, Optional, TextIO, Tuple
 
 from granulate_utils.linux.ns import resolve_host_path, resolve_proc_root_links
 from psutil import NoSuchProcess, Process
@@ -272,20 +272,13 @@ JAVA_APP_IDENTIFIERS = [
 ]
 
 
-def get_app_id(process: Union[int, Process], identifiers: List[_ApplicationIdentifier]) -> Optional[str]:
+def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier]) -> Optional[str]:
     """
     Tries to identify the application running in a given process, application identification is fully heuristic,
     heuristics are being made on each application type available differ from each other and those their
     "heuristic level".
     """
-    try:
-        if isinstance(process, int):
-            process = Process(process)
-    # pid may be (-1) so we can catch also ValueError
-    except (NoSuchProcess, ValueError):
-        return None
-
-    for identifier in _APPLICATION_IDENTIFIER:
+    for identifier in identifiers:
         try:
             appid = identifier.get_app_id(process)
             if appid is not None:
