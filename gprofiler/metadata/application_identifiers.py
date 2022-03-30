@@ -13,6 +13,7 @@ from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
+from gprofiler.merge import EnrichmentOptions
 from gprofiler.profilers.java import jattach_path
 from gprofiler.utils import run_process
 
@@ -85,6 +86,8 @@ def _append_file_to_proc_wd(process: Process, file_path: str) -> str:
 
 
 class _ApplicationIdentifier(metaclass=ABCMeta):
+    enrichment_options: Optional[EnrichmentOptions] = None
+
     @abstractmethod
     def get_application_name(self, process: Process) -> Optional[str]:
         pass
@@ -248,11 +251,25 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
             return None
 
         try:
-            java_properties = run_process([jattach_path(), str(process.pid), "properties"]).stdout.decode()
+            java_properties = run_process([jattach_path(), str(process.pid), "jcmd", "VM.command_line"]).stdout.decode()
+            java_command = None
+            java_args = []
             for line in java_properties.splitlines():
-                if line.startswith("sun.java.command"):
-                    app_id = line[line.find("=") + 1 :].split(" ", 1)[0]
-                    return f"java: {app_id}"
+                if line.startswith("jvm_args:"):
+                    if (
+                        self.enrichment_options is not None
+                        and self.enrichment_options.application_identifier_args_filters
+                    ):
+                        for arg in line[line.find(":") + 1 :].strip().split(" "):
+                            if any(
+                                re.search(flag_filter, arg)
+                                for flag_filter in self.enrichment_options.application_identifier_args_filters
+                            ):
+                                java_args.append(arg)
+                if line.startswith("java_command:"):
+                    java_command = line[line.find(":") + 1 :].strip().split(" ", 1)[0]
+            if java_command:
+                return f"java: {java_command}{' (' + ' '.join(java_args) + ')' if java_args else ''}"
         except CalledProcessError as e:
             _logger.warning(f"Couldn't get Java properties for process {process.pid}: {e.stderr}")
 
@@ -270,6 +287,10 @@ _APPLICATION_IDENTIFIER = [
     _PythonModuleApplicationIdentifier(),
     _JavaJarApplicationIdentifier(),
 ]
+
+
+def set_enrichment_options(enrichment_options: EnrichmentOptions) -> None:
+    _ApplicationIdentifier.enrichment_options = enrichment_options
 
 
 def get_application_name(process: Union[int, Process]) -> Optional[str]:
