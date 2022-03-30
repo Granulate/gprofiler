@@ -11,7 +11,6 @@ from docker import DockerClient
 from docker.models.images import Image
 
 from gprofiler.merge import parse_one_collapsed
-from gprofiler.profilers.java import JavaProfiler
 from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.php import PHPSpyProfiler
 from gprofiler.profilers.python import PySpyProfiler, PythonEbpfProfiler
@@ -21,6 +20,7 @@ from tests.conftest import AssertInCollapsed
 from tests.utils import (
     RUNTIME_PROFILERS,
     assert_function_in_collapsed,
+    make_java_profiler,
     run_gprofiler_in_container_for_one_session,
     snapshot_one_collaped,
 )
@@ -33,18 +33,10 @@ def test_java_from_host(
     assert_application_name: Callable,
     assert_collapsed: AssertInCollapsed,
 ) -> None:
-    with JavaProfiler(
-        1000,
-        1,
-        Event(),
-        str(tmp_path),
-        False,
-        True,
+    with make_java_profiler(
+        frequency=99,
+        storage_dir=str(tmp_path),
         java_async_profiler_mode="itimer",
-        java_async_profiler_safemode=0,
-        java_async_profiler_args="",
-        java_safemode="",
-        java_mode="ap",
     ) as profiler:
         _ = assert_application_name  # Required for mypy unused argument warning
         process_collapsed = snapshot_one_collaped(profiler)
