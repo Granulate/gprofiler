@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any, List, Tuple, Union
 
-from gprofiler.exceptions import SystemProfilerInitFailure
+from gprofiler.exceptions import NoProfilersEnabledError, SystemProfilerInitFailure
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.perf import SystemProfiler
@@ -48,5 +48,8 @@ def get_profilers(
                 system_profiler = profiler_instance
             else:
                 process_profilers_instances.append(profiler_instance)
+
+    if isinstance(system_profiler, NoopProfiler) and len(process_profilers_instances) == 0:
+        raise NoProfilersEnabledError()
 
     return system_profiler, process_profilers_instances

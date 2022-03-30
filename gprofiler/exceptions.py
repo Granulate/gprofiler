@@ -71,3 +71,7 @@ class ThreadStopTimeoutError(Exception):
 
 class SystemProfilerInitFailure(Exception):
     pass
+
+
+class NoProfilersEnabledError(Exception):
+    pass
