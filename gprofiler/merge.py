@@ -16,6 +16,7 @@ from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampl
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import get_application_metadata
+from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.system_metrics import Metrics
 
@@ -31,19 +32,6 @@ SAMPLE_REGEX = re.compile(
 # 0 [unknown] ([unknown])
 # 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
 FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \((.*)\)$")
-
-
-@dataclass
-class EnrichmentOptions:
-    """
-    Profile enrichment options.
-    """
-
-    profile_api_version: str  # profile protocol version. v1 does not support container_names and application_metadata.
-    container_names: bool  # Include container names for each stack in result profile
-    application_identifiers: bool  # Attempt to produce & include appid frames for each stack in result profile
-    application_identifier_args_filters: List[str]  # A list of regex filters to add cmdline arguments to the app id
-    application_metadata: bool  # Include specialized metadata per application, e.g for Python - the Python version
 
 
 def parse_one_collapsed(collapsed: str, add_comm: Optional[str] = None) -> StackToSampleCount:

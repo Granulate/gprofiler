@@ -8,12 +8,12 @@ import re
 from abc import ABCMeta, abstractmethod
 from typing import List, Optional, TextIO, Tuple, Union
 
+from gprofiler.metadata.enrichment import EnrichmentOptions
 from granulate_utils.linux.ns import resolve_host_path, resolve_proc_root_links
 from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
-from gprofiler.merge import EnrichmentOptions
 from gprofiler.profilers.java import jattach_path
 from gprofiler.utils import run_process
 
