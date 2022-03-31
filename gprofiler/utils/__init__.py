@@ -75,6 +75,9 @@ class RunProcessStaticx(RunProcess):
     def start(
         self, term_on_parent_death: bool = True, via_staticx: bool = False, **popen_kwargs: Any
     ) -> subprocess.Popen:
+        """
+        Override start() to add staticx related logics.
+        """
         env = popen_kwargs.pop("env", None)
         staticx_dir = get_staticx_dir()
         # are we running under staticx?
