@@ -4,10 +4,6 @@
 #
 
 
-class StopEventSetException(Exception):
-    pass
-
-
 class ProgramMissingException(Exception):
     def __init__(self, program: str):
         super().__init__(f"The program {program!r} is missing! Please install it")

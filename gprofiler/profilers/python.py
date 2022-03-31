@@ -29,13 +29,12 @@ from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
+    RunProcessStaticx,
     pgrep_maps,
-    poll_process,
     random_prefix,
     removed_path,
     resource_path,
     run_process_logged,
-    start_process_staticx,
     wait_event,
     wait_for_file_by_prefix,
 )
@@ -362,14 +361,15 @@ class PythonEbpfProfiler(ProfilerBase):
             "--duration",
             "1",
         ] + self._offset_args()
-        process = start_process_staticx(cmd, via_staticx=True)
+        process = RunProcessStaticx(cmd, stop_event=self._stop_event)
+        process.start(via_staticx=True)
         try:
-            poll_process(process, self._POLL_TIMEOUT, self._stop_event)
+            process.poll(self._POLL_TIMEOUT)
         except TimeoutError:
-            process.kill()
+            process.reap_and_read_output()
             raise
         else:
-            self._check_output(process, self.output_path)
+            self._check_output(process.get_popen(), self.output_path)
 
     def start(self) -> None:
         logger.info("Starting profiling of Python processes with PyPerf")
@@ -392,16 +392,13 @@ class PythonEbpfProfiler(ProfilerBase):
         for f in glob.glob(f"{str(self.output_path)}.*"):
             os.unlink(f)
 
-        process = start_process_staticx(cmd, via_staticx=True)
+        process = RunProcessStaticx(cmd).start(via_staticx=True)
         # wait until the transient data file appears - because once returning from here, PyPerf may
         # be polled via snapshot() and we need it to finish installing its signal handler.
         try:
             wait_event(self._POLL_TIMEOUT, self._stop_event, lambda: os.path.exists(self.output_path))
         except TimeoutError:
-            process.kill()
-            assert process.stdout is not None and process.stderr is not None
-            stdout = process.stdout.read()
-            stderr = process.stderr.read()
+            exit_code, stdout, stderr = process.reap_and_read_output()
             logger.error(f"PyPerf failed to start. stdout {stdout!r} stderr {stderr!r}")
             raise
         else:
@@ -451,8 +448,7 @@ class PythonEbpfProfiler(ProfilerBase):
     def _terminate(self) -> Optional[int]:
         code = None
         if self.process is not None:
-            self.process.terminate()  # okay to call even if process is already dead
-            code = self.process.wait()
+            code = self.reap(signal.SIGTERM)
             self.process = None
         return code
 

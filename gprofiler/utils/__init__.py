@@ -16,23 +16,22 @@ import socket
 import string
 import subprocess
 import sys
-import time
 from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
-from subprocess import Popen
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Any, Callable, Iterator, List, Optional, Tuple
+from typing import Any, Iterator, List, Optional, Tuple
 
 import importlib_resources
 import psutil
 from granulate_utils.linux.ns import run_in_ns
 from granulate_utils.linux.process import process_exe
-from granulate_utils.linux.run_process import run_process, start_process
+from granulate_utils.linux.run_process import RunProcess, run_process
+from granulate_utils.wait_event import wait_event
 from psutil import Process
 
-from gprofiler.exceptions import ProgramMissingException, StopEventSetException
+from gprofiler.exceptions import ProgramMissingException
 from gprofiler.log import get_logger_adapter
 
 logger = get_logger_adapter(__name__)
@@ -59,48 +58,27 @@ def is_root() -> bool:
     return os.geteuid() == 0
 
 
-def start_process_staticx(cmd: List[str], via_staticx: bool = False, **kwargs: Any) -> Popen:
-    if isinstance(cmd, str):
-        cmd = [cmd]
+class RunProcessStaticx(RunProcess):
+    def start(
+        self, term_on_parent_death: bool = True, via_staticx: bool = False, **popen_kwargs: Any
+    ) -> subprocess.Popen:
+        env = popen_kwargs.pop("env", None)
+        staticx_dir = get_staticx_dir()
+        # are we running under staticx?
+        if staticx_dir is not None:
+            # if so, if "via_staticx" was requested, then run the binary with the staticx ld.so
+            # because it's supposed to be run with it.
+            if via_staticx:
+                # staticx_dir (from STATICX_BUNDLE_DIR) is where staticx has extracted all of the
+                # libraries it had collected earlier.
+                # see https://github.com/JonathonReinhart/staticx#run-time-information
+                self.cmd = [f"{staticx_dir}/.staticx.interp", "--library-path", staticx_dir] + self.cmd
+            else:
+                # explicitly remove our directory from LD_LIBRARY_PATH
+                env = env if env is not None else os.environ.copy()
+                env.update({"LD_LIBRARY_PATH": ""})
 
-    env = kwargs.pop("env", None)
-    staticx_dir = get_staticx_dir()
-    # are we running under staticx?
-    if staticx_dir is not None:
-        # if so, if "via_staticx" was requested, then run the binary with the staticx ld.so
-        # because it's supposed to be run with it.
-        if via_staticx:
-            # staticx_dir (from STATICX_BUNDLE_DIR) is where staticx has extracted all of the
-            # libraries it had collected earlier.
-            # see https://github.com/JonathonReinhart/staticx#run-time-information
-            cmd = [f"{staticx_dir}/.staticx.interp", "--library-path", staticx_dir] + cmd
-        else:
-            # explicitly remove our directory from LD_LIBRARY_PATH
-            env = env if env is not None else os.environ.copy()
-            env.update({"LD_LIBRARY_PATH": ""})
-
-    return start_process(cmd, logger, env=env, **kwargs)
-
-
-def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool], interval: float = 0.1) -> None:
-    end_time = time.monotonic() + timeout
-    while True:
-        if condition():
-            break
-
-        if stop_event.wait(interval):
-            raise StopEventSetException()
-
-        if time.monotonic() > end_time:
-            raise TimeoutError()
-
-
-def poll_process(process: Popen, timeout: float, stop_event: Event) -> None:
-    try:
-        wait_event(timeout, stop_event, lambda: process.poll() is not None)
-    except StopEventSetException:
-        process.kill()
-        raise
+        return super().start(term_on_parent_death, env=env, **popen_kwargs)
 
 
 def run_process_logged(
