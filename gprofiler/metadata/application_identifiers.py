@@ -205,6 +205,14 @@ class _CeleryApplicationIdentifier(_ApplicationIdentifier):
             process.cmdline(), "--app", check_for_equals_arg=True
         )
         if app_name is _NON_AVAILABLE_ARG:
+            queue_name = _get_cli_arg_by_name(process.cmdline(), "-Q") or _get_cli_arg_by_name(
+                process.cmdline(), "--queues", check_for_equals_arg=True
+            )
+            # TODO: One worker can handle multiple queues, it could be useful to encode that into the app id.
+            if queue_name is not _NON_AVAILABLE_ARG:
+                # The queue handler routing is defined in the directory where the worker is run
+                return f'celery queue: {queue_name} ({process.cwd()})'
+        if app_name is _NON_AVAILABLE_ARG:
             _logger.warning(
                 f"{self.__class__.__name__}: Couldn't find positional argument -A or --app for application indication",
                 cmdline=process.cmdline(),

@@ -81,7 +81,7 @@ def test_uwsgi_ini_file(monkeypatch: MonkeyPatch) -> None:
     assert "uwsgi: my.ini" == get_application_name(process_with_cmdline(["uwsgi", "a", "b", "--ini", "my.ini"]))
 
 
-def test_celery() -> None:
+def test_celery_with_app() -> None:
     # celery -A
     assert f"celery: app1 ({PROCESS_CWD}/app1.py)" == get_application_name(
         process_with_cmdline(["celery", "a", "b", "-A", "app1"])
@@ -110,7 +110,28 @@ def test_celery() -> None:
     assert "celery: /path/to/app3 (/path/to/app3.py)" == get_application_name(
         process_with_cmdline(["celery", "a", "b", "--app=/path/to/app3"])
     )
-    # No app
+
+
+def test_celery_with_queue() -> None:
+    # celery -Q
+    assert f"celery queue: qqq ({PROCESS_CWD})" == get_application_name(
+        process_with_cmdline(["celery", "a", "b", "-Q", "qqq"])
+    )
+    # python celery -Q
+    assert f"celery queue: qqq ({PROCESS_CWD})" == get_application_name(
+        process_with_cmdline(["python", "/path/to/celery", "a", "b", "-Q", "qqq"])
+    )
+    # --queues queue
+    assert f"celery queue: qqq ({PROCESS_CWD})" == get_application_name(
+        process_with_cmdline(["celery", "a", "b", "--queues", "qqq"])
+    )
+    # --queues=queue
+    assert f"celery queue: qqq ({PROCESS_CWD})" == get_application_name(
+        process_with_cmdline(["celery", "a", "b", "--queues=qqq"])
+    )
+
+
+def test_celery_without_app() -> None:
     assert get_application_name(process_with_cmdline(["celery", "a", "b"])) is None
 
 
