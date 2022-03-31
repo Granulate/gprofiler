@@ -18,7 +18,6 @@ from gprofiler.utils import run_process
 
 _logger = get_logger_adapter(__name__)
 
-
 _PYTHON_BIN_RE = re.compile(r"^python([23](\.\d{1,2})?)?$")
 
 
@@ -47,7 +46,9 @@ def _is_python_bin(bin_name: str) -> bool:
     return _PYTHON_BIN_RE.match(os.path.basename(bin_name)) is not None
 
 
-def _get_cli_arg_by_name(args: List[str], arg_name: str, check_for_equals_arg: bool = False) -> str:
+def _get_cli_arg_by_name(
+    args: List[str], arg_name: str, check_for_equals_arg: bool = False, check_for_short_prefix_arg: bool = False
+) -> str:
     if arg_name in args:
         return args[args.index(arg_name) + 1]
 
@@ -56,6 +57,11 @@ def _get_cli_arg_by_name(args: List[str], arg_name: str, check_for_equals_arg: b
             arg_key, _, arg_val = arg.partition("=")
             if arg_key == arg_name:
                 return arg_val
+
+    if check_for_short_prefix_arg:
+        for arg in args:
+            if arg.startswith(arg_name):
+                return arg[len(arg_name) :]
 
     return _NON_AVAILABLE_ARG
 
@@ -201,17 +207,17 @@ class _CeleryApplicationIdentifier(_ApplicationIdentifier):
         if not self.is_celery_process(process):
             return None
 
-        app_name = _get_cli_arg_by_name(process.cmdline(), "-A") or _get_cli_arg_by_name(
-            process.cmdline(), "--app", check_for_equals_arg=True
-        )
+        app_name = _get_cli_arg_by_name(
+            process.cmdline(), "-A", check_for_short_prefix_arg=True
+        ) or _get_cli_arg_by_name(process.cmdline(), "--app", check_for_equals_arg=True)
         if app_name is _NON_AVAILABLE_ARG:
-            queue_name = _get_cli_arg_by_name(process.cmdline(), "-Q") or _get_cli_arg_by_name(
-                process.cmdline(), "--queues", check_for_equals_arg=True
-            )
+            queue_name = _get_cli_arg_by_name(
+                process.cmdline(), "-Q", check_for_short_prefix_arg=True
+            ) or _get_cli_arg_by_name(process.cmdline(), "--queues", check_for_equals_arg=True)
             # TODO: One worker can handle multiple queues, it could be useful to encode that into the app id.
             if queue_name is not _NON_AVAILABLE_ARG:
                 # The queue handler routing is defined in the directory where the worker is run
-                return f'celery queue: {queue_name} ({process.cwd()})'
+                return f"celery queue: {queue_name} ({process.cwd()})"
         if app_name is _NON_AVAILABLE_ARG:
             _logger.warning(
                 f"{self.__class__.__name__}: Couldn't find positional argument -A or --app for application indication",

@@ -89,6 +89,9 @@ def test_celery_with_app() -> None:
     assert "celery: /path/to/app1 (/path/to/app1.py)" == get_application_name(
         process_with_cmdline(["celery", "a", "b", "-A", "/path/to/app1"])
     )
+    assert "celery: /path/to/app1 (/path/to/app1.py)" == get_application_name(
+        process_with_cmdline(["celery", "a", "b", "-A/path/to/app1"])
+    )
     # python celery -A
     assert f"celery: app1 ({PROCESS_CWD}/app1.py)" == get_application_name(
         process_with_cmdline(["python", "/path/to/celery", "a", "b", "-A", "app1"])
@@ -113,11 +116,15 @@ def test_celery_with_app() -> None:
 
 
 def test_celery_with_queue() -> None:
-    # celery -Q
+    # celery -Q queue
     assert f"celery queue: qqq ({PROCESS_CWD})" == get_application_name(
         process_with_cmdline(["celery", "a", "b", "-Q", "qqq"])
     )
-    # python celery -Q
+    # celery -Qqueue
+    assert f"celery queue: qqq ({PROCESS_CWD})" == get_application_name(
+        process_with_cmdline(["celery", "a", "b", "-Qqqq"])
+    )
+    # python celery -Q queue
     assert f"celery queue: qqq ({PROCESS_CWD})" == get_application_name(
         process_with_cmdline(["python", "/path/to/celery", "a", "b", "-Q", "qqq"])
     )
@@ -128,6 +135,10 @@ def test_celery_with_queue() -> None:
     # --queues=queue
     assert f"celery queue: qqq ({PROCESS_CWD})" == get_application_name(
         process_with_cmdline(["celery", "a", "b", "--queues=qqq"])
+    )
+    # multiple queues
+    assert f"celery queue: qqq,www ({PROCESS_CWD})" == get_application_name(
+        process_with_cmdline(["celery", "a", "b", "-Q", "qqq,www"])
     )
 
 
