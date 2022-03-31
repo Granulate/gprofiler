@@ -204,7 +204,7 @@ class _CeleryApplicationIdentifier(_ApplicationIdentifier):
         app_name = _get_cli_arg_by_name(process.cmdline(), "-A") or _get_cli_arg_by_name(
             process.cmdline(), "--app", check_for_equals_arg=True
         )
-        if app_name is None:
+        if app_name is _NON_AVAILABLE_ARG:
             _logger.warning(
                 f"{self.__class__.__name__}: Couldn't find positional argument -A or --app for application indication",
                 cmdline=process.cmdline(),
