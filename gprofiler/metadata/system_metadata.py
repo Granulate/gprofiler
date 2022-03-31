@@ -18,7 +18,7 @@ import psutil
 from granulate_utils.linux.ns import run_in_ns
 
 from gprofiler.log import get_logger_adapter
-from gprofiler.utils import is_pyinstaller, run_process
+from gprofiler.utils import is_pyinstaller, run_process_logged
 
 logger = get_logger_adapter(__name__)
 hostname: Optional[str] = None
@@ -39,7 +39,7 @@ def get_libc_version() -> Tuple[str, str]:
         return version.decode("utf-8", errors="replace")
 
     try:
-        ldd_version = run_process(
+        ldd_version = run_process_logged(
             ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, suppress_log=True, check=False
         ).stdout
     except FileNotFoundError:

@@ -3,8 +3,9 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
-from gprofiler.exceptions import CalledProcessError
-from gprofiler.utils import resource_path, run_process
+from granulate_utils.exceptions import CalledProcessError
+
+from gprofiler.utils import resource_path, run_process_logged
 
 
 def perf_path() -> str:
@@ -16,7 +17,7 @@ def can_i_use_perf_events() -> bool:
     # TODO invoking perf has a toll of about 1 second on my box; maybe we want to directly call
     # perf_event_open here for this test?
     try:
-        run_process([perf_path(), "record", "-o", "/dev/null", "--", "/bin/true"])
+        run_process_logged([perf_path(), "record", "-o", "/dev/null", "--", "/bin/true"])
     except CalledProcessError as e:
         # perf's output upon start error (e.g due to permissions denied error)
         if e.returncode == 255 and (

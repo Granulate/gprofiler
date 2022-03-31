@@ -19,7 +19,7 @@ from gprofiler.gprofiler_types import ProcessToStackSampleCounters
 from gprofiler.log import get_logger_adapter
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils import random_prefix, resource_path, start_process, wait_event
+from gprofiler.utils import random_prefix, resource_path, start_process_staticx, wait_event
 
 logger = get_logger_adapter(__name__)
 # Currently tracing only php-fpm, TODO: support mod_php in apache.
@@ -93,7 +93,7 @@ class PHPSpyProfiler(ProfilerBase):
         phpspy_dir = os.path.dirname(phpspy_path)
         env = os.environ.copy()
         env["PATH"] = f"{env.get('PATH')}:{phpspy_dir}"
-        process = start_process(cmd, env=env, via_staticx=False)
+        process = start_process_staticx(cmd, env=env, via_staticx=False)
         # Executing phpspy, expecting the output file to be created, phpspy creates it at bootstrap after argument
         # parsing.
         # If an error occurs after this stage it's probably a spied _process specific and not phpspy general error.

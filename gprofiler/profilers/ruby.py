@@ -9,17 +9,18 @@ from subprocess import CompletedProcess
 from threading import Event
 from typing import Any, Dict, List, Optional
 
+from granulate_utils.exceptions import ProcessStoppedException
 from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from psutil import Process
 
 from gprofiler import merge
-from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
+from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
-from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
+from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process_logged
 from gprofiler.utils.elf import get_elf_id, get_mapped_dso_elf_id
 from gprofiler.utils.process import process_comm
 
@@ -38,7 +39,7 @@ class RubyMetadata(ApplicationMetadata):
         ruby_path = f"/proc/{get_process_nspid(process.pid)}/exe"
 
         def _run_ruby_version() -> "CompletedProcess[bytes]":
-            return run_process(
+            return run_process_logged(
                 [
                     ruby_path,
                     "--version",
@@ -108,7 +109,7 @@ class RbSpyProfiler(ProcessProfilerBase):
         local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):
             try:
-                run_process(
+                run_process_logged(
                     self._make_command(process.pid, local_output_path),
                     stop_event=self._stop_event,
                     timeout=self._duration + self._EXTRA_TIMEOUT,

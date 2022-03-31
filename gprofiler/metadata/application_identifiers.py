@@ -8,13 +8,13 @@ import re
 from abc import ABCMeta, abstractmethod
 from typing import List, Optional, TextIO, Tuple, Union
 
+from granulate_utils.exceptions import CalledProcessError
 from granulate_utils.linux.ns import resolve_host_path, resolve_proc_root_links
 from psutil import NoSuchProcess, Process
 
-from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
 from gprofiler.profilers.java import jattach_path
-from gprofiler.utils import run_process
+from gprofiler.utils import run_process_logged
 
 _logger = get_logger_adapter(__name__)
 
@@ -248,7 +248,7 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
             return None
 
         try:
-            java_properties = run_process([jattach_path(), str(process.pid), "properties"]).stdout.decode()
+            java_properties = run_process_logged([jattach_path(), str(process.pid), "properties"]).stdout.decode()
             for line in java_properties.splitlines():
                 if line.startswith("sun.java.command"):
                     app_id = line[line.find("=") + 1 :].split(" ", 1)[0]

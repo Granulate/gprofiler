@@ -16,6 +16,7 @@ from types import TracebackType
 from typing import Any, Dict, List, Optional, Set, Type, TypeVar
 
 import psutil
+from granulate_utils.exceptions import CalledProcessError
 from granulate_utils.java import (
     CONTAINER_INFO_REGEX,
     DETECTED_JAVA_PROCESSES_REGEX,
@@ -36,7 +37,6 @@ from packaging.version import Version
 from psutil import Process
 
 from gprofiler import merge
-from gprofiler.exceptions import CalledProcessError
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
@@ -50,7 +50,7 @@ from gprofiler.utils import (
     remove_path,
     remove_prefix,
     resource_path,
-    run_process,
+    run_process_logged,
     touch_path,
     wait_event,
 )
@@ -146,7 +146,7 @@ def get_java_version(process: Process, stop_event: Event) -> str:
     java_path = f"/proc/{nspid}/exe"
 
     def _run_java_version() -> "CompletedProcess[bytes]":
-        return run_process(
+        return run_process_logged(
             [
                 java_path,
                 "-version",
@@ -377,7 +377,9 @@ class AsyncProfiledProcess:
     def _run_async_profiler(self, cmd: List[str]) -> None:
         try:
             # kill jattach with SIGTERM if it hangs. it will go down
-            run_process(cmd, stop_event=self._stop_event, timeout=self._JATTACH_TIMEOUT, kill_signal=signal.SIGTERM)
+            run_process_logged(
+                cmd, stop_event=self._stop_event, timeout=self._JATTACH_TIMEOUT, kill_signal=signal.SIGTERM
+            )
         except CalledProcessError as e:  # catches timeouts as well
             if os.path.exists(self._log_path_host):
                 log = Path(self._log_path_host)
@@ -398,7 +400,7 @@ class AsyncProfiledProcess:
         """
         Start fdtransfer; it will fork & exit once ready, so we can continue with jattach.
         """
-        run_process(
+        run_process_logged(
             [fdtransfer_path(), str(self.process.pid)],
             stop_event=self._stop_event,
             timeout=self._FDTRANSFER_TIMEOUT,

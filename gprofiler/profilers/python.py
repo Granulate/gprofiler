@@ -13,18 +13,14 @@ from subprocess import CompletedProcess, Popen
 from threading import Event
 from typing import Any, Dict, List, Match, NoReturn, Optional, Tuple, cast
 
+from granulate_utils.exceptions import CalledProcessError, CalledProcessTimeoutError, ProcessStoppedException
 from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from granulate_utils.linux.process import is_process_running, process_exe
 from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PROCESSES_REGEX
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
-from gprofiler.exceptions import (
-    CalledProcessError,
-    CalledProcessTimeoutError,
-    ProcessStoppedException,
-    StopEventSetException,
-)
+from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.application_metadata import ApplicationMetadata
@@ -38,8 +34,8 @@ from gprofiler.utils import (
     random_prefix,
     removed_path,
     resource_path,
-    run_process,
-    start_process,
+    run_process_logged,
+    start_process_staticx,
     wait_event,
     wait_for_file_by_prefix,
 )
@@ -98,7 +94,7 @@ class PythonMetadata(ApplicationMetadata):
         python_path = f"/proc/{get_process_nspid(process.pid)}/exe"
 
         def _run_python_process_in_ns() -> "CompletedProcess[bytes]":
-            return run_process(
+            return run_process_logged(
                 [
                     python_path,
                 ]
@@ -199,7 +195,7 @@ class PySpyProfiler(ProcessProfilerBase):
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):
             try:
-                run_process(
+                run_process_logged(
                     self._make_command(process.pid, local_output_path),
                     stop_event=self._stop_event,
                     timeout=self._duration + self._EXTRA_TIMEOUT,
@@ -317,12 +313,12 @@ class PythonEbpfProfiler(ProfilerBase):
         # mount /sys/kernel/debug in our container
         if not os.path.ismount("/sys/kernel/debug"):
             os.makedirs("/sys/kernel/debug", exist_ok=True)
-            run_process(["mount", "-t", "debugfs", "none", "/sys/kernel/debug"])
+            run_process_logged(["mount", "-t", "debugfs", "none", "/sys/kernel/debug"])
 
     def _get_offset(self, prog: str) -> int:
         return int(
-            run_process(
-                resource_path(prog), stop_event=self._stop_event, timeout=self._GET_OFFSETS_TIMEOUT
+            run_process_logged(
+                [resource_path(prog)], stop_event=self._stop_event, timeout=self._GET_OFFSETS_TIMEOUT
             ).stdout.strip()
         )
 
@@ -366,7 +362,7 @@ class PythonEbpfProfiler(ProfilerBase):
             "--duration",
             "1",
         ] + self._offset_args()
-        process = start_process(cmd, via_staticx=True)
+        process = start_process_staticx(cmd, via_staticx=True)
         try:
             poll_process(process, self._POLL_TIMEOUT, self._stop_event)
         except TimeoutError:
@@ -396,7 +392,7 @@ class PythonEbpfProfiler(ProfilerBase):
         for f in glob.glob(f"{str(self.output_path)}.*"):
             os.unlink(f)
 
-        process = start_process(cmd, via_staticx=True)
+        process = start_process_staticx(cmd, via_staticx=True)
         # wait until the transient data file appears - because once returning from here, PyPerf may
         # be polled via snapshot() and we need it to finish installing its signal handler.
         try:

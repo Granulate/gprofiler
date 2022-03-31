@@ -2,7 +2,6 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import ctypes
 import datetime
 import errno
 import fcntl
@@ -21,24 +20,19 @@ import time
 from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
-from subprocess import CompletedProcess, Popen, TimeoutExpired
+from subprocess import Popen
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Any, Callable, Iterator, List, Optional, Tuple, Union, cast
+from typing import Any, Callable, Iterator, List, Optional, Tuple
 
 import importlib_resources
 import psutil
 from granulate_utils.linux.ns import run_in_ns
 from granulate_utils.linux.process import process_exe
+from granulate_utils.linux.run_process import run_process, start_process
 from psutil import Process
 
-from gprofiler.exceptions import (
-    CalledProcessError,
-    CalledProcessTimeoutError,
-    ProcessStoppedException,
-    ProgramMissingException,
-    StopEventSetException,
-)
+from gprofiler.exceptions import ProgramMissingException, StopEventSetException
 from gprofiler.log import get_logger_adapter
 
 logger = get_logger_adapter(__name__)
@@ -65,47 +59,7 @@ def is_root() -> bool:
     return os.geteuid() == 0
 
 
-libc: Optional[ctypes.CDLL] = None
-
-
-def prctl(*argv: Any) -> int:
-    global libc
-    if libc is None:
-        libc = ctypes.CDLL("libc.so.6", use_errno=True)
-    return cast(int, libc.prctl(*argv))
-
-
-PR_SET_PDEATHSIG = 1
-
-
-def set_child_termination_on_parent_death() -> int:
-    ret = prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
-    if ret != 0:
-        errno = ctypes.get_errno()
-        logger.warning(
-            f"Failed to set parent-death signal on child process. errno: {errno}, strerror: {os.strerror(errno)}"
-        )
-    return ret
-
-
-def wrap_callbacks(callbacks: List[Callable]) -> Callable:
-    # Expects array of callback.
-    # Returns one callback that call each one of them, and returns the retval of last callback
-    def wrapper() -> Any:
-        ret = None
-        for cb in callbacks:
-            ret = cb()
-
-        return ret
-
-    return wrapper
-
-
-def start_process(
-    cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_death: bool = True, **kwargs: Any
-) -> Popen:
-    cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
-    logger.debug(f"Running command: ({cmd_text})")
+def start_process_staticx(cmd: List[str], via_staticx: bool = False, **kwargs: Any) -> Popen:
     if isinstance(cmd, str):
         cmd = [cmd]
 
@@ -125,21 +79,7 @@ def start_process(
             env = env if env is not None else os.environ.copy()
             env.update({"LD_LIBRARY_PATH": ""})
 
-    cur_preexec_fn = kwargs.pop("preexec_fn", os.setpgrp)
-
-    if term_on_parent_death:
-        cur_preexec_fn = wrap_callbacks([set_child_termination_on_parent_death, cur_preexec_fn])
-
-    popen = Popen(
-        cmd,
-        stdout=kwargs.pop("stdout", subprocess.PIPE),
-        stderr=kwargs.pop("stderr", subprocess.PIPE),
-        stdin=subprocess.PIPE,
-        preexec_fn=cur_preexec_fn,
-        env=env,
-        **kwargs,
-    )
-    return popen
+    return start_process(cmd, logger, env=env, **kwargs)
 
 
 def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool], interval: float = 0.1) -> None:
@@ -161,6 +101,20 @@ def poll_process(process: Popen, timeout: float, stop_event: Event) -> None:
     except StopEventSetException:
         process.kill()
         raise
+
+
+def run_process_logged(
+    cmd: List[str],
+    stop_event: Event = None,
+    suppress_log: bool = False,
+    check: bool = True,
+    timeout: int = None,
+    kill_signal: signal.Signals = signal.SIGKILL,
+    communicate: bool = True,
+    stdin: bytes = None,
+    **kwargs: Any,
+) -> "subprocess.CompletedProcess[bytes]":
+    return run_process(cmd, logger, stop_event, suppress_log, check, timeout, kill_signal, communicate, stdin, **kwargs)
 
 
 def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> Path:
@@ -189,83 +143,6 @@ def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> P
     return Path(output_files[0])
 
 
-def _reap_process(process: Popen, kill_signal: signal.Signals) -> Tuple[int, str, str]:
-    # kill the process and read its output so far
-    process.send_signal(kill_signal)
-    process.wait()
-    logger.debug(f"({process.args!r}) was killed by us with signal {kill_signal} due to timeout or stop request")
-    stdout, stderr = process.communicate()
-    returncode = process.poll()
-    assert returncode is not None  # only None if child has not terminated
-    return returncode, stdout, stderr
-
-
-def run_process(
-    cmd: Union[str, List[str]],
-    stop_event: Event = None,
-    suppress_log: bool = False,
-    via_staticx: bool = False,
-    check: bool = True,
-    timeout: int = None,
-    kill_signal: signal.Signals = signal.SIGKILL,
-    communicate: bool = True,
-    stdin: bytes = None,
-    **kwargs: Any,
-) -> "CompletedProcess[bytes]":
-    stdout = None
-    stderr = None
-    reraise_exc: Optional[BaseException] = None
-    with start_process(cmd, via_staticx, **kwargs) as process:
-        try:
-            communicate_kwargs = dict(input=stdin) if stdin is not None else {}
-            if stop_event is None:
-                assert timeout is None, f"expected no timeout, got {timeout!r}"
-                if communicate:
-                    # wait for stderr & stdout to be closed
-                    stdout, stderr = process.communicate(timeout=timeout, **communicate_kwargs)
-                else:
-                    # just wait for the process to exit
-                    process.wait()
-            else:
-                end_time = (time.monotonic() + timeout) if timeout is not None else None
-                while True:
-                    try:
-                        if communicate:
-                            stdout, stderr = process.communicate(timeout=1, **communicate_kwargs)
-                        else:
-                            process.wait(timeout=1)
-                        break
-                    except TimeoutExpired:
-                        if stop_event.is_set():
-                            raise ProcessStoppedException from None
-                        if end_time is not None and time.monotonic() > end_time:
-                            assert timeout is not None
-                            raise
-        except TimeoutExpired:
-            returncode, stdout, stderr = _reap_process(process, kill_signal)
-            assert timeout is not None
-            reraise_exc = CalledProcessTimeoutError(timeout, returncode, cmd, stdout, stderr)
-        except BaseException as e:  # noqa
-            returncode, stdout, stderr = _reap_process(process, kill_signal)
-            reraise_exc = e
-        retcode = process.poll()
-        assert retcode is not None  # only None if child has not terminated
-
-    result: CompletedProcess[bytes] = CompletedProcess(process.args, retcode, stdout, stderr)
-
-    logger.debug(f"({process.args!r}) exit code: {result.returncode}")
-    if not suppress_log:
-        if result.stdout:
-            logger.debug(f"({process.args!r}) stdout: {result.stdout.decode()!r}")
-        if result.stderr:
-            logger.debug(f"({process.args!r}) stderr: {result.stderr.decode()!r}")
-    if reraise_exc is not None:
-        raise reraise_exc
-    elif check and retcode != 0:
-        raise CalledProcessError(retcode, process.args, output=stdout, stderr=stderr)
-    return result
-
-
 def pgrep_exe(match: str) -> List[Process]:
     pattern = re.compile(match)
     procs = []
@@ -281,7 +158,8 @@ def pgrep_exe(match: str) -> List[Process]:
 def pgrep_maps(match: str) -> List[Process]:
     # this is much faster than iterating over processes' maps with psutil.
     result = run_process(
-        f"grep -lP '{match}' /proc/*/maps",
+        ["/bin/sh", "-c", f"grep -lP '{match}' /proc/*/maps"],
+        logger=logger,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         shell=True,

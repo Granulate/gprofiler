@@ -47,7 +47,7 @@ from gprofiler.utils import (
     is_root,
     reset_umask,
     resource_path,
-    run_process,
+    run_process_logged,
 )
 
 logger: logging.LoggerAdapter
@@ -191,7 +191,7 @@ class GProfiler:
                 .read_text()
                 .replace(
                     "{{{JSON_DATA}}}",
-                    run_process(
+                    run_process_logged(
                         [resource_path("burn"), "convert", "--type=folded"],
                         suppress_log=True,
                         stdin=stripped_collapsed_data.encode(),
