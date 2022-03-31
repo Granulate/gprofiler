@@ -17,6 +17,8 @@ from types import FrameType, TracebackType
 from typing import Any, Iterable, Optional, Type, cast
 
 import configargparse
+
+from gprofiler.metadata.enrichment import EnrichmentOptions
 from granulate_utils.linux.ns import is_running_in_init_pid
 from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
@@ -28,7 +30,8 @@ from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.exceptions import APIError, SystemProfilerInitFailure
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
-from gprofiler.merge import EnrichmentOptions, concatenate_profiles, merge_profiles
+from gprofiler.merge import concatenate_profiles, merge_profiles
+from gprofiler.metadata.application_identifiers import set_enrichment_options
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
@@ -544,6 +547,14 @@ def parse_cmd_args() -> Any:
     )
 
     parser.add_argument(
+        "--app-id-args-filter",
+        action="append",
+        default=list(),
+        dest="app_id_args_filters",
+        help="A regex based filter for adding relevant arguments to the app id",
+    )
+
+    parser.add_argument(
         "--disable-application-metadata",
         action="store_false",
         default=True,
@@ -734,8 +745,11 @@ def main() -> None:
             profile_api_version=args.profile_api_version,
             container_names=args.container_names,
             application_identifiers=args.identify_applications,
+            application_identifier_args_filters=args.app_id_args_filters,
             application_metadata=args.application_metadata,
         )
+
+        set_enrichment_options(enrichment_options)
 
         gprofiler = GProfiler(
             args.output_dir,
