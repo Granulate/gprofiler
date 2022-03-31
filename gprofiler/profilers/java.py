@@ -33,6 +33,7 @@ from granulate_utils.linux.ns import get_proc_root_path, get_process_nspid, reso
 from granulate_utils.linux.oom import get_oom_entry
 from granulate_utils.linux.process import is_process_running, process_exe
 from granulate_utils.linux.signals import get_signal_entry
+from granulate_utils.wait_event import wait_event
 from packaging.version import Version
 from psutil import Process
 
@@ -52,7 +53,6 @@ from gprofiler.utils import (
     resource_path,
     run_process_logged,
     touch_path,
-    wait_event,
 )
 from gprofiler.utils.elf import get_mapped_dso_elf_id
 from gprofiler.utils.fs import safe_copy

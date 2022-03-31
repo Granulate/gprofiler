@@ -6,7 +6,6 @@ import platform
 import re
 import socket
 import struct
-import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -39,9 +38,7 @@ def get_libc_version() -> Tuple[str, str]:
         return version.decode("utf-8", errors="replace")
 
     try:
-        ldd_version = run_process_logged(
-            ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, suppress_log=True, check=False
-        ).stdout
+        ldd_version = run_process_logged(["ldd", "--version"], suppress_log=True, check=False).stdout
     except FileNotFoundError:
         ldd_version = b"ldd not found"
     # catches GLIBC & EGLIBC

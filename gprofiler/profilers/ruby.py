@@ -9,12 +9,11 @@ from subprocess import CompletedProcess
 from threading import Event
 from typing import Any, Dict, List, Optional
 
-from granulate_utils.exceptions import ProcessStoppedException
+from granulate_utils.exceptions import ProcessStoppedException, StopEventSetException
 from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from psutil import Process
 
 from gprofiler import merge
-from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.application_metadata import ApplicationMetadata

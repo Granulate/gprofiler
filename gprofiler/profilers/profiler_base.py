@@ -9,9 +9,9 @@ from threading import Event
 from types import TracebackType
 from typing import List, Optional, Type, TypeVar
 
+from granulate_utils.exceptions import StopEventSetException
 from psutil import NoSuchProcess, Process
 
-from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import limit_frequency

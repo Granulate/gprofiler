@@ -9,13 +9,15 @@ from subprocess import Popen
 from threading import Event
 from typing import List, Optional
 
+from granulate_utils.exceptions import StopEventSetException
+from granulate_utils.wait_event import wait_event
+
 from gprofiler import merge
-from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters
 from gprofiler.log import get_logger_adapter
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils import run_process_logged, start_process_staticx, wait_event, wait_for_file_by_prefix
+from gprofiler.utils import RunProcessStaticx, run_process_logged, wait_for_file_by_prefix
 from gprofiler.utils.perf import perf_path
 
 logger = get_logger_adapter(__name__)
@@ -67,7 +69,7 @@ class PerfProcess:
 
     def start(self) -> None:
         logger.info(f"Starting perf ({self._type} mode)")
-        process = start_process_staticx(self._get_perf_cmd(), via_staticx=False)
+        process = RunProcessStaticx(self._get_perf_cmd()).start(via_staticx=False)
         try:
             wait_event(self._poll_timeout_s, self._stop_event, lambda: os.path.exists(self._output_path))
         except TimeoutError:

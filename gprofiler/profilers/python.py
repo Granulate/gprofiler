@@ -13,14 +13,19 @@ from subprocess import CompletedProcess, Popen
 from threading import Event
 from typing import Any, Dict, List, Match, NoReturn, Optional, Tuple, cast
 
-from granulate_utils.exceptions import CalledProcessError, CalledProcessTimeoutError, ProcessStoppedException
+from granulate_utils.exceptions import (
+    CalledProcessError,
+    CalledProcessTimeoutError,
+    ProcessStoppedException,
+    StopEventSetException,
+)
 from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from granulate_utils.linux.process import is_process_running, process_exe
 from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PROCESSES_REGEX
+from granulate_utils.wait_event import wait_event
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
-from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.application_metadata import ApplicationMetadata
@@ -35,7 +40,6 @@ from gprofiler.utils import (
     removed_path,
     resource_path,
     run_process_logged,
-    wait_event,
     wait_for_file_by_prefix,
 )
 from gprofiler.utils.elf import get_elf_id, get_mapped_dso_elf_id
@@ -365,6 +369,9 @@ class PythonEbpfProfiler(ProfilerBase):
         process.start(via_staticx=True)
         try:
             process.poll(self._POLL_TIMEOUT)
+        except StopEventSetException:
+            process.reap()
+            raise
         except TimeoutError:
             process.reap_and_read_output()
             raise
@@ -392,7 +399,8 @@ class PythonEbpfProfiler(ProfilerBase):
         for f in glob.glob(f"{str(self.output_path)}.*"):
             os.unlink(f)
 
-        process = RunProcessStaticx(cmd).start(via_staticx=True)
+        process = RunProcessStaticx(cmd)
+        process.start(via_staticx=True)
         # wait until the transient data file appears - because once returning from here, PyPerf may
         # be polled via snapshot() and we need it to finish installing its signal handler.
         try:
@@ -402,7 +410,7 @@ class PythonEbpfProfiler(ProfilerBase):
             logger.error(f"PyPerf failed to start. stdout {stdout!r} stderr {stderr!r}")
             raise
         else:
-            self.process = process
+            self.process = process.get_popen()
 
     def _dump(self) -> Path:
         assert self.process is not None, "profiling not started!"
@@ -448,7 +456,8 @@ class PythonEbpfProfiler(ProfilerBase):
     def _terminate(self) -> Optional[int]:
         code = None
         if self.process is not None:
-            code = self.reap(signal.SIGTERM)
+            self.process.terminate()  # okay to call even if process is already dead
+            code = self.process.wait()
             self.process = None
         return code
 

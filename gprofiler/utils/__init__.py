@@ -59,6 +59,19 @@ def is_root() -> bool:
 
 
 class RunProcessStaticx(RunProcess):
+    def __init__(
+        self,
+        cmd: List[str],
+        stop_event: Event = None,
+        suppress_log: bool = False,
+        check: bool = True,
+        timeout: int = None,
+        kill_signal: signal.Signals = signal.SIGKILL,
+        communicate: bool = True,
+        stdin: bytes = None,
+    ) -> None:
+        super().__init__(cmd, logger, stop_event, suppress_log, check, timeout, kill_signal, communicate, stdin)
+
     def start(
         self, term_on_parent_death: bool = True, via_staticx: bool = False, **popen_kwargs: Any
     ) -> subprocess.Popen:
@@ -90,9 +103,8 @@ def run_process_logged(
     kill_signal: signal.Signals = signal.SIGKILL,
     communicate: bool = True,
     stdin: bytes = None,
-    **kwargs: Any,
 ) -> "subprocess.CompletedProcess[bytes]":
-    return run_process(cmd, logger, stop_event, suppress_log, check, timeout, kill_signal, communicate, stdin, **kwargs)
+    return run_process(cmd, logger, stop_event, suppress_log, check, timeout, kill_signal, communicate, stdin)
 
 
 def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> Path:
@@ -138,9 +150,6 @@ def pgrep_maps(match: str) -> List[Process]:
     result = run_process(
         ["/bin/sh", "-c", f"grep -lP '{match}' /proc/*/maps"],
         logger=logger,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        shell=True,
         suppress_log=True,
         check=False,
     )
