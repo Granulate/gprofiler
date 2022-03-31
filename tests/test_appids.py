@@ -110,6 +110,8 @@ def test_celery() -> None:
     assert "celery: /path/to/app3 (/path/to/app3.py)" == get_application_name(
         process_with_cmdline(["celery", "a", "b", "--app=/path/to/app3"])
     )
+    # No app
+    assert get_application_name(process_with_cmdline(["celery", "a", "b"])) is None
 
 
 def test_pyspark() -> None:
