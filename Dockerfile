@@ -146,9 +146,13 @@ RUN pip3 install --upgrade pip
 # done separately from the 'pip3 install -e' below; so we don't reinstall all dependencies on each
 # code change.
 COPY requirements.txt ./
+# copy needed files from granulate-utils to run the pip install
 COPY granulate-utils/setup.py granulate-utils/requirements.txt granulate-utils/README.md granulate-utils/
-COPY granulate-utils/granulate_utils granulate-utils/granulate_utils
+COPY granulate-utils/granulate_utils/__init__.py granulate-utils/granulate_utils/py.typed granulate-utils/granulate_utils/
 RUN pip3 install --no-cache-dir -r requirements.txt
+
+# and finally copy granulate-utils code itself
+COPY granulate-utils/granulate_utils granulate-utils/granulate_utils/
 
 COPY LICENSE.md MANIFEST.in README.md setup.py  ./
 COPY gprofiler gprofiler

@@ -8,4 +8,4 @@ six==1.16.0
 dataclasses==0.8; python_version < '3.7'
 packaging==21.2
 pyelftools==0.28
-./granulate-utils/
+-e ./granulate-utils/

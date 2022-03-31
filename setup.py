@@ -15,7 +15,7 @@ def read_requirements(path: str) -> Iterator[str]:
             if line.startswith("#"):
                 continue
             # install_requires doesn't like paths
-            if line.strip() == "./granulate-utils/":
+            if line.strip() == "-e ./granulate-utils/":
                 yield "granulate-utils"
                 continue
             yield line
