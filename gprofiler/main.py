@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from threading import Event
 from types import FrameType, TracebackType
-from typing import Any, Iterable, Optional, Type, cast
+from typing import Iterable, Optional, Type, cast
 
 import configargparse
 from granulate_utils.linux.ns import is_running_in_init_pid
@@ -375,7 +375,7 @@ class GProfiler:
                     break
 
 
-def parse_cmd_args() -> Any:
+def parse_cmd_args() -> configargparse.Namespace:
     parser = configargparse.ArgumentParser(
         description="gprofiler",
         auto_env_var_prefix="gprofiler_",
