@@ -659,7 +659,12 @@ def log_system_info() -> None:
 
 
 def _should_send_logs(args: configargparse.Namespace) -> bool:
-    return bool(args.log_to_server and args.upload_results)
+    # if:
+    # * user didn't disable logs uploading, and
+    # * we are uploading results, and
+    # * protocol version is not v1 (v1 server does not have the logs endpoint)
+    # then we should send logs!
+    return bool(args.log_to_server and args.upload_results and args.profile_api_version != "v1")
 
 
 def main() -> None:
