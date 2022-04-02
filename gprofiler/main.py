@@ -610,7 +610,7 @@ def _add_profilers_arguments(parser: configargparse.ArgumentParser) -> None:
             arg_group.add_argument(name, **profiler_arg_kwargs)
 
 
-def verify_preconditions(args: Any) -> None:
+def verify_preconditions(args: configargparse.Namespace) -> None:
     if not is_root():
         print("Must run gprofiler as root, please re-run.", file=sys.stderr)
         sys.exit(1)
@@ -658,12 +658,16 @@ def log_system_info() -> None:
     logger.info(f"Hostname: {system_info.hostname}")
 
 
+def _should_send_logs(args: configargparse.Namespace) -> bool:
+    return bool(args.log_to_server and args.upload_results)
+
+
 def main() -> None:
     args = parse_cmd_args()
     verify_preconditions(args)
     state = init_state()
 
-    remote_logs_handler = RemoteLogsHandler() if args.log_to_server and args.upload_results else None
+    remote_logs_handler = RemoteLogsHandler() if _should_send_logs(args) else None
     global logger
     logger = initial_root_logger_setup(
         logging.DEBUG if args.verbose else logging.INFO,
