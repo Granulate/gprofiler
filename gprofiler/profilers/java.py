@@ -847,7 +847,8 @@ class JavaProfiler(ProcessProfilerBase):
         try:
             proc_events.register_exit_callback(self._proc_exit_callback)
         except Exception:
-            logger.warning("Failed to enable proc_events listener for exited Java processes", exc_info=True)
+            logger.warning("Failed to enable proc_events listener for exited Java processes"
+                " (this does not prevent Java profiling)", exc_info=True)
         else:
             self._enabled_proc_events = True
 
