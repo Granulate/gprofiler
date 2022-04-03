@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from threading import Event
 from types import FrameType, TracebackType
-from typing import Any, Iterable, Optional, Type, cast
+from typing import Iterable, Optional, Type, cast
 
 import configargparse
 from granulate_utils.linux.ns import is_running_in_init_pid
@@ -377,7 +377,7 @@ class GProfiler:
                     break
 
 
-def parse_cmd_args() -> Any:
+def parse_cmd_args() -> configargparse.Namespace:
     parser = configargparse.ArgumentParser(
         description="gprofiler",
         auto_env_var_prefix="gprofiler_",
@@ -620,7 +620,7 @@ def _add_profilers_arguments(parser: configargparse.ArgumentParser) -> None:
             arg_group.add_argument(name, **profiler_arg_kwargs)
 
 
-def verify_preconditions(args: Any) -> None:
+def verify_preconditions(args: configargparse.Namespace) -> None:
     if not is_root():
         print("Must run gprofiler as root, please re-run.", file=sys.stderr)
         sys.exit(1)
@@ -668,12 +668,21 @@ def log_system_info() -> None:
     logger.info(f"Hostname: {system_info.hostname}")
 
 
+def _should_send_logs(args: configargparse.Namespace) -> bool:
+    # if:
+    # * user didn't disable logs uploading, and
+    # * we are uploading results, and
+    # * protocol version is not v1 (v1 server does not have the logs endpoint)
+    # then we should send logs!
+    return bool(args.log_to_server and args.upload_results and args.profile_api_version != "v1")
+
+
 def main() -> None:
     args = parse_cmd_args()
     verify_preconditions(args)
     state = init_state()
 
-    remote_logs_handler = RemoteLogsHandler() if args.log_to_server and args.upload_results else None
+    remote_logs_handler = RemoteLogsHandler() if _should_send_logs(args) else None
     global logger
     logger = initial_root_logger_setup(
         logging.DEBUG if args.verbose else logging.INFO,
