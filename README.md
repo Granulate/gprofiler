@@ -113,7 +113,7 @@ Run the following to have gProfiler running continuously, uploading to Granulate
 docker pull granulate/gprofiler:latest
 docker run --name granulate-gprofiler -d --restart=on-failure:10 \
     --pid=host --userns=host --privileged \
-	granulate/gprofiler:latest -cu --token <token> --service-name <service> [options]
+	granulate/gprofiler:latest -cu --token="<TOKEN>" --service-name="<SERVICE NAME>" [options]
 ```
 
 ## Running as an executable
@@ -123,7 +123,7 @@ Run the following to have gprofiler running continuously, in the background, upl
 ```bash
 wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler_$(uname -m) -O gprofiler
 sudo chmod +x gprofiler
-sudo sh -c "setsid ./gprofiler -cu --token <token> --service-name <service> [options] > /dev/null 2>&1 &"
+sudo sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE NAME>\" [options] > /dev/null 2>&1 &"
 sleep 1
 pgrep gprofiler # make sure gprofiler has started
 ```
@@ -137,7 +137,7 @@ The logs can then be viewed in their default location (`/var/log/gprofiler`).
 gProfiler unpacks executables to `/tmp` by default; if your `/tmp` is marked with `noexec`,
 you can add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current working directory.
 ```bash
-sudo TMPDIR=/proc/self/cwd ./gprofiler -cu --token <token> --service-name <service> [options]
+sudo TMPDIR=/proc/self/cwd ./gprofiler -cu --token="<TOKEN> --service-name="<SERVICE NAME>" [options]
 ```
 
 ### Executable known issues
@@ -201,7 +201,7 @@ Furthermore, Fargate does not allow using `"pidMode": "host"` in the task defini
 So in order to deploy gProfiler, we need to modify a container definition to include running gProfiler alongside the actual application. This can be done with the following steps:
 1. Modify the `command` & `entryPoint` parameters of your entry in the `containerDefinitions` array. The new command should include downloading of gProfiler & executing it in the background, and `entryPoint` will be `["/bin/bash"]`.
 
-    For example, if your default `command` is `["python", "/path/to/my/app.py"]`, we will now change it to: `["-c", "(wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler -O /tmp/gprofiler; chmod +x /tmp/gprofiler; /tmp/gprofiler -cu --token <TOKEN> --service-name <SERVICE NAME> --disable-pidns-check --perf-mode none) & python /path/to/my/app.py"]`.
+    For example, if your default `command` is `["python", "/path/to/my/app.py"]`, we will now change it to: `["-c", "(wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler -O /tmp/gprofiler; chmod +x /tmp/gprofiler; /tmp/gprofiler -cu --token=<TOKEN> --service-name=<SERVICE NAME> --disable-pidns-check --perf-mode none) & python /path/to/my/app.py"]`.
 
     Make sure to:
     - Replace `<TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/) site.
@@ -236,7 +236,7 @@ Start by replacing the `<TOKEN>` and `<SERVICE NAME>` with values in the `comman
 * `<TOKEN>` should be replaced with your personal token from the [gProfiler Performance Studio](https://profiler.granulate.io/) site (in the [Install Service](https://profiler.granulate.io/installation) section)
 * The `<SERVICE NAME>` should be replaced with whatever service name you wish to use
 
-Optionally, you can add more command line arguments to the `command` section. For example, if you wish to use the `py-spy` profiler, you could replace the command with `-cu --token "<TOKEN>" --service-name "<SERVICE NAME>" --python-mode pyspy`.
+Optionally, you can add more command line arguments to the `command` section. For example, if you wish to use the `py-spy` profiler, you can add `--python-mode pyspy` to the commandline.
 
 **To run it, run the following command:**
   ```bash
@@ -291,7 +291,7 @@ can look like this:
 #!/bin/bash
 wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler_$(uname -m) -O gprofiler
 sudo chmod +x gprofiler
-sudo sh -c "setsid ./gprofiler -cu --token \"<TOKEN>\" --service-name \"SERVICE\" > /dev/null 2>&1 &"
+sudo sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE NAME>\" > /dev/null 2>&1 &"
 ```
   Make sure to:
   - Replace `<TOKEN>` with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
