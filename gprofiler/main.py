@@ -25,7 +25,7 @@ from requests import RequestException, Timeout
 from gprofiler import __version__
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
 from gprofiler.containers_client import ContainerNamesClient
-from gprofiler.exceptions import APIError, SystemProfilerInitFailure
+from gprofiler.exceptions import APIError, NoProfilersEnabledError, SystemProfilerInitFailure
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import concatenate_profiles, merge_profiles
@@ -640,7 +640,7 @@ def verify_preconditions(args: Any) -> None:
     if args.log_usage and get_run_mode() not in ("k8s", "container"):
         # TODO: we *can* move into another cpuacct cgroup, to let this work also when run as a standalone
         # executable.
-        print("--log-usage is available only when run as a container!")
+        print("--log-usage is available only when run as a container!", file=sys.stderr)
         sys.exit(1)
 
 
@@ -774,8 +774,12 @@ def main() -> None:
 
     except KeyboardInterrupt:
         pass
+    except NoProfilersEnabledError:
+        logger.error("All profilers are disabled! Please enable at least one of them!")
+        sys.exit(1)
     except Exception:
         logger.exception("Unexpected error occurred")
+        sys.exit(1)
 
     usage_logger.log_run()
 
