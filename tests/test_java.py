@@ -247,7 +247,9 @@ def test_already_loaded_async_profiler_profiling_failure(
     tmp_path: Path, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture, application_pid: int
 ) -> None:
     with monkeypatch.context() as m:
-        m.setattr("gprofiler.profilers.java.TEMPORARY_STORAGE_PATH", "/tmp/fake_gprofiler_tmp")
+        import gprofiler.profilers.java
+
+        m.setattr(gprofiler.profilers.java, "POSSIBLE_AP_DIRS", ("/tmp/fake_gprofiler_tmp",))
         with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
             profiler.snapshot()
 
