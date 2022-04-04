@@ -234,7 +234,9 @@ def extra_application_docker_mounts() -> List[docker.types.Mount]:
 
 @fixture
 def application_docker_mounts(
-    application_docker_mount: bool, extra_application_docker_mounts: List[docker.types.Mount]
+    application_docker_mount: bool,
+    extra_application_docker_mounts: List[docker.types.Mount],
+    output_directory: Path,
 ) -> List[docker.types.Mount]:
     mounts = []
 
