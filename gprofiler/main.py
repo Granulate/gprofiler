@@ -17,6 +17,8 @@ from types import FrameType, TracebackType
 from typing import Iterable, Optional, Type, cast
 
 import configargparse
+
+from gprofiler.metadata.enrichment import EnrichmentOptions
 from granulate_utils.linux.ns import is_running_in_init_pid
 from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
@@ -30,7 +32,6 @@ from gprofiler.gprofiler_types import ProcessToStackSampleCounters, UserArgs, po
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import concatenate_profiles, merge_profiles
 from gprofiler.metadata.application_identifiers import set_enrichment_options
-from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
