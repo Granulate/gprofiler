@@ -14,6 +14,7 @@ from subprocess import Popen
 from threading import Event
 from typing import Any, Optional
 
+import docker
 import psutil
 import pytest
 from docker.models.containers import Container
@@ -375,3 +376,22 @@ def test_java_async_profiler_buildids(
             f"{remove_prefix(libc, f'/proc/{application_pid}/root/')} {buildid}+0x", process_collapsed
         )
         assert_function_in_collapsed("_[bid]", process_collapsed)
+
+
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize(
+    "extra_application_docker_mounts",
+    [
+        pytest.param([docker.type.Mount(target="/tmp", type="tmpfs", read_only=True)], id="ro"),
+        pytest.param([docker.type.Mount(target="/tmp", type="tmpfs", read_only=False)], id="noexec"),
+    ],
+)
+def test_java_noexec_or_ro_dirs(
+    tmp_path: Path, application_pid: int, assert_collapsed: AssertInCollapsed, caplog: LogCaptureFixture
+) -> None:
+    """
+    Tests that gProfiler is able to select a non-default directory for libasyncProfiler if the default one
+    is noexec/ro, both container and host.
+    """
+    with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
+        assert_collapsed(snapshot_one_collaped(profiler))

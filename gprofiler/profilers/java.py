@@ -63,6 +63,7 @@ logger = get_logger_adapter(__name__)
 
 libap_copy_lock = Lock()
 
+# directories we check for rw,exec as candidates for libasyncProfiler.so placement.
 POSSIBLE_AP_DIRS = (
     TEMPORARY_STORAGE_PATH,
     f"/run/{GPROFILER_DIRECTORY_NAME}",

@@ -225,6 +225,32 @@ def application_docker_mount() -> bool:
 
 
 @fixture
+def extra_application_docker_mounts() -> List[docker.types.Mount]:
+    """
+    Override to add additional docker mounts to the application container
+    """
+    return []
+
+
+@fixture
+def application_docker_mounts(
+    application_docker_mount: bool, extra_application_docker_mounts: List[docker.types.Mount]
+) -> List[docker.types.Mount]:
+    mounts = []
+
+    mounts.extend(extra_application_docker_mounts)
+
+    if application_docker_mount:
+        mounts.append(
+            docker.types.Mount(
+                target=str(output_directory), type="volume", source=str(output_directory), read_only=False
+            )
+        )
+
+    return mounts
+
+
+@fixture
 def application_docker_capabilities() -> List[str]:
     """
     List of capabilities to add to the application containers.
@@ -238,21 +264,18 @@ def application_docker_container(
     docker_client: DockerClient,
     application_docker_image: Image,
     output_directory: Path,
-    application_docker_mount: bool,
+    application_docker_mounts: List[docker.types.Mount],
     application_docker_capabilities: List[str],
 ) -> Iterable[Container]:
     if not in_container:
         yield None
         return
     else:
-        volumes = (
-            {str(output_directory): {"bind": str(output_directory), "mode": "rw"}} if application_docker_mount else {}
-        )
         container: Container = docker_client.containers.run(
             application_docker_image,
             detach=True,
             user="5555:6666",
-            volumes=volumes,
+            mounts=application_docker_mounts,
             cap_add=application_docker_capabilities,
         )
         while container.status != "running":
