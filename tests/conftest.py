@@ -414,3 +414,19 @@ def python_version(in_container: bool, application_docker_container: Container) 
 
     # Output is expected to look like e.g. "Python 3.9.7"
     return cast(str, output.decode().strip().split()[-1])
+
+
+@fixture
+def noexec_tmp_dir(in_container: bool, tmp_path: Path) -> Iterator[str]:
+    if in_container:
+        # only needed for non-container tests
+        yield ""
+        return
+
+    tmpfs_path = tmp_path / "tmpfs"
+    tmpfs_path.mkdir(0o755, exist_ok=True)
+    try:
+        subprocess.run(["mount", "-t", "tmpfs", "-o", "noexec", "none", str(tmpfs_path)], check=True)
+        yield str(tmpfs_path)
+    finally:
+        subprocess.run(["umount", str(tmpfs_path)], check=True)

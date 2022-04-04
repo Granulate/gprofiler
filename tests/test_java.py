@@ -378,20 +378,39 @@ def test_java_async_profiler_buildids(
         assert_function_in_collapsed("_[bid]", process_collapsed)
 
 
-@pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize(
     "extra_application_docker_mounts",
     [
-        pytest.param([docker.type.Mount(target="/tmp", type="tmpfs", read_only=True)], id="ro"),
-        pytest.param([docker.type.Mount(target="/tmp", type="tmpfs", read_only=False)], id="noexec"),
+        pytest.param([docker.types.Mount(target="/tmp", source="", type="tmpfs", read_only=False)], id="noexec"),
     ],
 )
-def test_java_noexec_or_ro_dirs(
-    tmp_path: Path, application_pid: int, assert_collapsed: AssertInCollapsed, caplog: LogCaptureFixture
+def test_java_noexec_dirs(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed: AssertInCollapsed,
+    caplog: LogCaptureFixture,
+    noexec_tmp_dir: str,
+    in_container: bool,
+    monkeypatch: MonkeyPatch,
 ) -> None:
     """
     Tests that gProfiler is able to select a non-default directory for libasyncProfiler if the default one
     is noexec/ro, both container and host.
     """
+    caplog.set_level(logging.DEBUG)
+
+    if not in_container:
+        import gprofiler.profilers.java
+
+        run_dir = gprofiler.profilers.java.POSSIBLE_AP_DIRS[1]
+        assert run_dir.startswith("/run")
+        # noexec_tmp_dir won't work and gprofiler will try using run_dir
+        # this is done because modifying /tmp on a live system is not legit (we need to create a new tmpfs
+        # mount because /tmp is not necessarily tmpfs; and that'll hide all current files in /tmp).
+        monkeypatch.setattr(gprofiler.profilers.java, "POSSIBLE_AP_DIRS", (noexec_tmp_dir, run_dir))
+
     with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
         assert_collapsed(snapshot_one_collaped(profiler))
+
+    # should use this path instead of /tmp/gprofiler_tmp/...
+    assert "/run/gprofiler_tmp/async-profiler-" in caplog.text
