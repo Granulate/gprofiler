@@ -395,7 +395,7 @@ def test_java_noexec_dirs(
 ) -> None:
     """
     Tests that gProfiler is able to select a non-default directory for libasyncProfiler if the default one
-    is noexec/ro, both container and host.
+    is noexec, both container and host.
     """
     caplog.set_level(logging.DEBUG)
 
