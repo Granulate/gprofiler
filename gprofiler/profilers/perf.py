@@ -203,6 +203,7 @@ class SystemProfiler(ProfilerBase):
             perf.switch_output()
 
         return {
+            # TODO generate appids for non runtime-profiler processes here
             k: ProfileData(v, None, None)
             for k, v in merge.merge_global_perfs(
                 self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
