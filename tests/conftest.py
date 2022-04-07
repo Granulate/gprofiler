@@ -243,10 +243,9 @@ def application_docker_mounts(
     mounts.extend(extra_application_docker_mounts)
 
     if application_docker_mount:
+        output_directory.mkdir(parents=True, exist_ok=True)
         mounts.append(
-            docker.types.Mount(
-                target=str(output_directory), type="volume", source=str(output_directory), read_only=False
-            )
+            docker.types.Mount(target=str(output_directory), type="bind", source=str(output_directory), read_only=False)
         )
 
     return mounts
