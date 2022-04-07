@@ -13,11 +13,11 @@ from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
-from gprofiler.profilers import java
+from gprofiler.metadata.enrichment import EnrichmentOptions
+from gprofiler.profilers.java import jattach_path
 from gprofiler.utils import run_process
 
 _logger = get_logger_adapter(__name__)
-
 
 _PYTHON_BIN_RE = re.compile(r"^python([23](\.\d{1,2})?)?$")
 
@@ -47,7 +47,9 @@ def _is_python_bin(bin_name: str) -> bool:
     return _PYTHON_BIN_RE.match(os.path.basename(bin_name)) is not None
 
 
-def _get_cli_arg_by_name(args: List[str], arg_name: str, check_for_equals_arg: bool = False) -> str:
+def _get_cli_arg_by_name(
+    args: List[str], arg_name: str, check_for_equals_arg: bool = False, check_for_short_prefix_arg: bool = False
+) -> str:
     if arg_name in args:
         return args[args.index(arg_name) + 1]
 
@@ -56,6 +58,11 @@ def _get_cli_arg_by_name(args: List[str], arg_name: str, check_for_equals_arg: b
             arg_key, _, arg_val = arg.partition("=")
             if arg_key == arg_name:
                 return arg_val
+
+    if check_for_short_prefix_arg:
+        for arg in args:
+            if arg.startswith(arg_name):
+                return arg[len(arg_name) :]
 
     return _NON_AVAILABLE_ARG
 
@@ -85,6 +92,8 @@ def _append_file_to_proc_wd(process: Process, file_path: str) -> str:
 
 
 class _ApplicationIdentifier(metaclass=ABCMeta):
+    enrichment_options: Optional[EnrichmentOptions] = None
+
     @abstractmethod
     def get_app_id(self, process: Process) -> Optional[str]:
         pass
@@ -201,10 +210,18 @@ class _CeleryApplicationIdentifier(_ApplicationIdentifier):
         if not self.is_celery_process(process):
             return None
 
-        appid = _get_cli_arg_by_name(process.cmdline(), "-A") or _get_cli_arg_by_name(
+        appid = _get_cli_arg_by_name(process.cmdline(), "-A", check_for_short_prefix_arg=True) or _get_cli_arg_by_name(
             process.cmdline(), "--app", check_for_equals_arg=True
         )
-        if appid is None:
+        if appid is _NON_AVAILABLE_ARG:
+            queue_name = _get_cli_arg_by_name(
+                process.cmdline(), "-Q", check_for_short_prefix_arg=True
+            ) or _get_cli_arg_by_name(process.cmdline(), "--queues", check_for_equals_arg=True)
+            # TODO: One worker can handle multiple queues, it could be useful to encode that into the app id.
+            if queue_name is not _NON_AVAILABLE_ARG:
+                # The queue handler routing is defined in the directory where the worker is run
+                return f"celery queue: {queue_name} ({process.cwd()})"
+        if appid is _NON_AVAILABLE_ARG:
             _logger.warning(
                 f"{self.__class__.__name__}: Couldn't find positional argument -A or --app for application indication",
                 cmdline=process.cmdline(),
@@ -245,11 +262,25 @@ class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
 class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
     def get_app_id(self, process: Process) -> Optional[str]:
         try:
-            java_properties = run_process([java.jattach_path(), str(process.pid), "properties"]).stdout.decode()
+            java_properties = run_process([jattach_path(), str(process.pid), "jcmd", "VM.command_line"]).stdout.decode()
+            java_command = None
+            java_args = []
             for line in java_properties.splitlines():
-                if line.startswith("sun.java.command"):
-                    app_id = line[line.find("=") + 1 :].split(" ", 1)[0]
-                    return f"java: {app_id}"
+                if line.startswith("jvm_args:"):
+                    if (
+                        self.enrichment_options is not None
+                        and self.enrichment_options.application_identifier_args_filters
+                    ):
+                        for arg in line[line.find(":") + 1 :].strip().split(" "):
+                            if any(
+                                re.search(flag_filter, arg)
+                                for flag_filter in self.enrichment_options.application_identifier_args_filters
+                            ):
+                                java_args.append(arg)
+                if line.startswith("java_command:"):
+                    java_command = line[line.find(":") + 1 :].strip().split(" ", 1)[0]
+            if java_command:
+                return f"java: {java_command}{' (' + ' '.join(java_args) + ')' if java_args else ''}"
         except CalledProcessError as e:
             _logger.warning(f"Couldn't get Java properties for process {process.pid}: {e.stderr}")
 
@@ -270,6 +301,10 @@ _PYTHON_APP_IDENTIFIERS = [
 _JAVA_APP_IDENTIFIERS: List[_ApplicationIdentifier] = [
     _JavaJarApplicationIdentifier(),
 ]
+
+
+def set_enrichment_options(enrichment_options: EnrichmentOptions) -> None:
+    _ApplicationIdentifier.enrichment_options = enrichment_options
 
 
 def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier]) -> Optional[str]:

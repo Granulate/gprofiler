@@ -81,13 +81,16 @@ def test_uwsgi_ini_file(monkeypatch: MonkeyPatch) -> None:
     assert "uwsgi: my.ini" == get_python_app_id(process_with_cmdline(["uwsgi", "a", "b", "--ini", "my.ini"]))
 
 
-def test_celery() -> None:
+def test_celery_with_app() -> None:
     # celery -A
     assert f"celery: app1 ({PROCESS_CWD}/app1.py)" == get_python_app_id(
         process_with_cmdline(["celery", "a", "b", "-A", "app1"])
     )
     assert "celery: /path/to/app1 (/path/to/app1.py)" == get_python_app_id(
         process_with_cmdline(["celery", "a", "b", "-A", "/path/to/app1"])
+    )
+    assert "celery: /path/to/app1 (/path/to/app1.py)" == get_python_app_id(
+        process_with_cmdline(["celery", "a", "b", "-A/path/to/app1"])
     )
     # python celery -A
     assert f"celery: app1 ({PROCESS_CWD}/app1.py)" == get_python_app_id(
@@ -110,6 +113,37 @@ def test_celery() -> None:
     assert "celery: /path/to/app3 (/path/to/app3.py)" == get_python_app_id(
         process_with_cmdline(["celery", "a", "b", "--app=/path/to/app3"])
     )
+
+
+def test_celery_with_queue() -> None:
+    # celery -Q queue
+    assert f"celery queue: qqq ({PROCESS_CWD})" == get_python_app_id(
+        process_with_cmdline(["celery", "a", "b", "-Q", "qqq"])
+    )
+    # celery -Qqueue
+    assert f"celery queue: qqq ({PROCESS_CWD})" == get_python_app_id(
+        process_with_cmdline(["celery", "a", "b", "-Qqqq"])
+    )
+    # python celery -Q queue
+    assert f"celery queue: qqq ({PROCESS_CWD})" == get_python_app_id(
+        process_with_cmdline(["python", "/path/to/celery", "a", "b", "-Q", "qqq"])
+    )
+    # --queues queue
+    assert f"celery queue: qqq ({PROCESS_CWD})" == get_python_app_id(
+        process_with_cmdline(["celery", "a", "b", "--queues", "qqq"])
+    )
+    # --queues=queue
+    assert f"celery queue: qqq ({PROCESS_CWD})" == get_python_app_id(
+        process_with_cmdline(["celery", "a", "b", "--queues=qqq"])
+    )
+    # multiple queues
+    assert f"celery queue: qqq,www ({PROCESS_CWD})" == get_python_app_id(
+        process_with_cmdline(["celery", "a", "b", "-Q", "qqq,www"])
+    )
+
+
+def test_celery_without_app() -> None:
+    assert get_python_app_id(process_with_cmdline(["celery", "a", "b"])) is None
 
 
 def test_pyspark() -> None:

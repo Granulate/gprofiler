@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from threading import Event
 from types import FrameType, TracebackType
-from typing import Any, Iterable, Optional, Type, cast
+from typing import Iterable, Optional, Type, cast
 
 import configargparse
 from granulate_utils.linux.ns import is_running_in_init_pid
@@ -25,10 +25,12 @@ from requests import RequestException, Timeout
 from gprofiler import __version__
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
 from gprofiler.containers_client import ContainerNamesClient
-from gprofiler.exceptions import APIError, SystemProfilerInitFailure
+from gprofiler.exceptions import APIError, NoProfilersEnabledError, SystemProfilerInitFailure
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
-from gprofiler.merge import EnrichmentOptions, concatenate_profiles, merge_profiles
+from gprofiler.merge import concatenate_profiles, merge_profiles
+from gprofiler.metadata.application_identifiers import set_enrichment_options
+from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
@@ -375,7 +377,7 @@ class GProfiler:
                     break
 
 
-def parse_cmd_args() -> Any:
+def parse_cmd_args() -> configargparse.Namespace:
     parser = configargparse.ArgumentParser(
         description="gprofiler",
         auto_env_var_prefix="gprofiler_",
@@ -544,6 +546,14 @@ def parse_cmd_args() -> Any:
     )
 
     parser.add_argument(
+        "--app-id-args-filter",
+        action="append",
+        default=list(),
+        dest="app_id_args_filters",
+        help="A regex based filter for adding relevant arguments to the app id",
+    )
+
+    parser.add_argument(
         "--disable-application-metadata",
         action="store_false",
         default=True,
@@ -610,7 +620,7 @@ def _add_profilers_arguments(parser: configargparse.ArgumentParser) -> None:
             arg_group.add_argument(name, **profiler_arg_kwargs)
 
 
-def verify_preconditions(args: Any) -> None:
+def verify_preconditions(args: configargparse.Namespace) -> None:
     if not is_root():
         print("Must run gprofiler as root, please re-run.", file=sys.stderr)
         sys.exit(1)
@@ -630,7 +640,7 @@ def verify_preconditions(args: Any) -> None:
     if args.log_usage and get_run_mode() not in ("k8s", "container"):
         # TODO: we *can* move into another cpuacct cgroup, to let this work also when run as a standalone
         # executable.
-        print("--log-usage is available only when run as a container!")
+        print("--log-usage is available only when run as a container!", file=sys.stderr)
         sys.exit(1)
 
 
@@ -658,12 +668,21 @@ def log_system_info() -> None:
     logger.info(f"Hostname: {system_info.hostname}")
 
 
+def _should_send_logs(args: configargparse.Namespace) -> bool:
+    # if:
+    # * user didn't disable logs uploading, and
+    # * we are uploading results, and
+    # * protocol version is not v1 (v1 server does not have the logs endpoint)
+    # then we should send logs!
+    return bool(args.log_to_server and args.upload_results and args.profile_api_version != "v1")
+
+
 def main() -> None:
     args = parse_cmd_args()
     verify_preconditions(args)
     state = init_state()
 
-    remote_logs_handler = RemoteLogsHandler() if args.log_to_server and args.upload_results else None
+    remote_logs_handler = RemoteLogsHandler() if _should_send_logs(args) else None
     global logger
     logger = initial_root_logger_setup(
         logging.DEBUG if args.verbose else logging.INFO,
@@ -734,8 +753,11 @@ def main() -> None:
             profile_api_version=args.profile_api_version,
             container_names=args.container_names,
             application_identifiers=args.identify_applications,
+            application_identifier_args_filters=args.app_id_args_filters,
             application_metadata=args.application_metadata,
         )
+
+        set_enrichment_options(enrichment_options)
 
         gprofiler = GProfiler(
             args.output_dir,
@@ -761,8 +783,12 @@ def main() -> None:
 
     except KeyboardInterrupt:
         pass
+    except NoProfilersEnabledError:
+        logger.error("All profilers are disabled! Please enable at least one of them!")
+        sys.exit(1)
     except Exception:
         logger.exception("Unexpected error occurred")
+        sys.exit(1)
 
     usage_logger.log_run()
 

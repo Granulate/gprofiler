@@ -58,7 +58,7 @@ from gprofiler.utils import (
 from gprofiler.utils.elf import get_mapped_dso_elf_id
 from gprofiler.utils.fs import safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
-from gprofiler.utils.process import process_comm
+from gprofiler.utils.process import is_musl, process_comm
 
 logger = get_logger_adapter(__name__)
 
@@ -308,7 +308,7 @@ class AsyncProfiledProcess:
     @functools.lru_cache(maxsize=1)
     def _is_musl(self) -> bool:
         # Is target process musl-based?
-        return any("ld-musl" in m.path for m in self.process.memory_maps())
+        return is_musl(self.process)
 
     def _copy_libap(self) -> None:
         # copy *is* racy with respect to other processes running in the same namespace, because they all use
@@ -467,10 +467,10 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
 
     # version is always in quotes
     _, version_str, _ = lines[0].split('"')
-    build_str = lines[2].split("(build ")[1]
-    assert "," in build_str, f"Didn't find comma in build information: {build_str!r}"
-    # Extra information we don't care about is placed after a comma
-    build_str = build_str[: build_str.find(",")]
+    # matches the build string from e.g (build 25.212-b04, mixed mode) -> "25.212-b04"
+    m = re.search(r"\(build ([^,)]+?)(?:,|\))", version_string)
+    assert m is not None, f"did not find build_str in {version_string!r}"
+    build_str = m.group(1)
 
     if version_str.endswith("-internal") or version_str.endswith("-ea"):
         # strip the "internal" or "early access" suffixes
@@ -565,7 +565,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
     ],
 )
 class JavaProfiler(ProcessProfilerBase):
-    JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
+    JDK_EXCLUSIONS = ["Zing"]
     # Major -> (min version, min build number of version)
     MINIMAL_SUPPORTED_VERSIONS = {
         7: (Version("7.76"), 4),
