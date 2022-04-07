@@ -33,7 +33,7 @@ from gprofiler.gprofiler_types import (
     nonnegative_integer,
 )
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata.application_identifiers import get_python_app_id
+from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
@@ -200,7 +200,7 @@ class PySpyProfiler(ProcessProfilerBase):
 
     def _profile_process(self, process: Process) -> ProfileData:
         logger.info(f"Profiling process {process.pid} with py-spy", cmdline=process.cmdline(), no_extra_to_server=True)
-        appid = get_python_app_id(process)
+        appid = application_identifiers.get_python_app_id(process)
         app_metadata = self._metadata.get_metadata(process)
         comm = process_comm(process)
 
@@ -465,7 +465,7 @@ class PythonEbpfProfiler(ProfilerBase):
         for pid in parsed:
             try:
                 process = Process(pid)
-                appid = get_python_app_id(process)
+                appid = application_identifiers.get_python_app_id(process)
                 app_metadata = self._metadata.get_metadata(process)
             except NoSuchProcess:
                 appid = None

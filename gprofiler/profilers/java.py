@@ -40,7 +40,7 @@ from gprofiler.exceptions import CalledProcessError
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, StackToSampleCount
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata.application_identifiers import get_java_app_id
+from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
@@ -773,7 +773,7 @@ class JavaProfiler(ProcessProfilerBase):
 
     def _profile_process(self, process: Process) -> ProfileData:
         app_metadata = self._metadata.get_metadata(process)
-        appid = get_java_app_id(process)
+        appid = application_identifiers.get_java_app_id(process)
 
         return ProfileData(self._profile_process_stackcollapse(process), appid, app_metadata)
 
