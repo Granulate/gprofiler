@@ -21,7 +21,8 @@ from psutil import Process
 from pytest import FixtureRequest, fixture
 
 from gprofiler.gprofiler_types import StackToSampleCount
-from gprofiler.metadata.application_identifiers import get_java_app_id, get_python_app_id
+from gprofiler.metadata.application_identifiers import get_java_app_id, get_python_app_id, set_enrichment_options
+from gprofiler.metadata.enrichment import EnrichmentOptions
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
 from tests.utils import assert_function_in_collapsed, chmod_path_parts
 
@@ -364,6 +365,23 @@ def profiler_flags(runtime: str, profiler_type: str) -> List[str]:
     flags.remove(f"--no-{runtime}")
     flags.append(f"--{runtime}-mode={profiler_type}")
     return flags
+
+
+@fixture(autouse=True, scope="session")
+def _set_enrichment_options() -> None:
+    """
+    Updates the global EnrichmentOptions for this process (for JavaProfiler, PythonProfiler etc that
+    we run in this context)
+    """
+    set_enrichment_options(
+        EnrichmentOptions(
+            profile_api_version=None,
+            container_names=True,
+            application_identifiers=True,
+            application_identifier_args_filters=[],
+            application_metadata=True,
+        )
+    )
 
 
 def pytest_addoption(parser: Any) -> None:

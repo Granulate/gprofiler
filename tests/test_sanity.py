@@ -22,7 +22,7 @@ from tests.utils import (
     assert_function_in_collapsed,
     make_java_profiler,
     run_gprofiler_in_container_for_one_session,
-    snapshot_one_collaped,
+    snapshot_one_collapsed,
     snapshot_pid_collaped,
 )
 
@@ -40,7 +40,7 @@ def test_java_from_host(
         java_async_profiler_mode="itimer",
     ) as profiler:
         _ = assert_application_name  # Required for mypy unused argument warning
-        process_collapsed = snapshot_one_collaped(profiler)
+        process_collapsed = snapshot_one_collapsed(profiler)
         assert_collapsed(process_collapsed)
 
 
@@ -54,7 +54,7 @@ def test_pyspy(
 ) -> None:
     _ = assert_application_name  # Required for mypy unused argument warning
     with PySpyProfiler(1000, 3, Event(), str(tmp_path), add_versions=True) as profiler:
-        # not using snapshot_one_collaped because there are multiple Python processes running usually.
+        # not using snapshot_one_collapsed because there are multiple Python processes running usually.
         process_collapsed = snapshot_pid_collaped(profiler, application_pid)
         assert_collapsed(process_collapsed)
         assert_function_in_collapsed("PyYAML==6.0", process_collapsed)  # Ensure package info is presented
@@ -84,7 +84,7 @@ def test_rbspy(
     gprofiler_docker_image: Image,
 ) -> None:
     with RbSpyProfiler(1000, 3, Event(), str(tmp_path), "rbspy") as profiler:
-        process_collapsed = snapshot_one_collaped(profiler)
+        process_collapsed = snapshot_one_collapsed(profiler)
         assert_collapsed(process_collapsed)
 
 

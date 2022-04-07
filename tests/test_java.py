@@ -32,7 +32,7 @@ from gprofiler.utils.elf import get_elf_buildid
 from gprofiler.utils.process import is_musl
 from tests.conftest import AssertInCollapsed
 from tests.type_utils import cast_away_optional
-from tests.utils import assert_function_in_collapsed, make_java_profiler, snapshot_one_collaped
+from tests.utils import assert_function_in_collapsed, make_java_profiler, snapshot_one_collapsed, snapshot_one_profile
 
 
 def get_lib_path(application_pid: int, path: str) -> str:
@@ -102,7 +102,7 @@ def test_async_profiler_already_running(
             assert "Profiling is running for " in cast_away_optional(ap_proc.read_output())
 
         # then start again
-        collapsed = snapshot_one_collaped(profiler)
+        collapsed = snapshot_one_collapsed(profiler)
         assert "Found async-profiler already started" in caplog.text
         assert "Finished profiling process" in caplog.text
         assert_collapsed(collapsed)
@@ -123,7 +123,7 @@ def test_java_async_profiler_cpu_mode(
         # this ensures auto selection picks CPU by default, if possible.
         java_async_profiler_mode="auto",
     ) as profiler:
-        process_collapsed = snapshot_one_collaped(profiler)
+        process_collapsed = snapshot_one_collapsed(profiler)
         assert_collapsed(process_collapsed)
         assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed)  # ensure kernels stacks exist
 
@@ -142,7 +142,7 @@ def test_java_async_profiler_musl_and_cpu(
     with make_java_profiler(storage_dir=str(tmp_path), frequency=999) as profiler:
         assert is_musl(psutil.Process(application_pid))
 
-        process_collapsed = snapshot_one_collaped(profiler)
+        process_collapsed = snapshot_one_collapsed(profiler)
         assert_collapsed(process_collapsed)
         assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed)  # ensure kernels stacks exist
 
@@ -165,7 +165,7 @@ def test_java_safemode_version_check(
     with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
         process = profiler._select_processes_to_profile()[0]
         jvm_version = parse_jvm_version(get_java_version(process, profiler._stop_event))
-        collapsed = snapshot_one_collaped(profiler)
+        collapsed = snapshot_one_collapsed(profiler)
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
     log_record = next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records))
@@ -184,7 +184,7 @@ def test_java_safemode_build_number_check(
         process = profiler._select_processes_to_profile()[0]
         jvm_version = parse_jvm_version(get_java_version(process, profiler._stop_event))
         monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (jvm_version.version, 999))
-        collapsed = snapshot_one_collaped(profiler)
+        collapsed = snapshot_one_collapsed(profiler)
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
     log_record = next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records))
@@ -206,12 +206,12 @@ def test_hotspot_error_file(
     start_async_profiler = AsyncProfiledProcess.start_async_profiler
 
     # Simulate crashing process
-    def sap_and_crash(self: AsyncProfiledProcess, *args: Any, **kwargs: Any) -> bool:
+    def start_async_profiler_and_crash(self: AsyncProfiledProcess, *args: Any, **kwargs: Any) -> bool:
         result = start_async_profiler(self, *args, **kwargs)
         self.process.send_signal(signal.SIGBUS)
         return result
 
-    monkeypatch.setattr(AsyncProfiledProcess, "start_async_profiler", sap_and_crash)
+    monkeypatch.setattr(AsyncProfiledProcess, "start_async_profiler", start_async_profiler_and_crash)
 
     # increased duration - give the JVM some time to write the hs_err file.
     profiler = make_java_profiler(storage_dir=str(tmp_path), duration=10)
@@ -236,7 +236,7 @@ def test_disable_java_profiling(
     dummy_reason = "dummy reason"
     monkeypatch.setattr(profiler, "_safemode_disable_reason", dummy_reason)
     with profiler:
-        collapsed = snapshot_one_collaped(profiler)
+        collapsed = snapshot_one_collapsed(profiler)
         assert collapsed == Counter({f"java;[Profiling skipped: disabled due to {dummy_reason}]": 1})
 
     assert "Java profiling has been disabled, skipping profiling of all java process" in caplog.text
@@ -253,7 +253,7 @@ def test_already_loaded_async_profiler_profiling_failure(
     with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
         process = profiler._select_processes_to_profile()[0]
         assert any("/tmp/fake_gprofiler_tmp" in mmap.path for mmap in process.memory_maps())
-        collapsed = snapshot_one_collaped(profiler)
+        collapsed = snapshot_one_collapsed(profiler)
         assert collapsed == Counter({"java;[Profiling skipped: async-profiler is already loaded]": 1})
         assert "Non-gProfiler async-profiler is already loaded to the target process" in caplog.text
 
@@ -277,7 +277,7 @@ def test_async_profiler_output_written_upon_jvm_exit(
 
         threading.Thread(target=delayed_kill).start()
 
-        process_collapsed = snapshot_one_collaped(profiler)
+        process_collapsed = snapshot_one_collapsed(profiler)
         assert_collapsed(process_collapsed)
 
         assert f"Profiled process {application_pid} exited before stopping async-profiler" in caplog.text
@@ -326,7 +326,7 @@ def test_sanity_j9(
         java_async_profiler_mode="itimer",
     ) as profiler:
         assert "OpenJ9" in get_java_version(psutil.Process(application_pid), profiler._stop_event)
-        process_collapsed = snapshot_one_collaped(profiler)
+        process_collapsed = snapshot_one_collapsed(profiler)
         assert_collapsed(process_collapsed)
 
 
@@ -350,7 +350,7 @@ def test_java_deleted_libjvm(tmp_path: Path, application_pid: int, assert_collap
     assert is_libjvm_deleted(application_pid)
 
     with make_java_profiler(storage_dir=str(tmp_path), duration=3) as profiler:
-        process_collapsed = snapshot_one_collaped(profiler)
+        process_collapsed = snapshot_one_collapsed(profiler)
         assert_collapsed(process_collapsed)
 
 
@@ -368,10 +368,51 @@ def test_java_async_profiler_buildids(
     with make_java_profiler(
         storage_dir=str(tmp_path), duration=3, frequency=99, java_async_profiler_buildids=True
     ) as profiler:
-        process_collapsed = snapshot_one_collaped(profiler)
+        process_collapsed = snapshot_one_collapsed(profiler)
         # path buildid+0xoffset_[bid]
         # we check for libc because it has undefined symbols in all profiles :shrug:
         assert_function_in_collapsed(
             f"{remove_prefix(libc, f'/proc/{application_pid}/root/')} {buildid}+0x", process_collapsed
         )
         assert_function_in_collapsed("_[bid]", process_collapsed)
+
+
+@pytest.mark.parametrize("in_container", [True])  # only in container is enough
+def test_java_appid_and_metadata_before_process_exits(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed: AssertInCollapsed,
+    monkeypatch: MonkeyPatch,
+    caplog: LogCaptureFixture,
+) -> None:
+    """
+    Tests that an appid is generated also for a process that exits during profiling
+    (i.e, ensure that is is collected before profiling starts)
+    """
+    caplog.set_level(logging.DEBUG)
+
+    start_async_profiler = AsyncProfiledProcess.start_async_profiler
+
+    # Make the process exit before profiling ends
+    def start_async_profiler_and_interrupt(self: AsyncProfiledProcess, *args: Any, **kwargs: Any) -> bool:
+        result = start_async_profiler(self, *args, **kwargs)
+        time.sleep(3)
+        self.process.send_signal(signal.SIGINT)
+        return result
+
+    monkeypatch.setattr(AsyncProfiledProcess, "start_async_profiler", start_async_profiler_and_interrupt)
+
+    with make_java_profiler(
+        storage_dir=str(tmp_path),
+        duration=10,
+    ) as profiler:
+        profile = snapshot_one_profile(profiler)
+
+    assert_collapsed(profile.stacks)
+
+    # process exited before we've stopped profiling...
+    assert f"Profiled process {application_pid} exited before stopping async-profiler" in caplog.text
+    # but we have an appid!
+    assert profile.appid == "java: Fibonacci.jar"
+    # and application metadata for java
+    assert profile.app_metadata is not None and "java_version" in profile.app_metadata
