@@ -350,7 +350,7 @@ def concatenate_profiles(
 
 
 def merge_profiles(
-    perf_pid_to_stacks_counter: ProcessToStackSampleCounters,
+    perf_pid_to_profiles: ProcessToProfileData,
     process_profiles: ProcessToProfileData,
     container_names_client: Optional[ContainerNamesClient],
     enrichment_options: EnrichmentOptions,
@@ -363,13 +363,13 @@ def merge_profiles(
             # no samples collected by the runtime profiler for this process (empty stackcollapse file)
             continue
 
-        process_perf = perf_pid_to_stacks_counter.get(pid)
+        process_perf = perf_pid_to_profiles.get(pid)
         if process_perf is None:
             # no samples collected by perf for this process, so those collected by the runtime profiler
             # are dropped.
             perf_samples_count = 0
         else:
-            perf_samples_count = sum(process_perf.values())
+            perf_samples_count = sum(process_perf.stacks.values())
 
         profile_samples_count = sum(profile.stacks.values())
         assert profile_samples_count > 0
@@ -379,11 +379,7 @@ def merge_profiles(
         ratio = perf_samples_count / profile_samples_count
         profile.stacks = scale_sample_counts(profile.stacks, ratio)
 
-        # pop the stacks that perf has retrieved, we won't need them anymore.
-        perf_pid_to_stacks_counter.pop(pid)
-
-    for pid, stacks in perf_pid_to_stacks_counter.items():
-        assert pid not in process_profiles, f"pid {pid!r} is in both perf_pid_to_stacks_counter and process_profiles!"
-        process_profiles[pid] = ProfileData(stacks, None, None)
+        # swap them: use the samples from the runtime profiler.
+        perf_pid_to_profiles[pid] = profile
 
     return concatenate_profiles(process_profiles, container_names_client, enrichment_options, metadata, metrics)
