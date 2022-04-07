@@ -313,6 +313,10 @@ def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier]) -> O
     heuristics are being made on each application type available differ from each other and those their
     "heuristic level".
     """
+    assert _ApplicationIdentifier.enrichment_options is not None, "not initialized?"
+    if not _ApplicationIdentifier.enrichment_options.application_identifiers:
+        return None
+
     for identifier in identifiers:
         try:
             appid = identifier.get_app_id(process)
