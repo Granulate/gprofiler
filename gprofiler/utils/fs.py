@@ -6,10 +6,9 @@
 import errno
 import os
 import shutil
-import subprocess
 from pathlib import Path
 
-from gprofiler.utils import remove_path
+from gprofiler.utils import remove_path, run_process
 
 
 def safe_copy(src: str, dst: str) -> None:
@@ -42,7 +41,7 @@ def is_rw_exec_dir(path: str) -> bool:
 
     # try executing
     try:
-        subprocess.run(str(test_script), check=True)
+        run_process([str(test_script)])
     except PermissionError:
         # noexec
         return False
