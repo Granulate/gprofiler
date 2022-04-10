@@ -9,6 +9,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from gprofiler.utils import remove_path
+
 
 def safe_copy(src: str, dst: str) -> None:
     """
@@ -35,6 +37,8 @@ def is_rw_exec_dir(path: str) -> bool:
         if e.errno == errno.EROFS:
             # ro
             return False
+        remove_path(test_script)
+        raise
 
     # try executing
     try:
