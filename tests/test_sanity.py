@@ -31,7 +31,7 @@ from tests.utils import (
 def test_java_from_host(
     tmp_path: Path,
     application_pid: int,
-    assert_application_name: Callable,
+    assert_app_id: Callable,
     assert_collapsed: AssertInCollapsed,
 ) -> None:
     with make_java_profiler(
@@ -39,7 +39,7 @@ def test_java_from_host(
         storage_dir=str(tmp_path),
         java_async_profiler_mode="itimer",
     ) as profiler:
-        _ = assert_application_name  # Required for mypy unused argument warning
+        _ = assert_app_id  # Required for mypy unused argument warning
         process_collapsed = snapshot_one_collapsed(profiler)
         assert_collapsed(process_collapsed)
 
@@ -49,10 +49,10 @@ def test_pyspy(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
-    assert_application_name: Callable,
+    assert_app_id: Callable,
     python_version: Optional[str],
 ) -> None:
-    _ = assert_application_name  # Required for mypy unused argument warning
+    _ = assert_app_id  # Required for mypy unused argument warning
     with PySpyProfiler(1000, 3, Event(), str(tmp_path), add_versions=True) as profiler:
         # not using snapshot_one_collapsed because there are multiple Python processes running usually.
         process_collapsed = snapshot_pid_collaped(profiler, application_pid)
@@ -107,12 +107,12 @@ def test_python_ebpf(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
-    assert_application_name: Callable,
+    assert_app_id: Callable,
     gprofiler_docker_image: Image,
     python_version: Optional[str],
     no_kernel_headers: Any,
 ) -> None:
-    _ = assert_application_name  # Required for mypy unused argument warning
+    _ = assert_app_id  # Required for mypy unused argument warning
     with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path), add_versions=True) as profiler:
         try:
             process_collapsed = snapshot_pid_collaped(profiler, application_pid)
@@ -145,11 +145,11 @@ def test_from_container(
     gprofiler_docker_image: Image,
     output_directory: Path,
     assert_collapsed: AssertInCollapsed,
-    assert_application_name: Callable,
+    assert_app_id: Callable,
     profiler_flags: List[str],
 ) -> None:
     _ = application_pid  # Fixture only used for running the application.
-    _ = assert_application_name  # Required for mypy unused argument warning
+    _ = assert_app_id  # Required for mypy unused argument warning
     collapsed_text = run_gprofiler_in_container_for_one_session(
         docker_client, gprofiler_docker_image, output_directory, runtime_specific_args, profiler_flags
     )

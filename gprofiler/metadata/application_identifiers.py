@@ -100,7 +100,7 @@ class _ApplicationIdentifier(metaclass=ABCMeta):
 
 
 class _GunicornApplicationIdentifierBase(_ApplicationIdentifier):
-    def gunicorn_to_application_name(self, wsgi_app_spec: str, process: Process) -> str:
+    def gunicorn_to_app_id(self, wsgi_app_spec: str, process: Process) -> str:
         wsgi_app_file = wsgi_app_spec.split(":", maxsplit=1)[0]
         return f"gunicorn: {wsgi_app_spec} ({_append_python_module_to_proc_wd(process, wsgi_app_file)})"
 
@@ -117,7 +117,7 @@ class _GunicornApplicationIdentifier(_GunicornApplicationIdentifierBase):
             return None
 
         # wsgi app specification will come always as the last argument (if hasn't been specified config file)
-        return self.gunicorn_to_application_name(process.cmdline()[-1], process)
+        return self.gunicorn_to_app_id(process.cmdline()[-1], process)
 
 
 class _GunicornTitleApplicationIdentifier(_GunicornApplicationIdentifierBase):
@@ -141,7 +141,7 @@ class _GunicornTitleApplicationIdentifier(_GunicornApplicationIdentifierBase):
         if _get_cli_arg_by_index(cmdline, 0).startswith("gunicorn: ") and len(list(filter(lambda s: s, cmdline))) == 1:
             m = self._GUNICORN_TITLE_PROC_NAME.match(cmdline[0])
             if m is not None:
-                return self.gunicorn_to_application_name(m.group(1), process)
+                return self.gunicorn_to_app_id(m.group(1), process)
         return None
 
 
