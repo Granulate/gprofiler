@@ -75,3 +75,7 @@ class SystemProfilerInitFailure(Exception):
 
 class NoProfilersEnabledError(Exception):
     pass
+
+
+class NoRwExecDirectoryFoundError(Exception):
+    pass

@@ -340,7 +340,7 @@ def touch_path(path: str, mode: int) -> None:
     os.chmod(path, mode)
 
 
-def remove_path(path: str, missing_ok: bool = False) -> None:
+def remove_path(path: Union[str, Path], missing_ok: bool = False) -> None:
     # backporting missing_ok, available only from 3.8
     try:
         Path(path).unlink()

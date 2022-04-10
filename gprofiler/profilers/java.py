@@ -13,7 +13,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event, Lock
 from types import TracebackType
-from typing import Any, Dict, List, Optional, Set, Type, TypeVar
+from typing import Any, Dict, List, Optional, Sequence, Set, Type, TypeVar
 
 import psutil
 from granulate_utils.java import (
@@ -36,7 +36,7 @@ from packaging.version import Version
 from psutil import Process
 
 from gprofiler import merge
-from gprofiler.exceptions import CalledProcessError
+from gprofiler.exceptions import CalledProcessError, NoRwExecDirectoryFoundError
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, StackToSampleCount
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
@@ -56,13 +56,20 @@ from gprofiler.utils import (
     wait_event,
 )
 from gprofiler.utils.elf import get_mapped_dso_elf_id
-from gprofiler.utils.fs import safe_copy
+from gprofiler.utils.fs import is_rw_exec_dir, safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
 from gprofiler.utils.process import is_musl, process_comm
 
 logger = get_logger_adapter(__name__)
 
 libap_copy_lock = Lock()
+
+# directories we check for rw,exec as candidates for libasyncProfiler.so placement.
+POSSIBLE_AP_DIRS = (
+    TEMPORARY_STORAGE_PATH,
+    f"/run/{GPROFILER_DIRECTORY_NAME}",
+    f"/opt/{GPROFILER_DIRECTORY_NAME}",
+)
 
 
 def frequency_to_ap_interval(frequency: int) -> int:
@@ -236,12 +243,11 @@ class AsyncProfiledProcess:
         # because storage_dir changes between runs.
         # we embed the async-profiler version in the path, so future gprofiler versions which use another version
         # of AP case use it (will be loaded as a different DSO)
-        self._ap_dir = os.path.join(
-            TEMPORARY_STORAGE_PATH,
+        self._ap_dir_host = os.path.join(
+            self._find_rw_exec_dir(POSSIBLE_AP_DIRS),
             f"async-profiler-{get_ap_version()}",
             "musl" if self._is_musl() else "glibc",
         )
-        self._ap_dir_host = resolve_proc_root_links(self._process_root, self._ap_dir)
 
         self._libap_path_host = os.path.join(self._ap_dir_host, "libasyncProfiler.so")
         self._libap_path_process = remove_prefix(self._libap_path_host, self._process_root)
@@ -260,6 +266,18 @@ class AsyncProfiledProcess:
         self._mode = mode
         self._ap_safemode = ap_safemode
         self._ap_args = ap_args
+
+    def _find_rw_exec_dir(self, available_dirs: Sequence[str]) -> str:
+        """
+        Find a rw & executable directory (in the context of the process) where we can place libasyncProfiler.so
+        and the target process will be able to load it.
+        """
+        for d in available_dirs:
+            full_dir = resolve_proc_root_links(self._process_root, d)
+            if is_rw_exec_dir(full_dir):
+                return full_dir
+        else:
+            raise NoRwExecDirectoryFoundError(f"Could not find a rw & exec directory out of {available_dirs}!")
 
     def __enter__(self: T) -> T:
         os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
