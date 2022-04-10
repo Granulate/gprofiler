@@ -116,7 +116,7 @@ def snapshot_one_collapsed(profiler: ProfilerInterface) -> StackToSampleCount:
     return snapshot_one_profile(profiler).stacks
 
 
-def snapshot_pid_collaped(profiler: ProfilerInterface, pid: int) -> StackToSampleCount:
+def snapshot_pid_collapsed(profiler: ProfilerInterface, pid: int) -> StackToSampleCount:
     return profiler.snapshot()[pid].stacks
 
 

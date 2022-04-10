@@ -13,7 +13,7 @@ from docker.models.images import Image
 from gprofiler.profilers.python import PythonProfiler
 from tests import CONTAINERS_DIRECTORY
 from tests.conftest import AssertInCollapsed
-from tests.utils import snapshot_pid_collaped
+from tests.utils import snapshot_pid_collapsed
 
 
 @pytest.fixture
@@ -41,6 +41,6 @@ def test_python_select_by_libpython(
     This test runs a Python named "shmython".
     """
     with PythonProfiler(1000, 1, Event(), str(tmp_path), "pyspy", True, None) as profiler:
-        process_collapsed = snapshot_pid_collaped(profiler, application_docker_container.attrs["State"]["Pid"])
+        process_collapsed = snapshot_pid_collapsed(profiler, application_docker_container.attrs["State"]["Pid"])
     assert_collapsed(process_collapsed)
     assert all(stack.startswith("shmython") for stack in process_collapsed.keys())

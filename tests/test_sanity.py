@@ -23,7 +23,7 @@ from tests.utils import (
     make_java_profiler,
     run_gprofiler_in_container_for_one_session,
     snapshot_one_collapsed,
-    snapshot_pid_collaped,
+    snapshot_pid_collapsed,
 )
 
 
@@ -55,7 +55,7 @@ def test_pyspy(
     _ = assert_app_id  # Required for mypy unused argument warning
     with PySpyProfiler(1000, 3, Event(), str(tmp_path), add_versions=True) as profiler:
         # not using snapshot_one_collapsed because there are multiple Python processes running usually.
-        process_collapsed = snapshot_pid_collaped(profiler, application_pid)
+        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
         assert_function_in_collapsed("PyYAML==6.0", process_collapsed)  # Ensure package info is presented
         # Ensure Python version is presented
@@ -72,7 +72,7 @@ def test_phpspy(
     with PHPSpyProfiler(
         1000, PHPSPY_DURATION, Event(), str(tmp_path), php_process_filter="php", php_mode="phpspy"
     ) as profiler:
-        process_collapsed = snapshot_pid_collaped(profiler, application_pid)
+        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
 
 
@@ -98,7 +98,7 @@ def test_nodejs(
     with SystemProfiler(
         1000, 6, Event(), str(tmp_path), perf_mode="fp", perf_inject=True, perf_dwarf_stack_size=0
     ) as profiler:
-        process_collapsed = snapshot_pid_collaped(profiler, application_pid)
+        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
 
 
@@ -115,7 +115,7 @@ def test_python_ebpf(
     _ = assert_app_id  # Required for mypy unused argument warning
     with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path), add_versions=True) as profiler:
         try:
-            process_collapsed = snapshot_pid_collaped(profiler, application_pid)
+            process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         except UnicodeDecodeError as e:
             print(repr(e.object))  # print the faulty binary data
             raise
