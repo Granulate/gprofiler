@@ -18,6 +18,7 @@ import docker
 import psutil
 import pytest
 from docker.models.containers import Container
+from granulate_utils.linux.elf import get_elf_buildid
 from packaging.version import Version
 from pytest import LogCaptureFixture, MonkeyPatch
 
@@ -29,7 +30,6 @@ from gprofiler.profilers.java import (
     parse_jvm_version,
 )
 from gprofiler.utils import remove_prefix
-from gprofiler.utils.elf import get_elf_buildid
 from gprofiler.utils.process import is_musl
 from tests.conftest import AssertInCollapsed
 from tests.type_utils import cast_away_optional

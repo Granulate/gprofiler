@@ -6,11 +6,11 @@
 from threading import Event, Lock
 from typing import Any, Dict, Optional, Union
 
+from granulate_utils.linux.elf import read_process_execfn
 from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter
-from gprofiler.utils.elf import read_process_execfn
 
 logger = get_logger_adapter(__name__)
 
