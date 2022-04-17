@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
+from granulate_utils.metadata import Metadata
+
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.gprofiler_types import (
     ProcessToProfileData,
@@ -20,7 +22,6 @@ from gprofiler.gprofiler_types import (
 )
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.enrichment import EnrichmentOptions
-from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.system_metrics import Metrics
 
 logger = get_logger_adapter(__name__)
