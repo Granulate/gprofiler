@@ -462,7 +462,7 @@ def test_java_symlinks_in_paths(
     )
 
     with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
-        assert_collapsed(snapshot_one_collaped(profiler))
+        assert_collapsed(snapshot_one_collapsed(profiler))
 
     # part of the commandline to AP - which shall include the final, resolved path.
     assert "load /run/final_tmp/gprofiler_tmp/" in caplog.text
