@@ -15,7 +15,7 @@ from psutil import Process
 
 from gprofiler import merge
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
-from gprofiler.gprofiler_types import StackToSampleCount
+from gprofiler.gprofiler_types import ProfileData
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
@@ -99,11 +99,13 @@ class RbSpyProfiler(ProcessProfilerBase):
             str(pid),
         ]
 
-    def _profile_process(self, process: Process) -> StackToSampleCount:
+    def _profile_process(self, process: Process) -> ProfileData:
         logger.info(
             f"Profiling process {process.pid} with rbspy", cmdline=" ".join(process.cmdline()), no_extra_to_server=True
         )
-        self._metadata.update_metadata(process)
+        comm = process_comm(process)
+        app_metadata = self._metadata.get_metadata(process)
+        appid = None  # TODO: implement appids for Ruby
 
         local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):
@@ -118,7 +120,7 @@ class RbSpyProfiler(ProcessProfilerBase):
                 raise StopEventSetException
 
             logger.info(f"Finished profiling process {process.pid} with rbspy")
-            return merge.parse_one_collapsed_file(Path(local_output_path), process_comm(process))
+            return ProfileData(merge.parse_one_collapsed_file(Path(local_output_path), comm), appid, app_metadata)
 
     def _select_processes_to_profile(self) -> List[Process]:
         return pgrep_maps(r"(?:^.+/ruby[^/]*$)")

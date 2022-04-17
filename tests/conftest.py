@@ -21,7 +21,8 @@ from psutil import Process
 from pytest import FixtureRequest, fixture
 
 from gprofiler.gprofiler_types import StackToSampleCount
-from gprofiler.metadata.application_identifiers import get_application_name
+from gprofiler.metadata.application_identifiers import get_java_app_id, get_python_app_id, set_enrichment_options
+from gprofiler.metadata.enrichment import EnrichmentOptions
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
 from tests.utils import assert_function_in_collapsed, chmod_path_parts
 
@@ -342,17 +343,18 @@ def assert_collapsed(runtime: str) -> AssertInCollapsed:
 
 
 @fixture
-def assert_application_name(application_pid: int, runtime: str, in_container: bool) -> Generator:
-    desired_names = {
-        "java": "java: Fibonacci.jar",
-        "python": "python: lister.py (/app/lister.py)",
+def assert_app_id(application_pid: int, runtime: str, in_container: bool) -> Generator:
+    desired_name_and_getter = {
+        "java": (get_java_app_id, "java: Fibonacci.jar"),
+        "python": (get_python_app_id, "python: lister.py (/app/lister.py)"),
     }
     # We test the application name only after test has finished because the test may wait until the application is
     # running and application name might change.
     yield
     # TODO: Change commandline of processes running not in containers so we'll be able to match against them.
-    if in_container and runtime in desired_names:
-        assert get_application_name(application_pid) == desired_names[runtime]
+    if in_container and runtime in desired_name_and_getter:
+        getter, name = desired_name_and_getter[runtime]
+        assert getter(Process(application_pid)) == name
 
 
 @fixture
@@ -387,6 +389,23 @@ def profiler_flags(runtime: str, profiler_type: str) -> List[str]:
     flags.remove(f"--no-{runtime}")
     flags.append(f"--{runtime}-mode={profiler_type}")
     return flags
+
+
+@fixture(autouse=True, scope="session")
+def _set_enrichment_options() -> None:
+    """
+    Updates the global EnrichmentOptions for this process (for JavaProfiler, PythonProfiler etc that
+    we run in this context)
+    """
+    set_enrichment_options(
+        EnrichmentOptions(
+            profile_api_version=None,
+            container_names=True,
+            application_identifiers=True,
+            application_identifier_args_filters=[],
+            application_metadata=True,
+        )
+    )
 
 
 def pytest_addoption(parser: Any) -> None:

@@ -4,7 +4,7 @@
 #
 
 from threading import Event, Lock
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 from granulate_utils.linux.elf import read_process_execfn
 from granulate_utils.linux.process import is_process_running
@@ -13,18 +13,6 @@ from psutil import NoSuchProcess, Process
 from gprofiler.log import get_logger_adapter
 
 logger = get_logger_adapter(__name__)
-
-
-def get_application_metadata(process: Union[int, Process]) -> Optional[Dict]:
-    if process in (0, -1):  # funny values retrieved by perf
-        return None
-
-    try:
-        process = process if isinstance(process, Process) else Process(process)
-    except NoSuchProcess:
-        return None
-
-    return ApplicationMetadata.get_metadata(process)
 
 
 class ApplicationMetadata:
@@ -39,18 +27,15 @@ class ApplicationMetadata:
     def __init__(self, stop_event: Event):
         self._stop_event = stop_event
 
-    @classmethod
-    def get_metadata(cls, process: Process) -> Optional[Dict]:
-        return cls._cache.get(process)
-
     def _clear_cache(self) -> None:
         with self._cache_clear_lock:
             for process in list(self._cache.keys()):
                 if not is_process_running(process):
                     del self._cache[process]
 
-    def update_metadata(self, process: Process) -> None:
-        if process not in self._cache:
+    def get_metadata(self, process: Process) -> Optional[Dict]:
+        metadata = self._cache.get(process)
+        if metadata is None:
             if len(self._cache) > self._CACHE_CLEAR_ON_SIZE:
                 self._clear_cache()
             try:
@@ -66,6 +51,8 @@ class ApplicationMetadata:
                     self._metadata_exception_logs_count += 1
             else:
                 self._cache[process] = metadata
+
+        return metadata
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         return {"exe": process.exe(), "execfn": read_process_execfn(process)}

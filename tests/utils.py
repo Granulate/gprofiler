@@ -8,7 +8,7 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 
-from gprofiler.gprofiler_types import StackToSampleCount
+from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
 from gprofiler.profilers.java import JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE, JAVA_SAFEMODE_ALL, JavaProfiler
 from gprofiler.profilers.profiler_base import ProfilerInterface
 from gprofiler.utils import remove_path
@@ -106,10 +106,18 @@ def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCou
     ), f"function {function_name!r} missing in collapsed data!"
 
 
-def snapshot_one_collaped(profiler: ProfilerInterface) -> StackToSampleCount:
+def snapshot_one_profile(profiler: ProfilerInterface) -> ProfileData:
     result = profiler.snapshot()
     assert len(result) == 1
     return next(iter(result.values()))
+
+
+def snapshot_one_collapsed(profiler: ProfilerInterface) -> StackToSampleCount:
+    return snapshot_one_profile(profiler).stacks
+
+
+def snapshot_pid_collapsed(profiler: ProfilerInterface, pid: int) -> StackToSampleCount:
+    return profiler.snapshot()[pid].stacks
 
 
 def make_java_profiler(

@@ -27,7 +27,7 @@ from gprofiler import __version__
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.exceptions import APIError, NoProfilersEnabledError, SystemProfilerInitFailure
-from gprofiler.gprofiler_types import ProcessToStackSampleCounters, UserArgs, positive_integer
+from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import concatenate_profiles, merge_profiles
 from gprofiler.metadata.application_identifiers import set_enrichment_options
@@ -260,7 +260,7 @@ class GProfiler:
         system_future = self._executor.submit(self.system_profiler.snapshot)
         system_future.name = "system"  # type: ignore # hack, add the profiler's name to the Future object
 
-        process_profiles: ProcessToStackSampleCounters = {}
+        process_profiles: ProcessToProfileData = {}
         for future in concurrent.futures.as_completed(process_profilers_futures):
             # if either of these fail - log it, and continue.
             try:

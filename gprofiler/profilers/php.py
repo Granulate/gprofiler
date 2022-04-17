@@ -15,7 +15,7 @@ from threading import Event
 from typing import List, Optional, Pattern, cast
 
 from gprofiler.exceptions import StopEventSetException
-from gprofiler.gprofiler_types import ProcessToStackSampleCounters
+from gprofiler.gprofiler_types import ProcessToProfileData, ProcessToStackSampleCounters, ProfileData
 from gprofiler.log import get_logger_adapter
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
@@ -155,7 +155,7 @@ class PHPSpyProfiler(ProfilerBase):
         return ";".join(reversed(parsed_frames))
 
     @classmethod
-    def _parse_phpspy_output(cls, phpspy_output: str) -> ProcessToStackSampleCounters:
+    def _parse_phpspy_output(cls, phpspy_output: str) -> ProcessToProfileData:
         def extract_metadata_section(re_expr: Pattern, metadata_line: str) -> str:
             match = re_expr.match(metadata_line)
             if not match:
@@ -192,9 +192,16 @@ class PHPSpyProfiler(ProfilerBase):
         if corrupted_stacks > 0:
             logger.warning(f"phpspy: {corrupted_stacks} corrupted stacks")
 
-        return dict(results)
+        profiles: ProcessToProfileData = {}
+        for pid in results:
+            # TODO: appid & app metadata for php!
+            appid = None
+            app_metadata = None
+            profiles[pid] = ProfileData(results[pid], appid, app_metadata)
 
-    def snapshot(self) -> ProcessToStackSampleCounters:
+        return profiles
+
+    def snapshot(self) -> ProcessToProfileData:
         if self._stop_event.wait(self._duration):
             raise StopEventSetException()
         stderr = self._process.stderr.read1(1024).decode()  # type: ignore
