@@ -23,15 +23,19 @@ class GProfilerKernelMessagesProvider(DefaultKernelMessagesProvider):  # type: i
 
 def get_kernel_messages_provider() -> KernelMessagesProvider:
     if DefaultKernelMessagesProvider is EmptyKernelMessagesProvider:
-        logger.info("Profilee error monitoring is not supported for this system.")
+        logger.info(
+            "Profilee error monitoring via kernel messages is not supported for this system"
+            " (this does not prevent profiling)"
+        )
         return DefaultKernelMessagesProvider()
 
     try:
         return GProfilerKernelMessagesProvider()
     except Exception:
         logger.warning(
-            "Failed to start kernel messages listener. Profilee error monitoring not available. (Do you have permission"
-            " to read /dev/kmsg?)",
+            "Failed to start kernel messages listener. Profilee error monitoring via kernel messages"
+            " is not available (this does not prevent profiling). Do you have permission"
+            " to read /dev/kmsg?",
             exc_info=True,
         )
         return EmptyKernelMessagesProvider()

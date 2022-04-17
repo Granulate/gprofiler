@@ -9,6 +9,7 @@ from subprocess import CompletedProcess
 from threading import Event
 from typing import Any, Dict, List, Optional
 
+from granulate_utils.linux.elf import get_elf_id, get_mapped_dso_elf_id
 from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from psutil import Process
 
@@ -20,7 +21,6 @@ from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
-from gprofiler.utils.elf import get_elf_id, get_mapped_dso_elf_id
 from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
