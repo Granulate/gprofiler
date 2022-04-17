@@ -147,6 +147,12 @@ def test_java_async_profiler_musl_and_cpu(
         assert_collapsed(process_collapsed)
         assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed)  # ensure kernels stacks exist
 
+        # make sure libstdc++ and libgcc are not loaded - the running Java does not require them,
+        # and neither should our async-profiler build.
+        maps = Path(f"/proc/{application_pid}/maps").read_text()
+        assert "/libstdc++.so" not in maps
+        assert "/libgcc_s.so" not in maps
+
 
 def test_java_safemode_parameters(tmp_path: Path) -> None:
     with pytest.raises(AssertionError) as excinfo:
