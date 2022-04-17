@@ -437,16 +437,16 @@ def test_java_symlinks_in_paths(
     # /run/final_tmp
     # /run/step2 -> final_tmp
     # /run/step1 -> step2
-    # /run/tmp -> /run/step1
+    # /run/tmpy -> /run/step1
     # /tmp -> /run/tmp
     application_docker_container.exec_run(
         [
             "sh",
             "-c",
             "mkdir -p /run/final_tmp && "
-            "ln -s final_tmp /run/step2 && "
+            "ln -s final_tmp /run/step2 && "  # test relative path
             "ln -s step2 /run/step1 && "
-            "ln -s /run/step1 /run/tmpy && "
+            "ln -s /run/step1 /run/tmpy && "  # test absolute path
             "rm -r /tmp && "
             "ln -s /run/tmpy /tmp && "
             "chmod 0777 /tmp /run/final_tmp && chmod +t /tmp/final_tmp",
