@@ -27,6 +27,7 @@ from granulate_utils.java import (
     locate_hotspot_error_file,
 )
 from granulate_utils.linux import proc_events
+from granulate_utils.linux.elf import get_mapped_dso_elf_id
 from granulate_utils.linux.kernel_messages import KernelMessage
 from granulate_utils.linux.ns import get_proc_root_path, get_process_nspid, resolve_proc_root_links, run_in_ns
 from granulate_utils.linux.oom import get_oom_entry
@@ -54,7 +55,6 @@ from gprofiler.utils import (
     touch_path,
     wait_event,
 )
-from gprofiler.utils.elf import get_mapped_dso_elf_id
 from gprofiler.utils.fs import is_rw_exec_dir, safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
 from gprofiler.utils.process import is_musl, process_comm

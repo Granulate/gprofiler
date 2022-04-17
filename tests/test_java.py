@@ -18,6 +18,7 @@ import docker
 import psutil
 import pytest
 from docker.models.containers import Container
+from granulate_utils.linux.elf import get_elf_buildid
 from packaging.version import Version
 from pytest import LogCaptureFixture, MonkeyPatch
 
@@ -29,7 +30,6 @@ from gprofiler.profilers.java import (
     parse_jvm_version,
 )
 from gprofiler.utils import remove_prefix
-from gprofiler.utils.elf import get_elf_buildid
 from gprofiler.utils.process import is_musl
 from tests.conftest import AssertInCollapsed
 from tests.type_utils import cast_away_optional
@@ -422,3 +422,47 @@ def test_java_noexec_dirs(
 
     # should use this path instead of /tmp/gprofiler_tmp/...
     assert "/run/gprofiler_tmp/async-profiler-" in caplog.text
+
+
+@pytest.mark.parametrize("in_container", [True])
+def test_java_symlinks_in_paths(
+    tmp_path: Path,
+    application_pid: int,
+    application_docker_container: Container,
+    assert_collapsed: AssertInCollapsed,
+    caplog: LogCaptureFixture,
+) -> None:
+    """
+    Tests that gProfiler correctly reads through symlinks in other namespaces (i.e where special
+    treatment is required for /proc/pid/root paths), and that profiling works eventually.
+    This basicaly tests the function resolve_proc_root_links().
+    """
+    caplog.set_level(logging.DEBUG)
+
+    # build this structure
+    # /run/final_tmp
+    # /run/step2 -> final_tmp
+    # /run/step1 -> step2
+    # /run/tmpy -> /run/step1
+    # /tmp -> /run/tmp
+    application_docker_container.exec_run(
+        [
+            "sh",
+            "-c",
+            "mkdir -p /run/final_tmp && "
+            "ln -s final_tmp /run/step2 && "  # test relative path
+            "ln -s step2 /run/step1 && "
+            "ln -s /run/step1 /run/tmpy && "  # test absolute path
+            "rm -r /tmp && "
+            "ln -s /run/tmpy /tmp && "
+            "chmod 0777 /tmp /run/final_tmp && chmod +t /tmp/final_tmp",
+        ],
+        privileged=True,
+        user="root",
+    )
+
+    with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
+        assert_collapsed(snapshot_one_collaped(profiler))
+
+    # part of the commandline to AP - which shall include the final, resolved path.
+    assert "load /run/final_tmp/gprofiler_tmp/" in caplog.text
