@@ -698,7 +698,8 @@ def main() -> None:
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
 
     try:
-        logger.info(f"Running gprofiler (version {__version__}), commandline: {' '.join(sys.argv[1:])!r}")
+        logger.info(f"Running gProfiler (version {__version__}), commandline: {' '.join(sys.argv[1:])!r}")
+        logger.info(f"gProfiler arguments: {args!r}")
 
         if args.controller_pid is not None:
             try:
