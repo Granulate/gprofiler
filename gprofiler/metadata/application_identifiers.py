@@ -6,15 +6,18 @@ import configparser
 import os.path
 import re
 from abc import ABCMeta, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, TextIO, Tuple
 
-from granulate_utils.linux.ns import resolve_host_path
+from granulate_utils.linux.ns import resolve_host_path, resolve_proc_root_links
 from psutil import NoSuchProcess, Process
 
+from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.enrichment import EnrichmentOptions
+from gprofiler.profilers.java import jattach_path
+from gprofiler.utils import run_process
 
 _logger = get_logger_adapter(__name__)
-
 
 _PYTHON_BIN_RE = re.compile(r"^python([23](\.\d{1,2})?)?$")
 
@@ -44,7 +47,9 @@ def _is_python_bin(bin_name: str) -> bool:
     return _PYTHON_BIN_RE.match(os.path.basename(bin_name)) is not None
 
 
-def _get_cli_arg_by_name(args: List[str], arg_name: str, check_for_equals_arg: bool = False) -> str:
+def _get_cli_arg_by_name(
+    args: List[str], arg_name: str, check_for_equals_arg: bool = False, check_for_short_prefix_arg: bool = False
+) -> str:
     if arg_name in args:
         return args[args.index(arg_name) + 1]
 
@@ -53,6 +58,11 @@ def _get_cli_arg_by_name(args: List[str], arg_name: str, check_for_equals_arg: b
             arg_key, _, arg_val = arg.partition("=")
             if arg_key == arg_name:
                 return arg_val
+
+    if check_for_short_prefix_arg:
+        for arg in args:
+            if arg.startswith(arg_name):
+                return arg[len(arg_name) :]
 
     return _NON_AVAILABLE_ARG
 
@@ -73,20 +83,30 @@ def _append_python_module_to_proc_wd(process: Process, module: str) -> str:
 
 
 def _append_file_to_proc_wd(process: Process, file_path: str) -> str:
-    if os.path.isabs(file_path):
-        return os.path.realpath(file_path)
-
-    return os.path.realpath(os.path.join(process.cwd(), file_path))
+    # if file_path is absolute, then the process.cwd() is removed.
+    file_path = os.path.join(process.cwd(), file_path)
+    proc_root = f"/proc/{process.pid}/root"
+    resolved = resolve_proc_root_links(proc_root, file_path)
+    assert resolved.startswith(proc_root), resolved
+    return resolved[len(proc_root) :]
 
 
 class _ApplicationIdentifier(metaclass=ABCMeta):
+    enrichment_options: Optional[EnrichmentOptions] = None
+
     @abstractmethod
-    def get_application_name(self, process: Process) -> Optional[str]:
+    def get_app_id(self, process: Process) -> Optional[str]:
         pass
 
 
-class _GunicornApplicationIdentifier(_ApplicationIdentifier):
-    def get_application_name(self, process: Process) -> Optional[str]:
+class _GunicornApplicationIdentifierBase(_ApplicationIdentifier):
+    def gunicorn_to_app_id(self, wsgi_app_spec: str, process: Process) -> str:
+        wsgi_app_file = wsgi_app_spec.split(":", maxsplit=1)[0]
+        return f"gunicorn: {wsgi_app_spec} ({_append_python_module_to_proc_wd(process, wsgi_app_file)})"
+
+
+class _GunicornApplicationIdentifier(_GunicornApplicationIdentifierBase):
+    def get_app_id(self, process: Process) -> Optional[str]:
         # As of gunicorn documentation the WSGI module name most probably will come from the cmdline and not from the
         # config file / environment variables (they added the option to specify `wsgi_app`
         # in the config file only in version 20.1.0)
@@ -97,54 +117,83 @@ class _GunicornApplicationIdentifier(_ApplicationIdentifier):
             return None
 
         # wsgi app specification will come always as the last argument (if hasn't been specified config file)
-        wsgi_app_spec = process.cmdline()[-1].split(":", maxsplit=1)[0]
-        return f"gunicorn: {_append_python_module_to_proc_wd(process, wsgi_app_spec)}"
+        return self.gunicorn_to_app_id(process.cmdline()[-1], process)
+
+
+class _GunicornTitleApplicationIdentifier(_GunicornApplicationIdentifierBase):
+    """
+    This generates appids from gunicorns that use setproctitle to change their name,
+    and thus appear like "gunicorn: worker [my.wsgi:app]".
+    See:
+        setproctitle():
+        https://github.com/benoitc/gunicorn/blob/60d0474a6f5604597180f435a6a03b016783885b/gunicorn/util.py#L50
+        title format:
+        https://github.com/benoitc/gunicorn/blob/60d0474a6f5604597180f435a6a03b016783885b/gunicorn/arbiter.py#L580
+    """
+
+    _GUNICORN_TITLE_PROC_NAME = re.compile(r"^gunicorn: (?:(?:master)|(?:worker)) \[([^\]]*)\]$")
+
+    def get_app_id(self, process: Process) -> Optional[str]:
+        cmdline = process.cmdline()
+        # There should be one entry in the commandline, starting with "gunicorn: ",
+        # and the rest should be empty strings per Process.cmdline() (I suppose that setproctitle
+        # zeros out the arguments array).
+        if _get_cli_arg_by_index(cmdline, 0).startswith("gunicorn: ") and len(list(filter(lambda s: s, cmdline))) == 1:
+            m = self._GUNICORN_TITLE_PROC_NAME.match(cmdline[0])
+            if m is not None:
+                return self.gunicorn_to_app_id(m.group(1), process)
+        return None
 
 
 class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
+    # separated so that we can mock it easily in the tests
     @staticmethod
-    def _find_wsgi_from_config_file(process: Process) -> Optional[str]:
-        for arg in process.cmdline():
-            if arg.endswith(".ini"):
-                config_file = arg
-                break
-        else:
-            return None
+    def _open_uwsgi_config_file(process: Process, config_file: str) -> TextIO:
+        return open(resolve_host_path(process, os.path.join(process.cwd(), config_file)))
 
-        if not os.path.isabs(config_file):
-            config_file = os.path.join(process.cwd(), config_file)
+    @classmethod
+    def _find_wsgi_from_config_file(cls, process: Process) -> Tuple[Optional[str], Optional[str]]:
+        cmdline = process.cmdline()
 
-        config = configparser.ConfigParser()
-        config.read(resolve_host_path(process, config_file))
+        config_file = _get_cli_arg_by_name(cmdline, "--ini", check_for_equals_arg=True)
+        if config_file is _NON_AVAILABLE_ARG:
+            config_file = _get_cli_arg_by_name(cmdline, "--ini-paste", check_for_equals_arg=True)
+
+        if config_file is _NON_AVAILABLE_ARG:
+            return None, None
+
+        config = configparser.ConfigParser(strict=False)
+        with cls._open_uwsgi_config_file(process, config_file) as f:
+            config.read_file(f)
         try:
             # Note that `ConfigParser.get` doesn't act like `dict.get` and raises exceptions if section/option
             # isn't found.
-            return config.get("uwsgi", "module")
+            return config_file, config.get("uwsgi", "module")
         except (configparser.NoSectionError, configparser.NoOptionError):
             pass
 
-        return None
+        return config_file, None
 
-    def get_application_name(self, process: Process) -> Optional[str]:
+    def get_app_id(self, process: Process) -> Optional[str]:
         if "uwsgi" != os.path.basename(_get_cli_arg_by_index(process.cmdline(), 0)):
             return None
 
         wsgi_arg = _get_cli_arg_by_name(process.cmdline(), "-w") or _get_cli_arg_by_name(
-            process.cmdline(), "--wsgi-file"
+            process.cmdline(), "--wsgi-file", check_for_equals_arg=True
         )
         if wsgi_arg is not _NON_AVAILABLE_ARG:
-            return f"uwsgi: {_append_python_module_to_proc_wd(process, wsgi_arg)}"
+            return f"uwsgi: {wsgi_arg} ({_append_python_module_to_proc_wd(process, wsgi_arg)})"
 
-        wsgi_config = self._find_wsgi_from_config_file(process)
+        wsgi_config_file, wsgi_config = self._find_wsgi_from_config_file(process)
         if wsgi_config is not None:
-            return f"uwsgi: {_append_python_module_to_proc_wd(process, wsgi_config)}"
+            return f"uwsgi: {wsgi_config_file} ({_append_python_module_to_proc_wd(process, wsgi_config)})"
 
         _logger.warning(
             f"{self.__class__.__name__} Couldn't find uwsgi wsgi module, both from cmdline and from config file",
             cmdline=process.cmdline(),
             no_extra_to_server=True,
         )
-        return None
+        return f"uwsgi: {wsgi_config_file}"
 
 
 class _CeleryApplicationIdentifier(_ApplicationIdentifier):
@@ -157,14 +206,22 @@ class _CeleryApplicationIdentifier(_ApplicationIdentifier):
 
         return _is_python_m_proc(process) and process.cmdline()[2] == "celery"
 
-    def get_application_name(self, process: Process) -> Optional[str]:
+    def get_app_id(self, process: Process) -> Optional[str]:
         if not self.is_celery_process(process):
             return None
 
-        app_name = _get_cli_arg_by_name(process.cmdline(), "-A") or _get_cli_arg_by_name(
+        appid = _get_cli_arg_by_name(process.cmdline(), "-A", check_for_short_prefix_arg=True) or _get_cli_arg_by_name(
             process.cmdline(), "--app", check_for_equals_arg=True
         )
-        if app_name is None:
+        if appid is _NON_AVAILABLE_ARG:
+            queue_name = _get_cli_arg_by_name(
+                process.cmdline(), "-Q", check_for_short_prefix_arg=True
+            ) or _get_cli_arg_by_name(process.cmdline(), "--queues", check_for_equals_arg=True)
+            # TODO: One worker can handle multiple queues, it could be useful to encode that into the app id.
+            if queue_name is not _NON_AVAILABLE_ARG:
+                # The queue handler routing is defined in the directory where the worker is run
+                return f"celery queue: {queue_name} ({process.cwd()})"
+        if appid is _NON_AVAILABLE_ARG:
             _logger.warning(
                 f"{self.__class__.__name__}: Couldn't find positional argument -A or --app for application indication",
                 cmdline=process.cmdline(),
@@ -172,7 +229,7 @@ class _CeleryApplicationIdentifier(_ApplicationIdentifier):
             )
             return None
 
-        return f"celery: {_append_python_module_to_proc_wd(process, app_name)}"
+        return f"celery: {appid} ({_append_python_module_to_proc_wd(process, appid)})"
 
 
 class _PySparkApplicationIdentifier(_ApplicationIdentifier):
@@ -181,20 +238,13 @@ class _PySparkApplicationIdentifier(_ApplicationIdentifier):
         # We're looking for pythonXX -m pyspark.daemon
         return _is_python_m_proc(process) and process.cmdline()[2] == "pyspark.daemon"
 
-    def get_application_name(self, process: Process) -> Optional[str]:
+    def get_app_id(self, process: Process) -> Optional[str]:
         # TODO: detect application name from parent java native spark process.
         return "pyspark" if self._is_pyspark_process(process) else None
 
 
 class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
-    @staticmethod
-    def is_python_app(process: Process) -> bool:
-        if not _is_python_bin(_get_cli_arg_by_index(process.cmdline(), 0)):
-            return False
-
-        return _is_python_m_proc(process) or (len(process.cmdline()) >= 2 and process.cmdline()[1].endswith(".py"))
-
-    def get_application_name(self, process: Process) -> Optional[str]:
+    def get_app_id(self, process: Process) -> Optional[str]:
         if not _is_python_bin(_get_cli_arg_by_index(process.cmdline(), 0)):
             return None
 
@@ -204,53 +254,74 @@ class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
 
         arg_1 = _get_cli_arg_by_index(process.cmdline(), 1)
         if arg_1.endswith(".py"):
-            return f"python: {_append_python_module_to_proc_wd(process, arg_1)}"
+            return f"python: {arg_1} ({_append_python_module_to_proc_wd(process, arg_1)})"
 
         return None
 
 
 class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
-    def get_application_name(self, process: Process) -> Optional[str]:
-        if not any("libjvm.so" in m.path for m in process.memory_maps()):
-            return None
+    def get_app_id(self, process: Process) -> Optional[str]:
+        try:
+            java_properties = run_process([jattach_path(), str(process.pid), "jcmd", "VM.command_line"]).stdout.decode()
+            java_command = None
+            java_args = []
+            for line in java_properties.splitlines():
+                if line.startswith("jvm_args:"):
+                    if (
+                        self.enrichment_options is not None
+                        and self.enrichment_options.application_identifier_args_filters
+                    ):
+                        for arg in line[line.find(":") + 1 :].strip().split(" "):
+                            if any(
+                                re.search(flag_filter, arg)
+                                for flag_filter in self.enrichment_options.application_identifier_args_filters
+                            ):
+                                java_args.append(arg)
+                if line.startswith("java_command:"):
+                    java_command = line[line.find(":") + 1 :].strip().split(" ", 1)[0]
+            if java_command:
+                return f"java: {java_command}{' (' + ' '.join(java_args) + ')' if java_args else ''}"
+        except CalledProcessError as e:
+            _logger.warning(f"Couldn't get Java properties for process {process.pid}: {e.stderr}")
 
-        jar_arg = _get_cli_arg_by_name(process.cmdline(), "-jar")
-        if jar_arg is _NON_AVAILABLE_ARG:
-            return None
-
-        return f"java: {_append_file_to_proc_wd(process, jar_arg)}"
+        return None
 
 
 # Please note that the order matter, because the FIRST matching identifier will be used.
 # so when adding new identifiers pay attention to the order.
-_APPLICATION_IDENTIFIER = [
+_PYTHON_APP_IDENTIFIERS = [
+    _GunicornTitleApplicationIdentifier(),
     _GunicornApplicationIdentifier(),
     _UwsgiApplicationIdentifier(),
     _CeleryApplicationIdentifier(),
     _PySparkApplicationIdentifier(),
     _PythonModuleApplicationIdentifier(),
+]
+
+_JAVA_APP_IDENTIFIERS: List[_ApplicationIdentifier] = [
     _JavaJarApplicationIdentifier(),
 ]
 
 
-def get_application_name(pid: int) -> Optional[str]:
+def set_enrichment_options(enrichment_options: EnrichmentOptions) -> None:
+    _ApplicationIdentifier.enrichment_options = enrichment_options
+
+
+def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier]) -> Optional[str]:
     """
     Tries to identify the application running in a given process, application identification is fully heuristic,
     heuristics are being made on each application type available differ from each other and those their
     "heuristic level".
     """
-    try:
-        process = Process(pid)
-
-    # pid may be (-1) so we can catch also ValueError
-    except (NoSuchProcess, ValueError):
+    assert _ApplicationIdentifier.enrichment_options is not None, "not initialized?"
+    if not _ApplicationIdentifier.enrichment_options.application_identifiers:
         return None
 
-    for identifier in _APPLICATION_IDENTIFIER:
+    for identifier in identifiers:
         try:
-            app_name = identifier.get_application_name(process)
-            if app_name is not None:
-                return app_name
+            appid = identifier.get_app_id(process)
+            if appid is not None:
+                return appid
 
         except NoSuchProcess:
             return None
@@ -263,4 +334,9 @@ def get_application_name(pid: int) -> Optional[str]:
     return None
 
 
-__all__ = ["get_application_name"]
+def get_python_app_id(process: Process) -> Optional[str]:
+    return get_app_id(process, _PYTHON_APP_IDENTIFIERS)
+
+
+def get_java_app_id(process: Process) -> Optional[str]:
+    return get_app_id(process, _JAVA_APP_IDENTIFIERS)

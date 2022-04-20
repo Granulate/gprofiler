@@ -1,4 +1,5 @@
-FROM openjdk:8-alpine
+# see test_java_async_profiler_musl_and_cpu
+FROM java:alpine
 
 WORKDIR /app
 ADD Fibonacci.java /app

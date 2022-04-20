@@ -6,7 +6,7 @@ import datetime
 import gzip
 import json
 from io import BytesIO
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import IO, TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 import requests
 from requests import Session
@@ -40,7 +40,7 @@ class APIClient:
         self._init_session()
         logger.info(f"The connection to the server was successfully established (service {service!r})")
 
-    def _init_session(self):
+    def _init_session(self) -> None:
         self._session: Session = requests.Session()
         self._session.headers.update({"GPROFILER-API-KEY": self._key, "GPROFILER-SERVICE-NAME": self._service})
 
@@ -63,7 +63,7 @@ class APIClient:
         self,
         method: str,
         path: str,
-        data: Optional[Dict],
+        data: Any,
         files: Dict = None,
         timeout: float = DEFAULT_REQUEST_TIMEOUT,
         api_version: str = None,
@@ -82,7 +82,7 @@ class APIClient:
             buffer = BytesIO()
             with gzip.open(buffer, mode="wt", encoding="utf-8") as gzip_file:
                 try:
-                    json.dump(data, gzip_file, ensure_ascii=False)  # type: ignore
+                    json.dump(data, cast(IO[str], gzip_file), ensure_ascii=False)
                 except TypeError:
                     # This should only happen while in development, and is used to get a more indicative error.
                     bad_json = str(data)
@@ -101,24 +101,24 @@ class APIClient:
                 raise APIError(resp.text)
         else:
             resp.raise_for_status()
-        return resp.json()
+        return cast(dict, resp.json())
 
-    def get(self, path: str, data=None, **kwargs) -> Dict:
+    def get(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("GET", path, data, **kwargs)
 
-    def post(self, path: str, data=None, **kwargs) -> Dict:
+    def post(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("POST", path, data, **kwargs)
 
-    def put(self, path: str, data=None, **kwargs) -> Dict:
+    def put(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("PUT", path, data, **kwargs)
 
-    def patch(self, path: str, data=None, **kwargs) -> Dict:
+    def patch(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("PATCH", path, data, **kwargs)
 
-    def delete(self, path: str, data=None, **kwargs) -> Dict:
+    def delete(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("DELETE", path, data, **kwargs)
 
-    def get_health(self):
+    def get_health(self) -> Dict:
         return self.get("health_check")
 
     def submit_profile(

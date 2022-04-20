@@ -35,14 +35,14 @@ class ProfilerArgument:
 class ProfilerConfig:
     def __init__(
         self,
-        profiler_mode_help: str,
-        disablement_help: str,
-        profiler_class,
+        profiler_mode_help: Optional[str],
+        disablement_help: Optional[str],
+        profiler_class: Any,
         possible_modes: List[str],
         supported_archs: List[str],
         default_mode: str = "enabled",
         arguments: List[ProfilerArgument] = None,
-    ):
+    ) -> None:
         self.profiler_mode_help = profiler_mode_help
         self.possible_modes = possible_modes
         self.supported_archs = supported_archs
@@ -63,7 +63,7 @@ def register_profiler(
     profiler_mode_argument_help: Optional[str] = None,
     profiler_arguments: Optional[List[ProfilerArgument]] = None,
     disablement_help: Optional[str] = None,
-):
+) -> Any:
     if profiler_mode_argument_help is None:
         profiler_mode_argument_help = (
             f"Choose the mode for profiling {profiler_name} processes. '{default_mode}'"
@@ -74,7 +74,7 @@ def register_profiler(
     if disablement_help is None:
         disablement_help = f"Disable the runtime-profiling of {profiler_name} processes"
 
-    def profiler_decorator(profiler_class):
+    def profiler_decorator(profiler_class: Any) -> Any:
         assert profiler_name not in profilers_config, f"{profiler_name} is already registered!"
         assert all(
             arg.dest.startswith(profiler_name.lower()) for arg in profiler_arguments or []

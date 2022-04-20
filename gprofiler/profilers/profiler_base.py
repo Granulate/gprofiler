@@ -3,23 +3,30 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
+import concurrent.futures
 import sched
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures._base import Future
 from threading import Event, Lock, Thread
-from typing import Dict, List, Optional
+from types import TracebackType
+from typing import Dict, List, Optional, Tuple, Type, TypeVar
 
 from granulate_utils.linux.proc_events import register_exec_callback, unregister_exec_callback
 from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import StopEventSetException
-from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
+from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import limit_frequency
+from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
+
+
+T = TypeVar("T", bound="ProfilerInterface")
 
 
 class ProfilerInterface:
@@ -32,20 +39,25 @@ class ProfilerInterface:
     def start(self) -> None:
         pass
 
-    def snapshot(self) -> ProcessToStackSampleCounters:
+    def snapshot(self) -> ProcessToProfileData:
         """
-        :returns: Mapping from pid to stacks and their counts.
+        :returns: Mapping from pid to `ProfileData`s.
         """
         raise NotImplementedError
 
     def stop(self) -> None:
         pass
 
-    def __enter__(self):
+    def __enter__(self: T) -> T:
         self.start()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_ctb: Optional[TracebackType],
+    ) -> None:
         self.stop()
 
 
@@ -78,7 +90,7 @@ class NoopProfiler(ProfilerInterface):
     No-op profiler - used as a drop-in replacement for runtime profilers, when they are disabled.
     """
 
-    def snapshot(self) -> ProcessToStackSampleCounters:
+    def snapshot(self) -> ProcessToProfileData:
         return {}
 
     @classmethod
@@ -97,32 +109,64 @@ class ProcessProfilerBase(ProfilerBase):
     def _select_processes_to_profile(self) -> List[Process]:
         raise NotImplementedError
 
-    def _profile_process(self, process: Process, duration: int) -> Optional[StackToSampleCount]:
+    def _wait_for_profiles(self, futures: Dict[Future, Tuple[int, str]]) -> ProcessToProfileData:
+        results = {}
+        for future in concurrent.futures.as_completed(futures):
+            pid, comm = futures[future]
+            try:
+                result = future.result()
+                assert result is not None
+            except StopEventSetException:
+                raise
+            except NoSuchProcess:
+                logger.debug(
+                    f"{self.__class__.__name__}: process went down during profiling {pid} ({comm})",
+                    exc_info=True,
+                )
+                result = ProfileData(
+                    self._profiling_error_stack("error", "process went down during profiling", comm), None, None
+                )
+            except Exception as e:
+                logger.exception(f"{self.__class__.__name__}: failed to profile process {pid} ({comm})")
+                result = ProfileData(
+                    self._profiling_error_stack("error", f"exception {type(e).__name__}", comm), None, None
+                )
+
+            results[pid] = result
+        try:
+            result = future.result()
+            if result is not None:
+                results[futures[future]] = result
+        except StopEventSetException:
+            raise
+        except NoSuchProcess:
+            logger.debug(
+                f"{self.__class__.__name__}: process went down during profiling {futures[future]}",
+                exc_info=True,
+            )
+        except Exception:
+            logger.exception(f"{self.__class__.__name__}: failed to profile process {futures[future]}")
+
+        return results
+
+    def _profile_process(self, process: Process, duration: int) -> ProfileData:
         raise NotImplementedError
 
     def _notify_selected_processes(self, processes: List[Process]) -> None:
         pass
 
-    def _wait_for_profiles(self, futures: Dict[Future, int]) -> ProcessToStackSampleCounters:
-        results = {}
-        for future in as_completed(futures):
-            try:
-                result = future.result()
-                if result is not None:
-                    results[futures[future]] = result
-            except StopEventSetException:
-                raise
-            except NoSuchProcess:
-                logger.debug(
-                    f"{self.__class__.__name__}: process went down during profiling {futures[future]}",
-                    exc_info=True,
-                )
-            except Exception:
-                logger.exception(f"{self.__class__.__name__}: failed to profile process {futures[future]}")
+    @staticmethod
+    def _profiling_error_stack(
+        what: str,
+        reason: str,
+        comm: str,
+    ) -> StackToSampleCount:
+        # return 1 sample, it will be scaled later in merge_profiles().
+        # if --perf-mode=none mode is used, it will not, but we don't have anything logical to
+        # do here in that case :/
+        return Counter({f"{comm};[Profiling {what}: {reason}]": 1})
 
-        return results
-
-    def snapshot(self) -> ProcessToStackSampleCounters:
+    def snapshot(self) -> ProcessToProfileData:
         processes_to_profile = self._select_processes_to_profile()
         self._notify_selected_processes(processes_to_profile)
 
@@ -132,7 +176,12 @@ class ProcessProfilerBase(ProfilerBase):
         with ThreadPoolExecutor(max_workers=len(processes_to_profile)) as executor:
             futures: Dict[Future, int] = {}
             for process in processes_to_profile:
-                futures[executor.submit(self._profile_process, process, self._duration)] = process.pid
+                try:
+                    comm = process_comm(process)
+                except NoSuchProcess:
+                    continue
+
+                futures[executor.submit(self._profile_process, process, self._duration)] = (process.pid, comm)
 
             return self._wait_for_profiles(futures)
 
@@ -207,7 +256,7 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         self._sched_stop = True
         self._sched_thread.join()
 
-    def snapshot(self) -> ProcessToStackSampleCounters:
+    def snapshot(self) -> ProcessToProfileData:
         results = super().snapshot()
 
         # wait for one duration, in case snapshot() found no processes

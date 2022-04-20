@@ -17,7 +17,7 @@ from typing import Dict, Iterator, Optional, Tuple
 
 # pkg_resources is a part of setuptools, but it has a standalone deprecated version. That's the version mypy
 # is looking for, but the stubs there are extremely deprecated
-import pkg_resources  # type: ignore
+import pkg_resources
 from granulate_utils.linux.ns import get_mnt_ns_ancestor, resolve_host_path
 from psutil import AccessDenied, NoSuchProcess, Process
 
@@ -46,7 +46,7 @@ def _get_packages_dir(file_path: str) -> Optional[str]:
 def _get_metadata(dist: pkg_resources.Distribution) -> Dict[str, str]:
     """Based on pip._internal.utils.get_metadata"""
     metadata_name = "METADATA"
-    if isinstance(dist, pkg_resources.DistInfoDistribution) and dist.has_metadata(metadata_name):
+    if isinstance(dist, pkg_resources.DistInfoDistribution) and dist.has_metadata(metadata_name):  # type: ignore
         metadata = dist.get_metadata(metadata_name)
     elif dist.has_metadata("PKG-INFO"):
         metadata_name = "PKG-INFO"
@@ -109,7 +109,7 @@ def _files_from_legacy(dist: pkg_resources.Distribution) -> Optional[Iterator[st
         return None
     paths = (p for p in text.splitlines(keepends=False) if p)
     root = dist.location
-    info = dist.egg_info
+    info = dist.egg_info  # type: ignore
     if root is None or info is None:
         return paths
     try:
@@ -147,7 +147,8 @@ def _get_libpython_path(process: Process) -> Optional[str]:
 
 
 # Matches PY_VERSION in Python's binary
-_PY_VERSION_STRING_PATTERN = re.compile(rb"(?<=\D)(?:2\.7|3\.1?\d)\.\d\d?(?=\x00)")
+# Notice that we'll match only 2.7 and 3.5-3.12
+_PY_VERSION_STRING_PATTERN = re.compile(rb"(?<=\D)(?:2\.7|3\.(?:[5-9]|1[0-2]))\.\d\d?(?=\x00)")
 
 
 @functools.lru_cache(maxsize=128)
@@ -161,18 +162,18 @@ def _get_python_full_version(process: Process) -> Optional[str]:
         return None
 
     with f:
-        for line in f.readlines():
-            match = _PY_VERSION_STRING_PATTERN.search(line)
-            if match is not None:
-                return match.group().decode()
-    return None
+        matches = _PY_VERSION_STRING_PATTERN.findall(f.read())
+    if len(matches) != 1:
+        # If we didn't match anything or for some reason matched more than once just don't get the version
+        return None
+    return str(matches[0].decode())  # Explicitly cast to str to silence mypy
 
 
 # Standard library modules are identified by being under a pythonx.y dir and *not* under site/dist-packages
 _STANDARD_LIB_PATTERN = re.compile(r"/python\d\.\d\d?/(?!.*(site|dist)-packages)")
 
 
-def _populate_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]], process: Process):
+def _populate_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]], process: Process) -> None:
     py_version = None
 
     for path in result:
@@ -186,8 +187,8 @@ def _populate_standard_libs_version(result: Dict[str, Optional[Tuple[str, str]]]
             if py_version is None:
                 # No need to continue trying if we failed
                 return
-        # (mypy fails to understand that py_version isn't Optional at this point)
-        result[path] = ("standard-library", py_version)  # type: ignore
+
+        result[path] = ("standard-library", py_version)
 
 
 @functools.lru_cache(maxsize=128)
@@ -213,13 +214,13 @@ def _get_packages_files(process: Process, packages_path: str) -> Dict[str, Tuple
 _warned_no__normalized_cached = False
 
 
-def _populate_packages_versions(packages_versions: Dict[str, Optional[Tuple[str, str]]], process: Process):
+def _populate_packages_versions(packages_versions: Dict[str, Optional[Tuple[str, str]]], process: Process) -> None:
     # A little monkey patch to prevent pkg_resources from converting "/proc/{pid}/root/" to "/".
     # This function resolves symlinks and makes paths absolute for comparison purposes which isn't required
     # for our usage.
     if hasattr(pkg_resources, "_normalize_cached"):
-        original__normalize_cache = pkg_resources._normalize_cached
-        pkg_resources._normalize_cached = lambda path: path
+        original__normalize_cache = pkg_resources._normalize_cached  # type: ignore
+        pkg_resources._normalize_cached = lambda path: path  # type: ignore
     else:
         global _warned_no__normalized_cached
         if not _warned_no__normalized_cached:
@@ -249,7 +250,7 @@ def _populate_packages_versions(packages_versions: Dict[str, Optional[Tuple[str,
                 packages_versions[module_path] = package_info
     finally:
         # Don't forget to restore the original implementation in case someone else uses this function
-        pkg_resources._normalize_cached = original__normalize_cache
+        pkg_resources._normalize_cached = original__normalize_cache  # type: ignore
 
 
 _exceptions_logged = 0

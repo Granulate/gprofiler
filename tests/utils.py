@@ -2,15 +2,16 @@ import os
 import subprocess
 from pathlib import Path
 from threading import Event
-from typing import Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 
-from gprofiler.gprofiler_types import StackToSampleCount
+from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
 from gprofiler.profilers.java import JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE, JAVA_SAFEMODE_ALL, JavaProfiler
 from gprofiler.profilers.profiler_base import ProfilerInterface
+from gprofiler.utils import remove_path
 
 RUNTIME_PROFILERS = [
     ("java", "ap"),
@@ -27,8 +28,8 @@ def run_privileged_container(
     image: Image,
     command: List[str],
     volumes: Dict[str, Dict[str, str]] = None,
-    auto_remove=True,
-    **extra_kwargs,
+    auto_remove: bool = True,
+    **extra_kwargs: Any,
 ) -> Tuple[Optional[Container], str]:
     if volumes is None:
         volumes = {}
@@ -58,13 +59,13 @@ def run_privileged_container(
     return container, logs
 
 
-def _no_errors(logs: str):
+def _no_errors(logs: str) -> None:
     # example line: [2021-06-12 10:13:57,528] ERROR: gprofiler: ruby profiling failed
     assert "] ERROR: " not in logs, f"found ERRORs in gProfiler logs!: {logs}"
 
 
 def run_gprofiler_in_container(
-    docker_client: DockerClient, image: Image, command: List[str], **kwargs
+    docker_client: DockerClient, image: Image, command: List[str], **kwargs: Any
 ) -> Tuple[Optional[Container], str]:
     """
     Wrapper around run_privileged_container() that also verifies there are not ERRORs in gProfiler's output log.
@@ -98,17 +99,25 @@ def chmod_path_parts(path: Path, add_mode: int) -> None:
         os.chmod(subpath, os.stat(subpath).st_mode | add_mode)
 
 
-def assert_function_in_collapsed(function_name: str, collapsed: Mapping[str, int]) -> None:
+def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) -> None:
     print(f"collapsed: {collapsed}")
     assert any(
         (function_name in record) for record in collapsed.keys()
     ), f"function {function_name!r} missing in collapsed data!"
 
 
-def snapshot_one_collaped(profiler: ProfilerInterface) -> StackToSampleCount:
+def snapshot_one_profile(profiler: ProfilerInterface) -> ProfileData:
     result = profiler.snapshot()
     assert len(result) == 1
     return next(iter(result.values()))
+
+
+def snapshot_one_collapsed(profiler: ProfilerInterface) -> StackToSampleCount:
+    return snapshot_one_profile(profiler).stacks
+
+
+def snapshot_pid_collapsed(profiler: ProfilerInterface, pid: int) -> StackToSampleCount:
+    return profiler.snapshot()[pid].stacks
 
 
 def make_java_profiler(
@@ -138,3 +147,27 @@ def make_java_profiler(
         java_safemode=java_safemode,
         java_mode=java_mode,
     )
+
+
+def run_gprofiler_in_container_for_one_session(
+    docker_client: DockerClient,
+    gprofiler_docker_image: Image,
+    output_directory: Path,
+    runtime_specific_args: List[str],
+    profiler_flags: List[str],
+) -> str:
+    """
+    Runs the gProfiler container image for a single profiling session, and collects the output.
+    """
+    inner_output_directory = "/tmp/gprofiler"
+    volumes = {
+        str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
+    }
+    args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args + profiler_flags
+
+    output_path = Path(output_directory / "last_profile.col")
+    remove_path(str(output_path), missing_ok=True)
+
+    run_gprofiler_in_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
+
+    return output_path.read_text()

@@ -22,11 +22,11 @@ class Metrics:
 
 class SystemMetricsMonitorBase(metaclass=ABCMeta):
     @abstractmethod
-    def start(self):
+    def start(self) -> None:
         pass
 
     @abstractmethod
-    def stop(self):
+    def stop(self) -> None:
         pass
 
     @abstractmethod
@@ -49,18 +49,18 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
         self._polling_rate_seconds = polling_rate_seconds
         self._mem_percentages: List[float] = []
         self._stop_event = stop_event
-        self._thread = None
+        self._thread: Optional[Thread] = None
         self._lock = RLock()
 
         self._get_cpu_utilization()  # Call this once to set the necessary data
 
-    def start(self):
+    def start(self) -> None:
         assert self._thread is None, "SystemMetricsMonitor is already running"
         assert not self._stop_event.is_set(), "Stop condition is already set (perhaps gProfiler was already stopped?)"
         self._thread = Thread(target=self._continuously_poll_memory, args=(self._polling_rate_seconds,))
         self._thread.start()
 
-    def stop(self):
+    def stop(self) -> None:
         assert self._thread is not None, "SystemMetricsMonitor is not running"
         assert self._stop_event.is_set(), "Stop event was not set before stopping the SystemMetricsMonitor"
         self._thread.join(STOP_TIMEOUT_SECONDS)
@@ -68,9 +68,10 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
             raise ThreadStopTimeoutError("Timed out while waiting for the SystemMetricsMonitor internal thread to stop")
         self._thread = None
 
-    def _continuously_poll_memory(self, polling_rate_seconds: int):
+    def _continuously_poll_memory(self, polling_rate_seconds: int) -> None:
         while not self._stop_event.is_set():
-            current_ram_percent = psutil.virtual_memory().percent
+            current_ram_percent = psutil.virtual_memory().percent  # type: ignore # virtual_memory doesn't have a
+            # return type is types-psutil
             self._mem_percentages.append(current_ram_percent)
             self._stop_event.wait(timeout=polling_rate_seconds)
 
@@ -93,10 +94,10 @@ class SystemMetricsMonitor(SystemMetricsMonitorBase):
 
 
 class NoopSystemMetricsMonitor(SystemMetricsMonitorBase):
-    def start(self):
+    def start(self) -> None:
         pass
 
-    def stop(self):
+    def stop(self) -> None:
         pass
 
     def _get_average_memory_utilization(self) -> Optional[float]:

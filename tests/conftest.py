@@ -9,16 +9,20 @@ from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 from time import sleep
-from typing import Callable, Generator, Iterable, List, Mapping, Optional
+from typing import Any, Callable, Generator, Iterable, Iterator, List, Mapping, Optional, cast
 
 import docker
+import pytest
+from _pytest.config import Config
 from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 from psutil import Process
-from pytest import fixture
+from pytest import FixtureRequest, fixture
 
-from gprofiler.metadata.application_identifiers import get_application_name
+from gprofiler.gprofiler_types import StackToSampleCount
+from gprofiler.metadata.application_identifiers import get_java_app_id, get_python_app_id, set_enrichment_options
+from gprofiler.metadata.enrichment import EnrichmentOptions
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
 from tests.utils import assert_function_in_collapsed, chmod_path_parts
 
@@ -40,7 +44,7 @@ def profiler_type() -> str:
 
 
 @contextmanager
-def chdir(path):
+def chdir(path: Path) -> Iterator[None]:
     cwd = os.getcwd()
     try:
         os.chdir(path)
@@ -50,8 +54,9 @@ def chdir(path):
 
 
 @fixture(params=[False, True])
-def in_container(request) -> bool:
-    return request.param
+def in_container(request: FixtureRequest) -> bool:
+    return cast(bool, request.param)  # type: ignore # SubRequest isn't exported yet,
+    # https://github.com/pytest-dev/pytest/issues/7469
 
 
 @fixture
@@ -89,7 +94,7 @@ def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
 
 
 @fixture
-def gprofiler_exe(request, tmp_path: Path) -> Path:
+def gprofiler_exe(request: FixtureRequest, tmp_path: Path) -> Path:
     precompiled = request.config.getoption("--executable")
     if precompiled is not None:
         return Path(precompiled)
@@ -118,13 +123,15 @@ def check_app_exited() -> bool:
 
 
 @fixture
-def application_process(in_container: bool, command_line: List[str], check_app_exited: bool):
+def application_process(
+    in_container: bool, command_line: List[str], check_app_exited: bool
+) -> Iterator[Optional[subprocess.Popen]]:
     if in_container:
         yield None
         return
     else:
         # run as non-root to catch permission errors, etc.
-        def lower_privs():
+        def lower_privs() -> None:
             os.setgid(1000)
             os.setuid(1000)
 
@@ -172,11 +179,21 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
 def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[str, Image]]:
     images = {}
     for runtime in os.listdir(str(CONTAINERS_DIRECTORY)):
-        images[runtime], _ = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime))
+        images[runtime], _ = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime), rm=True)
+
+        # for java - build image based on "j9"
+        if runtime == "java":
+            images[runtime + "_j9"], _ = docker_client.images.build(
+                path=str(CONTAINERS_DIRECTORY / runtime),
+                rm=True,
+                buildargs={"JAVA_BASE_IMAGE": "adoptopenjdk/openjdk8-openj9"},
+            )
+
+        # build musl image if exists
         musl_dockerfile = CONTAINERS_DIRECTORY / runtime / "musl.Dockerfile"
         if musl_dockerfile.exists():
             images[runtime + "_musl"], _ = docker_client.images.build(
-                path=str(CONTAINERS_DIRECTORY / runtime), dockerfile=str(musl_dockerfile)
+                path=str(CONTAINERS_DIRECTORY / runtime), dockerfile=str(musl_dockerfile), rm=True
             )
 
     yield images
@@ -185,16 +202,18 @@ def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[s
 
 
 @fixture
-def musl() -> bool:
-    # selects the musl version of an application image (e.g java:alpine)
-    return False
+def image_suffix() -> str:
+    # lets tests override this value and use a suffixed image, e.g _musl or _j9.
+    return ""
 
 
 @fixture
 def application_docker_image(
-    application_docker_images: Mapping[str, Image], runtime: str, musl: bool
+    application_docker_images: Mapping[str, Image],
+    runtime: str,
+    image_suffix: str,
 ) -> Iterable[Image]:
-    runtime = runtime + ("_musl" if musl else "")
+    runtime = runtime + image_suffix
     yield application_docker_images[runtime]
 
 
@@ -204,6 +223,33 @@ def application_docker_mount() -> bool:
     Whether or not to mount the output directory (output_directory fixture) to the application containers.
     """
     return False
+
+
+@fixture
+def extra_application_docker_mounts() -> List[docker.types.Mount]:
+    """
+    Override to add additional docker mounts to the application container
+    """
+    return []
+
+
+@fixture
+def application_docker_mounts(
+    application_docker_mount: bool,
+    extra_application_docker_mounts: List[docker.types.Mount],
+    output_directory: Path,
+) -> List[docker.types.Mount]:
+    mounts = []
+
+    mounts.extend(extra_application_docker_mounts)
+
+    if application_docker_mount:
+        output_directory.mkdir(parents=True, exist_ok=True)
+        mounts.append(
+            docker.types.Mount(target=str(output_directory), type="bind", source=str(output_directory), read_only=False)
+        )
+
+    return mounts
 
 
 @fixture
@@ -220,21 +266,18 @@ def application_docker_container(
     docker_client: DockerClient,
     application_docker_image: Image,
     output_directory: Path,
-    application_docker_mount: bool,
+    application_docker_mounts: List[docker.types.Mount],
     application_docker_capabilities: List[str],
 ) -> Iterable[Container]:
     if not in_container:
         yield None
         return
     else:
-        volumes = (
-            {str(output_directory): {"bind": str(output_directory), "mode": "rw"}} if application_docker_mount else {}
-        )
         container: Container = docker_client.containers.run(
             application_docker_image,
             detach=True,
             user="5555:6666",
-            volumes=volumes,
+            mounts=application_docker_mounts,
             cap_add=application_docker_capabilities,
         )
         while container.status != "running":
@@ -255,7 +298,7 @@ def output_directory(tmp_path: Path) -> Path:
 def application_pid(
     in_container: bool, application_process: subprocess.Popen, application_docker_container: Container
 ) -> int:
-    pid = application_docker_container.attrs["State"]["Pid"] if in_container else application_process.pid
+    pid: int = application_docker_container.attrs["State"]["Pid"] if in_container else application_process.pid
 
     # Application might be run using "sh -c ...", we detect the case and return the "real" application pid
     process = Process(pid)
@@ -283,8 +326,11 @@ def runtime_specific_args(runtime: str) -> List[str]:
     }.get(runtime, [])
 
 
+AssertInCollapsed = Callable[[StackToSampleCount], None]
+
+
 @fixture
-def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int]], None]:
+def assert_collapsed(runtime: str) -> AssertInCollapsed:
     function_name = {
         "java": "Fibonacci.main",
         "python": "burner",
@@ -297,21 +343,22 @@ def assert_collapsed(runtime: str) -> Callable[[Mapping[str, int]], None]:
 
 
 @fixture
-def assert_application_name(application_pid: int, runtime: str, in_container: bool) -> Generator:
-    desired_names = {
-        "java": "java: /app/Fibonacci.jar",
-        "python": "python: /app/lister.py",
+def assert_app_id(application_pid: int, runtime: str, in_container: bool) -> Generator:
+    desired_name_and_getter = {
+        "java": (get_java_app_id, "java: Fibonacci.jar"),
+        "python": (get_python_app_id, "python: lister.py (/app/lister.py)"),
     }
     # We test the application name only after test has finished because the test may wait until the application is
     # running and application name might change.
     yield
     # TODO: Change commandline of processes running not in containers so we'll be able to match against them.
-    if in_container and runtime in desired_names:
-        assert get_application_name(application_pid) == desired_names[runtime]
+    if in_container and runtime in desired_name_and_getter:
+        getter, name = desired_name_and_getter[runtime]
+        assert getter(Process(application_pid)) == name
 
 
 @fixture
-def exec_container_image(request, docker_client: DockerClient) -> Optional[Image]:
+def exec_container_image(request: FixtureRequest, docker_client: DockerClient) -> Optional[Image]:
     image_name = request.config.getoption("--exec-container-image")
     if image_name is None:
         return None
@@ -344,9 +391,35 @@ def profiler_flags(runtime: str, profiler_type: str) -> List[str]:
     return flags
 
 
-def pytest_addoption(parser):
+@fixture(autouse=True, scope="session")
+def _set_enrichment_options() -> None:
+    """
+    Updates the global EnrichmentOptions for this process (for JavaProfiler, PythonProfiler etc that
+    we run in this context)
+    """
+    set_enrichment_options(
+        EnrichmentOptions(
+            profile_api_version=None,
+            container_names=True,
+            application_identifiers=True,
+            application_identifier_args_filters=[],
+            application_metadata=True,
+        )
+    )
+
+
+def pytest_addoption(parser: Any) -> None:
     parser.addoption("--exec-container-image", action="store", default=None)
     parser.addoption("--executable", action="store", default=None)
+
+
+def pytest_collection_modifyitems(session: pytest.Session, config: Config, items: List[pytest.Item]) -> None:
+    # run container tests before others.
+    # when run in the CI, tests running the profiler on the host break, failing to execute local programs (e.g grep)
+    # for whatever reason.
+    # I assumed it has something to do with the bootstrap process of the runner, and indeed by running the container
+    # tests first we were alleviated of those issues.
+    items.sort(key=lambda i: not i.name.startswith("test_from_container"))
 
 
 @fixture
@@ -360,4 +433,20 @@ def python_version(in_container: bool, application_docker_container: Container) 
         output = subprocess.check_output("python --version", stderr=subprocess.STDOUT, shell=True)
 
     # Output is expected to look like e.g. "Python 3.9.7"
-    return output.decode().strip().split()[-1]
+    return cast(str, output.decode().strip().split()[-1])
+
+
+@fixture
+def noexec_tmp_dir(in_container: bool, tmp_path: Path) -> Iterator[str]:
+    if in_container:
+        # only needed for non-container tests
+        yield ""
+        return
+
+    tmpfs_path = tmp_path / "tmpfs"
+    tmpfs_path.mkdir(0o755, exist_ok=True)
+    try:
+        subprocess.run(["mount", "-t", "tmpfs", "-o", "noexec", "none", str(tmpfs_path)], check=True)
+        yield str(tmpfs_path)
+    finally:
+        subprocess.run(["umount", str(tmpfs_path)], check=True)

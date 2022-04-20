@@ -24,7 +24,7 @@ from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Callable, Iterator, List, Optional, Tuple, Union
+from typing import Any, Callable, Iterator, List, Optional, Tuple, Union, cast
 
 import importlib_resources
 import psutil
@@ -43,7 +43,8 @@ from gprofiler.log import get_logger_adapter
 
 logger = get_logger_adapter(__name__)
 
-TEMPORARY_STORAGE_PATH = "/tmp/gprofiler_tmp"
+GPROFILER_DIRECTORY_NAME = "gprofiler_tmp"
+TEMPORARY_STORAGE_PATH = f"/tmp/{GPROFILER_DIRECTORY_NAME}"
 
 gprofiler_mutex: Optional[socket.socket] = None
 
@@ -67,17 +68,17 @@ def is_root() -> bool:
 libc: Optional[ctypes.CDLL] = None
 
 
-def prctl(*argv):
+def prctl(*argv: Any) -> int:
     global libc
     if libc is None:
         libc = ctypes.CDLL("libc.so.6", use_errno=True)
-    return libc.prctl(*argv)
+    return cast(int, libc.prctl(*argv))
 
 
 PR_SET_PDEATHSIG = 1
 
 
-def set_child_termination_on_parent_death():
+def set_child_termination_on_parent_death() -> int:
     ret = prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
     if ret != 0:
         errno = ctypes.get_errno()
@@ -87,10 +88,10 @@ def set_child_termination_on_parent_death():
     return ret
 
 
-def wrap_callbacks(callbacks):
+def wrap_callbacks(callbacks: List[Callable]) -> Callable:
     # Expects array of callback.
     # Returns one callback that call each one of them, and returns the retval of last callback
-    def wrapper():
+    def wrapper() -> Any:
         ret = None
         for cb in callbacks:
             ret = cb()
@@ -100,7 +101,9 @@ def wrap_callbacks(callbacks):
     return wrapper
 
 
-def start_process(cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_death: bool = True, **kwargs) -> Popen:
+def start_process(
+    cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_death: bool = True, **kwargs: Any
+) -> Popen:
     cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
     logger.debug(f"Running command: ({cmd_text})")
     if isinstance(cmd, str):
@@ -139,7 +142,7 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_
     return popen
 
 
-def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool], interval=0.1) -> None:
+def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool], interval: float = 0.1) -> None:
     end_time = time.monotonic() + timeout
     while True:
         if condition():
@@ -152,7 +155,7 @@ def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool],
             raise TimeoutError()
 
 
-def poll_process(process, timeout: float, stop_event: Event):
+def poll_process(process: Popen, timeout: float, stop_event: Event) -> None:
     try:
         wait_event(timeout, stop_event, lambda: process.poll() is not None)
     except StopEventSetException:
@@ -190,6 +193,7 @@ def _reap_process(process: Popen, kill_signal: signal.Signals) -> Tuple[int, str
     # kill the process and read its output so far
     process.send_signal(kill_signal)
     process.wait()
+    logger.debug(f"({process.args!r}) was killed by us with signal {kill_signal} due to timeout or stop request")
     stdout, stderr = process.communicate()
     returncode = process.poll()
     assert returncode is not None  # only None if child has not terminated
@@ -206,8 +210,8 @@ def run_process(
     kill_signal: signal.Signals = signal.SIGKILL,
     communicate: bool = True,
     stdin: bytes = None,
-    **kwargs,
-) -> CompletedProcess:
+    **kwargs: Any,
+) -> "CompletedProcess[bytes]":
     stdout = None
     stderr = None
     reraise_exc: Optional[BaseException] = None
@@ -247,14 +251,14 @@ def run_process(
         retcode = process.poll()
         assert retcode is not None  # only None if child has not terminated
 
-    result: CompletedProcess = CompletedProcess(process.args, retcode, stdout, stderr)
+    result: CompletedProcess[bytes] = CompletedProcess(process.args, retcode, stdout, stderr)
 
     logger.debug(f"({process.args!r}) exit code: {result.returncode}")
     if not suppress_log:
         if result.stdout:
-            logger.debug(f"({process.args!r}) stdout: {result.stdout}")
+            logger.debug(f"({process.args!r}) stdout: {result.stdout.decode()!r}")
         if result.stderr:
-            logger.debug(f"({process.args!r}) stderr: {result.stderr}")
+            logger.debug(f"({process.args!r}) stderr: {result.stderr.decode()!r}")
     if reraise_exc is not None:
         raise reraise_exc
     elif check and retcode != 0:
@@ -336,7 +340,7 @@ def touch_path(path: str, mode: int) -> None:
     os.chmod(path, mode)
 
 
-def remove_path(path: str, missing_ok: bool = False) -> None:
+def remove_path(path: Union[str, Path], missing_ok: bool = False) -> None:
     # backporting missing_ok, available only from 3.8
     try:
         Path(path).unlink()
@@ -356,7 +360,7 @@ def removed_path(path: str) -> Iterator[None]:
 _INSTALLED_PROGRAMS_CACHE: List[str] = []
 
 
-def assert_program_installed(program: str):
+def assert_program_installed(program: str) -> None:
     if program in _INSTALLED_PROGRAMS_CACHE:
         return
 
@@ -429,7 +433,7 @@ def atomically_symlink(target: str, link_node: str) -> None:
 
 
 class TemporaryDirectoryWithMode(TemporaryDirectory):
-    def __init__(self, *args, mode: int = None, **kwargs):
+    def __init__(self, *args: Any, mode: int = None, **kwargs: Any):
         super().__init__(*args, **kwargs)
         if mode is not None:
             os.chmod(self.name, mode)
@@ -442,7 +446,9 @@ def reset_umask() -> None:
     os.umask(0o022)
 
 
-def limit_frequency(limit: Optional[int], requested: int, msg_header: str, runtime_logger: logging.LoggerAdapter):
+def limit_frequency(
+    limit: Optional[int], requested: int, msg_header: str, runtime_logger: logging.LoggerAdapter
+) -> int:
     if limit is not None and requested > limit:
         runtime_logger.warning(
             f"{msg_header}: Requested frequency ({requested}) is higher than the limit {limit}, "
@@ -455,13 +461,6 @@ def limit_frequency(limit: Optional[int], requested: int, msg_header: str, runti
 
 def random_prefix() -> str:
     return "".join(random.choice(string.ascii_letters) for _ in range(16))
-
-
-def process_comm(process: Process) -> str:
-    status = Path(f"/proc/{process.pid}/status").read_text()
-    name_line = status.splitlines()[0]
-    assert name_line.startswith("Name:\t")
-    return name_line.split("\t", 1)[1]
 
 
 PERF_EVENT_MLOCK_KB = "/proc/sys/kernel/perf_event_mlock_kb"

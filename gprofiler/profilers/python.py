@@ -9,22 +9,33 @@ import resource
 import signal
 from collections import Counter, defaultdict
 from pathlib import Path
-from subprocess import Popen
+from subprocess import CompletedProcess, Popen
 from threading import Event
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Match, NoReturn, Optional, Tuple, cast
 
+from granulate_utils.linux.elf import get_elf_id, get_mapped_dso_elf_id
+from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from granulate_utils.linux.process import is_process_running, process_exe
+from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PROCESSES_REGEX
 from psutil import NoSuchProcess, Process
 
+from gprofiler import merge
 from gprofiler.exceptions import (
     CalledProcessError,
     CalledProcessTimeoutError,
     ProcessStoppedException,
     StopEventSetException,
 )
-from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount, nonnegative_integer
+from gprofiler.gprofiler_types import (
+    ProcessToProfileData,
+    ProcessToStackSampleCounters,
+    ProfileData,
+    StackToSampleCount,
+    nonnegative_integer,
+)
 from gprofiler.log import get_logger_adapter
-from gprofiler.merge import parse_many_collapsed, parse_one_collapsed_file
+from gprofiler.metadata import application_identifiers
+from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
@@ -32,7 +43,6 @@ from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     pgrep_maps,
     poll_process,
-    process_comm,
     random_prefix,
     removed_path,
     resource_path,
@@ -41,6 +51,7 @@ from gprofiler.utils import (
     wait_event,
     wait_for_file_by_prefix,
 )
+from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
 
@@ -53,12 +64,12 @@ def _add_versions_to_process_stacks(process: Process, stacks: StackToSampleCount
         modules_paths = (match.group("filename") for match in _module_name_in_stack.finditer(stack))
         packages_versions = get_modules_versions(modules_paths, process)
 
-        def _replace_module_name(module_name_match):
+        def _replace_module_name(module_name_match: Match) -> str:
             package_info = packages_versions.get(module_name_match.group("filename"))
             if package_info is not None:
                 package_name, package_version = package_info
                 return "({} [{}=={}])".format(module_name_match.group("module_info"), package_name, package_version)
-            return module_name_match.group()
+            return cast(str, module_name_match.group())
 
         new_stack = _module_name_in_stack.sub(_replace_module_name, stack)
         new_stacks[new_stack] = stacks[stack]
@@ -82,9 +93,76 @@ def _add_versions_to_stacks(
     return result
 
 
+class PythonMetadata(ApplicationMetadata):
+    _PYTHON_VERSION_TIMEOUT = 3
+
+    def _run_process_python(self, process: Process, args: List[str]) -> Tuple[str, str]:
+        if not os.path.basename(process.exe()).startswith("python"):
+            # TODO: for dynamic executables, find the python binary that works with the loaded libpython, and
+            # check it instead. For static executables embedding libpython - :shrug:
+            raise NotImplementedError
+
+        python_path = f"/proc/{get_process_nspid(process.pid)}/exe"
+
+        def _run_python_process_in_ns() -> "CompletedProcess[bytes]":
+            return run_process(
+                [
+                    python_path,
+                ]
+                + args,
+                stop_event=self._stop_event,
+                timeout=self._PYTHON_VERSION_TIMEOUT,
+            )
+
+        cp = run_in_ns(["pid", "mnt"], _run_python_process_in_ns, process.pid)
+        return cp.stdout.decode().strip(), cp.stderr.decode().strip()
+
+    def _get_python_version(self, process: Process) -> Optional[str]:
+        try:
+            stdout, stderr = self._run_process_python(process, ["-V"])
+            if stdout:
+                return stdout
+            # Python 2 prints -V to stderr, so return that instead.
+            return stderr
+        except Exception:
+            return None
+
+    def _get_sys_maxunicode(self, process: Process) -> Optional[str]:
+        try:
+            stdout, stderr = self._run_process_python(process, ["-S", "-c", "import sys; print(sys.maxunicode)"])
+            return stdout
+        except Exception:
+            return None
+
+    def make_application_metadata(self, process: Process) -> Dict[str, Any]:
+        # python version
+        version = self._get_python_version(process)
+
+        # if python 2 - collect sys.maxunicode as well, to differentiate between ucs2 and ucs4
+        if version is not None and version.startswith("Python 2."):
+            maxunicode: Optional[str] = self._get_sys_maxunicode(process)
+        else:
+            maxunicode = None
+
+        # python id & libpython id, if exists.
+        # if libpython exists then the python binary itself is of less importance; however, to avoid confusion
+        # we collect them both here (then we're able to know if either exist)
+        exe_elfid = get_elf_id(f"/proc/{process.pid}/exe")
+        libpython_elfid = get_mapped_dso_elf_id(process, "/libpython")
+
+        metadata = {
+            "python_version": version,
+            "exe_elfid": exe_elfid,
+            "libpython_elfid": libpython_elfid,
+            "sys_maxunicode": maxunicode,
+        }
+
+        metadata.update(super().make_application_metadata(process))
+        return metadata
+
+
 class PySpyProfiler(ProcessProfilerBase):
     MAX_FREQUENCY = 50
-    _BLACKLISTED_PYTHON_PROCS = ["unattended-upgrades", "networkd-dispatcher", "supervisord", "tuned"]
     _EXTRA_TIMEOUT = 10  # give py-spy some seconds to run (added to the duration)
 
     def __init__(
@@ -98,8 +176,9 @@ class PySpyProfiler(ProcessProfilerBase):
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
         self.add_versions = add_versions
+        self._metadata = PythonMetadata(self._stop_event)
 
-    def _make_command(self, pid: int, output_path: str):
+    def _make_command(self, pid: int, output_path: str) -> List[str]:
         return [
             resource_path("python/py-spy"),
             "record",
@@ -119,13 +198,11 @@ class PySpyProfiler(ProcessProfilerBase):
             "--full-filenames",
         ]
 
-    def _profile_process(self, process: Process, duration: int) -> Optional[StackToSampleCount]:
-        try:
-            logger.info(
-                f"Profiling process {process.pid} with py-spy", cmdline=process.cmdline(), no_extra_to_server=True
-            )
-        except NoSuchProcess:
-            return None
+    def _profile_process(self, process: Process, duration: int) -> ProfileData:
+        logger.info(f"Profiling process {process.pid} with py-spy", cmdline=process.cmdline(), no_extra_to_server=True)
+        appid = application_identifiers.get_python_app_id(process)
+        app_metadata = self._metadata.get_metadata(process)
+        comm = process_comm(process)
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):
@@ -147,26 +224,32 @@ class PySpyProfiler(ProcessProfilerBase):
                     and not is_process_running(process)
                 ):
                     logger.debug(f"Profiled process {process.pid} exited before py-spy could start")
-                    return None
+                    return ProfileData(
+                        self._profiling_error_stack(
+                            "error",
+                            comm,
+                            "process exited before py-spy started",
+                        ),
+                        appid,
+                        app_metadata,
+                    )
                 raise
 
             logger.info(f"Finished profiling process {process.pid} with py-spy")
-            parsed = parse_one_collapsed_file(Path(local_output_path), process_comm(process))
+            parsed = merge.parse_one_collapsed_file(Path(local_output_path), comm)
             if self.add_versions:
                 parsed = _add_versions_to_process_stacks(process, parsed)
-            return parsed
+            return ProfileData(parsed, appid, app_metadata)
 
     def _select_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
-        for process in pgrep_maps(
-            r"(?:^.+/(?:lib)?python[^/]*$)|(?:^.+/site-packages/.+?$)|(?:^.+/dist-packages/.+?$)"
-        ):
+        for process in pgrep_maps(DETECTED_PYTHON_PROCESSES_REGEX):
             try:
                 if process.pid == os.getpid():
                     continue
 
                 cmdline = process.cmdline()
-                if any(item in cmdline for item in self._BLACKLISTED_PYTHON_PROCS):
+                if any(item in cmdline for item in _BLACKLISTED_PYTHON_PROCS):
                     continue
 
                 # PyPy is called pypy3 or pypy (for 2)
@@ -214,14 +297,15 @@ class PythonEbpfProfiler(ProfilerBase):
         user_stacks_pages: Optional[int] = None,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
-        self.process = None
+        self.process: Optional[Popen] = None
         self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
         self.add_versions = add_versions
         self.user_stacks_pages = user_stacks_pages
         self._kernel_offsets: Dict[str, int] = {}
+        self._metadata = PythonMetadata(self._stop_event)
 
     @classmethod
-    def _pyperf_error(cls, process: Popen):
+    def _pyperf_error(cls, process: Popen) -> NoReturn:
         # opened in pipe mode, so these aren't None.
         assert process.stdout is not None
         assert process.stderr is not None
@@ -231,7 +315,7 @@ class PythonEbpfProfiler(ProfilerBase):
         raise PythonEbpfError(process.returncode, process.args, stdout, stderr)
 
     @classmethod
-    def _check_output(cls, process: Popen, output_path: Path):
+    def _check_output(cls, process: Popen, output_path: Path) -> None:
         if not glob.glob(f"{str(output_path)}.*"):
             cls._pyperf_error(process)
 
@@ -307,7 +391,7 @@ class PythonEbpfProfiler(ProfilerBase):
         else:
             self._check_output(process, self.output_path)
 
-    def start(self):
+    def start(self) -> None:
         logger.info("Starting profiling of Python processes with PyPerf")
         cmd = [
             resource_path(self.PYPERF_RESOURCE),
@@ -335,7 +419,10 @@ class PythonEbpfProfiler(ProfilerBase):
             wait_event(self._POLL_TIMEOUT, self._stop_event, lambda: os.path.exists(self.output_path))
         except TimeoutError:
             process.kill()
-            logger.error(f"PyPerf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
+            assert process.stdout is not None and process.stderr is not None
+            stdout = process.stdout.read()
+            stderr = process.stderr.read()
+            logger.error(f"PyPerf failed to start. stdout {stdout!r} stderr {stderr!r}")
             raise
         else:
             self.process = process
@@ -353,7 +440,7 @@ class PythonEbpfProfiler(ProfilerBase):
             # (unlike Popen.communicate())
             assert self.process is not None
             # Python 3.6 doesn't have read1() without size argument :/
-            logger.debug(f"PyPerf output: {self.process.stderr.read1(4096)}")
+            logger.debug(f"PyPerf output: {self.process.stderr.read1(4096)}")  # type: ignore
             return output
         except TimeoutError:
             # error flow :(
@@ -362,7 +449,7 @@ class PythonEbpfProfiler(ProfilerBase):
             self._terminate()
             self._pyperf_error(process)
 
-    def snapshot(self) -> ProcessToStackSampleCounters:
+    def snapshot(self) -> ProcessToProfileData:
         if self._stop_event.wait(self._duration):
             raise StopEventSetException()
         collapsed_path = self._dump()
@@ -371,10 +458,21 @@ class PythonEbpfProfiler(ProfilerBase):
         finally:
             # always remove, even if we get read/decode errors
             collapsed_path.unlink()
-        parsed = parse_many_collapsed(collapsed_text)
+        parsed = merge.parse_many_collapsed(collapsed_text)
         if self.add_versions:
             parsed = _add_versions_to_stacks(parsed)
-        return parsed
+        profiles = {}
+        for pid in parsed:
+            try:
+                process = Process(pid)
+                appid = application_identifiers.get_python_app_id(process)
+                app_metadata = self._metadata.get_metadata(process)
+            except NoSuchProcess:
+                appid = None
+                app_metadata = None
+
+            profiles[pid] = ProfileData(parsed[pid], appid, app_metadata)
+        return profiles
 
     def _terminate(self) -> Optional[int]:
         code = None
@@ -384,7 +482,7 @@ class PythonEbpfProfiler(ProfilerBase):
             self.process = None
         return code
 
-    def stop(self):
+    def stop(self) -> None:
         code = self._terminate()
         if code is not None:
             logger.info("Finished profiling Python processes with PyPerf")
@@ -493,7 +591,7 @@ class PythonProfiler(ProfilerInterface):
         elif self._pyspy_profiler is not None:
             self._pyspy_profiler.start()
 
-    def snapshot(self) -> ProcessToStackSampleCounters:
+    def snapshot(self) -> ProcessToProfileData:
         if self._ebpf_profiler is not None:
             try:
                 return self._ebpf_profiler.snapshot()

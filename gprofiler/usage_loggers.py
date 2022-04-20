@@ -15,13 +15,13 @@ CGROUPFS_ROOT = "/sys/fs/cgroup"  # TODO extract from /proc/mounts, this may cha
 
 
 class UsageLoggerInterface:
-    def init_cycles(self):
+    def init_cycles(self) -> None:
         raise NotImplementedError
 
-    def log_cycle(self):
+    def log_cycle(self) -> None:
         raise NotImplementedError
 
-    def log_run(self):
+    def log_run(self) -> None:
         raise NotImplementedError
 
 
@@ -40,11 +40,11 @@ class CpuUsageLogger(UsageLoggerInterface):
         """
         return int(self._cpuacct_usage.read_text())
 
-    def init_cycles(self):
+    def init_cycles(self) -> None:
         self._last_usage = self._read_cgroup_cpu_usage()
         self._last_ts = time.monotonic()
 
-    def log_cycle(self):
+    def log_cycle(self) -> None:
         assert self._last_usage is not None and self._last_ts is not None, "didn't call init_cycles()?"
 
         current_usage = self._read_cgroup_cpu_usage()
@@ -62,7 +62,7 @@ class CpuUsageLogger(UsageLoggerInterface):
         self._last_usage = current_usage
         self._last_ts = current_ts
 
-    def log_run(self):
+    def log_run(self) -> None:
         total_usage = self._read_cgroup_cpu_usage()
         total_usage_s = total_usage / self.NSEC_PER_SEC
         total_ts = time.time() - psutil.Process().create_time()  # uptime of this process
@@ -90,10 +90,10 @@ class MemoryUsageLogger(UsageLoggerInterface):
         """
         return int(self._memory_usage.read_text()), int(self._memory_watermark.read_text())
 
-    def init_cycles(self):
+    def init_cycles(self) -> None:
         self._last_usage, self._last_watermark = self._read_cgroup_memory_usage()
 
-    def log_cycle(self):
+    def log_cycle(self) -> None:
         assert self._last_usage is not None and self._last_watermark is not None, "didn't call init_cycles()?"
 
         current_usage, current_watermark = self._read_cgroup_memory_usage()
@@ -111,7 +111,7 @@ class MemoryUsageLogger(UsageLoggerInterface):
         self._last_usage = current_usage
         self._last_watermark = current_watermark
 
-    def log_run(self):
+    def log_run(self) -> None:
         current_usage, current_watermark = self._read_cgroup_memory_usage()
 
         self._logger.debug(
@@ -126,25 +126,25 @@ class CgroupsUsageLogger(UsageLoggerInterface):
         self._cpu_logger = CpuUsageLogger(logger, cgroup)
         self._memory_logger = MemoryUsageLogger(logger, cgroup)
 
-    def init_cycles(self):
+    def init_cycles(self) -> None:
         self._cpu_logger.init_cycles()
         self._memory_logger.init_cycles()
 
-    def log_cycle(self):
+    def log_cycle(self) -> None:
         self._cpu_logger.log_cycle()
         self._memory_logger.log_cycle()
 
-    def log_run(self):
+    def log_run(self) -> None:
         self._cpu_logger.log_run()
         self._memory_logger.log_run()
 
 
 class NoopUsageLogger(UsageLoggerInterface):
-    def init_cycles(self):
+    def init_cycles(self) -> None:
         pass
 
-    def log_cycle(self):
+    def log_cycle(self) -> None:
         pass
 
-    def log_run(self):
+    def log_run(self) -> None:
         pass

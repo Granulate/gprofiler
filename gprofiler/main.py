@@ -13,26 +13,29 @@ import sys
 import time
 from pathlib import Path
 from threading import Event
-from typing import Iterable, Optional
+from types import FrameType, TracebackType
+from typing import Iterable, Optional, Type, cast
 
 import configargparse
 from granulate_utils.linux.ns import is_running_in_init_pid
 from granulate_utils.linux.process import is_process_running
+from granulate_utils.metadata import Metadata
 from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
 
-from gprofiler import __version__, merge
-from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient, APIError
-from gprofiler.docker_client import DockerClient
-from gprofiler.exceptions import SystemProfilerInitFailure
-from gprofiler.gprofiler_types import UserArgs, positive_integer
+from gprofiler import __version__
+from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
+from gprofiler.containers_client import ContainerNamesClient
+from gprofiler.exceptions import APIError, NoProfilersEnabledError, SystemProfilerInitFailure
+from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
-from gprofiler.merge import ProcessToStackSampleCounters
+from gprofiler.merge import concatenate_profiles, merge_profiles
+from gprofiler.metadata.application_identifiers import set_enrichment_options
+from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
-from gprofiler.metadata.metadata_type import Metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
 from gprofiler.profilers.factory import get_profilers
-from gprofiler.profilers.profiler_base import NoopProfiler, ProfilerInterface
+from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
@@ -64,7 +67,7 @@ SIGINT_RATELIMIT = 0.5
 last_signal_ts: Optional[float] = None
 
 
-def sigint_handler(sig, frame):
+def sigint_handler(sig: int, frame: Optional[FrameType]) -> None:
     global last_signal_ts
     ts = time.monotonic()
     # no need for atomicity here: we can't get another SIGINT before this one returns.
@@ -80,16 +83,15 @@ class GProfiler:
         output_dir: str,
         flamegraph: bool,
         rotating_output: bool,
-        client: APIClient,
+        client: Optional[APIClient],
         collect_metrics: bool,
         collect_metadata: bool,
-        identify_applications: bool,
+        enrichment_options: EnrichmentOptions,
         state: State,
         usage_logger: UsageLoggerInterface,
         user_args: UserArgs,
         duration: int,
-        include_container_names=True,
-        profile_api_version: Optional[str] = None,
+        profile_api_version: str,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         controller_process: Optional[Process] = None,
     ):
@@ -102,7 +104,7 @@ class GProfiler:
         self._profile_api_version = profile_api_version
         self._collect_metrics = collect_metrics
         self._collect_metadata = collect_metadata
-        self._identify_applications = identify_applications
+        self._enrichment_options = enrichment_options
         self._stop_event = Event()
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
@@ -127,10 +129,10 @@ class GProfiler:
         except SystemProfilerInitFailure:
             logger.exception("System profiler initialization has failed, exiting...")
             sys.exit(1)
-        if include_container_names and profile_api_version != "v1":
-            self._docker_client: Optional[DockerClient] = DockerClient()
+        if self._enrichment_options.container_names:
+            self._container_names_client: Optional[ContainerNamesClient] = ContainerNamesClient()
         else:
-            self._docker_client = None
+            self._container_names_client = None
         self._usage_logger = usage_logger
         if collect_metrics:
             self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
@@ -142,11 +144,16 @@ class GProfiler:
         yield from self.process_profilers
         yield self.system_profiler
 
-    def __enter__(self):
+    def __enter__(self) -> "GProfiler":
         self.start()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_ctb: Optional[TracebackType],
+    ) -> None:
         self.stop()
 
     def _update_last_output(self, last_output_name: str, output_path: str) -> None:
@@ -173,7 +180,7 @@ class GProfiler:
 
         collapsed_path = base_filename + ".col"
         Path(collapsed_path).write_text(collapsed_data)
-        stripped_collapsed_data = self._strip_container_data(collapsed_data)
+        stripped_collapsed_data = self._strip_extra_data(collapsed_data)
 
         # point last_profile.col at the new file; and possibly, delete the previous one.
         self._update_last_output("last_profile.col", collapsed_path)
@@ -204,16 +211,20 @@ class GProfiler:
 
             logger.info(f"Saved flamegraph to {flamegraph_path}")
 
-    @staticmethod
-    def _strip_container_data(collapsed_data):
+    def _strip_extra_data(self, collapsed_data: str) -> str:
+        """
+        Strips the container names & application metadata index, if exists.
+        """
         lines = []
         for line in collapsed_data.splitlines():
             if line.startswith("#"):
                 continue
+            if self._enrichment_options.application_metadata:
+                line = line[line.find(";") + 1 :]
             lines.append(line[line.find(";") + 1 :])
         return "\n".join(lines)
 
-    def start(self):
+    def start(self) -> None:
         self._stop_event.clear()
         self._system_metrics_monitor.start()
 
@@ -228,9 +239,9 @@ class GProfiler:
 
                 # others - are ignored, with a warning.
                 logger.warning(f"Failed to start {prof.__class__.__name__}, continuing without it", exc_info=True)
-                self.process_profilers.remove(prof)
+                self.process_profilers.remove(cast(ProcessProfilerBase, prof))
 
-    def stop(self):
+    def stop(self) -> None:
         logger.info("Stopping ...")
         self._stop_event.set()
         self._system_metrics_monitor.stop()
@@ -238,24 +249,25 @@ class GProfiler:
         for prof in self.all_profilers:
             prof.stop()
 
-    def _snapshot(self):
+    def _snapshot(self) -> None:
         local_start_time = datetime.datetime.utcnow()
         monotonic_start_time = time.monotonic()
         process_profilers_futures = []
         for prof in self.process_profilers:
             prof_future = self._executor.submit(prof.snapshot)
-            prof_future.name = prof.name
+            prof_future.name = prof.name  # type: ignore # hack, add the profiler's name to the Future object
             process_profilers_futures.append(prof_future)
         system_future = self._executor.submit(self.system_profiler.snapshot)
-        system_future.name = "system"
+        system_future.name = "system"  # type: ignore # hack, add the profiler's name to the Future object
 
-        process_profiles: ProcessToStackSampleCounters = {}
+        process_profiles: ProcessToProfileData = {}
         for future in concurrent.futures.as_completed(process_profilers_futures):
             # if either of these fail - log it, and continue.
             try:
                 process_profiles.update(future.result())
             except Exception:
-                logger.exception(f"{future.name} profiling failed")
+                future_name = future.name  # type: ignore # hack, add the profiler's name to the Future object
+                logger.exception(f"{future_name} profiling failed")
 
         local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
 
@@ -267,27 +279,27 @@ class GProfiler:
             )
             raise
         metadata = (
-            get_current_metadata(self._static_metadata) if self._collect_metadata else {"hostname": get_hostname()}
+            get_current_metadata(cast(Metadata, self._static_metadata))
+            if self._collect_metadata
+            else {"hostname": get_hostname()}
         )
         metrics = self._system_metrics_monitor.get_metrics()
         if NoopProfiler.is_noop_profiler(self.system_profiler):
             assert system_result == {}, system_result  # should be empty!
-            merged_result, total_samples = merge.concatenate_profiles(
+            merged_result, total_samples = concatenate_profiles(
                 process_profiles,
-                self._docker_client,
-                self._profile_api_version != "v1",
-                self._identify_applications,
+                self._container_names_client,
+                self._enrichment_options,
                 metadata,
                 metrics,
             )
 
         else:
-            merged_result, total_samples = merge.merge_profiles(
+            merged_result, total_samples = merge_profiles(
                 system_result,
                 process_profiles,
-                self._docker_client,
-                self._profile_api_version != "v1",
-                self._identify_applications,
+                self._container_names_client,
+                self._enrichment_options,
                 metadata,
                 metrics,
             )
@@ -317,7 +329,7 @@ class GProfiler:
             else:
                 logger.info("Successfully uploaded profiling data to the server")
 
-    def _send_remote_logs(self):
+    def _send_remote_logs(self) -> None:
         """
         The function is safe to call without wrapping with try/except block, the function should does the exception
         handling by itself.
@@ -332,7 +344,7 @@ class GProfiler:
         else:
             logger.debug("Successfully uploaded logs to the server")
 
-    def run_single(self):
+    def run_single(self) -> None:
         with self:
             # In case of single run mode, use the same id for run_id and cycle_id
             self._state.set_cycle_id(self._state.run_id)
@@ -341,7 +353,7 @@ class GProfiler:
             finally:
                 self._send_remote_logs()  # function is safe, wrapped with try/except block inside
 
-    def run_continuous(self):
+    def run_continuous(self) -> None:
         with self:
             self._usage_logger.init_cycles()
 
@@ -365,7 +377,7 @@ class GProfiler:
                     break
 
 
-def parse_cmd_args():
+def parse_cmd_args() -> configargparse.Namespace:
     parser = configargparse.ArgumentParser(
         description="gprofiler",
         auto_env_var_prefix="gprofiler_",
@@ -481,9 +493,9 @@ def parse_cmd_args():
 
     parser.add_argument(
         "--disable-container-names",
-        action="store_true",
-        dest="disable_container_names",
-        default=False,
+        action="store_false",
+        dest="container_names",
+        default=True,
         help="gProfiler won't gather the container names of processes that run in containers",
     )
 
@@ -498,7 +510,7 @@ def parse_cmd_args():
         dest="profile_api_version",
         default=None,
         choices=["v1"],
-        help="Use a legacy API version to upload profiles to the Performance Studio",
+        help="Use a legacy API version to upload profiles to the Performance Studio. This might disable some features.",
     )
 
     parser.add_argument(
@@ -534,6 +546,22 @@ def parse_cmd_args():
     )
 
     parser.add_argument(
+        "--app-id-args-filter",
+        action="append",
+        default=list(),
+        dest="app_id_args_filters",
+        help="A regex based filter for adding relevant arguments to the app id",
+    )
+
+    parser.add_argument(
+        "--disable-application-metadata",
+        action="store_false",
+        default=True,
+        dest="application_metadata",
+        help="Disable collection of application metadata",
+    )
+
+    parser.add_argument(
         "--controller-pid",
         default=None,
         type=int,
@@ -566,7 +594,7 @@ def parse_cmd_args():
     return args
 
 
-def _add_profilers_arguments(parser):
+def _add_profilers_arguments(parser: configargparse.ArgumentParser) -> None:
     registry = get_profilers_registry()
     for name, config in registry.items():
         arg_group = parser.add_argument_group(name)
@@ -592,7 +620,7 @@ def _add_profilers_arguments(parser):
             arg_group.add_argument(name, **profiler_arg_kwargs)
 
 
-def verify_preconditions(args):
+def verify_preconditions(args: configargparse.Namespace) -> None:
     if not is_root():
         print("Must run gprofiler as root, please re-run.", file=sys.stderr)
         sys.exit(1)
@@ -612,7 +640,7 @@ def verify_preconditions(args):
     if args.log_usage and get_run_mode() not in ("k8s", "container"):
         # TODO: we *can* move into another cpuacct cgroup, to let this work also when run as a standalone
         # executable.
-        print("--log-usage is available only when run as a container!")
+        print("--log-usage is available only when run as a container!", file=sys.stderr)
         sys.exit(1)
 
 
@@ -640,12 +668,21 @@ def log_system_info() -> None:
     logger.info(f"Hostname: {system_info.hostname}")
 
 
-def main():
+def _should_send_logs(args: configargparse.Namespace) -> bool:
+    # if:
+    # * user didn't disable logs uploading, and
+    # * we are uploading results, and
+    # * protocol version is not v1 (v1 server does not have the logs endpoint)
+    # then we should send logs!
+    return bool(args.log_to_server and args.upload_results and args.profile_api_version != "v1")
+
+
+def main() -> None:
     args = parse_cmd_args()
     verify_preconditions(args)
     state = init_state()
 
-    remote_logs_handler = RemoteLogsHandler() if args.log_to_server and args.upload_results else None
+    remote_logs_handler = RemoteLogsHandler() if _should_send_logs(args) else None
     global logger
     logger = initial_root_logger_setup(
         logging.DEBUG if args.verbose else logging.INFO,
@@ -701,13 +738,26 @@ def main():
             )
         except APIError as e:
             logger.error(f"Server error: {e}")
-            return
+            sys.exit(1)
         except RequestException as e:
-            logger.error(f"Failed to connect to server: {e}")
-            return
+            logger.error(
+                "Failed to connect to server. It might be blocked by your security rules / firewall,"
+                f" or you might require a proxy to access it from your environment? {e}"
+            )
+            sys.exit(1)
 
         if client is not None and remote_logs_handler is not None:
             remote_logs_handler.init_api_client(client)
+
+        enrichment_options = EnrichmentOptions(
+            profile_api_version=args.profile_api_version,
+            container_names=args.container_names,
+            application_identifiers=args.identify_applications,
+            application_identifier_args_filters=args.app_id_args_filters,
+            application_metadata=args.application_metadata,
+        )
+
+        set_enrichment_options(enrichment_options)
 
         gprofiler = GProfiler(
             args.output_dir,
@@ -716,12 +766,11 @@ def main():
             client,
             args.collect_metrics,
             args.collect_metadata,
-            args.identify_applications,
+            enrichment_options,
             state,
             usage_logger,
             args.__dict__,
             args.duration,
-            not args.disable_container_names,
             args.profile_api_version,
             remote_logs_handler,
             controller_process,
@@ -734,8 +783,12 @@ def main():
 
     except KeyboardInterrupt:
         pass
+    except NoProfilersEnabledError:
+        logger.error("All profilers are disabled! Please enable at least one of them!")
+        sys.exit(1)
     except Exception:
         logger.exception("Unexpected error occurred")
+        sys.exit(1)
 
     usage_logger.log_run()
 
