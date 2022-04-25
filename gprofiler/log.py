@@ -75,30 +75,6 @@ class GProfilerLoggingAdapter(logging.LoggerAdapter):
         logging_kwargs["extra"] = extra
         return msg, logging_kwargs
 
-    def debug(self, msg: Any, *args: Any, no_server_log: bool = False, **kwargs: Any) -> None:
-        super().debug(msg, *args, no_server_log=no_server_log, **kwargs)
-
-    def info(self, msg: Any, *args: Any, no_server_log: bool = False, **kwargs: Any) -> None:
-        super().info(msg, *args, no_server_log=no_server_log, **kwargs)
-
-    def warning(self, msg: Any, *args: Any, no_server_log: bool = False, **kwargs: Any) -> None:
-        super().warning(msg, *args, no_server_log=no_server_log, **kwargs)
-
-    def warn(self, msg: Any, *args: Any, no_server_log: bool = False, **kwargs: Any) -> None:
-        super().warn(msg, *args, no_server_log=no_server_log, **kwargs)
-
-    def error(self, msg: Any, *args: Any, no_server_log: bool = False, **kwargs: Any) -> None:
-        super().error(msg, *args, no_server_log=no_server_log, **kwargs)
-
-    def exception(self, msg: Any, *args: Any, no_server_log: bool = False, **kwargs: Any) -> None:
-        super().exception(msg, *args, no_server_log=no_server_log, **kwargs)
-
-    def critical(self, msg: Any, *args: Any, no_server_log: bool = False, **kwargs: Any) -> None:
-        super().critical(msg, *args, no_server_log=no_server_log, **kwargs)
-
-    def log(self, level: int, msg: Any, *args: Any, no_server_log: bool = False, **kwargs: Any) -> None:
-        super().log(level, msg, *args, no_server_log=no_server_log, **kwargs)
-
 
 class RemoteLogsHandler(logging.Handler):
     """
