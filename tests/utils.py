@@ -9,7 +9,12 @@ from docker.models.containers import Container
 from docker.models.images import Image
 
 from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
-from gprofiler.profilers.java import JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE, JAVA_SAFEMODE_ALL, JavaProfiler
+from gprofiler.profilers.java import (
+    JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
+    JAVA_SAFEMODE_ALL,
+    AsyncProfiledProcess,
+    JavaProfiler,
+)
 from gprofiler.profilers.profiler_base import ProfilerInterface
 from gprofiler.utils import remove_path
 
@@ -131,6 +136,7 @@ def make_java_profiler(
     java_async_profiler_safemode: int = JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
     java_async_profiler_args: str = "",
     java_safemode: str = JAVA_SAFEMODE_ALL,
+    java_jattach_timeout: int = AsyncProfiledProcess._JATTACH_TIMEOUT,
     java_mode: str = "ap",
 ) -> JavaProfiler:
     assert storage_dir is not None
@@ -145,6 +151,7 @@ def make_java_profiler(
         java_async_profiler_safemode=java_async_profiler_safemode,
         java_async_profiler_args=java_async_profiler_args,
         java_safemode=java_safemode,
+        java_jattach_timeout=java_jattach_timeout,
         java_mode=java_mode,
     )
 
