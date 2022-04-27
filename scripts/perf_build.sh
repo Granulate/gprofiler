@@ -44,7 +44,9 @@ EOF
 
 fi
 
-make -C tools/perf LDFLAGS=-static -j 8 perf
+# disable debuginfod which is enabled by default. it tries to dlopen() and the loaded DSO
+# ends up crashing perf in certain cases. we don't need it anyway.
+make -C tools/perf LDFLAGS=-static -j 8 perf NO_LIBDEBUGINFOD=1
 cp tools/perf/perf /
 # need it static as well, even though it's used only during build (relies on libpcap, ...)
 make -C tools/bpf LDFLAGS=-static -j 8 bpftool
