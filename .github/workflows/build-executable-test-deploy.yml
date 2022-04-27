@@ -117,7 +117,7 @@ jobs:
      - name: Build gProfiler executable
        run: |
          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-         docker buildx create --name multiarch --driver docker-container --use
+         docker buildx create --name multiarch --driver docker-container --use --node multiarch0
 
          mkdir -p output
          ./scripts/build_aarch64_executable.sh
