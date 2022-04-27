@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-docker:
-    runs-on: ubuntu-20.04
+    runs-on: self-hosted
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
