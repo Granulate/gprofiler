@@ -162,6 +162,12 @@ class JattachTimeout(JattachExceptionBase):
         )
 
 
+class JattachSocketMissing(JattachExceptionBase):
+    def __str__(self) -> str:
+        return super().__str__() + ("\nJVM attach socket is missing and jattach could not create it. It has most"
+            " likely been removed; the process has to be restarted for a new socket to be created.")
+
+
 _JAVA_VERSION_TIMEOUT = 5
 
 
@@ -443,6 +449,9 @@ class AsyncProfiledProcess:
             args = e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, is_loaded
             if isinstance(e, CalledProcessTimeoutError):
                 raise JattachTimeout(*args, timeout=self._jattach_timeout) from None
+            elif e.stderr == b"Could not start attach mechanism: No such file or directory\n":
+                # this is true for jattach_hotspot
+                raise JattachSocketMissing(*args) from None
             else:
                 raise JattachException(*args) from None
 
