@@ -164,8 +164,16 @@ class JattachTimeout(JattachExceptionBase):
 
 class JattachSocketMissing(JattachExceptionBase):
     def __str__(self) -> str:
-        return super().__str__() + ("\nJVM attach socket is missing and jattach could not create it. It has most"
-            " likely been removed; the process has to be restarted for a new socket to be created.")
+        # the attach listener is initialized once, then it is marked as initialized:
+        # (https://github.com/openjdk/jdk/blob/3d07b3c7f01b60ff4dc38f62407c212b48883dbf/src/hotspot/share/services/attachListener.cpp#L388)
+        # and will not be initialized again:
+        # https://github.com/openjdk/jdk/blob/3d07b3c7f01b60ff4dc38f62407c212b48883dbf/src/hotspot/os/linux/attachListener_linux.cpp#L509
+        # since openjdk 2870c9d55efe, the attach socket will be recreated even when removed (and this exception
+        # won't happen).
+        return super().__str__() + (
+            "\nJVM attach socket is missing and jattach could not create it. It has most"
+            " likely been removed; the process has to be restarted for a new socket to be created."
+        )
 
 
 _JAVA_VERSION_TIMEOUT = 5
