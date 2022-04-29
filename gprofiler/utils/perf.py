@@ -22,6 +22,7 @@ def can_i_use_perf_events() -> bool:
         if e.returncode == 255 and (
             b"Access to performance monitoring and observability operations is limited" in e.stderr
             or b"perf_event_open(..., PERF_FLAG_FD_CLOEXEC) failed with unexpected error" in e.stderr
+            or b"Permission error mapping pages.\n" in e.stderr
         ):
             return False
         raise
