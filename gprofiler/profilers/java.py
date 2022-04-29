@@ -162,7 +162,7 @@ class JattachTimeout(JattachExceptionBase):
         )
 
 
-class JattachSocketMissing(JattachExceptionBase):
+class JattachSocketMissingException(JattachExceptionBase):
     def __str__(self) -> str:
         # the attach listener is initialized once, then it is marked as initialized:
         # (https://github.com/openjdk/jdk/blob/3d07b3c7f01b60ff4dc38f62407c212b48883dbf/src/hotspot/share/services/attachListener.cpp#L388)
@@ -459,7 +459,7 @@ class AsyncProfiledProcess:
                 raise JattachTimeout(*args, timeout=self._jattach_timeout) from None
             elif e.stderr == b"Could not start attach mechanism: No such file or directory\n":
                 # this is true for jattach_hotspot
-                raise JattachSocketMissing(*args) from None
+                raise JattachSocketMissingException(*args) from None
             else:
                 raise JattachException(*args) from None
 
