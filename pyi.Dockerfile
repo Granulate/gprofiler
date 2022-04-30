@@ -204,6 +204,8 @@ RUN pyinstaller pyinstaller.spec \
     && test -f build/pyinstaller/warn-pyinstaller.txt \
     && if grep 'gprofiler\.' build/pyinstaller/warn-pyinstaller.txt ; then echo 'PyInstaller failed to pack gProfiler code! See lines above. Make sure to check for SyntaxError as this is often the reason.'; exit 1; fi;
 
+# for aarch64 - build a patched version of staticx 0.13.6. we remove calls to getpwnam and getgrnam, for these end up doing dlopen()s which
+# crash the staticx bootloader. we don't need them anyway (all files in our staticx tar are uid 0 and we don't need the names translation)
 COPY scripts/staticx_patch.diff staticx_patch.diff
 RUN if [ $(uname -m) = "aarch64" ]; then \
         git clone -b v0.13.6 https://github.com/JonathonReinhart/staticx.git && \
