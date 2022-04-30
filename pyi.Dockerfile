@@ -211,7 +211,7 @@ RUN if [ $(uname -m) = "aarch64" ]; then \
         git clone -b v0.13.6 https://github.com/JonathonReinhart/staticx.git && \
         cd staticx && \
         git reset --hard 819d8eafecbaab3646f70dfb1e3e19f6bbc017f8 && \
-        git apply staticx_patch.diff && \
+        git apply ../staticx_patch.diff && \
         python3 -m pip install . ; \
     fi
 
