@@ -219,8 +219,7 @@ COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # we use list_needed_libs.sh to list the dynamic dependencies of *all* of our resources,
 # and make staticx pack them as well.
 # using scl here to get the proper LD_LIBRARY_PATH set
-# TODO: use staticx for aarch64 as well; currently it doesn't generate correct binaries when run over Docker emulation.
-RUN if [ $(uname -m) != "aarch64" ]; then source scl_source enable devtoolset-8 llvm-toolset-7 && libs=$(./scripts/list_needed_libs.sh) && staticx $libs dist/gprofiler dist/gprofiler; fi
+RUN if [ $(uname -m) != "aarch64" ]; then source scl_source enable devtoolset-8 llvm-toolset-7 ; fi; libs=$(./scripts/list_needed_libs.sh) && staticx $libs dist/gprofiler dist/gprofiler
 
 FROM scratch AS export-stage
 
