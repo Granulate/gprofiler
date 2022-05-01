@@ -4,7 +4,10 @@
 #
 
 from gprofiler.exceptions import CalledProcessError
+from gprofiler.log import get_logger_adapter
 from gprofiler.utils import resource_path, run_process
+
+logger = get_logger_adapter(__name__)
 
 
 def perf_path() -> str:
@@ -19,13 +22,18 @@ def can_i_use_perf_events() -> bool:
         run_process([perf_path(), "record", "-o", "/dev/null", "--", "/bin/true"])
     except CalledProcessError as e:
         # perf's output upon start error (e.g due to permissions denied error)
-        if e.returncode == 255 and (
-            b"Access to performance monitoring and observability operations is limited" in e.stderr
-            or b"perf_event_open(..., PERF_FLAG_FD_CLOEXEC) failed with unexpected error" in e.stderr
-            or b"Permission error mapping pages.\n" in e.stderr
+        if not (
+            e.returncode == 255
+            and (
+                b"Access to performance monitoring and observability operations is limited" in e.stderr
+                or b"perf_event_open(..., PERF_FLAG_FD_CLOEXEC) failed with unexpected error" in e.stderr
+                or b"Permission error mapping pages.\n" in e.stderr
+            )
         ):
-            return False
-        raise
+            logger.warning(
+                "Unexpected perf exit code / error output, returning False for perf check anyway", exc_info=True
+            )
+        return False
     else:
         # all good
         return True
