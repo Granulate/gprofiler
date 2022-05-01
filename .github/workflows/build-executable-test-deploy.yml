@@ -109,6 +109,10 @@ jobs:
        with:
          fetch-depth: 0
          submodules: true
+
+     - name: Set up requirements
+       run: scripts/setup_runner_requirements.sh
+
      - name: Get and verify tag value
        run: |
          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
@@ -117,7 +121,7 @@ jobs:
      - name: Build gProfiler executable
        run: |
          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-         docker buildx create --name multiarch --driver docker-container --use
+         docker buildx create --name multiarch --driver docker-container --use --node multiarch0
 
          mkdir -p output
          ./scripts/build_aarch64_executable.sh
