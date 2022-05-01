@@ -37,7 +37,7 @@ from packaging.version import Version
 from psutil import Process
 
 from gprofiler import merge
-from gprofiler.exceptions import CalledProcessError, NoRwExecDirectoryFoundError
+from gprofiler.exceptions import CalledProcessError, CalledProcessTimeoutError, NoRwExecDirectoryFoundError
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, StackToSampleCount, positive_integer
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
@@ -114,7 +114,7 @@ JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 64  # StackRecovery.JAVA_STATE
 SUPPORTED_AP_MODES = ["cpu", "itimer"]
 
 
-class JattachException(CalledProcessError):
+class JattachExceptionBase(CalledProcessError):
     def __init__(
         self, returncode: int, cmd: Any, stdout: Any, stderr: Any, target_pid: int, ap_log: str, is_loaded: bool
     ):
@@ -132,6 +132,34 @@ class JattachException(CalledProcessError):
 
     def get_ap_log(self) -> str:
         return self._ap_log
+
+
+class JattachException(JattachExceptionBase):
+    pass
+
+
+# doesn't extend JattachException itself, we're not just a jattach error, we're
+# specifically the timeout one.
+class JattachTimeout(JattachExceptionBase):
+    def __init__(
+        self,
+        returncode: int,
+        cmd: Any,
+        stdout: Any,
+        stderr: Any,
+        target_pid: int,
+        ap_log: str,
+        is_loaded: bool,
+        timeout: int,
+    ):
+        super().__init__(returncode, cmd, stdout, stderr, target_pid, ap_log, is_loaded)
+        self._timeout = timeout
+
+    def __str__(self) -> str:
+        return super().__str__() + (
+            f"\njattach timed out (timeout was {self._timeout} seconds);"
+            " you can increase it with the --java-jattach-timeout parameter."
+        )
 
 
 _JAVA_VERSION_TIMEOUT = 5
@@ -399,7 +427,7 @@ class AsyncProfiledProcess:
         try:
             # kill jattach with SIGTERM if it hangs. it will go down
             run_process(cmd, stop_event=self._stop_event, timeout=self._jattach_timeout, kill_signal=signal.SIGTERM)
-        except CalledProcessError as e:  # catches timeouts as well
+        except CalledProcessError as e:  # catches CalledProcessTimeoutError as well
             if os.path.exists(self._log_path_host):
                 log = Path(self._log_path_host)
                 ap_log = log.read_text()
@@ -411,9 +439,12 @@ class AsyncProfiledProcess:
                 ap_log = "(log file doesn't exist)"
 
             is_loaded = f" {self._libap_path_process}\n" in Path(f"/proc/{self.process.pid}/maps").read_text()
-            raise JattachException(
-                e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, is_loaded
-            ) from None
+
+            args = e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, is_loaded
+            if isinstance(e, CalledProcessTimeoutError):
+                raise JattachTimeout(*args, timeout=self._jattach_timeout) from None
+            else:
+                raise JattachException(*args) from None
 
     def _run_fdtransfer(self) -> None:
         """
