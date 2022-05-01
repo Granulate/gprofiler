@@ -162,6 +162,20 @@ class JattachTimeout(JattachExceptionBase):
         )
 
 
+class JattachSocketMissingException(JattachExceptionBase):
+    def __str__(self) -> str:
+        # the attach listener is initialized once, then it is marked as initialized:
+        # (https://github.com/openjdk/jdk/blob/3d07b3c7f01b60ff4dc38f62407c212b48883dbf/src/hotspot/share/services/attachListener.cpp#L388)
+        # and will not be initialized again:
+        # https://github.com/openjdk/jdk/blob/3d07b3c7f01b60ff4dc38f62407c212b48883dbf/src/hotspot/os/linux/attachListener_linux.cpp#L509
+        # since openjdk 2870c9d55efe, the attach socket will be recreated even when removed (and this exception
+        # won't happen).
+        return super().__str__() + (
+            "\nJVM attach socket is missing and jattach could not create it. It has most"
+            " likely been removed; the process has to be restarted for a new socket to be created."
+        )
+
+
 _JAVA_VERSION_TIMEOUT = 5
 
 
@@ -443,6 +457,9 @@ class AsyncProfiledProcess:
             args = e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, is_loaded
             if isinstance(e, CalledProcessTimeoutError):
                 raise JattachTimeout(*args, timeout=self._jattach_timeout) from None
+            elif e.stderr == b"Could not start attach mechanism: No such file or directory\n":
+                # this is true for jattach_hotspot
+                raise JattachSocketMissingException(*args) from None
             else:
                 raise JattachException(*args) from None
 
