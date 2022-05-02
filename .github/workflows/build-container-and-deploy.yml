@@ -82,6 +82,9 @@ jobs:
 
   push-manifest:
     runs-on: ubuntu-latest
+    needs:
+      - build-docker-x64
+      - build-docker-aarch64
     steps:
       # needed to set up env.GH_REPO etc
       - name: Checkout Code
