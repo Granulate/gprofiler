@@ -83,6 +83,13 @@ jobs:
   push-manifest:
     runs-on: ubuntu-latest
     steps:
+      # needed to set up env.GH_REPO etc
+      - name: Checkout Code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          submodules: true
+
       - name: Login to DockerHub
         uses: docker/login-action@v1
         with:
