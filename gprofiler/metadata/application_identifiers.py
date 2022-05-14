@@ -287,6 +287,23 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
         return None
 
 
+class _JavaHadoopMRTaskAttemptIdentifier(_ApplicationIdentifier):
+    # pattern created by following getTaskAttemptIDsPattern in apache/hadoop.
+    # some resources:
+    # https://github.com/apache/hadoop/blob/6985f9aabebefa86037f7dbc478374392afef990/hadoop-mapreduce-project/hadoop-mapreduce-client/hadoop-mapreduce-client-core/src/main/java/org/apache/hadoop/mapred/TaskAttemptID.java#L152
+    # https://github.com/apache/hadoop/blob/6985f9aabebefa86037f7dbc478374392afef990/hadoop-mapreduce-project/hadoop-mapreduce-client/hadoop-mapreduce-client-core/src/main/java/org/apache/hadoop/mapreduce/TaskID.java#L288
+    TASK_ATTEMPT_IDS_PATTERN = re.compile(r"attempt_([^_]*)_([0-9]*)_(m|r|s|c|t)_[0-9]*_[0-9]*")
+
+    def get_app_id(self, process: Process) -> Optional[str]:
+        for arg in process.cmdline():
+            m = self.TASK_ATTEMPT_IDS_PATTERN.match(arg)
+            if m is not None:
+                jtid, jid, task_type = m.groups()
+                return f"java: hadoop: {jtid}_{jid}_{task_type}"
+
+        return None
+
+
 # Please note that the order matter, because the FIRST matching identifier will be used.
 # so when adding new identifiers pay attention to the order.
 _PYTHON_APP_IDENTIFIERS = [
@@ -299,6 +316,7 @@ _PYTHON_APP_IDENTIFIERS = [
 ]
 
 _JAVA_APP_IDENTIFIERS: List[_ApplicationIdentifier] = [
+    _JavaHadoopMRTaskAttemptIdentifier(),
     _JavaJarApplicationIdentifier(),
 ]
 
