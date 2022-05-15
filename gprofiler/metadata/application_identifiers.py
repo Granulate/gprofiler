@@ -287,7 +287,7 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
                     java_args.extend(self._add_from_args(line[len("jvm_args:") :].strip()))
 
                 if line.startswith("java_command:"):
-                    java_command_line = line[len("java_command") :].strip()
+                    java_command_line = line[len("java_command:") :].strip()
                     java_command = java_command_line.split(" ", 1)[0]
                     # java_command contains all arguments passed to the Java application.
                     java_args.extend(self._add_from_args(java_command_line))
