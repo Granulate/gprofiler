@@ -6,4 +6,4 @@
 set -euo pipefail
 
 yum install -y centos-release-scl
-yum install -y devtoolset-7-toolchain make java-1.11.0-openjdk-devel glibc-static git
+yum install -y devtoolset-7-toolchain make java-11-openjdk-devel glibc-static git
