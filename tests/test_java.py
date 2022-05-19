@@ -50,9 +50,13 @@ def get_libjvm_path(application_pid: int) -> str:
     return get_lib_path(application_pid, "/libjvm.so")
 
 
+def _read_pid_maps(pid: int) -> str:
+    return Path(f"/proc/{pid}/maps").read_text()
+
+
 def is_libjvm_deleted(application_pid: int) -> bool:
     # can't use get_libjvm_path() - psutil removes "deleted" if the file actually exists...
-    return "/libjvm.so (deleted)" in Path(f"/proc/{application_pid}/maps").read_text()
+    return "/libjvm.so (deleted)" in _read_pid_maps(application_pid)
 
 
 # adds the "status" command to AsyncProfiledProcess from gProfiler.
@@ -353,7 +357,9 @@ def test_java_deleted_libjvm(tmp_path: Path, application_pid: int, assert_collap
     shutil.copy(libjvm, libjvm_tmp)
     os.unlink(libjvm)
     os.rename(libjvm_tmp, libjvm)
-    assert is_libjvm_deleted(application_pid)
+    assert is_libjvm_deleted(
+        application_pid
+    ), f"Not (deleted) after deleting? libjvm={libjvm} maps={_read_pid_maps(application_pid)}"
 
     with make_java_profiler(storage_dir=str(tmp_path), duration=3) as profiler:
         process_collapsed = snapshot_one_collapsed(profiler)
