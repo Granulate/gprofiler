@@ -346,7 +346,9 @@ def test_sanity_j9(
 
 # test only once. in a container, so that we don't mess up the environment :)
 @pytest.mark.parametrize("in_container", [True])
-def test_java_deleted_libjvm(tmp_path: Path, application_pid: int, assert_collapsed: AssertInCollapsed) -> None:
+def test_java_deleted_libjvm(
+    tmp_path: Path, application_pid: int, application_docker_container: Container, assert_collapsed: AssertInCollapsed
+) -> None:
     """
     Tests that we can profile processes whose libjvm was deleted, e.g because Java was upgraded.
     """
@@ -355,7 +357,8 @@ def test_java_deleted_libjvm(tmp_path: Path, application_pid: int, assert_collap
     libjvm = get_libjvm_path(application_pid)
     libjvm_tmp = libjvm + "."
     shutil.copy(libjvm, libjvm_tmp)
-    os.unlink(libjvm)
+    # os.unlink(libjvm)
+    application_docker_container.exec_run(f"rm /{'/'.join(libjvm.split('/')[4:])}")
     os.rename(libjvm_tmp, libjvm)
     assert is_libjvm_deleted(
         application_pid
