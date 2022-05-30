@@ -7,6 +7,7 @@ import errno
 import os
 import shutil
 from pathlib import Path
+from secrets import token_hex
 
 from gprofiler.utils import remove_path, run_process
 
@@ -25,7 +26,8 @@ def is_rw_exec_dir(path: str) -> bool:
     """
     Is 'path' rw and exec?
     """
-    test_script = Path(path) / "t.sh"
+    # randomize the name - this function runs concurrently on paths of in same mnt namespace.
+    test_script = Path(path) / f"t-{token_hex(10)}.sh"
 
     # try creating & writing
     try:
@@ -41,7 +43,7 @@ def is_rw_exec_dir(path: str) -> bool:
 
     # try executing
     try:
-        run_process([str(test_script)])
+        run_process([str(test_script)], suppress_log=True)
     except PermissionError:
         # noexec
         return False

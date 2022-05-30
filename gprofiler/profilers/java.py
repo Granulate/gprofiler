@@ -37,8 +37,8 @@ from packaging.version import Version
 from psutil import Process
 
 from gprofiler import merge
-from gprofiler.exceptions import CalledProcessError, NoRwExecDirectoryFoundError
-from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, StackToSampleCount
+from gprofiler.exceptions import CalledProcessError, CalledProcessTimeoutError, NoRwExecDirectoryFoundError
+from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, StackToSampleCount, positive_integer
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
@@ -114,7 +114,7 @@ JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 64  # StackRecovery.JAVA_STATE
 SUPPORTED_AP_MODES = ["cpu", "itimer"]
 
 
-class JattachException(CalledProcessError):
+class JattachExceptionBase(CalledProcessError):
     def __init__(
         self, returncode: int, cmd: Any, stdout: Any, stderr: Any, target_pid: int, ap_log: str, is_loaded: bool
     ):
@@ -132,6 +132,48 @@ class JattachException(CalledProcessError):
 
     def get_ap_log(self) -> str:
         return self._ap_log
+
+
+class JattachException(JattachExceptionBase):
+    pass
+
+
+# doesn't extend JattachException itself, we're not just a jattach error, we're
+# specifically the timeout one.
+class JattachTimeout(JattachExceptionBase):
+    def __init__(
+        self,
+        returncode: int,
+        cmd: Any,
+        stdout: Any,
+        stderr: Any,
+        target_pid: int,
+        ap_log: str,
+        is_loaded: bool,
+        timeout: int,
+    ):
+        super().__init__(returncode, cmd, stdout, stderr, target_pid, ap_log, is_loaded)
+        self._timeout = timeout
+
+    def __str__(self) -> str:
+        return super().__str__() + (
+            f"\njattach timed out (timeout was {self._timeout} seconds);"
+            " you can increase it with the --java-jattach-timeout parameter."
+        )
+
+
+class JattachSocketMissingException(JattachExceptionBase):
+    def __str__(self) -> str:
+        # the attach listener is initialized once, then it is marked as initialized:
+        # (https://github.com/openjdk/jdk/blob/3d07b3c7f01b60ff4dc38f62407c212b48883dbf/src/hotspot/share/services/attachListener.cpp#L388)
+        # and will not be initialized again:
+        # https://github.com/openjdk/jdk/blob/3d07b3c7f01b60ff4dc38f62407c212b48883dbf/src/hotspot/os/linux/attachListener_linux.cpp#L509
+        # since openjdk 2870c9d55efe, the attach socket will be recreated even when removed (and this exception
+        # won't happen).
+        return super().__str__() + (
+            "\nJVM attach socket is missing and jattach could not create it. It has most"
+            " likely been removed; the process has to be restarted for a new socket to be created."
+        )
 
 
 _JAVA_VERSION_TIMEOUT = 5
@@ -210,7 +252,7 @@ class AsyncProfiledProcess:
 
     # timeouts in seconds
     _FDTRANSFER_TIMEOUT = 10
-    _JATTACH_TIMEOUT = 10  # higher than jattach's timeout
+    _JATTACH_TIMEOUT = 30  # higher than jattach's timeout
 
     def __init__(
         self,
@@ -221,6 +263,7 @@ class AsyncProfiledProcess:
         mode: str,
         ap_safemode: int,
         ap_args: str,
+        jattach_timeout: int = _JATTACH_TIMEOUT,
     ):
         self.process = process
         self._stop_event = stop_event
@@ -266,6 +309,7 @@ class AsyncProfiledProcess:
         self._mode = mode
         self._ap_safemode = ap_safemode
         self._ap_args = ap_args
+        self._jattach_timeout = jattach_timeout
 
     def _find_rw_exec_dir(self, available_dirs: Sequence[str]) -> str:
         """
@@ -396,8 +440,8 @@ class AsyncProfiledProcess:
     def _run_async_profiler(self, cmd: List[str]) -> None:
         try:
             # kill jattach with SIGTERM if it hangs. it will go down
-            run_process(cmd, stop_event=self._stop_event, timeout=self._JATTACH_TIMEOUT, kill_signal=signal.SIGTERM)
-        except CalledProcessError as e:  # catches timeouts as well
+            run_process(cmd, stop_event=self._stop_event, timeout=self._jattach_timeout, kill_signal=signal.SIGTERM)
+        except CalledProcessError as e:  # catches CalledProcessTimeoutError as well
             if os.path.exists(self._log_path_host):
                 log = Path(self._log_path_host)
                 ap_log = log.read_text()
@@ -409,9 +453,15 @@ class AsyncProfiledProcess:
                 ap_log = "(log file doesn't exist)"
 
             is_loaded = f" {self._libap_path_process}\n" in Path(f"/proc/{self.process.pid}/maps").read_text()
-            raise JattachException(
-                e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, is_loaded
-            ) from None
+
+            args = e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, is_loaded
+            if isinstance(e, CalledProcessTimeoutError):
+                raise JattachTimeout(*args, timeout=self._jattach_timeout) from None
+            elif e.stderr == b"Could not start attach mechanism: No such file or directory\n":
+                # this is true for jattach_hotspot
+                raise JattachSocketMissingException(*args) from None
+            else:
+                raise JattachException(*args) from None
 
     def _run_fdtransfer(self) -> None:
         """
@@ -580,6 +630,13 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             default=",".join(JAVA_SAFEMODE_DEFAULT_OPTIONS),
             help="Sets the Java profiler safemode options. Default is: %(default)s.",
         ),
+        ProfilerArgument(
+            "--java-jattach-timeout",
+            dest="java_jattach_timeout",
+            type=positive_integer,
+            default=AsyncProfiledProcess._JATTACH_TIMEOUT,
+            help="Timeout for jattach operations (start/stop AP, etc)",
+        ),
     ],
 )
 class JavaProfiler(SpawningProcessProfilerBase):
@@ -613,6 +670,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_async_profiler_safemode: int,
         java_async_profiler_args: str,
         java_safemode: str,
+        java_jattach_timeout: int,
         java_mode: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
@@ -627,6 +685,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._init_ap_mode(java_async_profiler_mode)
         self._ap_safemode = java_async_profiler_safemode
         self._ap_args = java_async_profiler_args
+        self._jattach_timeout = java_jattach_timeout
         self._init_java_safemode(java_safemode)
         self._should_profile = True
         # if set, profiling is disabled due to this safemode reason.
@@ -785,7 +844,14 @@ class JavaProfiler(SpawningProcessProfilerBase):
         logger.info(f"Profiling process {process.pid} with async-profiler")
 
         with AsyncProfiledProcess(
-            process, self._storage_dir, self._stop_event, self._buildids, self._mode, self._ap_safemode, self._ap_args
+            process,
+            self._storage_dir,
+            self._stop_event,
+            self._buildids,
+            self._mode,
+            self._ap_safemode,
+            self._ap_args,
+            self._jattach_timeout,
         ) as ap_proc:
             return self._profile_ap_process(ap_proc, comm, duration)
 
