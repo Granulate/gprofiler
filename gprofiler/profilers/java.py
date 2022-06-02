@@ -96,6 +96,7 @@ class JavaSafemodeOptions(str, Enum):
     # we saw the PID of a profiled process in the kernel logs
     PID_IN_KERNEL_MESSAGES = "pid-in-kernel-messages"
     # employ extended version checks before deciding to profile
+    # see _is_jvm_profiling_supported() docs for more information
     JAVA_EXTENDED_VERSION_CHECKS = "java-extended-version-checks"
     # refuse profiling if async-profiler is already loaded (and not by gProfiler)
     # in the target process
@@ -593,7 +594,8 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             "--java-no-version-check",
             dest="java_version_check",
             action="store_false",
-            help="Skip the JDK version check (that is done before invoking async-profiler)",
+            help="Skip the JDK version check (that is done before invoking async-profiler). See"
+                 " _is_jvm_profiling_supported() docs for more information.",
         ),
         ProfilerArgument(
             "--java-async-profiler-mode",
@@ -784,6 +786,20 @@ class JavaProfiler(ProcessProfilerBase):
         return True
 
     def _is_jvm_profiling_supported(self, process: Process) -> bool:
+        """
+        This is the core "version check" function.
+        We have 3 modes of operation:
+        1. No checks at all - java-extended-version-checks is NOT present in --java-safemode, *and*
+           --java-no-version-check is passed. In this mode we'll profile all JVMs.
+        2. Default - neither java-extended-version-checks nor --java-no-version-check are passed,
+           this mode is called "simple checks" and we run minimal checks - if profiled process is
+           basenamed "java", we get the JVM version and make sure that for Zing, we attempt profiling
+           only if Zing version is >18, and for HS, only if JDK>6. If process is not basenamed "java" we
+           just profile it.
+        3. Extended - java-extended-version-checks is passed, we only profile processes which are basenamed "java",
+           who pass the criteria enforced by the default mode ("simple checks") and additionally all checks
+           performed by _check_jvm_supported_extended().
+        """
         exe = process_exe(process)
         process_basename = os.path.basename(exe)
         if JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS in self._java_safemode:
