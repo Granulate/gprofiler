@@ -742,7 +742,7 @@ class JavaProfiler(ProcessProfilerBase):
             return False  # unknown
 
         major = m.group(1)
-        if int(major) < 23:
+        if int(major) < 18:
             return False
 
         # Zing > 18 is assumed to support AsyncGetCallTrace per
