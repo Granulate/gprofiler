@@ -742,44 +742,44 @@ class JavaProfiler(ProcessProfilerBase):
             return False  # unknown
 
         major = m.group(1)
-        if int(major) < 18:
+        if int(major) < 23:
             return False
 
         # Zing > 18 is assumed to support AsyncGetCallTrace per
         # https://github.com/jvm-profiling-tools/async-profiler/issues/153#issuecomment-452038960
         return True
 
-    def _is_jvm_version_supported(self, java_version_cmd_output: str) -> bool:
-        try:
-            jvm_version = parse_jvm_version(java_version_cmd_output)
-            logger.info("Checking support for java version", jvm_version=repr(jvm_version))
-        except Exception:
-            logger.exception("Failed to parse java -version output", java_version_cmd_output=java_version_cmd_output)
+    def _check_jvm_supported_extended(self, jvm_version: JvmVersion) -> bool:
+        if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
+            logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
+            return False
+        min_version, min_build = self.MINIMAL_SUPPORTED_VERSIONS[jvm_version.version.major]
+        if jvm_version.version < min_version:
+            logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
+            return False
+        elif jvm_version.version == min_version:
+            if jvm_version.build < min_build:
+                logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
+                return False
+
+        return True
+
+    def _check_jvm_supported_simple(self, process: Process, java_version_output: str, jvm_version: JvmVersion) -> bool:
+        if not self._is_jvm_type_supported(java_version_output):
+            logger.warning("Unsupported JVM type", java_version_output=java_version_output)
             return False
 
+        # Zing checks
         if jvm_version.name.startswith("Zing"):
             if not self._is_zing_vm_supported(jvm_version):
                 logger.warning("Unsupported Zing VM version", jvm_version=repr(jvm_version))
                 return False
-        else:
-            if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
-                logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
-                return False
-            min_version, min_build = self.MINIMAL_SUPPORTED_VERSIONS[jvm_version.version.major]
-            if jvm_version.version < min_version:
-                logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
-                return False
-            elif jvm_version.version == min_version:
-                if jvm_version.build < min_build:
-                    logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
-                    return False
 
-        return True
-
-    def _check_jvm_type_supported(self, process: Process, java_version_output: str) -> bool:
-        if not self._is_jvm_type_supported(java_version_output):
-            logger.warning("Unsupported JVM type", java_version_output=java_version_output)
-            return False
+        # HS checks
+        if jvm_version.name.startswith("OpenJDK"):
+            if not jvm_version.version.major > 6:
+                logger.warning("Unsupported HotSpot version", jvm_version=repr(jvm_version))
+                return False
 
         return True
 
@@ -799,11 +799,11 @@ class JavaProfiler(ProcessProfilerBase):
                 return False
 
             java_version_output = get_java_version(process, self._stop_event)
-
-            if not self._check_jvm_type_supported(process, java_version_output):
+            jvm_version = parse_jvm_version(java_version_output)
+            if not self._check_jvm_supported_simple(process, java_version_output, jvm_version):
                 return False
 
-            if not self._is_jvm_version_supported(java_version_output):
+            if not self._check_jvm_supported_extended(jvm_version):
                 logger.warning(
                     "Process running unsupported Java version, skipping..."
                     f" (disable --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS}"
@@ -815,7 +815,8 @@ class JavaProfiler(ProcessProfilerBase):
         else:
             if self._simple_version_check and process_basename == "java":
                 java_version_output = get_java_version(process, self._stop_event)
-                if not self._check_jvm_type_supported(process, java_version_output):
+                jvm_version = parse_jvm_version(java_version_output)
+                if not self._check_jvm_supported_simple(process, java_version_output, jvm_version):
                     return False
 
         return True
