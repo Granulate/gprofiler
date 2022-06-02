@@ -640,7 +640,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
     ],
 )
 class JavaProfiler(ProcessProfilerBase):
-    JDK_EXCLUSIONS = ["Zing"]
+    JDK_EXCLUSIONS: List[str] = []  # currently empty
     # Major -> (min version, min build number of version)
     MINIMAL_SUPPORTED_VERSIONS = {
         7: (Version("7.76"), 4),
@@ -735,6 +735,20 @@ class JavaProfiler(ProcessProfilerBase):
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
 
+    def _is_zing_vm_supported(self, jvm_version: JvmVersion) -> bool:
+        # name is e.g Zing 64-Bit Tiered VM Zing22.04.1.0+1
+        m = re.search(r"Zing(\d+)\.", jvm_version.name)
+        if m is None:
+            return False  # unknown
+
+        major = m.group(1)
+        if int(major) < 18:
+            return False
+
+        # Zing > 18 is assumed to support AsyncGetCallTrace per
+        # https://github.com/jvm-profiling-tools/async-profiler/issues/153#issuecomment-452038960
+        return True
+
     def _is_jvm_version_supported(self, java_version_cmd_output: str) -> bool:
         try:
             jvm_version = parse_jvm_version(java_version_cmd_output)
@@ -743,17 +757,22 @@ class JavaProfiler(ProcessProfilerBase):
             logger.exception("Failed to parse java -version output", java_version_cmd_output=java_version_cmd_output)
             return False
 
-        if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
-            logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
-            return False
-        min_version, min_build = self.MINIMAL_SUPPORTED_VERSIONS[jvm_version.version.major]
-        if jvm_version.version < min_version:
-            logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
-            return False
-        elif jvm_version.version == min_version:
-            if jvm_version.build < min_build:
+        if jvm_version.name.startswith("Zing"):
+            if not self._is_zing_vm_supported(jvm_version):
+                logger.warning("Unsupported Zing VM version", jvm_version=repr(jvm_version))
+                return False
+        else:
+            if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
                 logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
                 return False
+            min_version, min_build = self.MINIMAL_SUPPORTED_VERSIONS[jvm_version.version.major]
+            if jvm_version.version < min_version:
+                logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
+                return False
+            elif jvm_version.version == min_version:
+                if jvm_version.build < min_build:
+                    logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
+                    return False
 
         return True
 
