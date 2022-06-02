@@ -595,7 +595,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             dest="java_version_check",
             action="store_false",
             help="Skip the JDK version check (that is done before invoking async-profiler). See"
-                 " _is_jvm_profiling_supported() docs for more information.",
+            " _is_jvm_profiling_supported() docs for more information.",
         ),
         ProfilerArgument(
             "--java-async-profiler-mode",
