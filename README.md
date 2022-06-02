@@ -86,6 +86,11 @@ Profiling using eBPF incurs lower overhead & provides kernel & native stacks.
 
 ## Other options
 
+### Using HTTP proxies
+gProfiler uses the Python `requests` package, which works with standard HTTP proxies environment, e.g `https_proxy` or `HTTPS_PROXY` (note - https and not http).
+If running gProfiler as an executable and using `sudo`, make sure to run `sudo -E` if you have the environment variable defined (otherwise, `sudo` will forget it). Alternatively, you can run `sudo https_proxy=my-proxy /path/to/gprofiler ...`.
+If running gProfiler as a Docker container, make sure to add `-e https_proxy=my-proxy` to the `docker run` command line (the spawned container does not inherit your set of environment variables, you have to pass it manually).
+
 ### Sending logs to server
 **By default, gProfiler sends logs to Granulate Performance Studio** (when using `--upload-results`/`-u` flag)
 This behavior can be disabled by passing `--dont-send-logs` or the setting environment variable `GPROFILER_DONT_SEND_LOGS=1`.
