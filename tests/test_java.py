@@ -19,6 +19,7 @@ import psutil
 import pytest
 from docker.models.containers import Container
 from granulate_utils.linux.elf import get_elf_buildid
+from granulate_utils.linux.ns import get_process_nspid
 from packaging.version import Version
 from pytest import LogCaptureFixture, MonkeyPatch
 
@@ -507,3 +508,26 @@ def test_java_appid_and_metadata_before_process_exits(
     assert profile.appid == "java: Fibonacci.jar"
     # and application metadata for java
     assert profile.app_metadata is not None and "java_version" in profile.app_metadata
+
+
+@pytest.mark.parametrize("in_container", [True])  # only in container is enough
+def test_java_attach_socket_missing(
+    tmp_path: Path,
+    application_pid: int,
+) -> None:
+    """
+    Tests that we get the proper JattachMissingSocketException when the attach socket is deleted.
+    """
+
+    with make_java_profiler(
+        storage_dir=str(tmp_path),
+        duration=1,
+    ) as profiler:
+        snapshot_one_profile(profiler)
+
+        # now the attach socket is created, remove it
+        Path(f"/proc/{application_pid}/root/tmp/.java_pid{get_process_nspid(application_pid)}").unlink()
+
+        profile = snapshot_one_profile(profiler)
+        assert len(profile.stacks) == 1
+        assert next(iter(profile.stacks.keys())) == "java;[Profiling error: exception JattachSocketMissingException]"

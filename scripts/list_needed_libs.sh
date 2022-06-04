@@ -1,9 +1,10 @@
+
 #!/usr/bin/env bash
 #
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-set -e
+set -euo pipefail
 
 # this file lists all dynamic dependenices of executables in gprofiler/resources.
 # we use it to let staticx know which libraries it should pack inside.
@@ -40,7 +41,11 @@ for f in $BINS ; do
     fi
 done
 
+printed=
 for l in $libs ; do
-    >&2 echo "found needed lib: $l"
-    echo -n " -l $l"
+    if ! echo "$printed" | grep -q "$l"; then
+        >&2 echo "found needed lib: $l"
+        echo -n " -l $l"
+        printed="$printed $l"
+    fi
 done

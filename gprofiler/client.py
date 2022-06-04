@@ -29,12 +29,22 @@ DEFAULT_UPLOAD_TIMEOUT = 120
 class APIClient:
     BASE_PATH = "api"
 
-    def __init__(self, host: str, key: str, service: str, hostname: str, upload_timeout: int, version: str = "v1"):
+    def __init__(
+        self,
+        host: str,
+        key: str,
+        service: str,
+        curlify_requests: bool,
+        hostname: str,
+        upload_timeout: int,
+        version: str = "v1",
+    ):
         self._host: str = host
         self._upload_timeout = upload_timeout
         self._version: str = version
         self._key = key
         self._service = service
+        self._curlify = curlify_requests
         self._hostname = hostname
 
         self._init_session()
@@ -93,6 +103,23 @@ class APIClient:
         opts["params"] = self._get_query_params() + [(k, v) for k, v in params.items()]
 
         resp = self._session.request(method, "{}/{}".format(self.get_base_url(api_version), path), **opts)
+        if self._curlify:
+            import curlify  # type: ignore  # import here as it's not always required.
+
+            if resp.request.body is not None:
+                # curlify attempts to decode bytes into utf-8. our content is gzipped so we undo the gzip here
+                # (it's fine to edit the object, as the request was already sent).
+                assert resp.request.headers["Content-Encoding"] == "gzip"  # make sure it's really gzip before we undo
+                assert isinstance(resp.request.body, bytes)
+                resp.request.body = gzip.decompress(resp.request.body)
+                del resp.request.headers["Content-Encoding"]
+            logger.debug(
+                "API request",
+                curl_command=curlify.to_curl(resp.request),
+                status_code=resp.status_code,
+                no_server_log=True,
+            )
+
         if 400 <= resp.status_code < 500:
             try:
                 response_data = resp.json()

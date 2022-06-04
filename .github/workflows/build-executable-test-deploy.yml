@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-executable:
-   runs-on: ubuntu-20.04
+   runs-on: ubuntu-latest
    steps:
      - name: Checkout Code
        uses: actions/checkout@v2
@@ -18,7 +18,7 @@ jobs:
      - name: Get and verify tag value
        run: |
          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
-         ./cmp_tags.sh
+         ./scripts/cmp_tags.sh
 
      # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
      - name: Build gProfiler executable
@@ -41,6 +41,7 @@ jobs:
 
   test-executable:
     if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
     needs: build-executable
     strategy:
       fail-fast: false
@@ -63,7 +64,6 @@ jobs:
           - debian:8
           - debian:9
           - debian:10
-    runs-on: ubuntu-20.04
     steps:
       - name: Set up Python 3.8
         uses: actions/setup-python@v2
@@ -102,23 +102,24 @@ jobs:
 
   build-executable-aarch64:
     if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-20.04
+    runs-on: ["self-hosted", "ARM64"]
     steps:
      - name: Checkout Code
        uses: actions/checkout@v2
        with:
          fetch-depth: 0
          submodules: true
+
+     - name: Set up requirements
+       run: scripts/setup_runner_requirements.sh
+
      - name: Get and verify tag value
        run: |
          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
-         ./cmp_tags.sh
+         ./scripts/cmp_tags.sh
 
      - name: Build gProfiler executable
        run: |
-         docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-         docker buildx create --name multiarch --driver docker-container --use
-
          mkdir -p output
          ./scripts/build_aarch64_executable.sh
          mv build/aarch64/gprofiler output/gprofiler_aarch64
@@ -132,10 +133,10 @@ jobs:
 
   deploy-executable:
     if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-20.04
     needs:
       - build-executable
       - build-executable-aarch64
-    runs-on: ubuntu-20.04
 
     steps:
       - name: Download executables from the previous job

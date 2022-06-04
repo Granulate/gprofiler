@@ -5,7 +5,7 @@ set -ue
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-# Used in CI and checks that last pushed tag is grater that last existing tag.
+# Used in CI and checks that last pushed tag is greater that last existing tag.
 # Using python package 'cmp_version' to do the compare work
 
 pip install cmp_version

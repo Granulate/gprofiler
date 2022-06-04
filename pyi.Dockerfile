@@ -204,14 +204,24 @@ RUN pyinstaller pyinstaller.spec \
     && test -f build/pyinstaller/warn-pyinstaller.txt \
     && if grep 'gprofiler\.' build/pyinstaller/warn-pyinstaller.txt ; then echo 'PyInstaller failed to pack gProfiler code! See lines above. Make sure to check for SyntaxError as this is often the reason.'; exit 1; fi;
 
+# for aarch64 - build a patched version of staticx 0.13.6. we remove calls to getpwnam and getgrnam, for these end up doing dlopen()s which
+# crash the staticx bootloader. we don't need them anyway (all files in our staticx tar are uid 0 and we don't need the names translation)
+COPY scripts/staticx_patch.diff staticx_patch.diff
+RUN if [ $(uname -m) = "aarch64" ]; then \
+        git clone -b v0.13.6 https://github.com/JonathonReinhart/staticx.git && \
+        cd staticx && \
+        git reset --hard 819d8eafecbaab3646f70dfb1e3e19f6bbc017f8 && \
+        git apply ../staticx_patch.diff && \
+        python3 -m pip install . ; \
+    fi
+
 COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # staticx packs dynamically linked app with all of their dependencies, it tries to figure out which dynamic libraries are need for its execution
 # in some cases, when the application is lazily loading some DSOs, staticx doesn't handle it.
 # we use list_needed_libs.sh to list the dynamic dependencies of *all* of our resources,
 # and make staticx pack them as well.
 # using scl here to get the proper LD_LIBRARY_PATH set
-# TODO: use staticx for aarch64 as well; currently it doesn't generate correct binaries when run over Docker emulation.
-RUN if [ $(uname -m) != "aarch64" ]; then source scl_source enable devtoolset-8 llvm-toolset-7 && libs=$(./scripts/list_needed_libs.sh) && staticx $libs dist/gprofiler dist/gprofiler; fi
+RUN if [ $(uname -m) != "aarch64" ]; then source scl_source enable devtoolset-8 llvm-toolset-7 ; fi; libs=$(./scripts/list_needed_libs.sh) && staticx $libs dist/gprofiler dist/gprofiler
 
 FROM scratch AS export-stage
 

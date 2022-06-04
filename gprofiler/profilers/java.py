@@ -37,7 +37,7 @@ from packaging.version import Version
 from psutil import Process
 
 from gprofiler import merge
-from gprofiler.exceptions import CalledProcessError, NoRwExecDirectoryFoundError
+from gprofiler.exceptions import CalledProcessError, CalledProcessTimeoutError, NoRwExecDirectoryFoundError
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, StackToSampleCount, positive_integer
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
@@ -96,6 +96,7 @@ class JavaSafemodeOptions(str, Enum):
     # we saw the PID of a profiled process in the kernel logs
     PID_IN_KERNEL_MESSAGES = "pid-in-kernel-messages"
     # employ extended version checks before deciding to profile
+    # see _is_jvm_profiling_supported() docs for more information
     JAVA_EXTENDED_VERSION_CHECKS = "java-extended-version-checks"
     # refuse profiling if async-profiler is already loaded (and not by gProfiler)
     # in the target process
@@ -114,7 +115,7 @@ JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 64  # StackRecovery.JAVA_STATE
 SUPPORTED_AP_MODES = ["cpu", "itimer"]
 
 
-class JattachException(CalledProcessError):
+class JattachExceptionBase(CalledProcessError):
     def __init__(
         self, returncode: int, cmd: Any, stdout: Any, stderr: Any, target_pid: int, ap_log: str, is_loaded: bool
     ):
@@ -132,6 +133,48 @@ class JattachException(CalledProcessError):
 
     def get_ap_log(self) -> str:
         return self._ap_log
+
+
+class JattachException(JattachExceptionBase):
+    pass
+
+
+# doesn't extend JattachException itself, we're not just a jattach error, we're
+# specifically the timeout one.
+class JattachTimeout(JattachExceptionBase):
+    def __init__(
+        self,
+        returncode: int,
+        cmd: Any,
+        stdout: Any,
+        stderr: Any,
+        target_pid: int,
+        ap_log: str,
+        is_loaded: bool,
+        timeout: int,
+    ):
+        super().__init__(returncode, cmd, stdout, stderr, target_pid, ap_log, is_loaded)
+        self._timeout = timeout
+
+    def __str__(self) -> str:
+        return super().__str__() + (
+            f"\njattach timed out (timeout was {self._timeout} seconds);"
+            " you can increase it with the --java-jattach-timeout parameter."
+        )
+
+
+class JattachSocketMissingException(JattachExceptionBase):
+    def __str__(self) -> str:
+        # the attach listener is initialized once, then it is marked as initialized:
+        # (https://github.com/openjdk/jdk/blob/3d07b3c7f01b60ff4dc38f62407c212b48883dbf/src/hotspot/share/services/attachListener.cpp#L388)
+        # and will not be initialized again:
+        # https://github.com/openjdk/jdk/blob/3d07b3c7f01b60ff4dc38f62407c212b48883dbf/src/hotspot/os/linux/attachListener_linux.cpp#L509
+        # since openjdk 2870c9d55efe, the attach socket will be recreated even when removed (and this exception
+        # won't happen).
+        return super().__str__() + (
+            "\nJVM attach socket is missing and jattach could not create it. It has most"
+            " likely been removed; the process has to be restarted for a new socket to be created."
+        )
 
 
 _JAVA_VERSION_TIMEOUT = 5
@@ -399,7 +442,7 @@ class AsyncProfiledProcess:
         try:
             # kill jattach with SIGTERM if it hangs. it will go down
             run_process(cmd, stop_event=self._stop_event, timeout=self._jattach_timeout, kill_signal=signal.SIGTERM)
-        except CalledProcessError as e:  # catches timeouts as well
+        except CalledProcessError as e:  # catches CalledProcessTimeoutError as well
             if os.path.exists(self._log_path_host):
                 log = Path(self._log_path_host)
                 ap_log = log.read_text()
@@ -411,9 +454,15 @@ class AsyncProfiledProcess:
                 ap_log = "(log file doesn't exist)"
 
             is_loaded = f" {self._libap_path_process}\n" in Path(f"/proc/{self.process.pid}/maps").read_text()
-            raise JattachException(
-                e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, is_loaded
-            ) from None
+
+            args = e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, is_loaded
+            if isinstance(e, CalledProcessTimeoutError):
+                raise JattachTimeout(*args, timeout=self._jattach_timeout) from None
+            elif e.stderr == b"Could not start attach mechanism: No such file or directory\n":
+                # this is true for jattach_hotspot
+                raise JattachSocketMissingException(*args) from None
+            else:
+                raise JattachException(*args) from None
 
     def _run_fdtransfer(self) -> None:
         """
@@ -545,7 +594,8 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             "--java-no-version-check",
             dest="java_version_check",
             action="store_false",
-            help="Skip the JDK version check (that is done before invoking async-profiler)",
+            help="Skip the JDK version check (that is done before invoking async-profiler). See"
+            " _is_jvm_profiling_supported() docs for more information.",
         ),
         ProfilerArgument(
             "--java-async-profiler-mode",
@@ -592,7 +642,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
     ],
 )
 class JavaProfiler(ProcessProfilerBase):
-    JDK_EXCLUSIONS = ["Zing"]
+    JDK_EXCLUSIONS: List[str] = []  # currently empty
     # Major -> (min version, min build number of version)
     MINIMAL_SUPPORTED_VERSIONS = {
         7: (Version("7.76"), 4),
@@ -687,14 +737,21 @@ class JavaProfiler(ProcessProfilerBase):
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
 
-    def _is_jvm_version_supported(self, java_version_cmd_output: str) -> bool:
-        try:
-            jvm_version = parse_jvm_version(java_version_cmd_output)
-            logger.info("Checking support for java version", jvm_version=repr(jvm_version))
-        except Exception:
-            logger.exception("Failed to parse java -version output", java_version_cmd_output=java_version_cmd_output)
+    def _is_zing_vm_supported(self, jvm_version: JvmVersion) -> bool:
+        # name is e.g Zing 64-Bit Tiered VM Zing22.04.1.0+1
+        m = re.search(r"Zing(\d+)\.", jvm_version.name)
+        if m is None:
+            return False  # unknown
+
+        major = m.group(1)
+        if int(major) < 18:
             return False
 
+        # Zing > 18 is assumed to support AsyncGetCallTrace per
+        # https://github.com/jvm-profiling-tools/async-profiler/issues/153#issuecomment-452038960
+        return True
+
+    def _check_jvm_supported_extended(self, jvm_version: JvmVersion) -> bool:
         if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
             logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
             return False
@@ -709,14 +766,40 @@ class JavaProfiler(ProcessProfilerBase):
 
         return True
 
-    def _check_jvm_type_supported(self, process: Process, java_version_output: str) -> bool:
+    def _check_jvm_supported_simple(self, process: Process, java_version_output: str, jvm_version: JvmVersion) -> bool:
         if not self._is_jvm_type_supported(java_version_output):
             logger.warning("Unsupported JVM type", java_version_output=java_version_output)
             return False
 
+        # Zing checks
+        if jvm_version.name.startswith("Zing"):
+            if not self._is_zing_vm_supported(jvm_version):
+                logger.warning("Unsupported Zing VM version", jvm_version=repr(jvm_version))
+                return False
+
+        # HS checks
+        if jvm_version.name.startswith("OpenJDK"):
+            if not jvm_version.version.major > 6:
+                logger.warning("Unsupported HotSpot version", jvm_version=repr(jvm_version))
+                return False
+
         return True
 
     def _is_jvm_profiling_supported(self, process: Process) -> bool:
+        """
+        This is the core "version check" function.
+        We have 3 modes of operation:
+        1. No checks at all - java-extended-version-checks is NOT present in --java-safemode, *and*
+           --java-no-version-check is passed. In this mode we'll profile all JVMs.
+        2. Default - neither java-extended-version-checks nor --java-no-version-check are passed,
+           this mode is called "simple checks" and we run minimal checks - if profiled process is
+           basenamed "java", we get the JVM version and make sure that for Zing, we attempt profiling
+           only if Zing version is >18, and for HS, only if JDK>6. If process is not basenamed "java" we
+           just profile it.
+        3. Extended - java-extended-version-checks is passed, we only profile processes which are basenamed "java",
+           who pass the criteria enforced by the default mode ("simple checks") and additionally all checks
+           performed by _check_jvm_supported_extended().
+        """
         exe = process_exe(process)
         process_basename = os.path.basename(exe)
         if JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS in self._java_safemode:
@@ -732,11 +815,11 @@ class JavaProfiler(ProcessProfilerBase):
                 return False
 
             java_version_output = get_java_version(process, self._stop_event)
-
-            if not self._check_jvm_type_supported(process, java_version_output):
+            jvm_version = parse_jvm_version(java_version_output)
+            if not self._check_jvm_supported_simple(process, java_version_output, jvm_version):
                 return False
 
-            if not self._is_jvm_version_supported(java_version_output):
+            if not self._check_jvm_supported_extended(jvm_version):
                 logger.warning(
                     "Process running unsupported Java version, skipping..."
                     f" (disable --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS}"
@@ -748,7 +831,8 @@ class JavaProfiler(ProcessProfilerBase):
         else:
             if self._simple_version_check and process_basename == "java":
                 java_version_output = get_java_version(process, self._stop_event)
-                if not self._check_jvm_type_supported(process, java_version_output):
+                jvm_version = parse_jvm_version(java_version_output)
+                if not self._check_jvm_supported_simple(process, java_version_output, jvm_version):
                     return False
 
         return True

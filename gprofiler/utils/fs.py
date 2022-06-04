@@ -43,7 +43,7 @@ def is_rw_exec_dir(path: str) -> bool:
 
     # try executing
     try:
-        run_process([str(test_script)])
+        run_process([str(test_script)], suppress_log=True)
     except PermissionError:
         # noexec
         return False
