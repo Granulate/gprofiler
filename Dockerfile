@@ -60,7 +60,10 @@ RUN ./perf_build.sh
 FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-builder-base
 
 RUN apt-get update && \
-  apt-get install -y --no-install-recommends git && \
+  apt-get install -y --no-install-recommends \
+    git \
+    ca-certificates \
+    && \
   if [ "$(uname -m)" != "aarch64" ]; then \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       curl \
@@ -112,6 +115,7 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
     apt-get update && \
     apt-get install -y --no-install-recommends \
       git \
+      ca-certificates \
       wget \
       make \
       gcc
