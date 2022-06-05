@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # TODO support aarch64
-if [ $(uname -m) != "x86_64" ]; then
+if [ "$(uname -m)" != "x86_64" ]; then
     mkdir -p /tmp/phpspy
     touch /tmp/phpspy/phpspy
     mkdir -p /tmp/binutils/binutils-2.25/bin/bin/
