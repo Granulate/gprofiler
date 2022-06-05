@@ -48,11 +48,8 @@ RUN ./perf_build.sh
 # phpspy
 FROM ubuntu${PHPSPY_BUILDER_UBUNTU} as phpspy-builder
 WORKDIR /tmp
-RUN if [ "$(uname -m)" = "aarch64" ]; then \
-        exit 0; \
-    fi && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends git wget make gcc
+COPY scripts/phpspy_env.sh .
+RUN ./phpspy_env.sh
 COPY scripts/phpspy_build.sh .
 RUN ./phpspy_build.sh
 
