@@ -177,7 +177,7 @@ COPY --from=async-profiler-builder-glibc /async-profiler/build/fdtransfer gprofi
 
 COPY --from=rbspy-builder /rbspy/rbspy gprofiler/resources/ruby/rbspy
 
-COPY --from=burn-builder /go/burn/burn gprofiler/resources/burn
+COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
 
 # we want the latest pip
 # hadolint ignore=DL3013

@@ -239,7 +239,7 @@ COPY --from=async-profiler-builder-glibc /async-profiler/build/libasyncProfiler.
 COPY --from=async-profiler-builder-musl /async-profiler/build/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
 COPY --from=async-profiler-builder-glibc /async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
 
-COPY --from=burn-builder /go/burn/burn gprofiler/resources/burn
+COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
 
 COPY gprofiler gprofiler
 
