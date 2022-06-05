@@ -33,7 +33,7 @@ WORKDIR /tmp
 
 COPY scripts/pyspy_build.sh .
 RUN ./pyspy_build.sh
-RUN mv "/py-spy/target/$(uname -m)-unknown-linux-musl/release/py-spy" /py-spy/py-spy
+RUN mv "/tmp/py-spy/target/$(uname -m)-unknown-linux-musl/release/py-spy" /tmp/py-spy/py-spy
 
 # rbspy
 FROM pyspy-rbspy-builder-common AS rbspy-builder
@@ -41,7 +41,7 @@ WORKDIR /tmp
 
 COPY scripts/rbspy_build.sh .
 RUN ./rbspy_build.sh
-RUN mv "/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /rbspy/rbspy
+RUN mv "/tmp/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /tmp/rbspy/rbspy
 
 # perf
 FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder
@@ -59,6 +59,9 @@ RUN ./perf_build.sh
 # pyperf (bcc)
 FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-builder-base
 
+# not cleaning apt lists here - they are used by subsequent layers that base
+# on bcc-builder-base.
+# hadolint ignore=DL3009
 RUN apt-get update && \
   apt-get install -y --no-install-recommends \
     git \
@@ -73,13 +76,12 @@ RUN apt-get update && \
       cmake \
       python3 \
       flex \
+      libfl-dev \
       bison \
       libelf-dev \
       libz-dev \
       liblzma-dev; \
-  fi && \
-  apt-get clean && \
-  rm -rf /var/lib/apt/lists/*
+  fi
 
 # bcc helpers
 FROM bcc-builder-base AS bcc-helpers
@@ -161,7 +163,7 @@ COPY --from=bcc-builder /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
 COPY --from=bcc-helpers /bpf_get_fs_offset/get_fs_offset gprofiler/resources/python/pyperf/
 COPY --from=bcc-helpers /bpf_get_stack_offset/get_stack_offset gprofiler/resources/python/pyperf/
 
-COPY --from=pyspy-builder /py-spy/py-spy gprofiler/resources/python/py-spy
+COPY --from=pyspy-builder /tmp/py-spy/py-spy gprofiler/resources/python/py-spy
 
 COPY --from=perf-builder /perf gprofiler/resources/perf
 
@@ -169,13 +171,13 @@ COPY --from=phpspy-builder /tmp/phpspy/phpspy gprofiler/resources/php/phpspy
 COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
 COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/strings gprofiler/resources/php/strings
 
-COPY --from=async-profiler-builder-glibc /async-profiler/build/jattach gprofiler/resources/java/jattach
-COPY --from=async-profiler-builder-glibc /async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
-COPY --from=async-profiler-builder-glibc /async-profiler/build/libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
-COPY --from=async-profiler-builder-musl /async-profiler/build/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
-COPY --from=async-profiler-builder-glibc /async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
+COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/jattach gprofiler/resources/java/jattach
+COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
+COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
+COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
+COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
 
-COPY --from=rbspy-builder /rbspy/rbspy gprofiler/resources/ruby/rbspy
+COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
 
 COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
 
