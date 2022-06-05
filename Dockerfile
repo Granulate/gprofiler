@@ -87,7 +87,9 @@ RUN apt-get update && \
 FROM bcc-builder-base AS bcc-helpers
 WORKDIR /tmp
 
-RUN apt-get install -y --no-install-recommends clang-10
+RUN apt-get install -y --no-install-recommends \
+  clang-10 \
+  llvm-10
 
 COPY --from=perf-builder /bpftool /bpftool
 
