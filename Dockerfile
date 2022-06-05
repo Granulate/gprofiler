@@ -125,7 +125,7 @@ COPY scripts/async_profiler_env_glibc.sh .
 RUN ./async_profiler_env_glibc.sh
 COPY scripts/async_profiler_build_shared.sh .
 COPY scripts/async_profiler_build_glibc.sh .
-RUN ./async_profiler_build_shared.sh /async_profiler_build_glibc.sh
+RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_glibc.sh
 
 # async-profiler musl
 FROM alpine${AP_BUILDER_ALPINE} AS async-profiler-builder-musl
@@ -134,7 +134,7 @@ COPY scripts/async_profiler_env_musl.sh .
 RUN ./async_profiler_env_musl.sh
 COPY scripts/async_profiler_build_shared.sh .
 COPY scripts/async_profiler_build_musl.sh .
-RUN ./async_profiler_build_shared.sh /async_profiler_build_musl.sh
+RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_musl.sh
 
 # burn
 FROM golang${BURN_BUILDER_GOLANG} AS burn-builder
