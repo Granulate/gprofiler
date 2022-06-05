@@ -1,0 +1,4 @@
+ignored:
+  - DL3008  # pin versions in apt install
+  - DL3033  # pin versions in yum install
+  - DL3006  # pin image versions in FROM. hadolint doesn't expand our docker args... we do pin, but it complains
