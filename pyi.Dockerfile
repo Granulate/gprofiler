@@ -229,9 +229,9 @@ COPY --from=pyspy-builder /py-spy/py-spy gprofiler/resources/python/py-spy
 COPY --from=rbspy-builder /rbspy/rbspy gprofiler/resources/ruby/rbspy
 COPY --from=perf-builder /perf gprofiler/resources/perf
 
-COPY --from=phpspy-builder /phpspy/phpspy gprofiler/resources/php/phpspy
-COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
-COPY --from=phpspy-builder /binutils/binutils-2.25/bin/bin/strings gprofiler/resources/php/strings
+COPY --from=phpspy-builder /tmp/phpspy/phpspy gprofiler/resources/php/phpspy
+COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
+COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/strings gprofiler/resources/php/strings
 # copying from async-profiler-builder as an "old enough" centos.
 COPY --from=async-profiler-builder-glibc /usr/bin/awk gprofiler/resources/php/awk
 COPY --from=async-profiler-builder-glibc /usr/bin/xargs gprofiler/resources/php/xargs
