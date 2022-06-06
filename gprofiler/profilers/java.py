@@ -211,6 +211,12 @@ def get_java_version(process: Process, stop_event: Event) -> str:
     return run_in_ns(["pid", "mnt"], _run_java_version, process.pid).stderr.decode().strip()
 
 
+def get_java_version_logged(process: Process, stop_event: Event) -> str:
+    java_version = get_java_version(process, stop_event)
+    logger.debug("java -version output", java_version_output=java_version, pid=process.pid)
+    return java_version
+
+
 class JavaMetadata(ApplicationMetadata):
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         version = get_java_version(process, self._stop_event)
@@ -814,7 +820,7 @@ class JavaProfiler(ProcessProfilerBase):
                 )
                 return False
 
-            java_version_output = get_java_version(process, self._stop_event)
+            java_version_output = get_java_version_logged(process, self._stop_event)
             jvm_version = parse_jvm_version(java_version_output)
             if not self._check_jvm_supported_simple(process, java_version_output, jvm_version):
                 return False
@@ -830,7 +836,7 @@ class JavaProfiler(ProcessProfilerBase):
                 return False
         else:
             if self._simple_version_check and process_basename == "java":
-                java_version_output = get_java_version(process, self._stop_event)
+                java_version_output = get_java_version_logged(process, self._stop_event)
                 jvm_version = parse_jvm_version(java_version_output)
                 if not self._check_jvm_supported_simple(process, java_version_output, jvm_version):
                     return False
