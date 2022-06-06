@@ -96,6 +96,7 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
         make \
         build-essential \
         llvm \
+        ca-certificates \
         git
 
 COPY --from=perf-builder /bpftool /bpftool
