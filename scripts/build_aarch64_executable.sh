@@ -28,4 +28,4 @@ docker buildx build --platform=linux/arm64 \
     --build-arg AP_BUILDER_ALPINE=$ALPINE_VERSION \
     --build-arg BURN_BUILDER_GOLANG=$GOLANG_VERSION \
     --build-arg GPROFILER_BUILDER=$CENTOS8_VERSION \
-    . -f pyi.Dockerfile --output type=local,dest=build/aarch64/
+    . -f pyi.Dockerfile --output type=local,dest=build/aarch64/ $@

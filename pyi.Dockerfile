@@ -172,16 +172,14 @@ RUN set -e; \
 
 WORKDIR /app
 
-RUN yum install -y \
+RUN yum clean all && yum --setopt=skip_missing_names_on_install=False install -y \
         epel-release \
         gcc \
         python3 \
         curl \
         python3-pip \
-        patchelf \
-        python3-devel \
-        upx && \
-    yum clean all
+        python3-devel
+
 # needed for aarch64 (for staticx)
 RUN set -e; \
     if [ "$(uname -m)" = "aarch64" ]; then \
@@ -265,6 +263,8 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
         git apply ../staticx_patch.diff && \
         python3 -m pip install --no-cache-dir . ; \
     fi
+
+RUN yum install -y patchelf upx && yum clean all
 
 COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # staticx packs dynamically linked app with all of their dependencies, it tries to figure out which dynamic libraries are need for its execution
