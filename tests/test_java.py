@@ -370,7 +370,7 @@ def test_java_deleted_libjvm(
 
 
 # test only in a container so that we don't mess with the environment.
-@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("in_container", [False])
 def test_java_async_profiler_buildids(
     tmp_path: Path, application_pid: int, assert_collapsed: AssertInCollapsed
 ) -> None:
