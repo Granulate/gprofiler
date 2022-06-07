@@ -38,7 +38,13 @@ from psutil import Process
 
 from gprofiler import merge
 from gprofiler.exceptions import CalledProcessError, CalledProcessTimeoutError, NoRwExecDirectoryFoundError
-from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, StackToSampleCount, positive_integer
+from gprofiler.gprofiler_types import (
+    ProcessToProfileData,
+    ProfileData,
+    StackToSampleCount,
+    integer_range,
+    positive_integer,
+)
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
@@ -254,6 +260,8 @@ class AsyncProfiledProcess:
     _FDTRANSFER_TIMEOUT = 10
     _JATTACH_TIMEOUT = 30  # higher than jattach's timeout
 
+    _DEFAULT_MCACHE = 30  # arbitrarily chosen, not too high & not too low.
+
     def __init__(
         self,
         process: Process,
@@ -264,6 +272,7 @@ class AsyncProfiledProcess:
         ap_safemode: int,
         ap_args: str,
         jattach_timeout: int = _JATTACH_TIMEOUT,
+        mcache: int = 0,
     ):
         self.process = process
         self._stop_event = stop_event
@@ -310,6 +319,7 @@ class AsyncProfiledProcess:
         self._ap_safemode = ap_safemode
         self._ap_args = ap_args
         self._jattach_timeout = jattach_timeout
+        self._mcache = mcache
 
     def _find_rw_exec_dir(self, available_dirs: Sequence[str]) -> str:
         """
@@ -432,7 +442,7 @@ class AsyncProfiledProcess:
 
     def _get_stop_cmd(self, with_output: bool) -> List[str]:
         return self._get_base_cmd() + [
-            f"stop,log={self._log_path_process}"
+            f"stop,log={self._log_path_process},mcache={self._mcache}"
             + (self._get_ap_output_args() if with_output else "")
             + self._get_extra_ap_args()
         ]
@@ -606,9 +616,8 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
         ProfilerArgument(
             "--java-async-profiler-safemode",
             dest="java_async_profiler_safemode",
-            type=int,
             default=JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
-            choices=range(0, 128),
+            type=integer_range(0, 127),
             metavar="[0-127]",
             help="Controls the 'safemode' parameter passed to async-profiler. This is parameter denotes multiple"
             " bits that describe different stack recovery techniques which async-profiler uses (see StackRecovery"
@@ -636,6 +645,15 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             type=positive_integer,
             default=AsyncProfiledProcess._JATTACH_TIMEOUT,
             help="Timeout for jattach operations (start/stop AP, etc)",
+        ),
+        ProfilerArgument(
+            "--java-async-profiler-mcache",
+            dest="java_async_profiler_mcache",
+            # this is "unsigned char" in AP's code
+            type=integer_range(0, 255),
+            metavar="[0-255]",
+            default=AsyncProfiledProcess._DEFAULT_MCACHE,
+            help="async-profiler mcache option (defaults to %(default)s)",
         ),
     ],
 )
@@ -671,6 +689,7 @@ class JavaProfiler(ProcessProfilerBase):
         java_async_profiler_args: str,
         java_safemode: str,
         java_jattach_timeout: int,
+        java_async_profiler_mcache: int,
         java_mode: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
@@ -686,6 +705,7 @@ class JavaProfiler(ProcessProfilerBase):
         self._ap_safemode = java_async_profiler_safemode
         self._ap_args = java_async_profiler_args
         self._jattach_timeout = java_jattach_timeout
+        self._ap_mcache = java_async_profiler_mcache
         self._init_java_safemode(java_safemode)
         self._should_profile = True
         # if set, profiling is disabled due to this safemode reason.
@@ -852,6 +872,7 @@ class JavaProfiler(ProcessProfilerBase):
             self._ap_safemode,
             self._ap_args,
             self._jattach_timeout,
+            self._ap_mcache,
         ) as ap_proc:
             return self._profile_ap_process(ap_proc, comm)
 
