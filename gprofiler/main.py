@@ -463,6 +463,9 @@ def parse_cmd_args() -> configargparse.Namespace:
     )
     parser.add_argument("--token", dest="server_token", help="Server token")
     parser.add_argument("--service-name", help="Service name")
+    parser.add_argument(
+        "--curlify-requests", help="Log cURL commands for HTTP requests (used for debugging)", action="store_true"
+    )
 
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
@@ -733,7 +736,14 @@ def main() -> None:
             if "server_upload_timeout" in args:
                 client_kwargs["upload_timeout"] = args.server_upload_timeout
             client = (
-                APIClient(args.server_host, args.server_token, args.service_name, get_hostname(), **client_kwargs)
+                APIClient(
+                    args.server_host,
+                    args.server_token,
+                    args.service_name,
+                    args.curlify_requests,
+                    get_hostname(),
+                    **client_kwargs,
+                )
                 if args.upload_results
                 else None
             )

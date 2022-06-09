@@ -32,4 +32,4 @@ DOCKER_BUILDKIT=1 docker build -f pyi.Dockerfile --output type=local,dest=build/
     --build-arg AP_BUILDER_ALPINE=$AP_BUILDER_ALPINE \
     --build-arg BURN_BUILDER_GOLANG=$BURN_BUILDER_GOLANG \
     --build-arg GPROFILER_BUILDER=$GPROFILER_BUILDER \
-    .
+    . $@

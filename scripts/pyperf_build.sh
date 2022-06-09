@@ -3,7 +3,7 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-set -e
+set -euo pipefail
 
 git clone --depth 1 -b v1.2.2 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 2c991423e7b20d36a3bda3ff9393967c87139227
 
