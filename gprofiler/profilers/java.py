@@ -625,7 +625,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             "--java-async-profiler-safemode",
             dest="java_async_profiler_safemode",
             default=JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
-            type=integer_range(0, 127),
+            type=integer_range(0, 128),
             metavar="[0-127]",
             help="Controls the 'safemode' parameter passed to async-profiler. This is parameter denotes multiple"
             " bits that describe different stack recovery techniques which async-profiler uses (see StackRecovery"
@@ -658,7 +658,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             "--java-async-profiler-mcache",
             dest="java_async_profiler_mcache",
             # this is "unsigned char" in AP's code
-            type=integer_range(0, 255),
+            type=integer_range(0, 256),
             metavar="[0-255]",
             default=AsyncProfiledProcess._DEFAULT_MCACHE,
             help="async-profiler mcache option (defaults to %(default)s)",

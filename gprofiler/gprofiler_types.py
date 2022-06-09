@@ -49,7 +49,7 @@ def nonnegative_integer(value_str: str) -> int:
 def integer_range(min_range: int, max_range: int) -> Callable[[str], int]:
     def integer_range_check(value_str: str) -> int:
         value = int(value_str)
-        if value < min_range or value > max_range:
+        if value < min_range or value >= max_range:
             raise configargparse.ArgumentTypeError(
                 f"invalid integer value {value!r} (out of range {min_range!r}-{max_range!r})"
             )
