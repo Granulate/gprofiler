@@ -5,4 +5,4 @@
 #
 set -euo pipefail
 
-apk add make gcc g++ openjdk8 musl-dev linux-headers bash git
+apk add make gcc g++ openjdk11 musl-dev linux-headers bash git
