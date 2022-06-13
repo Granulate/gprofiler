@@ -571,10 +571,9 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
         major = version_list[1]
         minor = version_list[-1].split("_")[-1]
         version = Version(f"{major}.{minor}")
-        assert (
-            build_str[-4:-2] == "-b"
-        ), f"Did not find expected build number prefix in old-style java version: {build_str!r}"
-        build = int(build_str[-2:])
+        build_split = build_str.split("-b")
+        assert len(build_split) == 2, f"Unexpected occurrence count of '-b' in {build_str!r}"
+        build = int(build_split[1])
     else:
         # Since java 9 versioning became more normal, and looks like
         # <version>+<build_number>
