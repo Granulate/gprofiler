@@ -57,6 +57,18 @@ from tests.utils import run_gprofiler_in_container_for_one_session
                 "libjvm_elfid": "buildid:0542486ff00153ca0bcf9f2daea9a36c428d6cde",
             },
         ),
+        (
+            True,
+            "golang",
+            "perf",
+            {
+                "exe": "/app/fibonacci",
+                "execfn": "./fibonacci",
+                "golang_version": "go1.18.3",
+                "link": "dynamic",
+                "libc": "glibc",
+            },
+        ),
     ],
 )
 def test_app_metadata(
@@ -68,7 +80,7 @@ def test_app_metadata(
     assert_collapsed: AssertInCollapsed,
     profiler_flags: List[str],
     expected_metadata: Dict,
-    runtime: str,
+    application_executable: str,
 ) -> None:
     run_gprofiler_in_container_for_one_session(
         docker_client, gprofiler_docker_image, output_directory, runtime_specific_args, profiler_flags
@@ -85,7 +97,7 @@ def test_app_metadata(
 
     assert application_docker_container.name in metadata["containers"]
     # find its app metadata index - find a stack line from the app of this container
-    stack = next(filter(lambda l: application_docker_container.name in l and runtime in l, lines[1:]))
+    stack = next(filter(lambda l: application_docker_container.name in l and application_executable in l, lines[1:]))
     # stack begins with index
     idx = int(stack.split(";")[0])
 

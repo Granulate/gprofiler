@@ -2,17 +2,24 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import functools
 import os
 import signal
+import struct
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
+
+from granulate_utils.linux.elf import is_statically_linked, read_elf_symbol, read_elf_va
+from granulate_utils.linux.process import is_musl
+from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import run_process, start_process, wait_event, wait_for_file_by_prefix
@@ -158,6 +165,7 @@ class SystemProfiler(ProfilerBase):
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
         self._perfs: List[PerfProcess] = []
+        self._golang_metadata = GolangMetadata(stop_event)
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
@@ -202,11 +210,50 @@ class SystemProfiler(ProfilerBase):
         for perf in self._perfs:
             perf.switch_output()
 
-        return {
-            # TODO generate appids for non runtime-profiler processes here
-            k: ProfileData(v, None, None)
-            for k, v in merge.merge_global_perfs(
-                self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
-                self._perf_dwarf.wait_and_script() if self._perf_dwarf is not None else None,
-            ).items()
-        }
+        profile_data_dict = {}
+
+        for k, v in merge.merge_global_perfs(
+            self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
+            self._perf_dwarf.wait_and_script() if self._perf_dwarf is not None else None,
+        ).items():
+            metadata = None
+            try:
+                if self._golang_metadata.is_golang_process(Process(k)):
+                    metadata = self._golang_metadata.make_application_metadata(Process(k))
+            except (NoSuchProcess, FileNotFoundError):
+                pass
+            profile_data_dict[k] = ProfileData(v, None, metadata)
+
+        return profile_data_dict
+
+
+class GolangMetadata(ApplicationMetadata):
+    def is_golang_process(self, process: Process) -> bool:
+        version = self._get_golang_version(process)
+        return version is not None
+
+    @functools.lru_cache(maxsize=128)
+    def _get_golang_version(self, process: Process) -> Optional[str]:
+        elf_path = f"/proc/{process.pid}/exe"
+        symbol_data = read_elf_symbol(elf_path, "runtime.buildVersion", 16)
+        if symbol_data is None:
+            return None
+        # Declaration of go string type:
+        # type stringStruct struct {
+        # 	str unsafe.Pointer
+        # 	len int
+        # }
+        addr, length = struct.unpack("<QQ", symbol_data)
+        golang_version_bytes = read_elf_va(elf_path, addr, length)
+        if golang_version_bytes is None:
+            return None
+        return golang_version_bytes.decode()
+
+    def make_application_metadata(self, process: Process) -> Dict[str, Any]:
+        static = is_statically_linked(f"/proc/{process.pid}/exe")
+        metadata = {"golang_version": self._get_golang_version(process), "link": "static" if static else "dynamic"}
+        if not static:
+            metadata["libc"] = "musl" if is_musl(process) else "glibc"
+
+        metadata.update(super().make_application_metadata(process))
+        return metadata

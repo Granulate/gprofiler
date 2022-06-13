@@ -94,6 +94,11 @@ def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
 
 
 @fixture
+def application_executable(runtime: str) -> str:
+    return "fibonacci" if runtime == "golang" else runtime
+
+
+@fixture
 def gprofiler_exe(request: FixtureRequest, tmp_path: Path) -> Path:
     precompiled = request.config.getoption("--executable")
     if precompiled is not None:
@@ -337,6 +342,7 @@ def assert_collapsed(runtime: str) -> AssertInCollapsed:
         "php": "fibonacci",
         "ruby": "fibonacci",
         "nodejs": "fibonacci",
+        "golang": "fibonacci",
     }[runtime]
 
     return partial(assert_function_in_collapsed, function_name)
@@ -386,8 +392,9 @@ def no_kernel_headers() -> Iterable[None]:
 def profiler_flags(runtime: str, profiler_type: str) -> List[str]:
     # Execute only the tested profiler
     flags = ["--no-java", "--no-python", "--no-php", "--no-ruby", "--no-nodejs"]
-    flags.remove(f"--no-{runtime}")
-    flags.append(f"--{runtime}-mode={profiler_type}")
+    if f"--no-{runtime}" in flags:
+        flags.remove(f"--no-{runtime}")
+        flags.append(f"--{runtime}-mode={profiler_type}")
     return flags
 
 
