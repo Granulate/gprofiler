@@ -557,8 +557,8 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
     assert m is not None, f"did not find build_str in {version_string!r}"
     build_str = m.group(1)
 
-    if version_str.endswith("-internal") or version_str.endswith("-ea"):
-        # strip the "internal" or "early access" suffixes
+    if version_str.endswith("-internal") or version_str.endswith("-ea") or version_str.endswith("-ojdkbuild"):
+        # strip those suffixes to keep the rest of the parsing logic clean
         version_str = version_str.rsplit("-")[0]
 
     version_list = version_str.split(".")
@@ -571,9 +571,15 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
         major = version_list[1]
         minor = version_list[-1].split("_")[-1]
         version = Version(f"{major}.{minor}")
-        build_split = build_str.split("-b")
-        assert len(build_split) == 2, f"Unexpected occurrence count of '-b' in {build_str!r}"
-        build = int(build_split[1])
+        # find the -b or -ojdkbuild-
+        if "-b" in build_str:
+            build_split = build_str.split("-b")
+            # it can appear multiple times, e.g "(build 1.8.0_282-8u282-b08-0ubuntu1~16.04-b08)"
+            assert len(build_split) >= 2, f"Unexpected number of occurrences of '-b' in {build_str!r}"
+        else:
+            build_split = build_str.split("-ojdkbuild-")
+            assert len(build_split) == 2, f"Unexpected number of occurrences of '-ojdkbuild-' in {build_str!r}"
+        build = int(build_split[-1])
     else:
         # Since java 9 versioning became more normal, and looks like
         # <version>+<build_number>
