@@ -40,6 +40,7 @@ from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
 from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLoggerInterface
+from gprofiler.databricks_client import DatabricksClient
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     TemporaryDirectoryWithMode,
@@ -572,10 +573,19 @@ def parse_cmd_args() -> configargparse.Namespace:
         " as well",
     )
 
+    parser.add_argument(
+        "--collect-databricks-job-name",
+        action="store_true",
+        dest="collect_databricks_job_name",
+        default=False,
+        help="gProfiler will collect Databricks job name for ephemeral cluster",
+    )
+
     args = parser.parse_args()
 
     args.perf_inject = args.nodejs_mode == "perf"
-
+    args.pid_ns_check = False if args.collect_databricks_job_name else args.pid_ns_check
+    args.perf_mode = 'none' if args.collect_databricks_job_name else args.perf_mode
     if args.upload_results:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
@@ -699,6 +709,11 @@ def main() -> None:
     reset_umask()
     # assume we run in the root cgroup (when containerized, that's our view)
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
+
+    if args.collect_databricks_job_name:
+        databricks_client = DatabricksClient()
+        if databricks_client.job_name is not None:
+            args.service_name = databricks_client.job_name
 
     try:
         logger.info(f"Running gProfiler (version {__version__}), commandline: {' '.join(sys.argv[1:])!r}")
