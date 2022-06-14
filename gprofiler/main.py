@@ -584,8 +584,6 @@ def parse_cmd_args() -> configargparse.Namespace:
     args = parser.parse_args()
 
     args.perf_inject = args.nodejs_mode == "perf"
-    args.pid_ns_check = False if args.collect_databricks_job_name else args.pid_ns_check
-    args.perf_mode = "none" if args.collect_databricks_job_name else args.perf_mode
     if args.upload_results:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
