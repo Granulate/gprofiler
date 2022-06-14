@@ -6,6 +6,7 @@
 import json
 import os
 from typing import Optional
+import time
 
 import requests
 
@@ -42,6 +43,7 @@ class DatabricksClient:
         return f"{host}:{DEFAULT_WEBUI_PORT}"
 
     def get_job_name(self) -> Optional[str]:
+        time.sleep(30)
         # Make sure we're running on a databricks machine
         if not os.path.isfile(DATABRICKS_DEPLOY_CONF_PATH):
             return None
