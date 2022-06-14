@@ -5,16 +5,17 @@
 
 import json
 import os.path
-from typing import Optional, Dict
+from typing import Dict, Optional
+
 import requests
 
 from gprofiler.log import get_logger_adapter
 
-HOST_KEY_NAME = 'sink.ganglia.host'
-DATABRICKS_DEPLOY_CONF_PATH = '/databricks/common/conf/deploy.conf'
-DATABRICKS_METRICS_PROP_PATH = '/databricks/spark/conf/metrics.properties'
-CLUSTER_TAGS_KEY = 'spark.databricks.clusterUsageTags.clusterAllTags'
-JOB_NAME_KEY = 'RunName'
+HOST_KEY_NAME = "sink.ganglia.host"
+DATABRICKS_DEPLOY_CONF_PATH = "/databricks/common/conf/deploy.conf"
+DATABRICKS_METRICS_PROP_PATH = "/databricks/spark/conf/metrics.properties"
+CLUSTER_TAGS_KEY = "spark.databricks.clusterUsageTags.clusterAllTags"
+JOB_NAME_KEY = "RunName"
 REQUEST_TIMEOUT = 5
 DEFAULT_WEBUI_PORT = 40001
 
@@ -30,8 +31,10 @@ class DatabricksClient:
             self.job_name = self.get_job_name()
         except Exception:
             self.job_name = None
-            logger.warning("Failed initiating Databricks client. Databricks job name will not be included in "
-                           "ephemeral clusters.")
+            logger.warning(
+                "Failed initiating Databricks client. Databricks job name will not be included in "
+                "ephemeral clusters."
+            )
 
     @property
     def is_databricks_job(self) -> bool:
@@ -44,11 +47,11 @@ class DatabricksClient:
         with open(DATABRICKS_DEPLOY_CONF_PATH) as deploy_conf_file:
             deploy_conf_text = deploy_conf_file.read()
         cluster_tags_start_index = deploy_conf_text.find(CLUSTER_TAGS_KEY) + len(CLUSTER_TAGS_KEY) + 4
-        cluster_tags_end_index = deploy_conf_text.find('\n', cluster_tags_start_index) - 1
+        cluster_tags_end_index = deploy_conf_text.find("\n", cluster_tags_start_index) - 1
         if cluster_tags_start_index == -1 or cluster_tags_end_index == -2:
             return
-        cluster_tags_text = deploy_conf_text[cluster_tags_start_index:cluster_tags_end_index].replace(r'\"', '"')
-        self._cluster_deploy_conf_tags = {d['key']: d['value'] for d in json.loads(cluster_tags_text)}
+        cluster_tags_text = deploy_conf_text[cluster_tags_start_index:cluster_tags_end_index].replace(r"\"", '"')
+        self._cluster_deploy_conf_tags = {d["key"]: d["value"] for d in json.loads(cluster_tags_text)}
 
         self._is_job = JOB_NAME_KEY in self._cluster_deploy_conf_tags
 
@@ -58,7 +61,7 @@ class DatabricksClient:
         host_start_index = metrics_properties_text.find(HOST_KEY_NAME) + len(HOST_KEY_NAME) + 1
         if host_start_index == -1:
             return None
-        host_end_index = metrics_properties_text.find('\n', host_start_index)
+        host_end_index = metrics_properties_text.find("\n", host_start_index)
         if host_end_index == -1:
             host = metrics_properties_text[host_start_index:]
         else:
@@ -68,24 +71,28 @@ class DatabricksClient:
 
     def get_job_name(self) -> Optional[str]:
         webui = self.get_webui_address()
-        applications_response = requests.get(f'http://{webui}/api/v1/applications', headers={},
-                                    timeout=REQUEST_TIMEOUT)
+        applications_response = requests.get(f"http://{webui}/api/v1/applications", headers={}, timeout=REQUEST_TIMEOUT)
         if not applications_response.ok:
-            logger.warning('Failed initiating Databricks client. `http://{webui}/api/v1/applications` request failed.')
+            logger.warning("Failed initiating Databricks client. `http://{webui}/api/v1/applications` request failed.")
             return None
         apps = applications_response.json()
         if len(apps) == 0:
-            logger.warning('Failed initiating Databricks client. There are no apps.')
+            logger.warning("Failed initiating Databricks client. There are no apps.")
             return None
-        env_response = requests.get(f"http://{webui}/api/v1/applications/{apps[0]['id']}/environment", headers={}, timeout=REQUEST_TIMEOUT)
+        env_response = requests.get(
+            f"http://{webui}/api/v1/applications/{apps[0]['id']}/environment", headers={}, timeout=REQUEST_TIMEOUT
+        )
         if not env_response.ok:
-            logger.warning(f"Failed initiating Databricks client. `http://{webui}/api/v1/applications/{apps[0]['id']}/environment` request failed.")
+            logger.warning(
+                f"Failed initiating Databricks client. `http://{webui}/api/v1/applications/{apps[0]['id']}"
+                + "/environment` request failed."
+            )
             return None
         env = env_response.json()
-        props = env['sparkProperties']
+        props = env["sparkProperties"]
         for prop in props:
             if prop[0] == CLUSTER_TAGS_KEY:
                 for tag in json.loads(prop[1]):
-                    if tag['key'] == JOB_NAME_KEY:
+                    if tag["key"] == JOB_NAME_KEY:
                         self._is_job = True
-                        return tag['value']
+                        return tag["value"]

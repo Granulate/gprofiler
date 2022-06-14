@@ -26,6 +26,7 @@ from requests import RequestException, Timeout
 from gprofiler import __version__
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
 from gprofiler.containers_client import ContainerNamesClient
+from gprofiler.databricks_client import DatabricksClient
 from gprofiler.exceptions import APIError, NoProfilersEnabledError, SystemProfilerInitFailure
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
@@ -40,7 +41,6 @@ from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
 from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLoggerInterface
-from gprofiler.databricks_client import DatabricksClient
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     TemporaryDirectoryWithMode,
@@ -585,7 +585,7 @@ def parse_cmd_args() -> configargparse.Namespace:
 
     args.perf_inject = args.nodejs_mode == "perf"
     args.pid_ns_check = False if args.collect_databricks_job_name else args.pid_ns_check
-    args.perf_mode = 'none' if args.collect_databricks_job_name else args.perf_mode
+    args.perf_mode = "none" if args.collect_databricks_job_name else args.perf_mode
     if args.upload_results:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
