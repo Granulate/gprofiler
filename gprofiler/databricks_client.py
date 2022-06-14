@@ -40,21 +40,6 @@ class DatabricksClient:
     def is_databricks_job(self) -> bool:
         return self._is_databricks and self._is_job
 
-    def _load_deploy_conf(self) -> None:
-        if not os.path.isfile(DATABRICKS_DEPLOY_CONF_PATH):
-            return
-        self._is_databricks = True
-        with open(DATABRICKS_DEPLOY_CONF_PATH) as deploy_conf_file:
-            deploy_conf_text = deploy_conf_file.read()
-        cluster_tags_start_index = deploy_conf_text.find(CLUSTER_TAGS_KEY) + len(CLUSTER_TAGS_KEY) + 4
-        cluster_tags_end_index = deploy_conf_text.find("\n", cluster_tags_start_index) - 1
-        if cluster_tags_start_index == -1 or cluster_tags_end_index == -2:
-            return
-        cluster_tags_text = deploy_conf_text[cluster_tags_start_index:cluster_tags_end_index].replace(r"\"", '"')
-        self._cluster_deploy_conf_tags = {d["key"]: d["value"] for d in json.loads(cluster_tags_text)}
-
-        self._is_job = JOB_NAME_KEY in self._cluster_deploy_conf_tags
-
     def get_webui_address(self) -> Optional[str]:
         with open(DATABRICKS_METRICS_PROP_PATH) as metrics_properties_file:
             metrics_properties_text = metrics_properties_file.read()
