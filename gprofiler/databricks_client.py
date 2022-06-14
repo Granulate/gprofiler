@@ -25,8 +25,6 @@ logger = get_logger_adapter(__name__)
 
 class DatabricksClient:
     def __init__(self) -> None:
-        self._cluster_deploy_conf_tags: Optional[Dict[str, str]] = None
-        self._is_job = False
         try:
             self.job_name = self.get_job_name()
         except Exception:
@@ -36,15 +34,11 @@ class DatabricksClient:
                 "ephemeral clusters."
             )
 
-    @property
-    def is_databricks_job(self) -> bool:
-        return self._is_job
-
     @staticmethod
     def get_webui_address() -> Optional[str]:
         with open(DATABRICKS_METRICS_PROP_PATH) as f:
             properties = f.read()
-        host = dict([line.split('=') for line in properties.splitlines()])[HOST_KEY_NAME]
+        host = dict([line.split("=") for line in properties.splitlines()])[HOST_KEY_NAME]
         return f"{host}:{DEFAULT_WEBUI_PORT}"
 
     def get_job_name(self) -> Optional[str]:
@@ -56,16 +50,22 @@ class DatabricksClient:
         apps_url = SPARKUI_APPS_URL.format(webui)
         resp = requests.get(apps_url, timeout=REQUEST_TIMEOUT)
         if not resp.ok:
-            logger.warning(f"Failed initializing Databricks client. `{apps_url}` request failed with status_code: {resp.status_code}.")
+            logger.warning(
+                f"Failed initializing Databricks client. {apps_url!r} request failed, status_code: {resp.status_code}."
+            )
             return None
         apps = resp.json()
         if len(apps) == 0:
             logger.warning("Failed initializing Databricks client. There are no apps.")
             return None
+        # There's an assumption that only one app exists, and even if there are more -
+        # the name of the job should be the same.
         env_url = f"{apps_url}/{apps[0]['id']}/environment"
         resp = requests.get(env_url, timeout=REQUEST_TIMEOUT)
         if not resp.ok:
-            logger.warning(f"Failed initializing Databricks client. `{env_url}` request failed with status_code: {resp.status_code}.")
+            logger.warning(
+                f"Failed initializing Databricks client. {env_url!r} request failed, status_code: {resp.status_code}."
+            )
             return None
         env = resp.json()
         props = env["sparkProperties"]
@@ -73,6 +73,5 @@ class DatabricksClient:
             if prop[0] == CLUSTER_TAGS_KEY:
                 for tag in json.loads(prop[1]):
                     if tag["key"] == JOB_NAME_KEY:
-                        self._is_job = True
                         return str(tag["value"])
         return None
