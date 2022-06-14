@@ -22,7 +22,7 @@ logger = get_logger_adapter(__name__)
 
 
 class DatabricksClient:
-    def __init__(self):
+    def __init__(self) -> None:
         self._cluster_deploy_conf_tags: Optional[Dict[str, str]] = None
         self._is_databricks: bool = False
         self._is_job: bool = False
@@ -79,4 +79,5 @@ class DatabricksClient:
                 for tag in json.loads(prop[1]):
                     if tag["key"] == JOB_NAME_KEY:
                         self._is_job = True
-                        return tag["value"]
+                        return str(tag["value"])
+        return None
