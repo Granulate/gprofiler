@@ -574,16 +574,17 @@ def parse_cmd_args() -> configargparse.Namespace:
     )
 
     parser.add_argument(
-        "--collect-databricks-job-name",
+        "--databricks-job-name-as-service-name",
         action="store_true",
-        dest="collect_databricks_job_name",
+        dest="databricks_job_name_as_service_name",
         default=False,
-        help="gProfiler will collect Databricks job name for ephemeral cluster",
+        help="gProfiler will set service name to Databricks' job name on ephemeral clusters",
     )
 
     args = parser.parse_args()
 
     args.perf_inject = args.nodejs_mode == "perf"
+
     if args.upload_results:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
@@ -708,7 +709,7 @@ def main() -> None:
     # assume we run in the root cgroup (when containerized, that's our view)
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
 
-    if args.collect_databricks_job_name:
+    if args.databricks_job_name_as_service_name:
         databricks_client = DatabricksClient()
         if databricks_client.job_name is not None:
             args.service_name = databricks_client.job_name
