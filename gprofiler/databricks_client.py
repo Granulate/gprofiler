@@ -27,11 +27,11 @@ class DatabricksClient:
     def __init__(self) -> None:
         try:
             self.job_name = self.get_job_name()
-        except Exception:
+        except Exception as ex:
             self.job_name = None
             logger.warning(
-                "Failed initializing Databricks client. Databricks job name will not be included in "
-                "ephemeral clusters."
+                f"Failed initializing Databricks client. Databricks job name will not be included in "
+                f"ephemeral clusters. Error: {ex}"
             )
 
     @staticmethod
