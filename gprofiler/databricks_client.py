@@ -4,7 +4,6 @@
 #
 
 import json
-import os.path
 from typing import Dict, Optional
 
 import requests
