@@ -28,6 +28,7 @@ logger = get_logger_adapter(__name__)
 class DatabricksClient:
     def __init__(self) -> None:
         try:
+            logger.debug("Getting Databricks job name.")
             self.job_name = self.get_job_name()
         except Exception as ex:
             self.job_name = None
@@ -50,6 +51,7 @@ class DatabricksClient:
             try:
                 return self._get_job_name_impl()
             except requests.exceptions.ConnectionError as ex:
+                logger.debug("Got ConnectionError exception while collecting Databricks job name.")
                 if i == MAX_RETRIES - 1:
                     raise ex
         return None
@@ -61,6 +63,7 @@ class DatabricksClient:
         webui = self.get_webui_address()
         # The API used: https://spark.apache.org/docs/latest/monitoring.html#rest-api
         apps_url = SPARKUI_APPS_URL.format(webui)
+        logger.debug(f"Databricks SparkUI address: {apps_url}.")
         resp = requests.get(apps_url, timeout=REQUEST_TIMEOUT)
         if not resp.ok:
             logger.warning(
