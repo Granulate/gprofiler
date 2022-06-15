@@ -52,6 +52,7 @@ class DatabricksClient:
             except requests.exceptions.ConnectionError as ex:
                 if i == MAX_RETRIES - 1:
                     raise ex
+        return None
 
     def _get_job_name_impl(self) -> Optional[str]:
         # Make sure we're running on a databricks machine
