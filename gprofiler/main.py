@@ -589,7 +589,7 @@ def parse_cmd_args() -> configargparse.Namespace:
     if args.upload_results:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
-        if not args.service_name:
+        if not args.service_name and not args.databricks_job_name_as_service_name:
             parser.error("Must provide --service-name when --upload-results is passed")
 
     if not args.upload_results and not args.output_dir:
@@ -711,7 +711,8 @@ def main() -> None:
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
 
     if args.databricks_job_name_as_service_name:
-        args.service_name = f"databricks-failed-to-get-job-name-{args.service_name}"
+        # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
+        args.service_name = "databricks"
         databricks_client = DatabricksClient()
         if databricks_client.job_name is not None:
             args.service_name = f"databricks-{databricks_client.job_name}"
