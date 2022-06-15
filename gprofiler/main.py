@@ -714,7 +714,7 @@ def main() -> None:
         args.service_name = f"databricks-failed-to-get-job-name-{args.service_name}"
         databricks_client = DatabricksClient()
         if databricks_client.job_name is not None:
-            args.service_name = databricks_client.job_name
+            args.service_name = f"databricks-{databricks_client.job_name}"
 
     try:
         logger.info(f"Running gProfiler (version {__version__}), commandline: {' '.join(sys.argv[1:])!r}")
