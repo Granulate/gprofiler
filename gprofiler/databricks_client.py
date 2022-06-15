@@ -5,8 +5,8 @@
 
 import json
 import os
-from typing import Optional
 import time
+from typing import Optional
 
 import requests
 
