@@ -20,6 +20,7 @@ JOB_NAME_KEY = "RunName"
 SPARKUI_APPS_URL = "http://{}/api/v1/applications"
 REQUEST_TIMEOUT = 5
 DEFAULT_WEBUI_PORT = 40001
+MAX_RETRIES = 4
 
 logger = get_logger_adapter(__name__)
 
@@ -43,7 +44,17 @@ class DatabricksClient:
         return f"{host}:{DEFAULT_WEBUI_PORT}"
 
     def get_job_name(self) -> Optional[str]:
-        time.sleep(30)
+        # Retry in case of a connection error, as the metrics server might not be up yet.
+        for i in range(MAX_RETRIES):
+            time.sleep(30)
+            try:
+                return self._get_job_name_impl()
+            except requests.exceptions.ConnectionError as ex:
+                if i == MAX_RETRIES - 1:
+                    raise ex
+        return None
+
+    def _get_job_name_impl(self) -> Optional[str]:
         # Make sure we're running on a databricks machine
         if not os.path.isfile(DATABRICKS_DEPLOY_CONF_PATH):
             return None

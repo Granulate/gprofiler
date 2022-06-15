@@ -578,7 +578,8 @@ def parse_cmd_args() -> configargparse.Namespace:
         action="store_true",
         dest="databricks_job_name_as_service_name",
         default=False,
-        help="gProfiler will set service name to Databricks' job name on ephemeral clusters",
+        help="gProfiler will set service name to Databricks' job name on ephemeral clusters. It'll delay the beginning"
+        " of the profiling due to repeated waiting for Spark's metrics server.",
     )
 
     args = parser.parse_args()
@@ -710,6 +711,7 @@ def main() -> None:
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
 
     if args.databricks_job_name_as_service_name:
+        args.service_name = f"databricks-failed-to-get-job-name-{args.service_name}"
         databricks_client = DatabricksClient()
         if databricks_client.job_name is not None:
             args.service_name = databricks_client.job_name
