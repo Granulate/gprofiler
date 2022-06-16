@@ -344,6 +344,23 @@ def test_sanity_j9(
         assert_collapsed(process_collapsed)
 
 
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("image_suffix", ["_zing"])
+def test_sanity_zing(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed: AssertInCollapsed,
+) -> None:
+    with make_java_profiler(
+        frequency=99,
+        storage_dir=str(tmp_path),
+        java_async_profiler_mode="cpu",
+    ) as profiler:
+        assert "Zing" in get_java_version(psutil.Process(application_pid), profiler._stop_event)
+        process_collapsed = snapshot_one_collapsed(profiler)
+        assert_collapsed(process_collapsed)
+
+
 # test only once. in a container, so that we don't mess up the environment :)
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.xfail(reason="In CI, file doesn't appear as deleted for some reason... works on my machine :shrug:")
