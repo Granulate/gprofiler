@@ -26,6 +26,7 @@ from requests import RequestException, Timeout
 from gprofiler import __version__
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
 from gprofiler.containers_client import ContainerNamesClient
+from gprofiler.databricks_client import DatabricksClient
 from gprofiler.exceptions import APIError, NoProfilersEnabledError, SystemProfilerInitFailure
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
@@ -572,6 +573,15 @@ def parse_cmd_args() -> configargparse.Namespace:
         " as well",
     )
 
+    parser.add_argument(
+        "--databricks-job-name-as-service-name",
+        action="store_true",
+        dest="databricks_job_name_as_service_name",
+        default=False,
+        help="gProfiler will set service name to Databricks' job name on ephemeral clusters. It'll delay the beginning"
+        " of the profiling due to repeated waiting for Spark's metrics server.",
+    )
+
     args = parser.parse_args()
 
     args.perf_inject = args.nodejs_mode == "perf"
@@ -579,7 +589,7 @@ def parse_cmd_args() -> configargparse.Namespace:
     if args.upload_results:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
-        if not args.service_name:
+        if not args.service_name and not args.databricks_job_name_as_service_name:
             parser.error("Must provide --service-name when --upload-results is passed")
 
     if not args.upload_results and not args.output_dir:
@@ -699,6 +709,13 @@ def main() -> None:
     reset_umask()
     # assume we run in the root cgroup (when containerized, that's our view)
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
+
+    if args.databricks_job_name_as_service_name:
+        # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
+        args.service_name = "databricks"
+        databricks_client = DatabricksClient()
+        if databricks_client.job_name is not None:
+            args.service_name = f"databricks-{databricks_client.job_name}"
 
     try:
         logger.info(f"Running gProfiler (version {__version__}), commandline: {' '.join(sys.argv[1:])!r}")
