@@ -9,6 +9,7 @@ import time
 from typing import Optional
 
 import requests
+from requests.packages.urllib3.exceptions import ReadTimeoutError
 
 from gprofiler.log import get_logger_adapter
 
@@ -40,7 +41,12 @@ class DatabricksClient:
     def get_webui_address() -> Optional[str]:
         with open(DATABRICKS_METRICS_PROP_PATH) as f:
             properties = f.read()
-        host = dict([line.split("=") for line in properties.splitlines()])[HOST_KEY_NAME]
+        properties_dict = dict([line.split("=") for line in properties.splitlines()])
+        try:
+            host = properties_dict[HOST_KEY_NAME]
+        except KeyError as ex:
+            logger.exception(f"Databricks job name KeyError, properties: {properties}, As dict: {properties_dict}")
+            raise ex
         return f"{host}:{DEFAULT_WEBUI_PORT}"
 
     def get_job_name(self) -> Optional[str]:
@@ -49,7 +55,7 @@ class DatabricksClient:
             time.sleep(10)
             try:
                 return self._get_job_name_impl()
-            except requests.exceptions.ConnectionError as ex:
+            except (requests.exceptions.ConnectionError, ReadTimeoutError) as ex:
                 logger.debug("Got ConnectionError exception while collecting Databricks job name.")
                 if i == MAX_RETRIES - 1:
                     raise ex
