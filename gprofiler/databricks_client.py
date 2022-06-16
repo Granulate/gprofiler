@@ -9,7 +9,6 @@ import time
 from typing import Optional
 
 import requests
-from requests.packages.urllib3.exceptions import ReadTimeoutError
 
 from gprofiler.log import get_logger_adapter
 
@@ -55,8 +54,8 @@ class DatabricksClient:
             time.sleep(10)
             try:
                 return self._get_job_name_impl()
-            except (requests.exceptions.ConnectionError, ReadTimeoutError) as ex:
-                logger.debug("Got ConnectionError exception while collecting Databricks job name.")
+            except Exception as ex:
+                logger.debug("Got Exception while collecting Databricks job name.")
                 if i == MAX_RETRIES - 1:
                     raise ex
         return None
