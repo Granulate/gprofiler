@@ -27,25 +27,20 @@ logger = get_logger_adapter(__name__)
 
 class DatabricksClient:
     def __init__(self) -> None:
-        try:
-            logger.debug("Getting Databricks job name.")
-            self.job_name = self.get_job_name()
-        except Exception:
-            self.job_name = None
-            logger.exception(
+        logger.debug("Getting Databricks job name.")
+        self.job_name = self.get_job_name()
+        if self.job_name is None:
+            logger.warning(
                 "Failed initializing Databricks client. Databricks job name will not be included in ephemeral clusters."
             )
+        else:
+            logger.debug(f"Got Databricks job name: {self.job_name}")
 
     @staticmethod
     def get_webui_address() -> Optional[str]:
         with open(DATABRICKS_METRICS_PROP_PATH) as f:
             properties = f.read()
-        properties_dict = dict([line.split("=") for line in properties.splitlines()])
-        try:
-            host = properties_dict[HOST_KEY_NAME]
-        except KeyError as ex:
-            logger.exception(f"Databricks job name KeyError, properties: {properties}, As dict: {properties_dict}")
-            raise ex
+        host = dict([line.split("=", 1) for line in properties.splitlines()])[HOST_KEY_NAME]  # type: ignore
         return f"{host}:{DEFAULT_WEBUI_PORT}"
 
     def get_job_name(self) -> Optional[str]:
@@ -54,10 +49,8 @@ class DatabricksClient:
             time.sleep(10)
             try:
                 return self._get_job_name_impl()
-            except Exception as ex:
-                logger.debug("Got Exception while collecting Databricks job name.")
-                if i == MAX_RETRIES - 1:
-                    raise ex
+            except Exception:
+                logger.exception("Got Exception while collecting Databricks job name.")
         return None
 
     def _get_job_name_impl(self) -> Optional[str]:
