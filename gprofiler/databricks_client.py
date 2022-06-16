@@ -40,7 +40,7 @@ class DatabricksClient:
     def get_webui_address() -> Optional[str]:
         with open(DATABRICKS_METRICS_PROP_PATH) as f:
             properties = f.read()
-        host = dict([line.split("=", 1) for line in properties.splitlines()])[HOST_KEY_NAME]  # type: ignore
+        host = dict([line.split("=", 1) for line in properties.splitlines()])[HOST_KEY_NAME]
         return f"{host}:{DEFAULT_WEBUI_PORT}"
 
     def get_job_name(self) -> Optional[str]:
