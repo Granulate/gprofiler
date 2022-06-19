@@ -180,11 +180,7 @@ class GProfiler:
         base_filename = os.path.join(self._output_dir, "profile_{}".format(end_ts))
 
         collapsed_path = base_filename + ".col"
-        try:
-            Path(collapsed_path).write_text(collapsed_data)
-        except UnicodeDecodeError:
-            print(collapsed_data)
-            raise
+        Path(collapsed_path).write_text(collapsed_data, encoding="utf-8")
         stripped_collapsed_data = self._strip_extra_data(collapsed_data)
 
         # point last_profile.col at the new file; and possibly, delete the previous one.
