@@ -38,6 +38,7 @@ def run_privileged_container(
     if volumes is None:
         volumes = {}
 
+    container = None
     try:
         container = docker_client.containers.run(
             image,
@@ -59,7 +60,8 @@ def run_privileged_container(
         if exit_status != 0:
             raise ContainerError(container, exit_status, command, image, logs)
     finally:
-        container.rm()
+        if container is not None:
+            container.remove()
 
     # print, so failing tests display it
     print(
