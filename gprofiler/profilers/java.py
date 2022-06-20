@@ -892,19 +892,18 @@ class JavaProfiler(ProcessProfilerBase):
         # then check with that instead (if exe isn't java)
         if process_basename == "java":
             java_version_output: Optional[str] = try_get_java_version_logged(process, self._stop_event)
-            # This Java version might be used in _proc_exit_callback
-            if self._enabled_proc_events:
-                # there's no reliable way to get the underlying cache of get_java_version, otherwise
-                # I'd just use it.
-                if len(self._pid_to_java_version) > _JAVA_VERSION_CACHE_MAX:
-                    self._pid_to_java_version.clear()
-
-                self._pid_to_java_version[process.pid] = java_version_output
         else:
             java_version_output = None
 
         if self._enabled_proc_events:
             self._want_to_profile_pids.add(process.pid)
+            # there's no reliable way to get the underlying cache of get_java_version, otherwise
+            # I'd just use it.
+            if len(self._pid_to_java_version) > _JAVA_VERSION_CACHE_MAX:
+                self._pid_to_java_version.clear()
+
+            # This Java version might be used in _proc_exit_callback
+            self._pid_to_java_version[process.pid] = java_version_output
 
         if self._safemode_disable_reason is not None:
             return self._profiling_skipped_profile(f"disabled due to {self._safemode_disable_reason}", comm)
@@ -1104,4 +1103,6 @@ class JavaProfiler(ProcessProfilerBase):
             self._handle_new_kernel_messages()
             self._profiled_pids -= self._pids_to_remove
             self._want_to_profile_pids -= self._pids_to_remove
+            for pid in self._pids_to_remove:
+                self._pid_to_java_version.pop(pid, None)
             self._pids_to_remove.clear()
