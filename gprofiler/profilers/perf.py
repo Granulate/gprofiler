@@ -219,7 +219,7 @@ class SystemProfiler(ProfilerBase):
             metadata = None
             try:
                 if self._golang_metadata.is_golang_process(Process(k)):
-                    metadata = self._golang_metadata.make_application_metadata(Process(k))
+                    metadata = self._golang_metadata.get_metadata(Process(k))
             except (NoSuchProcess, FileNotFoundError):
                 pass
             profile_data_dict[k] = ProfileData(v, None, metadata)
@@ -243,7 +243,7 @@ class GolangMetadata(ApplicationMetadata):
         # 	str unsafe.Pointer
         # 	len int
         # }
-        addr, length = struct.unpack("<QQ", symbol_data)
+        addr, length = struct.unpack("QQ", symbol_data)
         golang_version_bytes = read_elf_va(elf_path, addr, length)
         if golang_version_bytes is None:
             return None
@@ -254,6 +254,8 @@ class GolangMetadata(ApplicationMetadata):
         metadata = {"golang_version": self._get_golang_version(process), "link": "static" if static else "dynamic"}
         if not static:
             metadata["libc"] = "musl" if is_musl(process) else "glibc"
+        else:
+            metadata["libc"] = None
 
         metadata.update(super().make_application_metadata(process))
         return metadata
