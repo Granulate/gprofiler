@@ -763,8 +763,8 @@ class JavaProfiler(ProcessProfilerBase):
             logger.warning("Java profiling has been disabled, will avoid profiling any new java processes", cause=cause)
             self._safemode_disable_reason = cause
 
-    def _profiling_skipped_stack(self, reason: str, comm: str) -> StackToSampleCount:
-        return self._profiling_error_stack("skipped", reason, comm)
+    def _profiling_skipped_profile(self, reason: str, comm: str) -> ProfileData:
+        return ProfileData(self._profiling_error_stack("skipped", reason, comm), None, None)
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -884,7 +884,7 @@ class JavaProfiler(ProcessProfilerBase):
 
         return False
 
-    def _profile_process_stackcollapse(self, process: Process) -> StackToSampleCount:
+    def _profile_process(self, process: Process) -> ProfileData:
         comm = process_comm(process)
         exe = process_exe(process)
         process_basename = os.path.basename(exe)
@@ -907,13 +907,13 @@ class JavaProfiler(ProcessProfilerBase):
             self._want_to_profile_pids.add(process.pid)
 
         if self._safemode_disable_reason is not None:
-            return self._profiling_skipped_stack(f"disabled due to {self._safemode_disable_reason}", comm)
+            return self._profiling_skipped_profile(f"disabled due to {self._safemode_disable_reason}", comm)
 
         if not self._is_jvm_profiling_supported(process, exe, java_version_output):
-            return self._profiling_skipped_stack("profiling this JVM is not supported", comm)
+            return self._profiling_skipped_profile("profiling this JVM is not supported", comm)
 
         if self._check_async_profiler_loaded(process):
-            return self._profiling_skipped_stack("async-profiler is already loaded", comm)
+            return self._profiling_skipped_profile("async-profiler is already loaded", comm)
 
         # track profiled PIDs only if proc_events are in use, otherwise there is no use in them.
         # TODO: it is possible to run in contexts where we're unable to use proc_events but are able to listen
@@ -923,6 +923,8 @@ class JavaProfiler(ProcessProfilerBase):
             self._profiled_pids.add(process.pid)
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
+        app_metadata = self._metadata.get_metadata(process)
+        appid = application_identifiers.get_java_app_id(process)
 
         with AsyncProfiledProcess(
             process,
@@ -935,13 +937,9 @@ class JavaProfiler(ProcessProfilerBase):
             self._jattach_timeout,
             self._ap_mcache,
         ) as ap_proc:
-            return self._profile_ap_process(ap_proc, comm)
+            stackcollapse = self._profile_ap_process(ap_proc, comm)
 
-    def _profile_process(self, process: Process) -> ProfileData:
-        app_metadata = self._metadata.get_metadata(process)
-        appid = application_identifiers.get_java_app_id(process)
-
-        return ProfileData(self._profile_process_stackcollapse(process), appid, app_metadata)
+        return ProfileData(stackcollapse, appid, app_metadata)
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str) -> StackToSampleCount:
         started = ap_proc.start_async_profiler(self._interval, ap_timeout=self._ap_timeout)
