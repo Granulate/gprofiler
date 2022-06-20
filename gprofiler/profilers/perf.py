@@ -17,7 +17,7 @@ from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
 from gprofiler.exceptions import StopEventSetException
-from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData
+from gprofiler.gprofiler_types import AppMetadata, ProcessToProfileData, ProfileData
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import ProfilerBase
@@ -165,7 +165,7 @@ class SystemProfiler(ProfilerBase):
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
         self._perfs: List[PerfProcess] = []
-        self._golang_metadata = GolangMetadata(stop_event)
+        self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event)]
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
@@ -203,6 +203,16 @@ class SystemProfiler(ProfilerBase):
         for perf in reversed(self._perfs):
             perf.stop()
 
+    def _get_metadata(self, pid: int) -> Optional[AppMetadata]:
+        try:
+            process = Process(pid)
+            for collector in self._metadata_collectors:
+                if collector.relevant_for_process(process):
+                    return collector.get_metadata(process)
+        except NoSuchProcess:
+            pass
+        return None
+
     def snapshot(self) -> ProcessToProfileData:
         if self._stop_event.wait(self._duration):
             raise StopEventSetException
@@ -210,48 +220,59 @@ class SystemProfiler(ProfilerBase):
         for perf in self._perfs:
             perf.switch_output()
 
-        profile_data_dict = {}
-
-        for k, v in merge.merge_global_perfs(
-            self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
-            self._perf_dwarf.wait_and_script() if self._perf_dwarf is not None else None,
-        ).items():
-            metadata = None
-            try:
-                if self._golang_metadata.is_golang_process(Process(k)):
-                    metadata = self._golang_metadata.get_metadata(Process(k))
-            except (NoSuchProcess, FileNotFoundError):
-                pass
-            profile_data_dict[k] = ProfileData(v, None, metadata)
-
-        return profile_data_dict
+        return {
+            # TODO generate appids for non runtime-profiler processes here
+            k: ProfileData(v, None, self._get_metadata(k))
+            for k, v in merge.merge_global_perfs(
+                self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
+                self._perf_dwarf.wait_and_script() if self._perf_dwarf is not None else None,
+            ).items()
+        }
 
 
-class GolangMetadata(ApplicationMetadata):
-    def is_golang_process(self, process: Process) -> bool:
+class PerfMetadata(ApplicationMetadata):
+    def relevant_for_process(self, process: Process) -> bool:
+        return False
+
+
+class GolangPerfMetadata(PerfMetadata):
+    def relevant_for_process(self, process: Process) -> bool:
         version = self._get_golang_version(process)
         return version is not None
 
     @functools.lru_cache(maxsize=128)
     def _get_golang_version(self, process: Process) -> Optional[str]:
         elf_path = f"/proc/{process.pid}/exe"
-        symbol_data = read_elf_symbol(elf_path, "runtime.buildVersion", 16)
+        try:
+            symbol_data = read_elf_symbol(elf_path, "runtime.buildVersion", 16)
+        except FileNotFoundError:
+            raise NoSuchProcess(process.pid)
         if symbol_data is None:
             return None
+
         # Declaration of go string type:
         # type stringStruct struct {
         # 	str unsafe.Pointer
         # 	len int
         # }
         addr, length = struct.unpack("QQ", symbol_data)
-        golang_version_bytes = read_elf_va(elf_path, addr, length)
+        try:
+            golang_version_bytes = read_elf_va(elf_path, addr, length)
+        except FileNotFoundError:
+            raise NoSuchProcess(process.pid)
         if golang_version_bytes is None:
             return None
+
         return golang_version_bytes.decode()
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        static = is_statically_linked(f"/proc/{process.pid}/exe")
+        try:
+            static = is_statically_linked(f"/proc/{process.pid}/exe")
+        except FileNotFoundError:
+            raise NoSuchProcess(process.pid)
+
         metadata = {"golang_version": self._get_golang_version(process), "link": "static" if static else "dynamic"}
+
         if not static:
             metadata["libc"] = "musl" if is_musl(process) else "glibc"
         else:
