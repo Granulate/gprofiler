@@ -186,6 +186,8 @@ class JattachSocketMissingException(JattachExceptionBase):
 _JAVA_VERSION_TIMEOUT = 5
 
 
+# process is hashable and the same process instance compares equal
+@functools.lru_cache(maxsize=1024)
 def get_java_version(process: Process, stop_event: Event) -> str:
     nspid = get_process_nspid(process.pid)
 
