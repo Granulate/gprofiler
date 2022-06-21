@@ -328,25 +328,25 @@ def test_async_profiler_stops_after_given_timeout(
 
 
 @pytest.mark.parametrize("in_container", [True])
-@pytest.mark.parametrize("image_suffix", ["_j9"])
-def test_sanity_j9(
+@pytest.mark.parametrize("image_suffix,search_for", [("_j9", "OpenJ9"), ("_zing", "Zing")])
+def test_sanity_other_jvms(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
+    search_for: str,
 ) -> None:
     with make_java_profiler(
         frequency=99,
         storage_dir=str(tmp_path),
-        java_async_profiler_mode="itimer",
+        java_async_profiler_mode="cpu",
     ) as profiler:
-        assert "OpenJ9" in get_java_version(psutil.Process(application_pid), profiler._stop_event)
+        assert search_for in get_java_version(psutil.Process(application_pid), profiler._stop_event)
         process_collapsed = snapshot_one_collapsed(profiler)
         assert_collapsed(process_collapsed)
 
 
 # test only once. in a container, so that we don't mess up the environment :)
 @pytest.mark.parametrize("in_container", [True])
-@pytest.mark.xfail(reason="In CI, file doesn't appear as deleted for some reason... works on my machine :shrug:")
 def test_java_deleted_libjvm(
     tmp_path: Path, application_pid: int, application_docker_container: Container, assert_collapsed: AssertInCollapsed
 ) -> None:
