@@ -221,7 +221,7 @@ def get_java_version(process: Process, stop_event: Event) -> str:
     return run_in_ns(["pid", "mnt"], _run_java_version, process.pid).stderr.decode().strip()
 
 
-def try_get_java_version_logged(process: Process, stop_event: Event) -> str:
+def get_java_version_logged(process: Process, stop_event: Event) -> str:
     java_version = get_java_version(process, stop_event)
     logger.debug("java -version output", java_version_output=java_version, pid=process.pid)
     return java_version
@@ -891,7 +891,7 @@ class JavaProfiler(ProcessProfilerBase):
         # TODO we can get the "java" binary by extracting the java home from the libjvm path,
         # then check with that instead (if exe isn't java)
         if process_basename == "java":
-            java_version_output: Optional[str] = try_get_java_version_logged(process, self._stop_event)
+            java_version_output: Optional[str] = get_java_version_logged(process, self._stop_event)
         else:
             java_version_output = None
 
