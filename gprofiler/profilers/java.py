@@ -1053,7 +1053,7 @@ class JavaProfiler(ProcessProfilerBase):
                 if is_java_fatal_signal(signo):
                     self._disable_profiling(JavaSafemodeOptions.PROFILED_SIGNALED)
             else:
-                # this is a process that we wanted to profile, but didn't profile due to safemode.
+                # this is a process that we wanted to profile, but didn't profile due to safemode / any other reason.
                 logger.debug(
                     "Non-profiled Java process exited with signal",
                     pid=tid,
