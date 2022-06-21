@@ -186,12 +186,18 @@ def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[s
     for runtime in os.listdir(str(CONTAINERS_DIRECTORY)):
         images[runtime], _ = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime), rm=True)
 
-        # for java - build image based on "j9"
+        # for java - add additional images
         if runtime == "java":
             images[runtime + "_j9"], _ = docker_client.images.build(
                 path=str(CONTAINERS_DIRECTORY / runtime),
                 rm=True,
                 buildargs={"JAVA_BASE_IMAGE": "adoptopenjdk/openjdk8-openj9"},
+            )
+
+            images[runtime + "_zing"], _ = docker_client.images.build(
+                path=str(CONTAINERS_DIRECTORY / runtime),
+                rm=True,
+                dockerfile=str(CONTAINERS_DIRECTORY / runtime / "zing.Dockerfile"),
             )
 
         # build musl image if exists

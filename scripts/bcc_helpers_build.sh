@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # TODO support aarch64, after we support it in PyPerf
-if [ $(uname -m) != "x86_64" ]; then
+if [ "$(uname -m)" != "x86_64" ]; then
     mkdir -p /bpf_get_fs_offset /bpf_get_stack_offset
     touch /bpf_get_fs_offset/get_fs_offset
     touch /bpf_get_stack_offset/get_stack_offset

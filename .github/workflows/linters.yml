@@ -1,0 +1,20 @@
+name: Non-Python linters
+
+on: pull_request
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    # still fails, will be enabled later
+    # - name: Run shell linter
+    #   run: ./shell_lint.sh
+
+    - name: Run Dockerfile linters
+      run: ./dockerfile_lint.sh
