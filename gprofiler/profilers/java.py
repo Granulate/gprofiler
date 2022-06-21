@@ -557,7 +557,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
     assert m is not None, f"did not find build_str in {version_string!r}"
     build_str = m.group(1)
 
-    if version_str.endswith("-internal") or version_str.endswith("-ea") or version_str.endswith("-ojdkbuild"):
+    if any(version_str.endswith(suffix) for suffix in ("-internal", "-ea", "-ojdkbuild")):
         # strip those suffixes to keep the rest of the parsing logic clean
         version_str = version_str.rsplit("-")[0]
 
