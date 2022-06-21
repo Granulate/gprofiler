@@ -2,10 +2,10 @@ import os
 import subprocess
 from pathlib import Path
 from threading import Event
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 from docker import DockerClient
-from docker.models.containers import Container
+from docker.errors import ContainerError
 from docker.models.images import Image
 
 from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
@@ -33,35 +33,44 @@ def run_privileged_container(
     image: Image,
     command: List[str],
     volumes: Dict[str, Dict[str, str]] = None,
-    auto_remove: bool = True,
     **extra_kwargs: Any,
-) -> Tuple[Optional[Container], str]:
+) -> str:
     if volumes is None:
         volumes = {}
-    container_or_logs = docker_client.containers.run(
-        image,
-        command,
-        privileged=True,
-        network_mode="host",
-        pid_mode="host",
-        userns_mode="host",
-        volumes=volumes,
-        auto_remove=auto_remove,
-        stderr=True,
-        **extra_kwargs,
-    )
-    if isinstance(container_or_logs, Container):
-        container, logs = container_or_logs, container_or_logs.logs().decode()
-    else:
-        assert isinstance(container_or_logs, bytes), container_or_logs
-        container, logs = None, container_or_logs.decode()
+
+    container = None
+    try:
+        container = docker_client.containers.run(
+            image,
+            command,
+            privileged=True,
+            network_mode="host",
+            pid_mode="host",
+            userns_mode="host",
+            volumes=volumes,
+            stderr=True,
+            detach=True,
+            **extra_kwargs,
+        )
+        # let it finish
+        exit_status = container.wait()["StatusCode"]
+        # and read its log
+        logs = container.logs(stdout=True, stderr=True)
+
+        if exit_status != 0:
+            raise ContainerError(container, exit_status, command, image, logs)
+    finally:
+        if container is not None:
+            container.remove()
 
     # print, so failing tests display it
     print(
         "Container logs:",
         logs if len(logs) > 0 else "(empty, possibly because container was detached and is running now)",
     )
-    return container, logs
+
+    assert isinstance(logs, bytes), logs
+    return logs.decode()
 
 
 def _no_errors(logs: str) -> None:
@@ -69,19 +78,13 @@ def _no_errors(logs: str) -> None:
     assert "] ERROR: " not in logs, f"found ERRORs in gProfiler logs!: {logs}"
 
 
-def run_gprofiler_in_container(
-    docker_client: DockerClient, image: Image, command: List[str], **kwargs: Any
-) -> Tuple[Optional[Container], str]:
+def run_gprofiler_in_container(docker_client: DockerClient, image: Image, command: List[str], **kwargs: Any) -> None:
     """
     Wrapper around run_privileged_container() that also verifies there are not ERRORs in gProfiler's output log.
     """
     assert "-v" in command, "plesae run with -v!"  # otherwise there are no loglevel prints
-    container, logs = run_privileged_container(docker_client, image, command, **kwargs)
-    if container is not None:
-        _no_errors(container.logs().decode())
-    else:
-        _no_errors(logs)
-    return container, logs
+    logs = run_privileged_container(docker_client, image, command, **kwargs)
+    _no_errors(logs)
 
 
 def copy_file_from_image(image: Image, container_path: str, host_path: str) -> None:
