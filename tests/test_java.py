@@ -346,7 +346,6 @@ def test_sanity_j9(
 
 # test only once. in a container, so that we don't mess up the environment :)
 @pytest.mark.parametrize("in_container", [True])
-@pytest.mark.xfail(reason="In CI, file doesn't appear as deleted for some reason... works on my machine :shrug:")
 def test_java_deleted_libjvm(
     tmp_path: Path, application_pid: int, application_docker_container: Container, assert_collapsed: AssertInCollapsed
 ) -> None:
