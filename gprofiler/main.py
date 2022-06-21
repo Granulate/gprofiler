@@ -180,7 +180,7 @@ class GProfiler:
         base_filename = os.path.join(self._output_dir, "profile_{}".format(end_ts))
 
         collapsed_path = base_filename + ".col"
-        Path(collapsed_path).write_text(collapsed_data)
+        Path(collapsed_path).write_text(collapsed_data, encoding="utf-8")
         stripped_collapsed_data = self._strip_extra_data(collapsed_data)
 
         # point last_profile.col at the new file; and possibly, delete the previous one.
@@ -191,21 +191,21 @@ class GProfiler:
             flamegraph_path = base_filename + ".html"
             flamegraph_data = (
                 Path(resource_path("flamegraph/flamegraph_template.html"))
-                .read_text()
+                .read_bytes()
                 .replace(
-                    "{{{JSON_DATA}}}",
+                    b"{{{JSON_DATA}}}",
                     run_process(
                         [resource_path("burn"), "convert", "--type=folded"],
                         suppress_log=True,
                         stdin=stripped_collapsed_data.encode(),
                         stop_event=self._stop_event,
                         timeout=10,
-                    ).stdout.decode(),
+                    ).stdout,
                 )
-                .replace("{{{START_TIME}}}", start_ts)
-                .replace("{{{END_TIME}}}", end_ts)
+                .replace(b"{{{START_TIME}}}", start_ts.encode())
+                .replace(b"{{{END_TIME}}}", end_ts.encode())
             )
-            Path(flamegraph_path).write_text(flamegraph_data)
+            Path(flamegraph_path).write_bytes(flamegraph_data)
 
             # point last_flamegraph.html at the new file; and possibly, delete the previous one.
             self._update_last_output("last_flamegraph.html", flamegraph_path)
