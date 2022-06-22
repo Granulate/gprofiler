@@ -204,6 +204,9 @@ class SystemProfiler(ProfilerBase):
             perf.stop()
 
     def _get_metadata(self, pid: int) -> Optional[AppMetadata]:
+        if pid in (0, -1):  # funny values retrieved by perf
+            return None
+
         try:
             process = Process(pid)
             for collector in self._metadata_collectors:
