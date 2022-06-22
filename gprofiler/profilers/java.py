@@ -191,6 +191,11 @@ _JAVA_VERSION_CACHE_MAX = 1024
 # process is hashable and the same process instance compares equal
 @functools.lru_cache(maxsize=_JAVA_VERSION_CACHE_MAX)
 def get_java_version(process: Process, stop_event: Event) -> str:
+    # make sure we're only called for "java" processes, otherwise running "-version" makes no sense.
+    # our callers should check for it.
+    comm = process.name()
+    assert comm == "java", f"expected java, found {comm!r}"
+
     nspid = get_process_nspid(process.pid)
 
     # this has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
