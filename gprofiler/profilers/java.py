@@ -183,6 +183,10 @@ class JattachSocketMissingException(JattachExceptionBase):
         )
 
 
+def is_java_basename(process: Process) -> bool:
+    return os.path.basename(process_exe(process)) == "java"
+
+
 _JAVA_VERSION_TIMEOUT = 5
 
 _JAVA_VERSION_CACHE_MAX = 1024
@@ -193,8 +197,7 @@ _JAVA_VERSION_CACHE_MAX = 1024
 def get_java_version(process: Process, stop_event: Event) -> str:
     # make sure we're only called for "java" processes, otherwise running "-version" makes no sense.
     # our callers should check for it.
-    comm = process.name()
-    assert comm == "java", f"expected java, found {comm!r}"
+    assert is_java_basename(process), f"expected java, found {process!r}"
 
     nspid = get_process_nspid(process.pid)
 
@@ -234,7 +237,10 @@ def get_java_version_logged(process: Process, stop_event: Event) -> str:
 
 class JavaMetadata(ApplicationMetadata):
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        version = get_java_version(process, self._stop_event)
+        if is_java_basename(process):
+            version = get_java_version(process, self._stop_event)
+        else:
+            version = "not /java"
         # libjvm elfid - we care only about libjvm, not about the java exe itself which is a just small program
         # that loads other libs.
         libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")
@@ -892,10 +898,9 @@ class JavaProfiler(ProcessProfilerBase):
     def _profile_process(self, process: Process) -> ProfileData:
         comm = process_comm(process)
         exe = process_exe(process)
-        process_basename = os.path.basename(exe)
         # TODO we can get the "java" binary by extracting the java home from the libjvm path,
         # then check with that instead (if exe isn't java)
-        if process_basename == "java":
+        if is_java_basename(process):
             java_version_output: Optional[str] = get_java_version_logged(process, self._stop_event)
         else:
             java_version_output = None
