@@ -240,7 +240,7 @@ class GolangPerfMetadata(PerfMetadata):
         version = self._get_golang_version(process)
         return version is not None
 
-    @functools.lru_cache(maxsize=128)
+    @functools.lru_cache(maxsize=4096)
     def _get_golang_version(self, process: Process) -> Optional[str]:
         elf_path = f"/proc/{process.pid}/exe"
         try:
