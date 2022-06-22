@@ -26,9 +26,3 @@ def process_comm(process: Process) -> str:
     name_line = status.splitlines()[0]
     assert name_line.startswith("Name:\t")
     return name_line.split("\t", 1)[1]
-
-
-def is_musl(process: Process) -> bool:
-    # TODO: make sure no glibc libc.so file exists (i.e, return True if musl, False if glibc, and raise
-    # if not conclusive)
-    return any("ld-musl" in m.path for m in process.memory_maps())
