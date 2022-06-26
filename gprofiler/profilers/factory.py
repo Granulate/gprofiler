@@ -42,7 +42,7 @@ def get_profilers(
         except Exception:
             if profiler_config.profiler_class is SystemProfiler:
                 raise SystemProfilerInitFailure("Could not create the system profiler")
-            logger.exception(f"Couldn't create the {profiler_name} profiler, continuing without it")
+            logger.critical(f"Couldn't create the {profiler_name} profiler, continuing without it", exc_info=True)
         else:
             if isinstance(profiler_instance, SystemProfiler):
                 system_profiler = profiler_instance
