@@ -83,6 +83,11 @@ def frequency_to_ap_interval(frequency: int) -> int:
     return int((1 / frequency) * 1_000_000_000)
 
 
+@functools.lru_cache(maxsize=1024)
+def is_musl_cached(process: Process) -> bool:
+    return is_musl(process)
+
+
 JAVA_SAFEMODE_ALL = "all"  # magic value for *all* options from JavaSafemodeOptions
 
 
@@ -384,10 +389,9 @@ class AsyncProfiledProcess:
                 return realpath
         return None
 
-    @functools.lru_cache(maxsize=1)
     def _is_musl(self) -> bool:
         # Is target process musl-based?
-        return is_musl(self.process)
+        return is_musl_cached(self.process)
 
     def _copy_libap(self) -> None:
         # copy *is* racy with respect to other processes running in the same namespace, because they all use
