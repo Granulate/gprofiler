@@ -21,6 +21,8 @@ _logger = get_logger_adapter(__name__)
 
 _PYTHON_BIN_RE = re.compile(r"^python([23](\.\d{1,2})?)?$")
 
+_JAVA_BIN_NAMES = ("java", "jsvc", "jsvc.exec")
+
 
 # Python does string interning so just initializing str() as a sentinel is not enough.
 class StrSentinel(str):
@@ -45,6 +47,10 @@ def _is_python_m_proc(process: Process) -> bool:
 
 def _is_python_bin(bin_name: str) -> bool:
     return _PYTHON_BIN_RE.match(os.path.basename(bin_name)) is not None
+
+
+def _is_java_bin(bin_name: str) -> bool:
+    return os.path.basename(bin_name) in _JAVA_BIN_NAMES
 
 
 def _get_cli_arg_by_name(
@@ -287,6 +293,34 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
         return None
 
 
+class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
+    _JAVA_SPARK_EXECUTOR_ARG = "org.apache.spark.executor.CoarseGrainedExecutorBackend"
+    _SPARK_PROPS_FILE = os.path.join("__spark_conf__", "__spark_conf__.properties")
+    _APP_ID_NOT_FOUND = "SPARK_APP_ID_NOT_FOUND"
+    _APP_NAME_KEY = "spark.app.name"
+
+    @staticmethod
+    def _is_java_spark_executor(process: Process):
+        args = process.cmdline()
+        if not _is_java_bin(args[0]):
+            return False
+        return _JavaSparkApplicationIdentifier._JAVA_SPARK_EXECUTOR_ARG in args
+
+    def get_app_id(self, process: Process) -> Optional[str]:
+        if not _JavaSparkApplicationIdentifier._is_java_spark_executor(process):
+            return None
+        props_path = os.path.join(process.cwd(), _JavaSparkApplicationIdentifier._SPARK_PROPS_FILE)
+        if not os.path.exists(props_path):
+            return _JavaSparkApplicationIdentifier._APP_ID_NOT_FOUND
+        with open(props_path) as f:
+            lines = f.readlines()
+        props = dict([line.split("=", 1) for line in lines if not line.startswith("#")])
+        if _JavaSparkApplicationIdentifier._APP_NAME_KEY in props:
+            return props[_JavaSparkApplicationIdentifier._APP_NAME_KEY]
+        else:
+            return _JavaSparkApplicationIdentifier._APP_ID_NOT_FOUND
+
+
 # Please note that the order matter, because the FIRST matching identifier will be used.
 # so when adding new identifiers pay attention to the order.
 _PYTHON_APP_IDENTIFIERS = [
@@ -300,6 +334,7 @@ _PYTHON_APP_IDENTIFIERS = [
 
 _JAVA_APP_IDENTIFIERS: List[_ApplicationIdentifier] = [
     _JavaJarApplicationIdentifier(),
+    _JavaSparkApplicationIdentifier(),
 ]
 
 
