@@ -71,7 +71,7 @@ from tests.utils import run_gprofiler_in_container_for_one_session
         ),
         (
             True,
-            "node",
+            "nodejs",
             "perf",
             {
                 "exe": "/usr/local/bin/node",
