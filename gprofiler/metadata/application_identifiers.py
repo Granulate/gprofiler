@@ -302,22 +302,29 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
     @staticmethod
     def _is_java_spark_executor(process: Process):
         args = process.cmdline()
+        _logger.info(f"SPARKKKKKKKKK app name {args} started {process}")
         if not _is_java_bin(args[0]):
+            _logger.info(f"SPARKKKKKKKKK app name {args} started {process} Not java bin")
             return False
+        _logger.info(f"SPARKKKKKKKKK app name {args} started {process} returned {_JavaSparkApplicationIdentifier._JAVA_SPARK_EXECUTOR_ARG in args}")
         return _JavaSparkApplicationIdentifier._JAVA_SPARK_EXECUTOR_ARG in args
 
     def get_app_id(self, process: Process) -> Optional[str]:
         if not _JavaSparkApplicationIdentifier._is_java_spark_executor(process):
+            _logger.info(f"SPARKKKKKKKKK app name {process.cmdline()} with {process} not spark executor")
             return None
         props_path = os.path.join(process.cwd(), _JavaSparkApplicationIdentifier._SPARK_PROPS_FILE)
         if not os.path.exists(props_path):
+            _logger.info(f"SPARKKKKKKKKK app name {process.cmdline()} with {process} props file doesn't exist")
             return _JavaSparkApplicationIdentifier._APP_ID_NOT_FOUND
         with open(props_path) as f:
             lines = f.readlines()
         props = dict([line.split("=", 1) for line in lines if not line.startswith("#")])
         if _JavaSparkApplicationIdentifier._APP_NAME_KEY in props:
+            _logger.info(f"SPARKKKKKKKKK app name {process.cmdline()} with {process} found app key name {props}")
             return props[_JavaSparkApplicationIdentifier._APP_NAME_KEY]
         else:
+            _logger.info(f"SPARKKKKKKKKK app name {process.cmdline()} with {process} no app key name {props}")
             return _JavaSparkApplicationIdentifier._APP_ID_NOT_FOUND
 
 
