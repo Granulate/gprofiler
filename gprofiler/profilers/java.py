@@ -855,11 +855,11 @@ class JavaProfiler(SpawningProcessProfilerBase):
         ) as ap_proc:
             return self._profile_ap_process(ap_proc, comm, duration)
 
-    def _profile_process(self, process: Process) -> ProfileData:
+    def _profile_process(self, process: Process, duration: int) -> ProfileData:
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_java_app_id(process)
 
-        return ProfileData(self._profile_process_stackcollapse(process), appid, app_metadata)
+        return ProfileData(self._profile_process_stackcollapse(process, duration), appid, app_metadata)
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str, duration: int) -> StackToSampleCount:
         started = ap_proc.start_async_profiler(self._interval, ap_timeout=self._ap_timeout)
@@ -932,7 +932,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             # profiling.
         return pgrep_maps(DETECTED_JAVA_PROCESSES_REGEX)
 
-    def _should_profile_process(self, pid: int):
+    def _should_profile_process(self, pid: int) -> bool:
         # TODO use psutil or at least make this code raise NoSuchProcess when appropriate.
         return any(line.endswith("/libjvm.so") for line in Path(f"/proc/{pid}/maps").read_text().splitlines())
 

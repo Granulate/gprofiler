@@ -4,6 +4,7 @@
 #
 
 import concurrent.futures
+import contextlib
 import sched
 import time
 from collections import Counter
@@ -133,19 +134,6 @@ class ProcessProfilerBase(ProfilerBase):
                 )
 
             results[pid] = result
-        try:
-            result = future.result()
-            if result is not None:
-                results[futures[future]] = result
-        except StopEventSetException:
-            raise
-        except NoSuchProcess:
-            logger.debug(
-                f"{self.__class__.__name__}: process went down during profiling {futures[future]}",
-                exc_info=True,
-            )
-        except Exception:
-            logger.exception(f"{self.__class__.__name__}: failed to profile process {futures[future]}")
 
         return results
 
@@ -174,7 +162,7 @@ class ProcessProfilerBase(ProfilerBase):
             return {}
 
         with ThreadPoolExecutor(max_workers=len(processes_to_profile)) as executor:
-            futures: Dict[Future, int] = {}
+            futures: Dict[Future, Tuple[int, str]] = {}
             for process in processes_to_profile:
                 try:
                     comm = process_comm(process)
@@ -202,7 +190,7 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         self._threads: Optional[ThreadPoolExecutor] = None
         self._start_ts: Optional[float] = None
         self._enabled_proc_events = False
-        self._futures: Dict[Future, int] = {}
+        self._futures: Dict[Future, Tuple[int, str]] = {}
         self._sched = sched.scheduler()
         self._sched_stop = False
         self._sched_thread = Thread(target=self._sched_thread_run)
@@ -232,7 +220,8 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
             self._threads = None
 
     def _proc_exec_callback(self, tid: int, pid: int) -> None:
-        self._sched.enter(self._BACKOFF_INIT, 0, self._check_process, (Process(pid), self._BACKOFF_INIT))
+        with contextlib.suppress(NoSuchProcess):
+            self._sched.enter(self._BACKOFF_INIT, 0, self._check_process, (Process(pid), self._BACKOFF_INIT))
 
     def start(self) -> None:
         super().start()
@@ -271,7 +260,7 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         results.update(results_spawned)
         return results
 
-    def _sched_thread_run(self):
+    def _sched_thread_run(self) -> None:
         while not (self._stop_event.is_set() or self._sched_stop):
             self._sched.run()
             self._stop_event.wait(0.1)
@@ -286,7 +275,11 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
                         # TODO ensure > 0 etc
                         assert self._start_ts is not None and self._threads is not None
                         duration = self._duration - (time.monotonic() - self._start_ts)
-                        self._futures[self._threads.submit(self._profile_process, process, int(duration))] = process.pid
+                        comm = process_comm(process)
+                        self._futures[self._threads.submit(self._profile_process, process, int(duration))] = (
+                            process.pid,
+                            comm,
+                        )
             else:
                 if interval < self._BACKOFF_MAX:
                     new_interval = interval * 2
