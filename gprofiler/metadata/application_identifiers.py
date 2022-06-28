@@ -381,4 +381,5 @@ def get_python_app_id(process: Process) -> Optional[str]:
 
 
 def get_java_app_id(process: Process) -> Optional[str]:
+    _logger.info(f"SPARKKKKKKKKK app name {process.cmdline()} with {process} STARTEDDDDDDDD")
     return get_app_id(process, _JAVA_APP_IDENTIFIERS)
