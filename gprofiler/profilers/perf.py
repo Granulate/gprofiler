@@ -237,13 +237,6 @@ class PerfMetadata(ApplicationMetadata):
     def relevant_for_process(self, process: Process) -> bool:
         return False
 
-    def is_static(self, process: Process) -> bool:
-        try:
-            static = is_statically_linked(f"/proc/{process.pid}/exe")
-        except FileNotFoundError:
-            raise NoSuchProcess(process.pid)
-        return static
-
     def add_exe_metadata(self, process: Process, metadata: Dict[str, Any]) -> None:
         try:
             static = is_statically_linked(f"/proc/{process.pid}/exe")
