@@ -301,6 +301,7 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
 
     @staticmethod
     def _is_java_spark_executor(process: Process):
+        _logger.info(f"SPARKKKKKKKKK app name started {process} 3333333")
         args = process.cmdline()
         _logger.info(f"SPARKKKKKKKKK app name {args} started {process}")
         if not _is_java_bin(args[0]):
@@ -361,6 +362,7 @@ def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier]) -> O
 
     for identifier in identifiers:
         try:
+            _logger.info(f"SPARKKKKKKKKK app name {identifier} STARTEDDDDDDDD2222")
             appid = identifier.get_app_id(process)
             if appid is not None:
                 return appid
