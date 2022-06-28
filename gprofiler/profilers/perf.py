@@ -165,7 +165,7 @@ class SystemProfiler(ProfilerBase):
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
         self._perfs: List[PerfProcess] = []
-        self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event)]
+        self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
@@ -237,6 +237,25 @@ class PerfMetadata(ApplicationMetadata):
     def relevant_for_process(self, process: Process) -> bool:
         return False
 
+    def is_static(self, process: Process) -> bool:
+        try:
+            static = is_statically_linked(f"/proc/{process.pid}/exe")
+        except FileNotFoundError:
+            raise NoSuchProcess(process.pid)
+        return static
+
+    def add_exe_metadata(self, process: Process, metadata: Dict[str, Any]) -> None:
+        try:
+            static = is_statically_linked(f"/proc/{process.pid}/exe")
+        except FileNotFoundError:
+            raise NoSuchProcess(process.pid)
+
+        exe_metadata = {"link": "static" if static else "dynamic"}
+        if not static:
+            exe_metadata["libc"] = "musl" if is_musl(process) else "glibc"
+
+        metadata.update(exe_metadata)
+
 
 class GolangPerfMetadata(PerfMetadata):
     def relevant_for_process(self, process: Process) -> bool:
@@ -269,17 +288,18 @@ class GolangPerfMetadata(PerfMetadata):
         return golang_version_bytes.decode()
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        try:
-            static = is_statically_linked(f"/proc/{process.pid}/exe")
-        except FileNotFoundError:
-            raise NoSuchProcess(process.pid)
+        metadata = {"golang_version": self._get_golang_version(process)}
+        self.add_exe_metadata(process, metadata)
+        metadata.update(super().make_application_metadata(process))
+        return metadata
 
-        metadata = {"golang_version": self._get_golang_version(process), "link": "static" if static else "dynamic"}
 
-        if not static:
-            metadata["libc"] = "musl" if is_musl(process) else "glibc"
-        else:
-            metadata["libc"] = None
+class NodePerfMetadata(PerfMetadata):
+    def relevant_for_process(self, process: Process) -> bool:
+        return os.path.basename(process.exe()) == "node"
 
+    def make_application_metadata(self, process: Process) -> Dict[str, Any]:
+        metadata = {"node_version": self.get_exe_version_cached(process)}
+        self.add_exe_metadata(process, metadata)
         metadata.update(super().make_application_metadata(process))
         return metadata
