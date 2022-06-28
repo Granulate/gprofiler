@@ -296,7 +296,7 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
 class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
     _JAVA_SPARK_EXECUTOR_ARG = "org.apache.spark.executor.CoarseGrainedExecutorBackend"
     _SPARK_PROPS_FILE = os.path.join("__spark_conf__", "__spark_conf__.properties")
-    _APP_ID_NOT_FOUND = "SPARK_APP_ID_NOT_FOUND"
+    _APP_NAME_NOT_FOUND = "SPARK_APP_NAME_NOT_FOUND"
     _APP_NAME_KEY = "spark.app.name"
 
     @staticmethod
@@ -317,16 +317,16 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
         props_path = os.path.join(process.cwd(), _JavaSparkApplicationIdentifier._SPARK_PROPS_FILE)
         if not os.path.exists(props_path):
             _logger.info(f"SPARKKKKKKKKK app name {process.cmdline()} with {process} props file doesn't exist")
-            return _JavaSparkApplicationIdentifier._APP_ID_NOT_FOUND
+            return _JavaSparkApplicationIdentifier._APP_NAME_NOT_FOUND
         with open(props_path) as f:
             lines = f.readlines()
         props = dict([line.split("=", 1) for line in lines if not line.startswith("#")])
         if _JavaSparkApplicationIdentifier._APP_NAME_KEY in props:
             _logger.info(f"SPARKKKKKKKKK app name {process.cmdline()} with {process} found app key name {props}")
-            return props[_JavaSparkApplicationIdentifier._APP_NAME_KEY]
+            return f"java_spark_executor: {props[_JavaSparkApplicationIdentifier._APP_NAME_KEY]}"
         else:
             _logger.info(f"SPARKKKKKKKKK app name {process.cmdline()} with {process} no app key name {props}")
-            return _JavaSparkApplicationIdentifier._APP_ID_NOT_FOUND
+            return _JavaSparkApplicationIdentifier._APP_NAME_NOT_FOUND
 
 
 # Please note that the order matter, because the FIRST matching identifier will be used.
@@ -341,8 +341,8 @@ _PYTHON_APP_IDENTIFIERS = [
 ]
 
 _JAVA_APP_IDENTIFIERS: List[_ApplicationIdentifier] = [
-    _JavaJarApplicationIdentifier(),
     _JavaSparkApplicationIdentifier(),
+    _JavaJarApplicationIdentifier(),
 ]
 
 
