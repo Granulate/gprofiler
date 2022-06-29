@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 from time import sleep
-from typing import Any, Callable, Generator, Iterable, Iterator, List, Mapping, Optional, cast, Dict
+from typing import Any, Callable, Dict, Generator, Iterable, Iterator, List, Mapping, Optional, cast
 
 import docker
 import pytest
