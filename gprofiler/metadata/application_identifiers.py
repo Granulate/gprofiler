@@ -317,7 +317,7 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
             props_text = f.read()
         props = dict([line.split("=", 1) for line in props_text.splitlines() if not line.startswith("#")])
         if _JavaSparkApplicationIdentifier._APP_NAME_KEY in props:
-            return f"java_spark_executor: {props[_JavaSparkApplicationIdentifier._APP_NAME_KEY]}"
+            return props[_JavaSparkApplicationIdentifier._APP_NAME_KEY]
         else:
             return _JavaSparkApplicationIdentifier._APP_NAME_NOT_FOUND
 
