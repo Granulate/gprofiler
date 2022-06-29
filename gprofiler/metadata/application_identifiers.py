@@ -319,8 +319,8 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
             _logger.info(f"SPARKKKKKKKKK app name {process.cmdline()} with {process} props file doesn't exist")
             return _JavaSparkApplicationIdentifier._APP_NAME_NOT_FOUND
         with open(props_path) as f:
-            lines = f.readlines()
-        props = dict([line.split("=", 1) for line in lines if not line.startswith("#")])
+            props_text = f.read()
+        props = dict([line.split("=", 1) for line in props_text.splitlines() if not line.startswith("#")])
         if _JavaSparkApplicationIdentifier._APP_NAME_KEY in props:
             _logger.info(f"SPARKKKKKKKKK app name {process.cmdline()} with {process} found app key name {props}")
             return f"java_spark_executor: {props[_JavaSparkApplicationIdentifier._APP_NAME_KEY]}"
