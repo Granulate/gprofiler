@@ -300,7 +300,7 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
     _APP_NAME_KEY = "spark.app.name"
 
     @staticmethod
-    def _is_java_spark_executor(process: Process):
+    def _is_java_spark_executor(process: Process) -> bool:
         args = process.cmdline()
         if not _is_java_bin(args[0]):
             return False
@@ -343,7 +343,9 @@ def set_enrichment_options(enrichment_options: EnrichmentOptions) -> None:
     _ApplicationIdentifier.enrichment_options = enrichment_options
 
 
-def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier], aggregate_all=False) -> Optional[str]:
+def get_app_id(
+    process: Process, identifiers: List[_ApplicationIdentifier], aggregate_all: bool = False
+) -> Optional[str]:
     """
     Tries to identify the application running in a given process, application identification is fully heuristic,
     heuristics are being made on each application type available differ from each other and those their
