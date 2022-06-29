@@ -301,31 +301,24 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
 
     @staticmethod
     def _is_java_spark_executor(process: Process):
-        _logger.info(f"SPARKKKKKKKKK app name started {process} 3333333")
         args = process.cmdline()
-        _logger.info(f"SPARKKKKKKKKK app name {args} started {process}")
         if not _is_java_bin(args[0]):
-            _logger.info(f"SPARKKKKKKKKK app name {args} started {process} Not java bin")
             return False
-        _logger.info(f"SPARKKKKKKKKK app name {args} started {process} returned {_JavaSparkApplicationIdentifier._JAVA_SPARK_EXECUTOR_ARG in args}")
         return _JavaSparkApplicationIdentifier._JAVA_SPARK_EXECUTOR_ARG in args
 
     def get_app_id(self, process: Process) -> Optional[str]:
         if not _JavaSparkApplicationIdentifier._is_java_spark_executor(process):
-            _logger.info(f"SPARKKKKKKKKK app name {process.cmdline()} with {process} not spark executor")
             return None
         props_path = os.path.join(process.cwd(), _JavaSparkApplicationIdentifier._SPARK_PROPS_FILE)
         if not os.path.exists(props_path):
-            _logger.info(f"SPARKKKKKKKKK app name {process.cmdline()} with {process} props file doesn't exist")
+            _logger.warning("Spark props file doesn't exist")
             return _JavaSparkApplicationIdentifier._APP_NAME_NOT_FOUND
         with open(props_path) as f:
             props_text = f.read()
         props = dict([line.split("=", 1) for line in props_text.splitlines() if not line.startswith("#")])
         if _JavaSparkApplicationIdentifier._APP_NAME_KEY in props:
-            _logger.info(f"SPARKKKKKKKKK app name {process.cmdline()} with {process} found app key name {props}")
             return f"java_spark_executor: {props[_JavaSparkApplicationIdentifier._APP_NAME_KEY]}"
         else:
-            _logger.info(f"SPARKKKKKKKKK app name {process.cmdline()} with {process} no app key name {props}")
             return _JavaSparkApplicationIdentifier._APP_NAME_NOT_FOUND
 
 
@@ -363,7 +356,6 @@ def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier], aggr
     appids = []
     for identifier in identifiers:
         try:
-            _logger.info(f"SPARKKKKKKKKK app name {identifier} STARTEDDDDDDDD2222")
             appid = identifier.get_app_id(process)
             if appid is not None:
                 if not aggregate_all:
@@ -372,7 +364,7 @@ def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier], aggr
 
         except NoSuchProcess:
             if aggregate_all and len(appids) != 0:
-                return ', '.join(appids)
+                return ", ".join(appids)
             return None
         except Exception:
             _logger.exception(
@@ -381,7 +373,7 @@ def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier], aggr
             continue
 
     if aggregate_all and len(appids) != 0:
-        return ', '.join(appids)
+        return ", ".join(appids)
     return None
 
 
@@ -390,5 +382,4 @@ def get_python_app_id(process: Process) -> Optional[str]:
 
 
 def get_java_app_id(process: Process) -> Optional[str]:
-    _logger.info(f"SPARKKKKKKKKK app name {process.cmdline()} with {process} STARTEDDDDDDDD")
     return get_app_id(process, _JAVA_APP_IDENTIFIERS, aggregate_all=True)
