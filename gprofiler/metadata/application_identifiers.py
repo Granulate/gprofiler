@@ -341,8 +341,8 @@ _PYTHON_APP_IDENTIFIERS = [
 ]
 
 _JAVA_APP_IDENTIFIERS: List[_ApplicationIdentifier] = [
-    _JavaSparkApplicationIdentifier(),
     _JavaJarApplicationIdentifier(),
+    _JavaSparkApplicationIdentifier(),
 ]
 
 
@@ -350,7 +350,7 @@ def set_enrichment_options(enrichment_options: EnrichmentOptions) -> None:
     _ApplicationIdentifier.enrichment_options = enrichment_options
 
 
-def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier]) -> Optional[str]:
+def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier], aggregate_all=False) -> Optional[str]:
     """
     Tries to identify the application running in a given process, application identification is fully heuristic,
     heuristics are being made on each application type available differ from each other and those their
@@ -360,14 +360,19 @@ def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier]) -> O
     if not _ApplicationIdentifier.enrichment_options.application_identifiers:
         return None
 
+    appids = []
     for identifier in identifiers:
         try:
             _logger.info(f"SPARKKKKKKKKK app name {identifier} STARTEDDDDDDDD2222")
             appid = identifier.get_app_id(process)
             if appid is not None:
-                return appid
+                if not aggregate_all:
+                    return appid
+                appids.append(appid)
 
         except NoSuchProcess:
+            if aggregate_all and len(appids) != 0:
+                return ', '.join(appids)
             return None
         except Exception:
             _logger.exception(
@@ -375,6 +380,8 @@ def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier]) -> O
             )
             continue
 
+    if aggregate_all and len(appids) != 0:
+        return ', '.join(appids)
     return None
 
 
@@ -384,4 +391,4 @@ def get_python_app_id(process: Process) -> Optional[str]:
 
 def get_java_app_id(process: Process) -> Optional[str]:
     _logger.info(f"SPARKKKKKKKKK app name {process.cmdline()} with {process} STARTEDDDDDDDD")
-    return get_app_id(process, _JAVA_APP_IDENTIFIERS)
+    return get_app_id(process, _JAVA_APP_IDENTIFIERS, aggregate_all=True)
