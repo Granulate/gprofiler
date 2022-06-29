@@ -667,6 +667,13 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             default=AsyncProfiledProcess._DEFAULT_MCACHE,
             help="async-profiler mcache option (defaults to %(default)s)",
         ),
+        ProfilerArgument(
+            "--java-collect-spark-app-name-as-appid",
+            dest="java_collect_spark_app_name_as_appid",
+            action="store_true",
+            default=False,
+            help="In case of Spark application executor process - add the name of the Spark application to the appid.",
+        ),
     ],
 )
 class JavaProfiler(ProcessProfilerBase):
@@ -702,6 +709,7 @@ class JavaProfiler(ProcessProfilerBase):
         java_safemode: str,
         java_jattach_timeout: int,
         java_async_profiler_mcache: int,
+        java_collect_spark_app_name_as_appid: bool,
         java_mode: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
@@ -718,6 +726,7 @@ class JavaProfiler(ProcessProfilerBase):
         self._ap_args = java_async_profiler_args
         self._jattach_timeout = java_jattach_timeout
         self._ap_mcache = java_async_profiler_mcache
+        self._collect_spark_app_name = java_collect_spark_app_name_as_appid
         self._init_java_safemode(java_safemode)
         self._should_profile = True
         # if set, profiling is disabled due to this safemode reason.
@@ -924,7 +933,7 @@ class JavaProfiler(ProcessProfilerBase):
 
     def _profile_process(self, process: Process) -> ProfileData:
         app_metadata = self._metadata.get_metadata(process)
-        appid = application_identifiers.get_java_app_id(process)
+        appid = application_identifiers.get_java_app_id(process, self._collect_spark_app_name)
 
         return ProfileData(self._profile_process_stackcollapse(process), appid, app_metadata)
 
