@@ -38,7 +38,7 @@ from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
-from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
+from gprofiler.profilers.profiler_base import ProfilerBase, ProfilerInterface, SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     pgrep_maps,
@@ -161,7 +161,7 @@ class PythonMetadata(ApplicationMetadata):
         return metadata
 
 
-class PySpyProfiler(ProcessProfilerBase):
+class PySpyProfiler(SpawningProcessProfilerBase):
     MAX_FREQUENCY = 50
     _EXTRA_TIMEOUT = 10  # give py-spy some seconds to run (added to the duration)
 
@@ -178,14 +178,14 @@ class PySpyProfiler(ProcessProfilerBase):
         self.add_versions = add_versions
         self._metadata = PythonMetadata(self._stop_event)
 
-    def _make_command(self, pid: int, output_path: str) -> List[str]:
+    def _make_command(self, pid: int, output_path: str, duration: int) -> List[str]:
         return [
             resource_path("python/py-spy"),
             "record",
             "-r",
             str(self._frequency),
             "-d",
-            str(self._duration),
+            str(duration),
             "--nonblocking",
             "--format",
             "raw",
@@ -208,7 +208,7 @@ class PySpyProfiler(ProcessProfilerBase):
         with removed_path(local_output_path):
             try:
                 run_process(
-                    self._make_command(process.pid, local_output_path),
+                    self._make_command(process.pid, local_output_path, duration),
                     stop_event=self._stop_event,
                     timeout=duration + self._EXTRA_TIMEOUT,
                     kill_signal=signal.SIGKILL,
@@ -245,26 +245,37 @@ class PySpyProfiler(ProcessProfilerBase):
         filtered_procs = []
         for process in pgrep_maps(DETECTED_PYTHON_PROCESSES_REGEX):
             try:
-                if process.pid == os.getpid():
-                    continue
-
-                cmdline = process.cmdline()
-                if any(item in cmdline for item in _BLACKLISTED_PYTHON_PROCS):
-                    continue
-
-                # PyPy is called pypy3 or pypy (for 2)
-                # py-spy is, of course, only for CPython, and will report a possibly not-so-nice error
-                # when invoked on pypy.
-                # I'm checking for "pypy" in the basename here. I'm not aware of libpypy being directly loaded
-                # into non-pypy processes, if we ever encounter that - we can check the maps instead
-                if os.path.basename(process_exe(process)).startswith("pypy"):
-                    continue
-
-                filtered_procs.append(process)
+                if not self._should_skip_process(process):
+                    filtered_procs.append(process)
             except Exception:
                 logger.exception(f"Couldn't add pid {process.pid} to list")
 
         return filtered_procs
+
+    def _should_profile_process(self, pid: int) -> bool:
+        # TODO use psutil or at least make this code raise NoSuchProcess when appropriate.
+        return any(
+            re.match(DETECTED_PYTHON_PROCESSES_REGEX, line)
+            for line in Path(f"/proc/{pid}/maps").read_text().splitlines()
+        ) and not self._should_skip_process(Process(pid))
+
+    def _should_skip_process(self, process: Process) -> bool:
+        if process.pid == os.getpid():
+            return True
+
+        cmdline = " ".join(process.cmdline())
+        if any(item in cmdline for item in _BLACKLISTED_PYTHON_PROCS):
+            return True
+
+        # PyPy is called pypy3 or pypy (for 2)
+        # py-spy is, of course, only for CPython, and will report a possibly not-so-nice error
+        # when invoked on pypy.
+        # I'm checking for "pypy" in the basename here. I'm not aware of libpypy being directly loaded
+        # into non-pypy processes, if we ever encounter that - we can check the maps instead
+        if os.path.basename(process_exe(process)).startswith("pypy"):
+            return True
+
+        return False
 
 
 class PythonEbpfError(CalledProcessError):
