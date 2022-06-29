@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 from time import sleep
-from typing import Any, Callable, Generator, Iterable, Iterator, List, Mapping, Optional, cast
+from typing import Any, Callable, Generator, Iterable, Iterator, List, Mapping, Optional, cast, Dict
 
 import docker
 import pytest
@@ -356,7 +356,7 @@ def assert_collapsed(runtime: str) -> AssertInCollapsed:
 
 @fixture
 def assert_app_id(application_pid: int, runtime: str, in_container: bool) -> Generator:
-    desired_name_and_getter = {
+    desired_name_and_getter: Dict[str, tuple[Callable[[Process, ...], str], str]] = {
         "java": (get_java_app_id, "java: Fibonacci.jar"),
         "python": (get_python_app_id, "python: lister.py (/app/lister.py)"),
     }
