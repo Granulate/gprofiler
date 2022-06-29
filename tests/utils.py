@@ -141,6 +141,7 @@ def make_java_profiler(
     java_safemode: str = JAVA_SAFEMODE_ALL,
     java_jattach_timeout: int = AsyncProfiledProcess._JATTACH_TIMEOUT,
     java_async_profiler_mcache: int = AsyncProfiledProcess._DEFAULT_MCACHE,
+    java_collect_spark_app_name_as_appid: bool = False,
     java_mode: str = "ap",
 ) -> JavaProfiler:
     assert storage_dir is not None
@@ -157,6 +158,7 @@ def make_java_profiler(
         java_safemode=java_safemode,
         java_jattach_timeout=java_jattach_timeout,
         java_async_profiler_mcache=java_async_profiler_mcache,
+        java_collect_spark_app_name_as_appid=java_collect_spark_app_name_as_appid,
         java_mode=java_mode,
     )
 
