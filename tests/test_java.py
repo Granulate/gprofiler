@@ -20,6 +20,7 @@ import pytest
 from docker.models.containers import Container
 from granulate_utils.linux.elf import get_elf_buildid
 from granulate_utils.linux.ns import get_process_nspid
+from granulate_utils.linux.process import is_musl
 from packaging.version import Version
 from pytest import LogCaptureFixture, MonkeyPatch
 
@@ -31,7 +32,6 @@ from gprofiler.profilers.java import (
     parse_jvm_version,
 )
 from gprofiler.utils import remove_prefix
-from gprofiler.utils.process import is_musl
 from tests.conftest import AssertInCollapsed
 from tests.type_utils import cast_away_optional
 from tests.utils import assert_function_in_collapsed, make_java_profiler, snapshot_one_collapsed, snapshot_one_profile
@@ -50,9 +50,13 @@ def get_libjvm_path(application_pid: int) -> str:
     return get_lib_path(application_pid, "/libjvm.so")
 
 
+def _read_pid_maps(pid: int) -> str:
+    return Path(f"/proc/{pid}/maps").read_text()
+
+
 def is_libjvm_deleted(application_pid: int) -> bool:
     # can't use get_libjvm_path() - psutil removes "deleted" if the file actually exists...
-    return "/libjvm.so (deleted)" in Path(f"/proc/{application_pid}/maps").read_text()
+    return "/libjvm.so (deleted)" in _read_pid_maps(application_pid)
 
 
 # adds the "status" command to AsyncProfiledProcess from gProfiler.
@@ -324,29 +328,28 @@ def test_async_profiler_stops_after_given_timeout(
 
 
 @pytest.mark.parametrize("in_container", [True])
-@pytest.mark.parametrize("image_suffix", ["_j9"])
-def test_sanity_j9(
+@pytest.mark.parametrize("image_suffix,search_for", [("_j9", "OpenJ9"), ("_zing", "Zing")])
+def test_sanity_other_jvms(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
+    search_for: str,
 ) -> None:
     with make_java_profiler(
         frequency=99,
         storage_dir=str(tmp_path),
-        java_async_profiler_mode="itimer",
+        java_async_profiler_mode="cpu",
     ) as profiler:
-        assert "OpenJ9" in get_java_version(psutil.Process(application_pid), profiler._stop_event)
+        assert search_for in get_java_version(psutil.Process(application_pid), profiler._stop_event)
         process_collapsed = snapshot_one_collapsed(profiler)
         assert_collapsed(process_collapsed)
 
 
-@pytest.mark.xfail(
-    reason="AP 2.7 doesn't support, see https://github.com/jvm-profiling-tools/async-profiler/issues/572"
-    " we will fix after that's closed."
-)
 # test only once. in a container, so that we don't mess up the environment :)
 @pytest.mark.parametrize("in_container", [True])
-def test_java_deleted_libjvm(tmp_path: Path, application_pid: int, assert_collapsed: AssertInCollapsed) -> None:
+def test_java_deleted_libjvm(
+    tmp_path: Path, application_pid: int, application_docker_container: Container, assert_collapsed: AssertInCollapsed
+) -> None:
     """
     Tests that we can profile processes whose libjvm was deleted, e.g because Java was upgraded.
     """
@@ -357,7 +360,9 @@ def test_java_deleted_libjvm(tmp_path: Path, application_pid: int, assert_collap
     shutil.copy(libjvm, libjvm_tmp)
     os.unlink(libjvm)
     os.rename(libjvm_tmp, libjvm)
-    assert is_libjvm_deleted(application_pid)
+    assert is_libjvm_deleted(
+        application_pid
+    ), f"Not (deleted) after deleting? libjvm={libjvm} maps={_read_pid_maps(application_pid)}"
 
     with make_java_profiler(storage_dir=str(tmp_path), duration=3) as profiler:
         process_collapsed = snapshot_one_collapsed(profiler)

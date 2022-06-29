@@ -31,14 +31,20 @@ from granulate_utils.linux.elf import get_mapped_dso_elf_id
 from granulate_utils.linux.kernel_messages import KernelMessage
 from granulate_utils.linux.ns import get_proc_root_path, get_process_nspid, resolve_proc_root_links, run_in_ns
 from granulate_utils.linux.oom import get_oom_entry
-from granulate_utils.linux.process import is_process_running, process_exe
+from granulate_utils.linux.process import is_musl, is_process_running, process_exe
 from granulate_utils.linux.signals import get_signal_entry
 from packaging.version import Version
 from psutil import Process
 
 from gprofiler import merge
 from gprofiler.exceptions import CalledProcessError, CalledProcessTimeoutError, NoRwExecDirectoryFoundError
-from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, StackToSampleCount, positive_integer
+from gprofiler.gprofiler_types import (
+    ProcessToProfileData,
+    ProfileData,
+    StackToSampleCount,
+    integer_range,
+    positive_integer,
+)
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
@@ -58,7 +64,7 @@ from gprofiler.utils import (
 )
 from gprofiler.utils.fs import is_rw_exec_dir, safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
-from gprofiler.utils.process import is_musl, process_comm
+from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
 
@@ -75,6 +81,11 @@ POSSIBLE_AP_DIRS = (
 def frequency_to_ap_interval(frequency: int) -> int:
     # async-profiler accepts interval between samples (nanoseconds)
     return int((1 / frequency) * 1_000_000_000)
+
+
+@functools.lru_cache(maxsize=1024)
+def is_musl_cached(process: Process) -> bool:
+    return is_musl(process)
 
 
 JAVA_SAFEMODE_ALL = "all"  # magic value for *all* options from JavaSafemodeOptions
@@ -96,6 +107,7 @@ class JavaSafemodeOptions(str, Enum):
     # we saw the PID of a profiled process in the kernel logs
     PID_IN_KERNEL_MESSAGES = "pid-in-kernel-messages"
     # employ extended version checks before deciding to profile
+    # see _is_jvm_profiling_supported() docs for more information
     JAVA_EXTENDED_VERSION_CHECKS = "java-extended-version-checks"
     # refuse profiling if async-profiler is already loaded (and not by gProfiler)
     # in the target process
@@ -210,6 +222,12 @@ def get_java_version(process: Process, stop_event: Event) -> str:
     return run_in_ns(["pid", "mnt"], _run_java_version, process.pid).stderr.decode().strip()
 
 
+def get_java_version_logged(process: Process, stop_event: Event) -> str:
+    java_version = get_java_version(process, stop_event)
+    logger.debug("java -version output", java_version_output=java_version, pid=process.pid)
+    return java_version
+
+
 class JavaMetadata(ApplicationMetadata):
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         version = get_java_version(process, self._stop_event)
@@ -254,6 +272,8 @@ class AsyncProfiledProcess:
     _FDTRANSFER_TIMEOUT = 10
     _JATTACH_TIMEOUT = 30  # higher than jattach's timeout
 
+    _DEFAULT_MCACHE = 30  # arbitrarily chosen, not too high & not too low.
+
     def __init__(
         self,
         process: Process,
@@ -264,6 +284,7 @@ class AsyncProfiledProcess:
         ap_safemode: int,
         ap_args: str,
         jattach_timeout: int = _JATTACH_TIMEOUT,
+        mcache: int = 0,
     ):
         self.process = process
         self._stop_event = stop_event
@@ -310,6 +331,7 @@ class AsyncProfiledProcess:
         self._ap_safemode = ap_safemode
         self._ap_args = ap_args
         self._jattach_timeout = jattach_timeout
+        self._mcache = mcache
 
     def _find_rw_exec_dir(self, available_dirs: Sequence[str]) -> str:
         """
@@ -367,10 +389,9 @@ class AsyncProfiledProcess:
                 return realpath
         return None
 
-    @functools.lru_cache(maxsize=1)
     def _is_musl(self) -> bool:
         # Is target process musl-based?
-        return is_musl(self.process)
+        return is_musl_cached(self.process)
 
     def _copy_libap(self) -> None:
         # copy *is* racy with respect to other processes running in the same namespace, because they all use
@@ -432,7 +453,7 @@ class AsyncProfiledProcess:
 
     def _get_stop_cmd(self, with_output: bool) -> List[str]:
         return self._get_base_cmd() + [
-            f"stop,log={self._log_path_process}"
+            f"stop,log={self._log_path_process},mcache={self._mcache}"
             + (self._get_ap_output_args() if with_output else "")
             + self._get_extra_ap_args()
         ]
@@ -593,7 +614,8 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             "--java-no-version-check",
             dest="java_version_check",
             action="store_false",
-            help="Skip the JDK version check (that is done before invoking async-profiler)",
+            help="Skip the JDK version check (that is done before invoking async-profiler). See"
+            " _is_jvm_profiling_supported() docs for more information.",
         ),
         ProfilerArgument(
             "--java-async-profiler-mode",
@@ -606,9 +628,8 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
         ProfilerArgument(
             "--java-async-profiler-safemode",
             dest="java_async_profiler_safemode",
-            type=int,
             default=JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
-            choices=range(0, 128),
+            type=integer_range(0, 128),
             metavar="[0-127]",
             help="Controls the 'safemode' parameter passed to async-profiler. This is parameter denotes multiple"
             " bits that describe different stack recovery techniques which async-profiler uses (see StackRecovery"
@@ -637,10 +658,19 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             default=AsyncProfiledProcess._JATTACH_TIMEOUT,
             help="Timeout for jattach operations (start/stop AP, etc)",
         ),
+        ProfilerArgument(
+            "--java-async-profiler-mcache",
+            dest="java_async_profiler_mcache",
+            # this is "unsigned char" in AP's code
+            type=integer_range(0, 256),
+            metavar="[0-255]",
+            default=AsyncProfiledProcess._DEFAULT_MCACHE,
+            help="async-profiler mcache option (defaults to %(default)s)",
+        ),
     ],
 )
 class JavaProfiler(SpawningProcessProfilerBase):
-    JDK_EXCLUSIONS = ["Zing"]
+    JDK_EXCLUSIONS: List[str] = []  # currently empty
     # Major -> (min version, min build number of version)
     MINIMAL_SUPPORTED_VERSIONS = {
         7: (Version("7.76"), 4),
@@ -671,6 +701,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_async_profiler_args: str,
         java_safemode: str,
         java_jattach_timeout: int,
+        java_async_profiler_mcache: int,
         java_mode: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
@@ -686,6 +717,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._ap_safemode = java_async_profiler_safemode
         self._ap_args = java_async_profiler_args
         self._jattach_timeout = java_jattach_timeout
+        self._ap_mcache = java_async_profiler_mcache
         self._init_java_safemode(java_safemode)
         self._should_profile = True
         # if set, profiling is disabled due to this safemode reason.
@@ -735,14 +767,21 @@ class JavaProfiler(SpawningProcessProfilerBase):
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
 
-    def _is_jvm_version_supported(self, java_version_cmd_output: str) -> bool:
-        try:
-            jvm_version = parse_jvm_version(java_version_cmd_output)
-            logger.info("Checking support for java version", jvm_version=repr(jvm_version))
-        except Exception:
-            logger.exception("Failed to parse java -version output", java_version_cmd_output=java_version_cmd_output)
+    def _is_zing_vm_supported(self, jvm_version: JvmVersion) -> bool:
+        # name is e.g Zing 64-Bit Tiered VM Zing22.04.1.0+1
+        m = re.search(r"Zing(\d+)\.", jvm_version.name)
+        if m is None:
+            return False  # unknown
+
+        major = m.group(1)
+        if int(major) < 18:
             return False
 
+        # Zing > 18 is assumed to support AsyncGetCallTrace per
+        # https://github.com/jvm-profiling-tools/async-profiler/issues/153#issuecomment-452038960
+        return True
+
+    def _check_jvm_supported_extended(self, jvm_version: JvmVersion) -> bool:
         if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
             logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
             return False
@@ -757,14 +796,40 @@ class JavaProfiler(SpawningProcessProfilerBase):
 
         return True
 
-    def _check_jvm_type_supported(self, process: Process, java_version_output: str) -> bool:
+    def _check_jvm_supported_simple(self, process: Process, java_version_output: str, jvm_version: JvmVersion) -> bool:
         if not self._is_jvm_type_supported(java_version_output):
             logger.warning("Unsupported JVM type", java_version_output=java_version_output)
             return False
 
+        # Zing checks
+        if jvm_version.name.startswith("Zing"):
+            if not self._is_zing_vm_supported(jvm_version):
+                logger.warning("Unsupported Zing VM version", jvm_version=repr(jvm_version))
+                return False
+
+        # HS checks
+        if jvm_version.name.startswith("OpenJDK"):
+            if not jvm_version.version.major > 6:
+                logger.warning("Unsupported HotSpot version", jvm_version=repr(jvm_version))
+                return False
+
         return True
 
     def _is_jvm_profiling_supported(self, process: Process) -> bool:
+        """
+        This is the core "version check" function.
+        We have 3 modes of operation:
+        1. No checks at all - java-extended-version-checks is NOT present in --java-safemode, *and*
+           --java-no-version-check is passed. In this mode we'll profile all JVMs.
+        2. Default - neither java-extended-version-checks nor --java-no-version-check are passed,
+           this mode is called "simple checks" and we run minimal checks - if profiled process is
+           basenamed "java", we get the JVM version and make sure that for Zing, we attempt profiling
+           only if Zing version is >18, and for HS, only if JDK>6. If process is not basenamed "java" we
+           just profile it.
+        3. Extended - java-extended-version-checks is passed, we only profile processes which are basenamed "java",
+           who pass the criteria enforced by the default mode ("simple checks") and additionally all checks
+           performed by _check_jvm_supported_extended().
+        """
         exe = process_exe(process)
         process_basename = os.path.basename(exe)
         if JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS in self._java_safemode:
@@ -779,12 +844,12 @@ class JavaProfiler(SpawningProcessProfilerBase):
                 )
                 return False
 
-            java_version_output = get_java_version(process, self._stop_event)
-
-            if not self._check_jvm_type_supported(process, java_version_output):
+            java_version_output = get_java_version_logged(process, self._stop_event)
+            jvm_version = parse_jvm_version(java_version_output)
+            if not self._check_jvm_supported_simple(process, java_version_output, jvm_version):
                 return False
 
-            if not self._is_jvm_version_supported(java_version_output):
+            if not self._check_jvm_supported_extended(jvm_version):
                 logger.warning(
                     "Process running unsupported Java version, skipping..."
                     f" (disable --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS}"
@@ -795,8 +860,9 @@ class JavaProfiler(SpawningProcessProfilerBase):
                 return False
         else:
             if self._simple_version_check and process_basename == "java":
-                java_version_output = get_java_version(process, self._stop_event)
-                if not self._check_jvm_type_supported(process, java_version_output):
+                java_version_output = get_java_version_logged(process, self._stop_event)
+                jvm_version = parse_jvm_version(java_version_output)
+                if not self._check_jvm_supported_simple(process, java_version_output, jvm_version):
                     return False
 
         return True
@@ -852,6 +918,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._ap_safemode,
             self._ap_args,
             self._jattach_timeout,
+            self._ap_mcache,
         ) as ap_proc:
             return self._profile_ap_process(ap_proc, comm, duration)
 

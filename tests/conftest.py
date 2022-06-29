@@ -94,6 +94,11 @@ def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
 
 
 @fixture
+def application_executable(runtime: str) -> str:
+    return "fibonacci" if runtime == "golang" else runtime
+
+
+@fixture
 def gprofiler_exe(request: FixtureRequest, tmp_path: Path) -> Path:
     precompiled = request.config.getoption("--executable")
     if precompiled is not None:
@@ -181,12 +186,18 @@ def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[s
     for runtime in os.listdir(str(CONTAINERS_DIRECTORY)):
         images[runtime], _ = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime), rm=True)
 
-        # for java - build image based on "j9"
+        # for java - add additional images
         if runtime == "java":
             images[runtime + "_j9"], _ = docker_client.images.build(
                 path=str(CONTAINERS_DIRECTORY / runtime),
                 rm=True,
                 buildargs={"JAVA_BASE_IMAGE": "adoptopenjdk/openjdk8-openj9"},
+            )
+
+            images[runtime + "_zing"], _ = docker_client.images.build(
+                path=str(CONTAINERS_DIRECTORY / runtime),
+                rm=True,
+                dockerfile=str(CONTAINERS_DIRECTORY / runtime / "zing.Dockerfile"),
             )
 
         # build musl image if exists
@@ -337,6 +348,7 @@ def assert_collapsed(runtime: str) -> AssertInCollapsed:
         "php": "fibonacci",
         "ruby": "fibonacci",
         "nodejs": "fibonacci",
+        "golang": "fibonacci",
     }[runtime]
 
     return partial(assert_function_in_collapsed, function_name)
@@ -386,8 +398,9 @@ def no_kernel_headers() -> Iterable[None]:
 def profiler_flags(runtime: str, profiler_type: str) -> List[str]:
     # Execute only the tested profiler
     flags = ["--no-java", "--no-python", "--no-php", "--no-ruby", "--no-nodejs"]
-    flags.remove(f"--no-{runtime}")
-    flags.append(f"--{runtime}-mode={profiler_type}")
+    if f"--no-{runtime}" in flags:
+        flags.remove(f"--no-{runtime}")
+        flags.append(f"--{runtime}-mode={profiler_type}")
     return flags
 
 

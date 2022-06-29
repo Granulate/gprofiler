@@ -5,5 +5,14 @@
 #
 set -euo pipefail
 
-yum install -y centos-release-scl
-yum install -y devtoolset-7-toolchain make java-11-openjdk-devel glibc-static git
+if [ "$(uname -m)" = "aarch64" ]; then
+  exit 0
+fi
+apt-get update
+apt-get install -y --no-install-recommends \
+  git \
+  ca-certificates \
+  wget \
+  make \
+  libc6-dev \
+  gcc
