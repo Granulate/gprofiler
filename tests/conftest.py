@@ -356,7 +356,7 @@ def assert_collapsed(runtime: str) -> AssertInCollapsed:
 
 @fixture
 def assert_app_id(application_pid: int, runtime: str, in_container: bool) -> Generator:
-    desired_name_and_getter: Dict[str, Tuple[Callable[..., str], str]] = {
+    desired_name_and_getter: Dict[str, Tuple[Callable[..., Optional[str]], str]] = {
         "java": (get_java_app_id, "java: Fibonacci.jar"),
         "python": (get_python_app_id, "python: lister.py (/app/lister.py)"),
     }
