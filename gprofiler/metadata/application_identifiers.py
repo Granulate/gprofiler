@@ -385,5 +385,5 @@ def get_python_app_id(process: Process) -> Optional[str]:
 def get_java_app_id(process: Process, should_collect_spark_app_name: bool = False) -> Optional[str]:
     java_app_identifiers = _JAVA_APP_IDENTIFIERS
     if should_collect_spark_app_name:
-        java_app_identifiers += [_JavaSparkApplicationIdentifier()]
+        java_app_identifiers = java_app_identifiers + [_JavaSparkApplicationIdentifier()]
     return get_app_id(process, java_app_identifiers, aggregate_all=True)
