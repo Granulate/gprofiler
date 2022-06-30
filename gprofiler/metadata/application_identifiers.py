@@ -7,7 +7,7 @@ import functools
 import os.path
 import re
 from abc import ABCMeta, abstractmethod
-from typing import Dict, List, Literal, Optional, TextIO, Tuple, Union
+from typing import Dict, List, Optional, TextIO, Tuple
 
 from granulate_utils.linux.ns import resolve_host_path, resolve_proc_root_links
 from psutil import NoSuchProcess, Process
@@ -310,7 +310,7 @@ def set_enrichment_options(enrichment_options: EnrichmentOptions) -> None:
 
 
 @functools.lru_cache(4096)  # TODO: arbitrary cache size
-def get_app_id(process: Process, runtime: Union[Literal["python"], Literal["java"]]) -> Optional[str]:
+def get_app_id(process: Process, runtime: str) -> Optional[str]:
     """
     Tries to identify the application running in a given process, application identification is fully heuristic,
     heuristics are being made on each application type available differ from each other and those their
