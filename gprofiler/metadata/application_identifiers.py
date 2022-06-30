@@ -290,7 +290,7 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
 class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
     _JAVA_SPARK_EXECUTOR_ARG = "org.apache.spark.executor.CoarseGrainedExecutorBackend"
     _SPARK_PROPS_FILE = os.path.join("__spark_conf__", "__spark_conf__.properties")
-    _APP_NAME_NOT_FOUND = "spark app name not found"
+    _APP_NAME_NOT_FOUND = "app name not found"
     _APP_NAME_KEY = "spark.app.name"
 
     @staticmethod
@@ -314,7 +314,7 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
         )
         app_name = props[self._APP_NAME_KEY]
         if app_name is not None:
-            return app_name
+            return f"spark: {app_name}"
         return self._APP_NAME_NOT_FOUND
 
 
