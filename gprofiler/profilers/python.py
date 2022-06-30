@@ -51,7 +51,7 @@ from gprofiler.utils import (
     wait_event,
     wait_for_file_by_prefix,
 )
-from gprofiler.utils.process import process_comm
+from gprofiler.utils.process import process_comm, read_proc_file
 
 logger = get_logger_adapter(__name__)
 
@@ -252,12 +252,10 @@ class PySpyProfiler(SpawningProcessProfilerBase):
 
         return filtered_procs
 
-    def _should_profile_process(self, pid: int) -> bool:
-        # TODO use psutil or at least make this code raise NoSuchProcess when appropriate.
+    def _should_profile_process(self, process: Process) -> bool:
         return any(
-            re.match(DETECTED_PYTHON_PROCESSES_REGEX, line)
-            for line in Path(f"/proc/{pid}/maps").read_text().splitlines()
-        ) and not self._should_skip_process(Process(pid))
+            re.match(DETECTED_PYTHON_PROCESSES_REGEX, line) for line in read_proc_file(process, "maps").splitlines()
+        ) and not self._should_skip_process(process)
 
     def _should_skip_process(self, process: Process) -> bool:
         if process.pid == os.getpid():

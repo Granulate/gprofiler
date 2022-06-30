@@ -64,7 +64,7 @@ from gprofiler.utils import (
 )
 from gprofiler.utils.fs import is_rw_exec_dir, safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
-from gprofiler.utils.process import process_comm
+from gprofiler.utils.process import process_comm, read_proc_file
 
 logger = get_logger_adapter(__name__)
 
@@ -999,9 +999,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
             # profiling.
         return pgrep_maps(DETECTED_JAVA_PROCESSES_REGEX)
 
-    def _should_profile_process(self, pid: int) -> bool:
-        # TODO use psutil or at least make this code raise NoSuchProcess when appropriate.
-        return any(line.endswith("/libjvm.so") for line in Path(f"/proc/{pid}/maps").read_text().splitlines())
+    def _should_profile_process(self, process: Process) -> bool:
+        return any(line.endswith("/libjvm.so") for line in read_proc_file(process, "maps").splitlines())
 
     def start(self) -> None:
         super().start()

@@ -196,7 +196,7 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         self._sched_stop = False
         self._sched_thread = Thread(target=self._sched_thread_run)
 
-    def _should_profile_process(self, pid: int) -> bool:
+    def _should_profile_process(self, process: Process) -> bool:
         raise NotImplementedError
 
     def _notify_selected_processes(self, processes: List[Process]) -> None:
@@ -269,7 +269,7 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
     def _check_process(self, process: Process, interval: float) -> None:
         with contextlib.suppress(NoSuchProcess):
             if is_process_running(process) and process.ppid() != os.getpid() and self._is_profiling_spawning:
-                if self._should_profile_process(process.pid):
+                if self._should_profile_process(process):
                     # check again, with the lock this time
                     with self._submit_lock:
                         if self._is_profiling_spawning:
