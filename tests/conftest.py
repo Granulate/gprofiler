@@ -95,7 +95,11 @@ def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
 
 @fixture
 def application_executable(runtime: str) -> str:
-    return "fibonacci" if runtime == "golang" else runtime
+    if runtime == "golang":
+        return "fibonacci"
+    elif runtime == "nodejs":
+        return "node"
+    return runtime
 
 
 @fixture
