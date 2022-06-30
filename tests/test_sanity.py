@@ -175,7 +175,7 @@ def test_from_container_spawned_process(
     output_collapsed: Path,
     assert_collapsed: AssertInCollapsed,
     profiler_flags: List[str],
-    application_factory: Callable[[], _GeneratorContextManager[int]],
+    application_factory: Callable[[], _GeneratorContextManager],
 ) -> None:
     args = runtime_specific_args.copy()
     if "-d" in args:

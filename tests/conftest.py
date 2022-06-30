@@ -279,7 +279,7 @@ def application_factory(
     application_docker_capabilities: List[str],
     command_line: List[str],
     check_app_exited: bool,
-) -> Callable[[], _GeneratorContextManager[int]]:
+) -> Callable[[], _GeneratorContextManager]:
     @contextmanager
     def _run_application() -> Iterator[int]:
         if in_container:

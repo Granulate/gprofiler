@@ -61,8 +61,7 @@ def wait_for_container(container: Container) -> str:
     logs = container.logs(stdout=True, stderr=True)
 
     if exit_status != 0:
-        # TODO: raise ContainerError(container, exit_status, command, image, logs)
-        raise ContainerError(container, exit_status, None, container.image, logs)
+        raise ContainerError(container, exit_status, container.attrs["Config"]["Cmd"], container.image, logs)
 
     # print, so failing tests display it
     print(
