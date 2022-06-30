@@ -5,6 +5,7 @@
 
 import concurrent.futures
 import contextlib
+import os
 import sched
 import time
 from collections import Counter
@@ -266,21 +267,21 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
             self._stop_event.wait(0.1)
 
     def _check_process(self, process: Process, interval: float) -> None:
-        # TODO try-except and ignore NoSuchProcess
-        if is_process_running(process) and self._is_profiling_spawning:
-            if self._should_profile_process(process.pid):
-                # check again, with the lock this time
-                with self._submit_lock:
-                    if self._is_profiling_spawning:
-                        # TODO ensure > 0 etc
-                        assert self._start_ts is not None and self._threads is not None
-                        duration = self._duration - (time.monotonic() - self._start_ts)
-                        comm = process_comm(process)
-                        self._futures[self._threads.submit(self._profile_process, process, int(duration))] = (
-                            process.pid,
-                            comm,
-                        )
-            else:
-                if interval < self._BACKOFF_MAX:
-                    new_interval = interval * 2
-                    self._sched.enter(new_interval, 0, self._check_process, (process, new_interval))
+        with contextlib.suppress(NoSuchProcess):
+            if is_process_running(process) and process.ppid() != os.getpid() and self._is_profiling_spawning:
+                if self._should_profile_process(process.pid):
+                    # check again, with the lock this time
+                    with self._submit_lock:
+                        if self._is_profiling_spawning:
+                            # TODO ensure > 0 etc
+                            assert self._start_ts is not None and self._threads is not None
+                            duration = self._duration - (time.monotonic() - self._start_ts)
+                            comm = process_comm(process)
+                            self._futures[self._threads.submit(self._profile_process, process, int(duration))] = (
+                                process.pid,
+                                comm,
+                            )
+                else:
+                    if interval < self._BACKOFF_MAX:
+                        new_interval = interval * 2
+                        self._sched.enter(new_interval, 0, self._check_process, (process, new_interval))
