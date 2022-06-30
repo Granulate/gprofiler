@@ -2,6 +2,8 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+
+from contextlib import _GeneratorContextManager
 from pathlib import Path
 from threading import Event
 from typing import Any, Callable, List, Optional
@@ -15,6 +17,7 @@ from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.php import PHPSpyProfiler
 from gprofiler.profilers.python import PySpyProfiler, PythonEbpfProfiler
 from gprofiler.profilers.ruby import RbSpyProfiler
+from gprofiler.utils import wait_event
 from tests import PHPSPY_DURATION
 from tests.conftest import AssertInCollapsed
 from tests.utils import (
@@ -24,6 +27,8 @@ from tests.utils import (
     run_gprofiler_in_container_for_one_session,
     snapshot_one_collapsed,
     snapshot_pid_collapsed,
+    start_gprofiler_in_container_for_one_session,
+    wait_for_gprofiler_container,
 )
 
 
@@ -144,6 +149,7 @@ def test_from_container(
     runtime_specific_args: List[str],
     gprofiler_docker_image: Image,
     output_directory: Path,
+    output_collapsed: Path,
     assert_collapsed: AssertInCollapsed,
     assert_app_id: Callable,
     profiler_flags: List[str],
@@ -151,7 +157,36 @@ def test_from_container(
     _ = application_pid  # Fixture only used for running the application.
     _ = assert_app_id  # Required for mypy unused argument warning
     collapsed_text = run_gprofiler_in_container_for_one_session(
-        docker_client, gprofiler_docker_image, output_directory, runtime_specific_args, profiler_flags
+        docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags
     )
     collapsed = parse_one_collapsed(collapsed_text)
     assert_collapsed(collapsed)
+
+
+@pytest.mark.parametrize(
+    "runtime,profiler_type",
+    RUNTIME_PROFILERS,
+)
+def test_from_container_spawned_process(
+    docker_client: DockerClient,
+    runtime_specific_args: List[str],
+    gprofiler_docker_image: Image,
+    output_directory: Path,
+    output_collapsed: Path,
+    assert_collapsed: AssertInCollapsed,
+    profiler_flags: List[str],
+    application_factory: Callable[[], _GeneratorContextManager[int]],
+) -> None:
+    args = runtime_specific_args.copy()
+    if "-d" in args:
+        args[args.index("-d") + 1] = "10"
+    else:
+        args.extend(["-d", "10"])
+    container = start_gprofiler_in_container_for_one_session(
+        docker_client, gprofiler_docker_image, output_directory, output_collapsed, args, profiler_flags
+    )
+    wait_event(30, Event(), lambda: b"gProfiler initialized" in container.logs())
+    with application_factory():
+        collapsed_text = wait_for_gprofiler_container(container, output_collapsed)
+        collapsed = parse_one_collapsed(collapsed_text)
+        assert_collapsed(collapsed)
