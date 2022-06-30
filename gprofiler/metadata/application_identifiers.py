@@ -21,8 +21,6 @@ _logger = get_logger_adapter(__name__)
 
 _PYTHON_BIN_RE = re.compile(r"^python([23](\.\d{1,2})?)?$")
 
-_JAVA_BIN_NAMES = ("java", "jsvc", "jsvc.exec")
-
 
 # Python does string interning so just initializing str() as a sentinel is not enough.
 class StrSentinel(str):
@@ -47,10 +45,6 @@ def _is_python_m_proc(process: Process) -> bool:
 
 def _is_python_bin(bin_name: str) -> bool:
     return _PYTHON_BIN_RE.match(os.path.basename(bin_name)) is not None
-
-
-def _is_java_bin(bin_name: str) -> bool:
-    return os.path.basename(bin_name) in _JAVA_BIN_NAMES
 
 
 def _get_cli_arg_by_name(
@@ -296,30 +290,32 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
 class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
     _JAVA_SPARK_EXECUTOR_ARG = "org.apache.spark.executor.CoarseGrainedExecutorBackend"
     _SPARK_PROPS_FILE = os.path.join("__spark_conf__", "__spark_conf__.properties")
-    _APP_NAME_NOT_FOUND = "SPARK_APP_NAME_NOT_FOUND"
+    _APP_NAME_NOT_FOUND = "spark app name not found"
     _APP_NAME_KEY = "spark.app.name"
 
     @staticmethod
     def _is_java_spark_executor(process: Process) -> bool:
         args = process.cmdline()
-        if not _is_java_bin(args[0]):
-            return False
         return _JavaSparkApplicationIdentifier._JAVA_SPARK_EXECUTOR_ARG in args
 
     def get_app_id(self, process: Process) -> Optional[str]:
-        if not _JavaSparkApplicationIdentifier._is_java_spark_executor(process):
+        if not self._is_java_spark_executor(process):
             return None
-        props_path = os.path.join(process.cwd(), _JavaSparkApplicationIdentifier._SPARK_PROPS_FILE)
+        props_path = os.path.join(process.cwd(), self._SPARK_PROPS_FILE)
         if not os.path.exists(props_path):
-            _logger.warning("Spark props file doesn't exist")
-            return _JavaSparkApplicationIdentifier._APP_NAME_NOT_FOUND
+            _logger.warning(
+                f"Spark props file doesn't exist: {props_path}. Proces args: {process.cmdline()}, pid: {process.pid}"
+            )
+            return self._APP_NAME_NOT_FOUND
         with open(props_path) as f:
             props_text = f.read()
-        props = dict([line.split("=", 1) for line in props_text.splitlines() if not line.startswith("#")])
-        if _JavaSparkApplicationIdentifier._APP_NAME_KEY in props:
-            return props[_JavaSparkApplicationIdentifier._APP_NAME_KEY]
-        else:
-            return _JavaSparkApplicationIdentifier._APP_NAME_NOT_FOUND
+        props = dict(
+            [line.split("#", 1)[0].split("=", 1) for line in props_text.splitlines() if not line.startswith("#")]
+        )
+        app_name = props[self._APP_NAME_KEY]
+        if app_name is not None:
+            return app_name
+        return self._APP_NAME_NOT_FOUND
 
 
 # Please note that the order matter, because the FIRST matching identifier will be used.
@@ -364,16 +360,14 @@ def get_app_id(
                 appids.append(appid)
 
         except NoSuchProcess:
-            if aggregate_all and len(appids) != 0:
-                return ", ".join(appids)
-            return None
+            break
         except Exception:
             _logger.exception(
                 f"Application identifier {identifier} raised an exception while matching against process {process}"
             )
             continue
 
-    if aggregate_all and len(appids) != 0:
+    if len(appids) != 0:
         return ", ".join(appids)
     return None
 
