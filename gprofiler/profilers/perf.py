@@ -243,9 +243,12 @@ class PerfMetadata(ApplicationMetadata):
         except FileNotFoundError:
             raise NoSuchProcess(process.pid)
 
-        exe_metadata = {"link": "static" if static else "dynamic"}
+        exe_metadata: Dict[str, Any] = {"link": "static" if static else "dynamic"}
         if not static:
             exe_metadata["libc"] = "musl" if is_musl(process) else "glibc"
+        else:
+            exe_metadata["libc"] = None
+
 
         metadata.update(exe_metadata)
 
