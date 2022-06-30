@@ -10,6 +10,7 @@ from threading import Event
 from typing import Any, Dict, List, Optional
 
 from granulate_utils.linux.elf import get_elf_id, get_mapped_dso_elf_id
+from granulate_utils.linux.process import process_exe
 from psutil import Process
 
 from gprofiler import merge
@@ -30,7 +31,7 @@ class RubyMetadata(ApplicationMetadata):
 
     @functools.lru_cache(4096)
     def _get_ruby_version(self, process: Process) -> str:
-        if not os.path.basename(process.exe()).startswith("ruby"):
+        if not os.path.basename(process_exe(process)).startswith("ruby"):
             # TODO: for dynamic executables, find the ruby binary that works with the loaded libruby, and
             # check it instead. For static executables embedding libruby - :shrug:
             raise NotImplementedError

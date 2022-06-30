@@ -12,7 +12,7 @@ from threading import Event
 from typing import Any, Dict, List, Optional
 
 from granulate_utils.linux.elf import is_statically_linked, read_elf_symbol, read_elf_va
-from granulate_utils.linux.process import is_musl
+from granulate_utils.linux.process import is_musl, process_exe
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
@@ -249,7 +249,6 @@ class PerfMetadata(ApplicationMetadata):
         else:
             exe_metadata["libc"] = None
 
-
         metadata.update(exe_metadata)
 
 
@@ -292,7 +291,7 @@ class GolangPerfMetadata(PerfMetadata):
 
 class NodePerfMetadata(PerfMetadata):
     def relevant_for_process(self, process: Process) -> bool:
-        return os.path.basename(process.exe()) == "node"
+        return os.path.basename(process_exe(process)) == "node"
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         metadata = {"node_version": self.get_exe_version_cached(process)}
