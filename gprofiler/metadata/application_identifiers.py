@@ -309,7 +309,7 @@ def set_enrichment_options(enrichment_options: EnrichmentOptions) -> None:
     _ApplicationIdentifier.enrichment_options = enrichment_options
 
 
-@functools.lru_cache(4096)  # TODO: arbitrary cache size
+@functools.lru_cache(4096)  # NOTE: arbitrary cache size
 def get_app_id(process: Process, runtime: str) -> Optional[str]:
     """
     Tries to identify the application running in a given process, application identification is fully heuristic,
@@ -320,7 +320,6 @@ def get_app_id(process: Process, runtime: str) -> Optional[str]:
     if not _ApplicationIdentifier.enrichment_options.application_identifiers:
         return None
 
-    assert runtime in _IDENTIFIERS_MAP
     identifiers = _IDENTIFIERS_MAP[runtime]
 
     for identifier in identifiers:
