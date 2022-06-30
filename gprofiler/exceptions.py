@@ -64,7 +64,7 @@ class ThreadStopTimeoutError(Exception):
     pass
 
 
-class SystemProfilerInitFailure(Exception):
+class SystemProfilerStartFailure(Exception):
     pass
 
 

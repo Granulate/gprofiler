@@ -1,3 +1,4 @@
+import sys
 from typing import TYPE_CHECKING, Any, List, Tuple, Union
 
 from gprofiler.exceptions import NoProfilersEnabledError, SystemProfilerInitFailure
@@ -40,9 +41,12 @@ def get_profilers(
         try:
             profiler_instance = profiler_config.profiler_class(**profiler_kwargs)
         except Exception:
-            if profiler_config.profiler_class is SystemProfiler:
-                raise SystemProfilerInitFailure("Could not create the system profiler")
-            logger.critical(f"Couldn't create the {profiler_name} profiler, continuing without it", exc_info=True)
+            logger.fatal(
+                f"Couldn't create the {profiler_name} profiler, not continuing."
+                f" Run with --no-{profiler_name} to disable this profiler",
+                exc_info=True,
+            )
+            sys.exit(1)
         else:
             if isinstance(profiler_instance, SystemProfiler):
                 system_profiler = profiler_instance

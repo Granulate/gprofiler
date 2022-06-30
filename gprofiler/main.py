@@ -121,15 +121,11 @@ class GProfiler:
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
         self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
-        try:
-            self.system_profiler, self.process_profilers = get_profilers(
-                user_args,
-                storage_dir=self._temp_storage_dir.name,
-                stop_event=self._stop_event,
-            )
-        except SystemProfilerInitFailure:
-            logger.exception("System profiler initialization has failed, exiting...")
-            sys.exit(1)
+        self.system_profiler, self.process_profilers = get_profilers(
+            user_args,
+            storage_dir=self._temp_storage_dir.name,
+            stop_event=self._stop_event,
+        )
         if self._enrichment_options.container_names:
             self._container_names_client: Optional[ContainerNamesClient] = ContainerNamesClient()
         else:
