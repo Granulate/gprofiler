@@ -188,10 +188,22 @@ class JattachSocketMissingException(JattachExceptionBase):
         )
 
 
+def is_java_basename(process: Process) -> bool:
+    return os.path.basename(process_exe(process)) == "java"
+
+
 _JAVA_VERSION_TIMEOUT = 5
 
+_JAVA_VERSION_CACHE_MAX = 1024
 
+
+# process is hashable and the same process instance compares equal
+@functools.lru_cache(maxsize=_JAVA_VERSION_CACHE_MAX)
 def get_java_version(process: Process, stop_event: Event) -> str:
+    # make sure we're only called for "java" processes, otherwise running "-version" makes no sense.
+    # our callers should check for it.
+    assert is_java_basename(process), f"expected java, found {process!r}"
+
     nspid = get_process_nspid(process.pid)
 
     # this has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
@@ -230,7 +242,10 @@ def get_java_version_logged(process: Process, stop_event: Event) -> str:
 
 class JavaMetadata(ApplicationMetadata):
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        version = get_java_version(process, self._stop_event)
+        if is_java_basename(process):
+            version = get_java_version(process, self._stop_event)
+        else:
+            version = "not /java"
         # libjvm elfid - we care only about libjvm, not about the java exe itself which is a just small program
         # that loads other libs.
         libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")
@@ -722,8 +737,10 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._should_profile = True
         # if set, profiling is disabled due to this safemode reason.
         self._safemode_disable_reason: Optional[str] = None
+        self._want_to_profile_pids: Set[int] = set()
         self._profiled_pids: Set[int] = set()
         self._pids_to_remove: Set[int] = set()
+        self._pid_to_java_version: Dict[int, Optional[str]] = {}
         self._kernel_messages_provider = get_kernel_messages_provider()
         self._enabled_proc_events = False
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
@@ -761,8 +778,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
             logger.warning("Java profiling has been disabled, will avoid profiling any new java processes", cause=cause)
             self._safemode_disable_reason = cause
 
-    def _profiling_skipped_stack(self, reason: str, comm: str) -> StackToSampleCount:
-        return self._profiling_error_stack("skipped", reason, comm)
+    def _profiling_skipped_profile(self, reason: str, comm: str) -> ProfileData:
+        return ProfileData(self._profiling_error_stack("skipped", reason, comm), None, None)
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -815,7 +832,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
 
         return True
 
-    def _is_jvm_profiling_supported(self, process: Process) -> bool:
+    def _is_jvm_profiling_supported(self, process: Process, exe: str, java_version_output: Optional[str]) -> bool:
         """
         This is the core "version check" function.
         We have 3 modes of operation:
@@ -830,21 +847,16 @@ class JavaProfiler(SpawningProcessProfilerBase):
            who pass the criteria enforced by the default mode ("simple checks") and additionally all checks
            performed by _check_jvm_supported_extended().
         """
-        exe = process_exe(process)
-        process_basename = os.path.basename(exe)
         if JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS in self._java_safemode:
-            # TODO we can get the "java" binary by extracting the java home from the libjvm path,
-            # then check with that instead (if exe isn't java)
-            if process_basename != "java":
+            if java_version_output is None:  # we don't get the java version if the exe isn't "java"
                 logger.warning(
-                    "Non-java basenamed process, skipping... (disable "
+                    "Non-java basenamed process (cannot get Java version), skipping... (disable "
                     f" --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS} to profile it anyway)",
                     pid=process.pid,
                     exe=exe,
                 )
                 return False
 
-            java_version_output = get_java_version_logged(process, self._stop_event)
             jvm_version = parse_jvm_version(java_version_output)
             if not self._check_jvm_supported_simple(process, java_version_output, jvm_version):
                 return False
@@ -859,8 +871,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
                 )
                 return False
         else:
-            if self._simple_version_check and process_basename == "java":
-                java_version_output = get_java_version_logged(process, self._stop_event)
+            if self._simple_version_check and java_version_output is not None:
                 jvm_version = parse_jvm_version(java_version_output)
                 if not self._check_jvm_supported_simple(process, java_version_output, jvm_version):
                     return False
@@ -888,17 +899,34 @@ class JavaProfiler(SpawningProcessProfilerBase):
 
         return False
 
-    def _profile_process_stackcollapse(self, process: Process, duration: int) -> StackToSampleCount:
+    def _profile_process(self, process: Process, duration: int) -> ProfileData:
         comm = process_comm(process)
+        exe = process_exe(process)
+        # TODO we can get the "java" binary by extracting the java home from the libjvm path,
+        # then check with that instead (if exe isn't java)
+        if is_java_basename(process):
+            java_version_output: Optional[str] = get_java_version_logged(process, self._stop_event)
+        else:
+            java_version_output = None
+
+        if self._enabled_proc_events:
+            self._want_to_profile_pids.add(process.pid)
+            # there's no reliable way to get the underlying cache of get_java_version, otherwise
+            # I'd just use it.
+            if len(self._pid_to_java_version) > _JAVA_VERSION_CACHE_MAX:
+                self._pid_to_java_version.clear()
+
+            # This Java version might be used in _proc_exit_callback
+            self._pid_to_java_version[process.pid] = java_version_output
 
         if self._safemode_disable_reason is not None:
-            return self._profiling_skipped_stack(f"disabled due to {self._safemode_disable_reason}", comm)
+            return self._profiling_skipped_profile(f"disabled due to {self._safemode_disable_reason}", comm)
 
-        if not self._is_jvm_profiling_supported(process):
-            return self._profiling_skipped_stack("profiling this JVM is not supported", comm)
+        if not self._is_jvm_profiling_supported(process, exe, java_version_output):
+            return self._profiling_skipped_profile("profiling this JVM is not supported", comm)
 
         if self._check_async_profiler_loaded(process):
-            return self._profiling_skipped_stack("async-profiler is already loaded", comm)
+            return self._profiling_skipped_profile("async-profiler is already loaded", comm)
 
         # track profiled PIDs only if proc_events are in use, otherwise there is no use in them.
         # TODO: it is possible to run in contexts where we're unable to use proc_events but are able to listen
@@ -908,6 +936,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._profiled_pids.add(process.pid)
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
+        app_metadata = self._metadata.get_metadata(process)
+        appid = application_identifiers.get_java_app_id(process)
 
         with AsyncProfiledProcess(
             process,
@@ -920,13 +950,9 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._jattach_timeout,
             self._ap_mcache,
         ) as ap_proc:
-            return self._profile_ap_process(ap_proc, comm, duration)
+            stackcollapse = self._profile_ap_process(ap_proc, comm, duration)
 
-    def _profile_process(self, process: Process, duration: int) -> ProfileData:
-        app_metadata = self._metadata.get_metadata(process)
-        appid = application_identifiers.get_java_app_id(process)
-
-        return ProfileData(self._profile_process_stackcollapse(process, duration), appid, app_metadata)
+        return ProfileData(stackcollapse, appid, app_metadata)
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str, duration: int) -> StackToSampleCount:
         started = ap_proc.start_async_profiler(self._interval, ap_timeout=self._ap_timeout)
@@ -1024,18 +1050,33 @@ class JavaProfiler(SpawningProcessProfilerBase):
     def _proc_exit_callback(self, tid: int, pid: int, exit_code: int) -> None:
         # Notice that we only check the exit code of the main thread here.
         # It's assumed that an error in any of the Java threads will be reflected in the exit code of the main thread.
-        if tid in self._profiled_pids:
+        if tid in self._want_to_profile_pids:
             self._pids_to_remove.add(tid)
+            java_version_output = self._pid_to_java_version.get(tid)
 
             signo = java_exit_code_to_signo(exit_code)
             if signo is None:
                 # not a signal, do not report
                 return
 
-            logger.warning("async-profiled Java process exited with signal", pid=tid, signal=signo)
+            if tid in self._profiled_pids:
+                logger.warning(
+                    "async-profiled Java process exited with signal",
+                    pid=tid,
+                    signal=signo,
+                    java_version_output=java_version_output,
+                )
 
-            if is_java_fatal_signal(signo):
-                self._disable_profiling(JavaSafemodeOptions.PROFILED_SIGNALED)
+                if is_java_fatal_signal(signo):
+                    self._disable_profiling(JavaSafemodeOptions.PROFILED_SIGNALED)
+            else:
+                # this is a process that we wanted to profile, but didn't profile due to safemode / any other reason.
+                logger.debug(
+                    "Non-profiled Java process exited with signal",
+                    pid=tid,
+                    signal=signo,
+                    java_version_output=java_version_output,
+                )
 
     def _handle_kernel_messages(self, messages: List[KernelMessage]) -> None:
         for message in messages:
@@ -1078,4 +1119,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         finally:
             self._handle_new_kernel_messages()
             self._profiled_pids -= self._pids_to_remove
+            self._want_to_profile_pids -= self._pids_to_remove
+            for pid in self._pids_to_remove:
+                self._pid_to_java_version.pop(pid, None)
             self._pids_to_remove.clear()
