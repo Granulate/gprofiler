@@ -190,6 +190,7 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         self._submit_lock = Lock()
         self._threads: Optional[ThreadPoolExecutor] = None
         self._start_ts: Optional[float] = None
+        self._preexisting_pids: Optional[List[int]] = None
         self._enabled_proc_events = False
         self._futures: Dict[Future, Tuple[int, str]] = {}
         self._sched = sched.scheduler()
@@ -200,18 +201,18 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         raise NotImplementedError
 
     def _notify_selected_processes(self, processes: List[Process]) -> None:
-        # TODO ensure PIDs in _proc_exec_callback don't intersect with "processes"?
         # now we start watching for new processes.
-        self._start_profiling_spawning()
+        self._start_profiling_spawning(processes)
 
     @property
     def _is_profiling_spawning(self) -> bool:
         return self._threads is not None
 
-    def _start_profiling_spawning(self) -> None:
+    def _start_profiling_spawning(self, processes: List[Process]) -> None:
         with self._submit_lock:
             self._start_ts = time.monotonic()
             self._threads = ThreadPoolExecutor()
+            self._preexisting_pids = list(map(lambda p: p.pid, processes))
 
     def _stop_profiling_spawning(self) -> None:
         with self._submit_lock:
@@ -219,6 +220,7 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
             assert self._threads is not None
             self._threads.shutdown()  # waits (although - all are done by now)
             self._threads = None
+            self._preexisting_pids = None
 
     def _proc_exec_callback(self, tid: int, pid: int) -> None:
         with contextlib.suppress(NoSuchProcess):
@@ -268,20 +270,31 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
 
     def _check_process(self, process: Process, interval: float) -> None:
         with contextlib.suppress(NoSuchProcess):
-            if is_process_running(process) and process.ppid() != os.getpid() and self._is_profiling_spawning:
-                if self._should_profile_process(process):
-                    # check again, with the lock this time
-                    with self._submit_lock:
-                        if self._is_profiling_spawning:
-                            # TODO ensure > 0 etc
-                            assert self._start_ts is not None and self._threads is not None
-                            duration = self._duration - (time.monotonic() - self._start_ts)
-                            comm = process_comm(process)
-                            self._futures[self._threads.submit(self._profile_process, process, int(duration))] = (
-                                process.pid,
-                                comm,
-                            )
-                else:
-                    if interval < self._BACKOFF_MAX:
-                        new_interval = interval * 2
-                        self._sched.enter(new_interval, 0, self._check_process, (process, new_interval))
+            if not self._is_profiling_spawning or not is_process_running(process) or process.ppid() == os.getpid():
+                return
+
+            if self._should_profile_process(process):
+                # check again, with the lock this time
+                with self._submit_lock:
+                    if self._is_profiling_spawning:
+                        assert (
+                            self._start_ts is not None
+                            and self._threads is not None
+                            and self._preexisting_pids is not None
+                        )
+                        if process.pid in self._preexisting_pids:
+                            return
+
+                        duration = self._duration - (time.monotonic() - self._start_ts)
+                        if duration <= 0:
+                            return
+
+                        comm = process_comm(process)
+                        self._futures[self._threads.submit(self._profile_process, process, int(duration))] = (
+                            process.pid,
+                            comm,
+                        )
+            else:
+                if interval < self._BACKOFF_MAX:
+                    new_interval = interval * 2
+                    self._sched.enter(new_interval, 0, self._check_process, (process, new_interval))
