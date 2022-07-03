@@ -217,6 +217,7 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         return self._threads is not None
 
     def _start_profiling_spawning(self, processes: List[Process]) -> None:
+        logger.debug(f"{self.__class__.__name__}: starting profiling spawning processes")
         with self._submit_lock:
             self._start_ts = time.monotonic()
             self._threads = ThreadPoolExecutor()
