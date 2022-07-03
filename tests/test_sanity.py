@@ -191,7 +191,13 @@ def test_from_container_spawned_process(
         args,
         profiler_flags,
     )
-    wait_event(30, Event(), lambda: b"starting profiling spawning processes" in container.logs())
+
+    try:
+        wait_event(30, Event(), lambda: b"starting profiling spawning processes" in container.logs())
+    except TimeoutError:
+        print(container.logs())
+        raise
+
     with application_factory():
         collapsed_text = wait_for_gprofiler_container(container, output_collapsed)
         collapsed = parse_one_collapsed(collapsed_text)
