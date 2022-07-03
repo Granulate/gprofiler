@@ -187,7 +187,6 @@ def start_gprofiler_in_container_for_one_session(
     output_path: Path,
     runtime_specific_args: List[str],
     profiler_flags: List[str],
-    profile_spawned_processes: bool = False,
 ) -> Container:
     inner_output_directory = "/tmp/gprofiler"
     volumes = {
@@ -201,7 +200,6 @@ def start_gprofiler_in_container_for_one_session(
         gprofiler_docker_image,
         args,
         volumes=volumes,
-        profile_spawned_processes=profile_spawned_processes,
     )
 
 

@@ -182,6 +182,7 @@ def test_from_container_spawned_process(
         args[args.index("-d") + 1] = "10"
     else:
         args.extend(["-d", "10"])
+    args.append("--profile-spawned-processes")
     container = start_gprofiler_in_container_for_one_session(
         docker_client,
         gprofiler_docker_image,
@@ -189,7 +190,6 @@ def test_from_container_spawned_process(
         output_collapsed,
         args,
         profiler_flags,
-        profile_spawned_processes=True,
     )
     wait_event(30, Event(), lambda: b"starting profiling spawning processes" in container.logs())
     with application_factory():
