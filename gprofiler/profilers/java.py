@@ -743,7 +743,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._pids_to_remove: Set[int] = set()
         self._pid_to_java_version: Dict[int, Optional[str]] = {}
         self._kernel_messages_provider = get_kernel_messages_provider()
-        self._enabled_proc_events = False
+        self._enabled_proc_events_java = False
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
         self._metadata = JavaMetadata(self._stop_event)
 
@@ -910,7 +910,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         else:
             java_version_output = None
 
-        if self._enabled_proc_events:
+        if self._enabled_proc_events_java:
             self._want_to_profile_pids.add(process.pid)
             # there's no reliable way to get the underlying cache of get_java_version, otherwise
             # I'd just use it.
@@ -933,7 +933,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         # TODO: it is possible to run in contexts where we're unable to use proc_events but are able to listen
         # on kernel messages. we can add another mechanism to track PIDs (such as, prune PIDs which have exited)
         # then use the kernel messages listener without proc_events.
-        if self._enabled_proc_events:
+        if self._enabled_proc_events_java:
             self._profiled_pids.add(process.pid)
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
@@ -1040,12 +1040,12 @@ class JavaProfiler(SpawningProcessProfilerBase):
                 exc_info=True,
             )
         else:
-            self._enabled_proc_events = True
+            self._enabled_proc_events_java = True
 
     def stop(self) -> None:
-        if self._enabled_proc_events:
+        if self._enabled_proc_events_java:
             proc_events.unregister_exit_callback(self._proc_exit_callback)
-            self._enabled_proc_events = False
+            self._enabled_proc_events_java = False
         super().stop()
 
     def _proc_exit_callback(self, tid: int, pid: int, exit_code: int) -> None:
