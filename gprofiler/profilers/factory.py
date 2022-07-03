@@ -43,7 +43,7 @@ def get_profilers(
         except Exception:
             logger.critical(
                 f"Couldn't create the {profiler_name} profiler, not continuing."
-                f" Run with --no-{profiler_name} to disable this profiler",
+                f" Run with --no-{profiler_name.lower()} to disable this profiler",
                 exc_info=True,
             )
             sys.exit(1)

@@ -271,8 +271,9 @@ class GProfiler:
         try:
             system_result = system_future.result()
         except Exception:
-            logger.exception(
-                "Running perf failed; consider running gProfiler with '--perf-mode disabled' to avoid using perf"
+            logger.critical(
+                "Running perf failed; consider running gProfiler with '--perf-mode disabled' to avoid using perf",
+                exc_info=True
             )
             raise
         metadata = (
