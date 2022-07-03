@@ -225,6 +225,7 @@ def run_gprofiler_in_container_for_one_session(
     """
     Runs the gProfiler container image for a single profiling session, and collects the output.
     """
+    container: Container = None
     try:
         container = start_gprofiler_in_container_for_one_session(
             docker_client, gprofiler_docker_image, output_directory, output_path, runtime_specific_args, profiler_flags
