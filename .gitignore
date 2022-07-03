@@ -148,3 +148,4 @@ gprofiler/resources/*
 
 # IDEs
 .idea
+.vscode
