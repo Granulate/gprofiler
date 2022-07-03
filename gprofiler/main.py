@@ -586,12 +586,12 @@ def parse_cmd_args() -> configargparse.Namespace:
     )
 
     parser.add_argument(
-        "--dont-profile-spawned-processes",
-        action="store_false",
+        "--profile-spawned-processes",
+        action="store_true",
         dest="profile_spawned_processes",
-        default=True,
-        help="gProfiler won't listen for process spawn events, and will only profile processes that exist when each"
-        " session starts.",
+        default=False,
+        help="gProfiler will listen for process spawn events, and will profile new processes that are spawned after the"
+        " beginning of a session.",
     )
 
     args = parser.parse_args()
