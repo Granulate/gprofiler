@@ -58,7 +58,7 @@ def test_pyspy(
     python_version: Optional[str],
 ) -> None:
     _ = assert_app_id  # Required for mypy unused argument warning
-    with PySpyProfiler(1000, 3, Event(), str(tmp_path), add_versions=True) as profiler:
+    with PySpyProfiler(1000, 3, Event(), str(tmp_path), False, add_versions=True) as profiler:
         # not using snapshot_one_collapsed because there are multiple Python processes running usually.
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -75,7 +75,7 @@ def test_phpspy(
     assert_collapsed: AssertInCollapsed,
 ) -> None:
     with PHPSpyProfiler(
-        1000, PHPSPY_DURATION, Event(), str(tmp_path), php_process_filter="php", php_mode="phpspy"
+        1000, PHPSPY_DURATION, Event(), str(tmp_path), False, php_process_filter="php", php_mode="phpspy"
     ) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -88,7 +88,7 @@ def test_rbspy(
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
 ) -> None:
-    with RbSpyProfiler(1000, 3, Event(), str(tmp_path), "rbspy") as profiler:
+    with RbSpyProfiler(1000, 3, Event(), str(tmp_path), False, "rbspy") as profiler:
         process_collapsed = snapshot_one_collapsed(profiler)
         assert_collapsed(process_collapsed)
 
@@ -101,7 +101,7 @@ def test_nodejs(
     gprofiler_docker_image: Image,
 ) -> None:
     with SystemProfiler(
-        1000, 6, Event(), str(tmp_path), perf_mode="fp", perf_inject=True, perf_dwarf_stack_size=0
+        1000, 6, Event(), str(tmp_path), False, perf_mode="fp", perf_inject=True, perf_dwarf_stack_size=0
     ) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -118,7 +118,7 @@ def test_python_ebpf(
     no_kernel_headers: Any,
 ) -> None:
     _ = assert_app_id  # Required for mypy unused argument warning
-    with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path), add_versions=True) as profiler:
+    with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path), False, add_versions=True) as profiler:
         try:
             process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         except UnicodeDecodeError as e:

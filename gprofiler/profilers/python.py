@@ -171,10 +171,11 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
+        profile_spawned_processes: bool,
         *,
         add_versions: bool,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir)
+        super().__init__(frequency, duration, stop_event, storage_dir, profile_spawned_processes)
         self.add_versions = add_versions
         self._metadata = PythonMetadata(self._stop_event)
 
@@ -301,11 +302,13 @@ class PythonEbpfProfiler(ProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
+        profile_spawned_processes: bool,
         *,
         add_versions: bool,
         user_stacks_pages: Optional[int] = None,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
+        _ = profile_spawned_processes  # Required for mypy unused argument warning
         self.process: Optional[Popen] = None
         self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
         self.add_versions = add_versions
@@ -541,6 +544,7 @@ class PythonProfiler(ProfilerInterface):
         duration: int,
         stop_event: Event,
         storage_dir: str,
+        profile_spawned_processes: bool,
         python_mode: str,
         python_add_versions: bool,
         python_pyperf_user_stacks_pages: Optional[int],
@@ -557,14 +561,25 @@ class PythonProfiler(ProfilerInterface):
 
         if python_mode in ("auto", "pyperf"):
             self._ebpf_profiler = self._create_ebpf_profiler(
-                frequency, duration, stop_event, storage_dir, python_add_versions, python_pyperf_user_stacks_pages
+                frequency,
+                duration,
+                stop_event,
+                storage_dir,
+                profile_spawned_processes,
+                python_add_versions,
+                python_pyperf_user_stacks_pages,
             )
         else:
             self._ebpf_profiler = None
 
         if python_mode == "pyspy" or (self._ebpf_profiler is None and python_mode == "auto"):
             self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(
-                frequency, duration, stop_event, storage_dir, add_versions=python_add_versions
+                frequency,
+                duration,
+                stop_event,
+                storage_dir,
+                profile_spawned_processes,
+                add_versions=python_add_versions,
             )
         else:
             self._pyspy_profiler = None
@@ -575,6 +590,7 @@ class PythonProfiler(ProfilerInterface):
         duration: int,
         stop_event: Event,
         storage_dir: str,
+        profile_spawned_processes: bool,
         add_versions: bool,
         user_stacks_pages: Optional[int],
     ) -> Optional[PythonEbpfProfiler]:
@@ -584,6 +600,7 @@ class PythonProfiler(ProfilerInterface):
                 duration,
                 stop_event,
                 storage_dir,
+                profile_spawned_processes,
                 add_versions=add_versions,
                 user_stacks_pages=user_stacks_pages,
             )

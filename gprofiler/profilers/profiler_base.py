@@ -185,8 +185,16 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
     # so we wait up to 1.5 seconds
     _BACKOFF_MAX = 0.8
 
-    def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str):
+    def __init__(
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Optional[Event],
+        storage_dir: str,
+        profile_spawned_processes: bool,
+    ):
         super().__init__(frequency, duration, stop_event, storage_dir)
+        self._profile_spawned_processes = profile_spawned_processes
         self._submit_lock = Lock()
         self._threads: Optional[ThreadPoolExecutor] = None
         self._start_ts: Optional[float] = None
@@ -229,24 +237,26 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
     def start(self) -> None:
         super().start()
 
-        self._sched_thread.start()
+        if self._profile_spawned_processes:
+            self._sched_thread.start()
 
-        try:
-            register_exec_callback(self._proc_exec_callback)
-        except Exception:
-            logger.warning("Failed to enable proc_events listener for executed processes", exc_info=True)
-        else:
-            self._enabled_proc_events = True
+            try:
+                register_exec_callback(self._proc_exec_callback)
+            except Exception:
+                logger.warning("Failed to enable proc_events listener for executed processes", exc_info=True)
+            else:
+                self._enabled_proc_events = True
 
     def stop(self) -> None:
         super().stop()
 
-        if self._enabled_proc_events:
-            unregister_exec_callback(self._proc_exec_callback)
-            self._enabled_proc_events = False
+        if self._profile_spawned_processes:
+            if self._enabled_proc_events:
+                unregister_exec_callback(self._proc_exec_callback)
+                self._enabled_proc_events = False
 
-        self._sched_stop = True
-        self._sched_thread.join()
+            self._sched_stop = True
+            self._sched_thread.join()
 
     def snapshot(self) -> ProcessToProfileData:
         results = super().snapshot()

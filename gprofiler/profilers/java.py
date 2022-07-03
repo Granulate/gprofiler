@@ -709,6 +709,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         duration: int,
         stop_event: Event,
         storage_dir: str,
+        profile_spawned_processes: bool,
         java_async_profiler_buildids: bool,
         java_version_check: bool,
         java_async_profiler_mode: str,
@@ -720,7 +721,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_mode: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
-        super().__init__(frequency, duration, stop_event, storage_dir)
+        super().__init__(frequency, duration, stop_event, storage_dir, profile_spawned_processes)
 
         self._interval = frequency_to_ap_interval(frequency)
         self._buildids = java_async_profiler_buildids

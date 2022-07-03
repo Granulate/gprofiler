@@ -77,8 +77,16 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
     _EXTRA_TIMEOUT = 10  # extra time like given to py-spy
     DETECTED_RUBY_PROCESSES_REGEX = r"(?:^.+/ruby[^/]*$)"
 
-    def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str, ruby_mode: str):
-        super().__init__(frequency, duration, stop_event, storage_dir)
+    def __init__(
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Optional[Event],
+        storage_dir: str,
+        profile_spawned_processes: bool,
+        ruby_mode: str,
+    ):
+        super().__init__(frequency, duration, stop_event, storage_dir, profile_spawned_processes)
         assert ruby_mode == "rbspy", "Ruby profiler should not be initialized, wrong ruby_mode value given"
         self._metadata = RubyMetadata(self._stop_event)
 
