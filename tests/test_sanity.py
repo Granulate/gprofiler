@@ -163,10 +163,7 @@ def test_from_container(
     assert_collapsed(collapsed)
 
 
-@pytest.mark.parametrize(
-    "runtime,profiler_type",
-    RUNTIME_PROFILERS,
-)
+@pytest.mark.parametrize("runtime", ["java", "python", "ruby"])
 def test_from_container_spawned_process(
     docker_client: DockerClient,
     runtime_specific_args: List[str],
