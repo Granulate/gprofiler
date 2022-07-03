@@ -3,10 +3,11 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import configparser
+import functools
 import os.path
 import re
 from abc import ABCMeta, abstractmethod
-from typing import List, Optional, TextIO, Tuple
+from typing import Dict, List, Optional, TextIO, Tuple
 
 from granulate_utils.linux.ns import resolve_host_path, resolve_proc_root_links
 from psutil import NoSuchProcess, Process
@@ -289,25 +290,27 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
 
 # Please note that the order matter, because the FIRST matching identifier will be used.
 # so when adding new identifiers pay attention to the order.
-_PYTHON_APP_IDENTIFIERS = [
-    _GunicornTitleApplicationIdentifier(),
-    _GunicornApplicationIdentifier(),
-    _UwsgiApplicationIdentifier(),
-    _CeleryApplicationIdentifier(),
-    _PySparkApplicationIdentifier(),
-    _PythonModuleApplicationIdentifier(),
-]
-
-_JAVA_APP_IDENTIFIERS: List[_ApplicationIdentifier] = [
-    _JavaJarApplicationIdentifier(),
-]
+_IDENTIFIERS_MAP: Dict[str, List[_ApplicationIdentifier]] = {
+    "python": [
+        _GunicornTitleApplicationIdentifier(),
+        _GunicornApplicationIdentifier(),
+        _UwsgiApplicationIdentifier(),
+        _CeleryApplicationIdentifier(),
+        _PySparkApplicationIdentifier(),
+        _PythonModuleApplicationIdentifier(),
+    ],
+    "java": [
+        _JavaJarApplicationIdentifier(),
+    ],
+}
 
 
 def set_enrichment_options(enrichment_options: EnrichmentOptions) -> None:
     _ApplicationIdentifier.enrichment_options = enrichment_options
 
 
-def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier]) -> Optional[str]:
+@functools.lru_cache(4096)  # NOTE: arbitrary cache size
+def get_app_id(process: Process, runtime: str) -> Optional[str]:
     """
     Tries to identify the application running in a given process, application identification is fully heuristic,
     heuristics are being made on each application type available differ from each other and those their
@@ -316,6 +319,8 @@ def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier]) -> O
     assert _ApplicationIdentifier.enrichment_options is not None, "not initialized?"
     if not _ApplicationIdentifier.enrichment_options.application_identifiers:
         return None
+
+    identifiers = _IDENTIFIERS_MAP[runtime]
 
     for identifier in identifiers:
         try:
@@ -335,8 +340,8 @@ def get_app_id(process: Process, identifiers: List[_ApplicationIdentifier]) -> O
 
 
 def get_python_app_id(process: Process) -> Optional[str]:
-    return get_app_id(process, _PYTHON_APP_IDENTIFIERS)
+    return get_app_id(process, "python")
 
 
 def get_java_app_id(process: Process) -> Optional[str]:
-    return get_app_id(process, _JAVA_APP_IDENTIFIERS)
+    return get_app_id(process, "java")
