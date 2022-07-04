@@ -7,6 +7,7 @@ import functools
 import os.path
 import re
 from abc import ABCMeta, abstractmethod
+from pathlib import Path
 from typing import Dict, List, Optional, TextIO, Tuple
 
 from granulate_utils.linux.ns import resolve_host_path, resolve_proc_root_links
@@ -66,6 +67,28 @@ def _get_cli_arg_by_name(
                 return arg[len(arg_name) :]
 
     return _NON_AVAILABLE_ARG
+
+
+def _get_cli_arg_by_name_multiple(
+    args: List[str], arg_name: str, check_for_equals_arg: bool = False
+) -> Optional[List[str]]:
+    results: List[str] = []
+    idx = 0
+    while True:
+        try:
+            idx = args.index(arg_name, idx)
+            results.append(args[idx + 1])
+            idx += 1
+        except ValueError:
+            break
+
+    if check_for_equals_arg:
+        for arg in args:
+            arg_key, _, arg_val = arg.partition("=")
+            if arg_key == arg_name:
+                results.append(arg_val)
+
+    return None
 
 
 def _get_cli_arg_by_index(args: List[str], index: int) -> str:
@@ -147,10 +170,61 @@ class _GunicornTitleApplicationIdentifier(_GunicornApplicationIdentifierBase):
 
 
 class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
-    # separated so that we can mock it easily in the tests
     @staticmethod
-    def _open_uwsgi_config_file(process: Process, config_file: str) -> TextIO:
-        return open(resolve_host_path(process, os.path.join(process.cwd(), config_file)))
+    @functools.lru_cache(128)
+    def _is_uwsgi_process(process: Process) -> bool:
+        return "uwsgi" == os.path.basename(_get_cli_arg_by_index(process.cmdline(), 0))
+
+    class _Emperor(Process):
+        def __init__(self, pid: int, apps: List[str]) -> None:
+            super().__init__(pid)
+            self.apps = apps
+
+    @classmethod
+    def _get_emperor(cls, process: Process) -> Optional[_Emperor]:
+        # NOTE: assumes this is called after making sure process has an emperor
+        if cls._has_emperor(process):
+            return None
+        while True:
+            parent = process.parent()
+            # We do know that this process has an emperor, so this asserts aren't supposed to raise
+            assert parent is not None
+            assert cls._is_uwsgi_process(parent), "walked the entire uwsgi ancestry but emperor wasn't found"
+
+            apps = _get_cli_arg_by_name_multiple(process.cmdline(), "--emperor", check_for_equals_arg=True)
+            if apps is None:
+                # This process is not the emperor, climb up
+                continue
+
+            return cls._Emperor(parent.pid, apps)
+
+    @staticmethod
+    def _has_emperor(process: Process) -> bool:
+        # https://uwsgi-docs.readthedocs.io/en/latest/EmperorProtocol.html#the-protocol
+        environ = process.environ()
+        return "UWSGI_EMPEROR_FD" in environ
+
+    @classmethod
+    @functools.lru_cache(128)
+    def _get_config_file(cls, process: Process, config_file: str) -> Path:
+        # Try relative to cwd()
+        path = Path(resolve_host_path(process, os.path.join(process.cwd(), config_file)))
+        if path.exists():
+            return path
+        # The instance might have chdir, try to get from emperor
+        emperor = cls._get_emperor(process)
+        if emperor is not None:
+            for app_dir in emperor.apps:
+                path = Path(resolve_host_path(emperor, app_dir)) / config_file
+                if path.exists():
+                    return path
+        # No emperor, fail
+        raise Exception("failed to find uWsgi instance config file")
+
+    # separated so that we can mock it easily in the tests
+    @classmethod
+    def _open_uwsgi_config_file(cls, process: Process, config_file: str) -> TextIO:
+        return open(cls._get_config_file(process, config_file))
 
     @classmethod
     def _find_wsgi_from_config_file(cls, process: Process) -> Tuple[Optional[str], Optional[str]]:
@@ -176,7 +250,7 @@ class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
         return config_file, None
 
     def get_app_id(self, process: Process) -> Optional[str]:
-        if "uwsgi" != os.path.basename(_get_cli_arg_by_index(process.cmdline(), 0)):
+        if not self._is_uwsgi_process(process):
             return None
 
         wsgi_arg = _get_cli_arg_by_name(process.cmdline(), "-w") or _get_cli_arg_by_name(
