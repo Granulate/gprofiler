@@ -163,7 +163,15 @@ def test_from_container(
     assert_collapsed(collapsed)
 
 
-@pytest.mark.parametrize("runtime", ["java", "python", "ruby"])
+@pytest.mark.parametrize(
+    "runtime,profiler_type",
+    [
+        ("java", "ap"),
+        ("python", "py-spy"),
+        ("python", "pyperf"),
+        ("ruby", "rbspy"),
+    ],
+)
 def test_from_container_spawned_process(
     docker_client: DockerClient,
     runtime_specific_args: List[str],
@@ -179,7 +187,7 @@ def test_from_container_spawned_process(
         args[args.index("-d") + 1] = "10"
     else:
         args.extend(["-d", "10"])
-    args.append("--profile-spawned-processes")
+    profiler_flags.append("--profile-spawned-processes")
     container = start_gprofiler_in_container_for_one_session(
         docker_client,
         gprofiler_docker_image,
