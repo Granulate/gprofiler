@@ -216,7 +216,7 @@ class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
         emperor = cls._get_emperor(process)
         if emperor is not None:
             for app_dir in emperor.apps:
-                path = Path(resolve_host_path(emperor, app_dir)) / config_file
+                path = Path(resolve_host_path(emperor.process, app_dir)) / config_file
                 if path.exists():
                     return path
         # No emperor, fail
