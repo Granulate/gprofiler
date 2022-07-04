@@ -174,6 +174,11 @@ class _GunicornTitleApplicationIdentifier(_GunicornApplicationIdentifierBase):
 
 
 class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
+    # separated so that we can mock it easily in the tests
+    @classmethod
+    def _open_uwsgi_config_file(cls, process: Process, config_file: str) -> TextIO:
+        return open(cls._get_config_file(process, config_file))
+
     @staticmethod
     @functools.lru_cache(128)
     def _is_uwsgi_process(process: Process) -> bool:
@@ -221,11 +226,6 @@ class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
                     return path
         # No emperor, fail
         raise Exception("failed to find uWsgi instance config file")
-
-    # separated so that we can mock it easily in the tests
-    @classmethod
-    def _open_uwsgi_config_file(cls, process: Process, config_file: str) -> TextIO:
-        return open(cls._get_config_file(process, config_file))
 
     @classmethod
     def _find_wsgi_from_config_file(cls, process: Process) -> Tuple[Optional[str], Optional[str]]:
