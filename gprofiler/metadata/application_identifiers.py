@@ -57,9 +57,10 @@ def _get_cli_arg_by_name(
 
     if check_for_equals_arg:
         for arg in args:
-            arg_key, _, arg_val = arg.partition("=")
-            if arg_key == arg_name:
-                return arg_val
+            if "=" in arg:
+                arg_key, _, arg_val = arg.partition("=")
+                if arg_key == arg_name:
+                    return arg_val
 
     if check_for_short_prefix_arg:
         for arg in args:
@@ -78,17 +79,20 @@ def _get_cli_arg_by_name_multiple(
         try:
             idx = args.index(arg_name, idx)
             results.append(args[idx + 1])
-            idx += 1
+            idx += 2
         except ValueError:
             break
 
     if check_for_equals_arg:
         for arg in args:
-            arg_key, _, arg_val = arg.partition("=")
-            if arg_key == arg_name:
-                results.append(arg_val)
+            if "=" in arg:
+                arg_key, _, arg_val = arg.partition("=")
+                if arg_key == arg_name:
+                    results.append(arg_val)
 
-    return None
+    if len(results) == 0:
+        return None  # returning None indicates no args found
+    return results
 
 
 def _get_cli_arg_by_index(args: List[str], index: int) -> str:
@@ -175,28 +179,25 @@ class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
     def _is_uwsgi_process(process: Process) -> bool:
         return "uwsgi" == os.path.basename(_get_cli_arg_by_index(process.cmdline(), 0))
 
-    class _Emperor(Process):
-        def __init__(self, pid: int, apps: List[str]) -> None:
-            super().__init__(pid)
+    class _Emperor:
+        def __init__(self, process: Process, apps: List[str]) -> None:
+            self.process = process
             self.apps = apps
 
     @classmethod
     def _get_emperor(cls, process: Process) -> Optional[_Emperor]:
         # NOTE: assumes this is called after making sure process has an emperor
-        if cls._has_emperor(process):
+        if not cls._has_emperor(process):
             return None
         while True:
-            parent = process.parent()
-            # We do know that this process has an emperor, so this asserts aren't supposed to raise
-            assert parent is not None
-            assert cls._is_uwsgi_process(parent), "walked the entire uwsgi ancestry but emperor wasn't found"
-
             apps = _get_cli_arg_by_name_multiple(process.cmdline(), "--emperor", check_for_equals_arg=True)
-            if apps is None:
+            if apps is not None:
                 # This process is not the emperor, climb up
-                continue
+                return cls._Emperor(process, apps)
 
-            return cls._Emperor(parent.pid, apps)
+            process = process.parent()
+            # We do know that this process has an emperor, so this is supposed to raise before we break out of the loop
+            assert cls._is_uwsgi_process(process), "walked the entire uwsgi ancestry but emperor wasn't found"
 
     @staticmethod
     def _has_emperor(process: Process) -> bool:
