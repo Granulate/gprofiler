@@ -168,7 +168,6 @@ def test_from_container(
     [
         ("java", "ap"),
         ("python", "py-spy"),
-        ("python", "pyperf"),
         ("ruby", "rbspy"),
     ],
 )
