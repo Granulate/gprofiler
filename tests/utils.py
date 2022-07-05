@@ -142,6 +142,7 @@ def make_java_profiler(
     java_jattach_timeout: int = AsyncProfiledProcess._JATTACH_TIMEOUT,
     java_async_profiler_mcache: int = AsyncProfiledProcess._DEFAULT_MCACHE,
     java_mode: str = "ap",
+    java_collect_process_run_times: bool = False,
 ) -> JavaProfiler:
     assert storage_dir is not None
     return JavaProfiler(
@@ -158,6 +159,7 @@ def make_java_profiler(
         java_jattach_timeout=java_jattach_timeout,
         java_async_profiler_mcache=java_async_profiler_mcache,
         java_mode=java_mode,
+        java_collect_process_run_times=java_collect_process_run_times,
     )
 
 
