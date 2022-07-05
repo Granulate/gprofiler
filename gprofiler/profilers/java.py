@@ -45,6 +45,7 @@ from gprofiler.gprofiler_types import (
     StackToSampleCount,
     integer_range,
     positive_integer,
+    sorted_positive_int_list
 )
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
@@ -295,7 +296,7 @@ class ProcessUptimeCalculator:
         if alive_time is None:
             return None
 
-        if bins is None:
+        if not bins:  # None or an empty list -> use default
             bins = self.DEFAULT_BINS
         prev_bin_time = 0
         for bin_time in bins:
@@ -716,9 +717,12 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
         ProfilerArgument(
             "--java_collect_process_run_times",
             dest="java_collect_process_run_times",
-            action="store_true",
-            default=False,
-            help="Split stack traces by total process run time, to account for transient phenomena",
+            metavar="comma separated list of time bins, in seconds",
+            type=sorted_positive_int_list,
+            const=ProcessUptimeCalculator.DEFAULT_BINS,
+            nargs="?",
+            help="Split stack traces by total process run time, to account for transient phenomena "
+                 "(defaults to %(const)s)",
         ),
     ],
 )
@@ -756,7 +760,7 @@ class JavaProfiler(ProcessProfilerBase):
         java_jattach_timeout: int,
         java_async_profiler_mcache: int,
         java_mode: str,
-        java_collect_process_run_times: bool,
+        java_collect_process_run_times: Optional[List[int]],
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
         super().__init__(frequency, duration, stop_event, storage_dir)
@@ -999,7 +1003,7 @@ class JavaProfiler(ProcessProfilerBase):
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str) -> Tuple[StackToSampleCount, Optional[str]]:
         process_uptime_str = None
-        if self._collect_process_run_times:
+        if self._collect_process_run_times is not None:
             uptime_calculator = ProcessUptimeCalculator(ap_proc.process)
 
         started = ap_proc.start_async_profiler(self._interval, ap_timeout=self._ap_timeout)
@@ -1023,8 +1027,8 @@ class JavaProfiler(ProcessProfilerBase):
             # Process still running. We will stop the profiler in finally block.
             pass
         else:
-            if self._collect_process_run_times:
-                process_uptime_str = uptime_calculator.get_alive_time_bin()
+            if self._collect_process_run_times is not None:
+                process_uptime_str = uptime_calculator.get_alive_time_bin(self._collect_process_run_times)
             # Process terminated, was it due to an error?
             self._check_hotspot_error(ap_proc)
             logger.debug(f"Profiled process {ap_proc.process.pid} exited before stopping async-profiler")

@@ -5,7 +5,7 @@
 
 from collections import Counter
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, MutableMapping, Optional, Union
+from typing import Any, Callable, Dict, MutableMapping, Optional, Union, List
 
 import configargparse
 
@@ -56,3 +56,24 @@ def integer_range(min_range: int, max_range: int) -> Callable[[str], int]:
         return value
 
     return integer_range_check
+
+
+def sorted_positive_int_list(s: str) -> List[int]:
+    s = s.strip(" \t[]")
+    if s == "":
+        return []
+    try:
+        parts = [int(x) for x in s.split(",")]
+
+        # Make sure the first element is positive. Next elements are required to be strictly ascending
+        if parts[0] <= 0:
+            raise ValueError()
+
+        # Make sure the list is sorted in ascending order
+        for a, b in zip(parts, parts[1:]):
+            if a >= b:
+                raise ValueError()
+        return parts
+    except ValueError:
+        raise configargparse.ArgumentTypeError(f"invalid argument {s}, "
+                                               "expecting a sorted list of comma-separated integers")
