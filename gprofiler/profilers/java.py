@@ -45,7 +45,7 @@ from gprofiler.gprofiler_types import (
     StackToSampleCount,
     integer_range,
     positive_integer,
-    sorted_positive_int_list
+    sorted_positive_int_list,
 )
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
@@ -722,7 +722,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             const=ProcessUptimeCalculator.DEFAULT_BINS,
             nargs="?",
             help="Split stack traces by total process run time, to account for transient phenomena "
-                 "(defaults to %(const)s)",
+            "(defaults to %(const)s)",
         ),
     ],
 )

@@ -5,7 +5,7 @@
 
 from collections import Counter
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, MutableMapping, Optional, Union, List
+from typing import Any, Callable, Dict, List, MutableMapping, Optional, Union
 
 import configargparse
 
@@ -75,5 +75,6 @@ def sorted_positive_int_list(s: str) -> List[int]:
                 raise ValueError()
         return parts
     except ValueError:
-        raise configargparse.ArgumentTypeError(f"invalid argument {s}, "
-                                               "expecting a sorted list of comma-separated integers")
+        raise configargparse.ArgumentTypeError(
+            f"invalid argument {s}, " "expecting a sorted list of comma-separated integers"
+        )
