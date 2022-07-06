@@ -38,7 +38,7 @@ from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
-from gprofiler.profilers.profiler_base import ProcessProfilerBase, ProfilerBase, ProfilerInterface
+from gprofiler.profilers.profiler_base import ProfilerBase, ProfilerInterface, SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     pgrep_maps,
@@ -51,7 +51,7 @@ from gprofiler.utils import (
     wait_event,
     wait_for_file_by_prefix,
 )
-from gprofiler.utils.process import process_comm
+from gprofiler.utils.process import process_comm, read_proc_file
 
 logger = get_logger_adapter(__name__)
 
@@ -161,7 +161,7 @@ class PythonMetadata(ApplicationMetadata):
         return metadata
 
 
-class PySpyProfiler(ProcessProfilerBase):
+class PySpyProfiler(SpawningProcessProfilerBase):
     MAX_FREQUENCY = 50
     _EXTRA_TIMEOUT = 10  # give py-spy some seconds to run (added to the duration)
 
@@ -171,21 +171,22 @@ class PySpyProfiler(ProcessProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
+        profile_spawned_processes: bool,
         *,
         add_versions: bool,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir)
+        super().__init__(frequency, duration, stop_event, storage_dir, profile_spawned_processes)
         self.add_versions = add_versions
         self._metadata = PythonMetadata(self._stop_event)
 
-    def _make_command(self, pid: int, output_path: str) -> List[str]:
+    def _make_command(self, pid: int, output_path: str, duration: int) -> List[str]:
         return [
             resource_path("python/py-spy"),
             "record",
             "-r",
             str(self._frequency),
             "-d",
-            str(self._duration),
+            str(duration),
             "--nonblocking",
             "--format",
             "raw",
@@ -198,7 +199,7 @@ class PySpyProfiler(ProcessProfilerBase):
             "--full-filenames",
         ]
 
-    def _profile_process(self, process: Process) -> ProfileData:
+    def _profile_process(self, process: Process, duration: int) -> ProfileData:
         logger.info(f"Profiling process {process.pid} with py-spy", cmdline=process.cmdline(), no_extra_to_server=True)
         appid = application_identifiers.get_python_app_id(process)
         app_metadata = self._metadata.get_metadata(process)
@@ -208,9 +209,9 @@ class PySpyProfiler(ProcessProfilerBase):
         with removed_path(local_output_path):
             try:
                 run_process(
-                    self._make_command(process.pid, local_output_path),
+                    self._make_command(process.pid, local_output_path, duration),
                     stop_event=self._stop_event,
-                    timeout=self._duration + self._EXTRA_TIMEOUT,
+                    timeout=duration + self._EXTRA_TIMEOUT,
                     kill_signal=signal.SIGKILL,
                 )
             except ProcessStoppedException:
@@ -245,26 +246,35 @@ class PySpyProfiler(ProcessProfilerBase):
         filtered_procs = []
         for process in pgrep_maps(DETECTED_PYTHON_PROCESSES_REGEX):
             try:
-                if process.pid == os.getpid():
-                    continue
-
-                cmdline = process.cmdline()
-                if any(item in cmdline for item in _BLACKLISTED_PYTHON_PROCS):
-                    continue
-
-                # PyPy is called pypy3 or pypy (for 2)
-                # py-spy is, of course, only for CPython, and will report a possibly not-so-nice error
-                # when invoked on pypy.
-                # I'm checking for "pypy" in the basename here. I'm not aware of libpypy being directly loaded
-                # into non-pypy processes, if we ever encounter that - we can check the maps instead
-                if os.path.basename(process_exe(process)).startswith("pypy"):
-                    continue
-
-                filtered_procs.append(process)
+                if not self._should_skip_process(process):
+                    filtered_procs.append(process)
             except Exception:
                 logger.exception(f"Couldn't add pid {process.pid} to list")
 
         return filtered_procs
+
+    def _should_profile_process(self, process: Process) -> bool:
+        return any(
+            re.match(DETECTED_PYTHON_PROCESSES_REGEX, line) for line in read_proc_file(process, "maps").splitlines()
+        ) and not self._should_skip_process(process)
+
+    def _should_skip_process(self, process: Process) -> bool:
+        if process.pid == os.getpid():
+            return True
+
+        cmdline = " ".join(process.cmdline())
+        if any(item in cmdline for item in _BLACKLISTED_PYTHON_PROCS):
+            return True
+
+        # PyPy is called pypy3 or pypy (for 2)
+        # py-spy is, of course, only for CPython, and will report a possibly not-so-nice error
+        # when invoked on pypy.
+        # I'm checking for "pypy" in the basename here. I'm not aware of libpypy being directly loaded
+        # into non-pypy processes, if we ever encounter that - we can check the maps instead
+        if os.path.basename(process_exe(process)).startswith("pypy"):
+            return True
+
+        return False
 
 
 class PythonEbpfError(CalledProcessError):
@@ -292,11 +302,13 @@ class PythonEbpfProfiler(ProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
+        profile_spawned_processes: bool,
         *,
         add_versions: bool,
         user_stacks_pages: Optional[int] = None,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
+        _ = profile_spawned_processes  # Required for mypy unused argument warning
         self.process: Optional[Popen] = None
         self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
         self.add_versions = add_versions
@@ -532,6 +544,7 @@ class PythonProfiler(ProfilerInterface):
         duration: int,
         stop_event: Event,
         storage_dir: str,
+        profile_spawned_processes: bool,
         python_mode: str,
         python_add_versions: bool,
         python_pyperf_user_stacks_pages: Optional[int],
@@ -548,14 +561,25 @@ class PythonProfiler(ProfilerInterface):
 
         if python_mode in ("auto", "pyperf"):
             self._ebpf_profiler = self._create_ebpf_profiler(
-                frequency, duration, stop_event, storage_dir, python_add_versions, python_pyperf_user_stacks_pages
+                frequency,
+                duration,
+                stop_event,
+                storage_dir,
+                profile_spawned_processes,
+                python_add_versions,
+                python_pyperf_user_stacks_pages,
             )
         else:
             self._ebpf_profiler = None
 
         if python_mode == "pyspy" or (self._ebpf_profiler is None and python_mode == "auto"):
             self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(
-                frequency, duration, stop_event, storage_dir, add_versions=python_add_versions
+                frequency,
+                duration,
+                stop_event,
+                storage_dir,
+                profile_spawned_processes,
+                add_versions=python_add_versions,
             )
         else:
             self._pyspy_profiler = None
@@ -566,6 +590,7 @@ class PythonProfiler(ProfilerInterface):
         duration: int,
         stop_event: Event,
         storage_dir: str,
+        profile_spawned_processes: bool,
         add_versions: bool,
         user_stacks_pages: Optional[int],
     ) -> Optional[PythonEbpfProfiler]:
@@ -575,6 +600,7 @@ class PythonProfiler(ProfilerInterface):
                 duration,
                 stop_event,
                 storage_dir,
+                profile_spawned_processes,
                 add_versions=add_versions,
                 user_stacks_pages=user_stacks_pages,
             )

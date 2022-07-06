@@ -77,13 +77,14 @@ def test_app_metadata(
     runtime_specific_args: List[str],
     gprofiler_docker_image: Image,
     output_directory: Path,
+    output_collapsed: Path,
     assert_collapsed: AssertInCollapsed,
     profiler_flags: List[str],
     expected_metadata: Dict,
     application_executable: str,
 ) -> None:
     run_gprofiler_in_container_for_one_session(
-        docker_client, gprofiler_docker_image, output_directory, runtime_specific_args, profiler_flags
+        docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags
     )
     collapsed_text = Path(output_directory / "last_profile.col").read_text()
     # sanity

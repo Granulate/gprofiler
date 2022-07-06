@@ -2,6 +2,8 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+
+from contextlib import _GeneratorContextManager
 from pathlib import Path
 from threading import Event
 from typing import Any, Callable, List, Optional
@@ -15,6 +17,7 @@ from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.php import PHPSpyProfiler
 from gprofiler.profilers.python import PySpyProfiler, PythonEbpfProfiler
 from gprofiler.profilers.ruby import RbSpyProfiler
+from gprofiler.utils import wait_event
 from tests import PHPSPY_DURATION
 from tests.conftest import AssertInCollapsed
 from tests.utils import (
@@ -24,6 +27,8 @@ from tests.utils import (
     run_gprofiler_in_container_for_one_session,
     snapshot_one_collapsed,
     snapshot_pid_collapsed,
+    start_gprofiler_in_container_for_one_session,
+    wait_for_gprofiler_container,
 )
 
 
@@ -53,7 +58,7 @@ def test_pyspy(
     python_version: Optional[str],
 ) -> None:
     _ = assert_app_id  # Required for mypy unused argument warning
-    with PySpyProfiler(1000, 3, Event(), str(tmp_path), add_versions=True) as profiler:
+    with PySpyProfiler(1000, 3, Event(), str(tmp_path), False, add_versions=True) as profiler:
         # not using snapshot_one_collapsed because there are multiple Python processes running usually.
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -70,7 +75,7 @@ def test_phpspy(
     assert_collapsed: AssertInCollapsed,
 ) -> None:
     with PHPSpyProfiler(
-        1000, PHPSPY_DURATION, Event(), str(tmp_path), php_process_filter="php", php_mode="phpspy"
+        1000, PHPSPY_DURATION, Event(), str(tmp_path), False, php_process_filter="php", php_mode="phpspy"
     ) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -83,7 +88,7 @@ def test_rbspy(
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
 ) -> None:
-    with RbSpyProfiler(1000, 3, Event(), str(tmp_path), "rbspy") as profiler:
+    with RbSpyProfiler(1000, 3, Event(), str(tmp_path), False, "rbspy") as profiler:
         process_collapsed = snapshot_one_collapsed(profiler)
         assert_collapsed(process_collapsed)
 
@@ -96,7 +101,7 @@ def test_nodejs(
     gprofiler_docker_image: Image,
 ) -> None:
     with SystemProfiler(
-        1000, 6, Event(), str(tmp_path), perf_mode="fp", perf_inject=True, perf_dwarf_stack_size=0
+        1000, 6, Event(), str(tmp_path), False, perf_mode="fp", perf_inject=True, perf_dwarf_stack_size=0
     ) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -113,7 +118,7 @@ def test_python_ebpf(
     no_kernel_headers: Any,
 ) -> None:
     _ = assert_app_id  # Required for mypy unused argument warning
-    with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path), add_versions=True) as profiler:
+    with PythonEbpfProfiler(1000, 5, Event(), str(tmp_path), False, add_versions=True) as profiler:
         try:
             process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         except UnicodeDecodeError as e:
@@ -144,6 +149,7 @@ def test_from_container(
     runtime_specific_args: List[str],
     gprofiler_docker_image: Image,
     output_directory: Path,
+    output_collapsed: Path,
     assert_collapsed: AssertInCollapsed,
     assert_app_id: Callable,
     profiler_flags: List[str],
@@ -151,7 +157,52 @@ def test_from_container(
     _ = application_pid  # Fixture only used for running the application.
     _ = assert_app_id  # Required for mypy unused argument warning
     collapsed_text = run_gprofiler_in_container_for_one_session(
-        docker_client, gprofiler_docker_image, output_directory, runtime_specific_args, profiler_flags
+        docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags
     )
     collapsed = parse_one_collapsed(collapsed_text)
     assert_collapsed(collapsed)
+
+
+@pytest.mark.parametrize(
+    "runtime,profiler_type",
+    [
+        ("java", "ap"),
+        ("python", "py-spy"),
+        ("ruby", "rbspy"),
+    ],
+)
+def test_from_container_spawned_process(
+    docker_client: DockerClient,
+    runtime_specific_args: List[str],
+    gprofiler_docker_image: Image,
+    output_directory: Path,
+    output_collapsed: Path,
+    assert_collapsed: AssertInCollapsed,
+    profiler_flags: List[str],
+    application_factory: Callable[[], _GeneratorContextManager],
+) -> None:
+    args = runtime_specific_args.copy()
+    if "-d" in args:
+        args[args.index("-d") + 1] = "10"
+    else:
+        args.extend(["-d", "10"])
+    profiler_flags.append("--profile-spawned-processes")
+    container = start_gprofiler_in_container_for_one_session(
+        docker_client,
+        gprofiler_docker_image,
+        output_directory,
+        output_collapsed,
+        args,
+        profiler_flags,
+    )
+
+    try:
+        wait_event(30, Event(), lambda: b"starting profiling spawning processes" in container.logs())
+    except TimeoutError:
+        print(container.logs())
+        raise
+
+    with application_factory():
+        collapsed_text = wait_for_gprofiler_container(container, output_collapsed)
+        collapsed = parse_one_collapsed(collapsed_text)
+        assert_collapsed(collapsed)
