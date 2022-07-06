@@ -2,7 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 from threading import Event
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from docker import DockerClient
 from docker.errors import ContainerError
@@ -142,7 +142,7 @@ def make_java_profiler(
     java_jattach_timeout: int = AsyncProfiledProcess._JATTACH_TIMEOUT,
     java_async_profiler_mcache: int = AsyncProfiledProcess._DEFAULT_MCACHE,
     java_mode: str = "ap",
-    java_collect_process_run_times: bool = False,
+    java_collect_process_run_times: Optional[List[int]] = None,
 ) -> JavaProfiler:
     assert storage_dir is not None
     return JavaProfiler(
