@@ -280,6 +280,7 @@ class ProcessUptimeCalculator:
     DEFAULT_BINS = [5, 10, 30, 60, 300]
 
     def __init__(self, process: Process):
+        self._create_time: Optional[float]
         self._process = process
         try:
             self._create_time = process.create_time()
@@ -997,7 +998,9 @@ class JavaProfiler(ProcessProfilerBase):
             stackcollapse, process_uptime_str = self._profile_ap_process(ap_proc, comm)
 
         if process_uptime_str is not None:
-            appid += f", {process_uptime_str}"
+            if appid:
+                appid += ", "
+            appid = str(appid) + process_uptime_str
 
         return ProfileData(stackcollapse, appid, app_metadata)
 
