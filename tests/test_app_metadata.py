@@ -75,7 +75,7 @@ from tests.utils import run_gprofiler_in_container_for_one_session
             "perf",
             {
                 "exe": "/usr/local/bin/node",
-                "execfn": "/app/fibonacci.js",
+                "execfn": "/usr/local/bin/node",
                 "node_version": "v10.24.1",
                 "link": "dynamic",
                 "libc": "glibc",
