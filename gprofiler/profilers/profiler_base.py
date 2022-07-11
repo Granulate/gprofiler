@@ -199,7 +199,7 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         self._threads: Optional[ThreadPoolExecutor] = None
         self._start_ts: Optional[float] = None
         self._preexisting_pids: Optional[List[int]] = None
-        self._enabled_proc_events = False
+        self._enabled_proc_events_spawning = False
         self._futures: Dict[Future, Tuple[int, str]] = {}
         self._sched = sched.scheduler()
         self._sched_stop = False
@@ -221,7 +221,7 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         with self._submit_lock:
             self._start_ts = time.monotonic()
             self._threads = ThreadPoolExecutor()
-            self._preexisting_pids = list(map(lambda p: p.pid, processes))
+            self._preexisting_pids = [p.pid for p in processes]
 
     def _stop_profiling_spawning(self) -> None:
         with self._submit_lock:
@@ -246,15 +246,15 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
             except Exception:
                 logger.warning("Failed to enable proc_events listener for executed processes", exc_info=True)
             else:
-                self._enabled_proc_events = True
+                self._enabled_proc_events_spawning = True
 
     def stop(self) -> None:
         super().stop()
 
         if self._profile_spawned_processes:
-            if self._enabled_proc_events:
+            if self._enabled_proc_events_spawning:
                 unregister_exec_callback(self._proc_exec_callback)
-                self._enabled_proc_events = False
+                self._enabled_proc_events_spawning = False
 
             self._sched_stop = True
             self._sched_thread.join()

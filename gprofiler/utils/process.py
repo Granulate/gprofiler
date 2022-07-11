@@ -20,7 +20,7 @@ def read_proc_file(process: Process, file: str) -> str:
     except FileNotFoundError as e:
         raise NoSuchProcess(process.pid) from e
     else:
-        # ensures we read the right comm (i.e PID was not reused)
+        # ensures we read the right file (i.e PID was not reused)
         ensure_running(process)
     return data
 

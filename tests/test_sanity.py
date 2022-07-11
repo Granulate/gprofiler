@@ -181,18 +181,13 @@ def test_from_container_spawned_process(
     profiler_flags: List[str],
     application_factory: Callable[[], _GeneratorContextManager],
 ) -> None:
-    args = runtime_specific_args.copy()
-    if "-d" in args:
-        args[args.index("-d") + 1] = "10"
-    else:
-        args.extend(["-d", "10"])
-    profiler_flags.append("--profile-spawned-processes")
+    profiler_flags.extend(["-d", "10", "--profile-spawned-processes"])
     container = start_gprofiler_in_container_for_one_session(
         docker_client,
         gprofiler_docker_image,
         output_directory,
         output_collapsed,
-        args,
+        runtime_specific_args,
         profiler_flags,
     )
 
@@ -202,6 +197,8 @@ def test_from_container_spawned_process(
         print(container.logs())
         raise
 
+    # We only start the application after gprofiler started its single profiling session. This means that the only way
+    # for it to profile the application is by detecting its spawn and start profiling it mid-session.
     with application_factory():
         collapsed_text = wait_for_gprofiler_container(container, output_collapsed)
         collapsed = parse_one_collapsed(collapsed_text)

@@ -254,9 +254,8 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         return filtered_procs
 
     def _should_profile_process(self, process: Process) -> bool:
-        return any(
-            re.match(DETECTED_PYTHON_PROCESSES_REGEX, line) for line in read_proc_file(process, "maps").splitlines()
-        ) and not self._should_skip_process(process)
+        match = re.match(DETECTED_PYTHON_PROCESSES_REGEX, read_proc_file(process, "maps"), re.MULTILINE) is not None
+        return match and not self._should_skip_process(process)
 
     def _should_skip_process(self, process: Process) -> bool:
         if process.pid == os.getpid():
