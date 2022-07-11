@@ -226,8 +226,11 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         with self._submit_lock:
             self._start_ts = None
             assert self._threads is not None
-            self._threads.shutdown()  # waits (although - all are done by now)
+            threads = self._threads
+            # delete it before blocking on the exit of all threads (to ensure no new work
+            # is added)
             self._threads = None
+            threads.shutdown()  # waits (although - all are done by now)
             self._preexisting_pids = None
 
     def _proc_exec_callback(self, tid: int, pid: int) -> None:
