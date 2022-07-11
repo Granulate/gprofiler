@@ -24,7 +24,7 @@ mkdir builds && cd builds
 wget https://github.com/libunwind/libunwind/releases/download/v1.5/libunwind-1.5.0.tar.gz
 tar -xf libunwind-1.5.0.tar.gz
 pushd libunwind-1.5.0
-CC=musl-gcc ./configure --disable-minidebuginfo --enable-ptrace --disable-tests --disable-documentation
+CC=musl-gcc LD=musl-gcc ./configure --disable-minidebuginfo --enable-ptrace --disable-tests --disable-documentation
 make
 make install
 popd
@@ -40,7 +40,7 @@ pushd "zlib-$ZLIB_VERSION"
 # the libunwind configure may install it in /usr/local/lib for all I care, but if we override /usr/local/lib/libz... with the musl ones,
 # it won't do any good...
 # --static - we don't need the shared build, we compile everything statically anyway.
-CC=musl-gcc ./configure --prefix=/usr/local/musl/$(uname -m)-unknown-linux-musl --static
+CC=musl-gcc LD=musl-gcc ./configure --prefix=/usr/local/musl/$(uname -m)-unknown-linux-musl --static
 make
 make install
 popd
