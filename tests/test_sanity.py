@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
+import re
 from contextlib import _GeneratorContextManager
 from pathlib import Path
 from threading import Event
@@ -192,7 +193,7 @@ def test_from_container_spawned_process(
     )
 
     try:
-        wait_event(30, Event(), lambda: b"starting profiling spawning processes" in container.logs())
+        wait_event(30, Event(), lambda: re.search(rb"selected \d+ processes to profile", container.logs()) is not None)
     except TimeoutError:
         print(container.logs())
         raise
