@@ -199,8 +199,12 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             "--full-filenames",
         ]
 
-    def _profile_process(self, process: Process, duration: int) -> ProfileData:
-        logger.info(f"Profiling process {process.pid} with py-spy", cmdline=process.cmdline(), no_extra_to_server=True)
+    def _profile_process(self, process: Process, duration: int, spawned: bool) -> ProfileData:
+        logger.info(
+            f"Profiling{' spawned' if spawned else ''} process {process.pid} with py-spy",
+            cmdline=process.cmdline(),
+            no_extra_to_server=True,
+        )
         appid = application_identifiers.get_python_app_id(process)
         app_metadata = self._metadata.get_metadata(process)
         comm = process_comm(process)

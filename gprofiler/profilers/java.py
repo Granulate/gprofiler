@@ -900,7 +900,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
 
         return False
 
-    def _profile_process(self, process: Process, duration: int) -> ProfileData:
+    def _profile_process(self, process: Process, duration: int, spawned: bool) -> ProfileData:
         comm = process_comm(process)
         exe = process_exe(process)
         # TODO we can get the "java" binary by extracting the java home from the libjvm path,
@@ -936,7 +936,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         if self._enabled_proc_events_java:
             self._profiled_pids.add(process.pid)
 
-        logger.info(f"Profiling process {process.pid} with async-profiler")
+        logger.info(f"Profiling{' spawned' if spawned else ''} process {process.pid} with async-profiler")
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_java_app_id(process)
 

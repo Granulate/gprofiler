@@ -99,9 +99,11 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
             str(pid),
         ]
 
-    def _profile_process(self, process: Process, duration: int) -> ProfileData:
+    def _profile_process(self, process: Process, duration: int, spawned: bool) -> ProfileData:
         logger.info(
-            f"Profiling process {process.pid} with rbspy", cmdline=" ".join(process.cmdline()), no_extra_to_server=True
+            f"Profiling{' spawned' if spawned else ''} process {process.pid} with rbspy",
+            cmdline=" ".join(process.cmdline()),
+            no_extra_to_server=True,
         )
         comm = process_comm(process)
         app_metadata = self._metadata.get_metadata(process)

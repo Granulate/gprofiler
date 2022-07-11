@@ -138,7 +138,7 @@ class ProcessProfilerBase(ProfilerBase):
 
         return results
 
-    def _profile_process(self, process: Process, duration: int) -> ProfileData:
+    def _profile_process(self, process: Process, duration: int, spawned: bool) -> ProfileData:
         raise NotImplementedError
 
     def _notify_selected_processes(self, processes: List[Process]) -> None:
@@ -170,7 +170,7 @@ class ProcessProfilerBase(ProfilerBase):
                 except NoSuchProcess:
                     continue
 
-                futures[executor.submit(self._profile_process, process, self._duration)] = (process.pid, comm)
+                futures[executor.submit(self._profile_process, process, self._duration, False)] = (process.pid, comm)
 
             return self._wait_for_profiles(futures)
 
@@ -301,7 +301,7 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
                             return
 
                         comm = process_comm(process)
-                        self._futures[self._threads.submit(self._profile_process, process, int(duration))] = (
+                        self._futures[self._threads.submit(self._profile_process, process, int(duration), True)] = (
                             process.pid,
                             comm,
                         )
