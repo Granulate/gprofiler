@@ -3,16 +3,16 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
+import functools
 import os
 import re
 import signal
 from pathlib import Path
-from subprocess import CompletedProcess
 from threading import Event
 from typing import Any, Dict, List, Optional
 
 from granulate_utils.linux.elf import get_elf_id, get_mapped_dso_elf_id
-from granulate_utils.linux.ns import get_process_nspid, run_in_ns
+from granulate_utils.linux.process import process_exe
 from psutil import Process
 
 from gprofiler import merge
@@ -31,25 +31,14 @@ logger = get_logger_adapter(__name__)
 class RubyMetadata(ApplicationMetadata):
     _RUBY_VERSION_TIMEOUT = 3
 
+    @functools.lru_cache(4096)
     def _get_ruby_version(self, process: Process) -> str:
-        if not os.path.basename(process.exe()).startswith("ruby"):
+        if not os.path.basename(process_exe(process)).startswith("ruby"):
             # TODO: for dynamic executables, find the ruby binary that works with the loaded libruby, and
             # check it instead. For static executables embedding libruby - :shrug:
             raise NotImplementedError
-
-        ruby_path = f"/proc/{get_process_nspid(process.pid)}/exe"
-
-        def _run_ruby_version() -> "CompletedProcess[bytes]":
-            return run_process(
-                [
-                    ruby_path,
-                    "--version",
-                ],
-                stop_event=self._stop_event,
-                timeout=self._RUBY_VERSION_TIMEOUT,
-            )
-
-        return run_in_ns(["pid", "mnt"], _run_ruby_version, process.pid).stdout.decode().strip()
+        version = self.get_exe_version(process)  # not using cached version here since this wrapper is a cache
+        return version
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         # ruby version

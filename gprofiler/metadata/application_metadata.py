@@ -3,14 +3,18 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
+import functools
+from subprocess import CompletedProcess
 from threading import Event, Lock
 from typing import Any, Dict, Optional
 
 from granulate_utils.linux.elf import read_process_execfn
+from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter
+from gprofiler.utils import run_process
 
 logger = get_logger_adapter(__name__)
 
@@ -23,6 +27,7 @@ class ApplicationMetadata:
     _cache_clear_lock = Lock()
     _metadata_exception_logs_count = 0
     _MAX_METADATA_EXCEPTION_LOGS = 100
+    _GET_VERSION_TIMEOUT = 3
 
     def __init__(self, stop_event: Event):
         self._stop_event = stop_event
@@ -32,6 +37,21 @@ class ApplicationMetadata:
             for process in list(self._cache.keys()):
                 if not is_process_running(process):
                     del self._cache[process]
+
+    def get_exe_version(self, process: Process, version_arg: str = "--version") -> str:
+        """
+        Runs {process.exe()} --version in the appropriate namespace
+        """
+        exe_path = f"/proc/{get_process_nspid(process.pid)}/exe"
+
+        def _run_get_version() -> "CompletedProcess[bytes]":
+            return run_process([exe_path, version_arg], stop_event=self._stop_event, timeout=self._GET_VERSION_TIMEOUT)
+
+        return run_in_ns(["pid", "mnt"], _run_get_version, process.pid).stdout.decode().strip()
+
+    @functools.lru_cache(4096)
+    def get_exe_version_cached(self, process: Process, version_arg: str = "--version") -> str:
+        return self.get_exe_version(process, version_arg)
 
     def get_metadata(self, process: Process) -> Optional[Dict]:
         metadata = self._cache.get(process)

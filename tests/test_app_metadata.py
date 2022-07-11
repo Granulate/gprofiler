@@ -69,6 +69,18 @@ from tests.utils import run_gprofiler_in_container_for_one_session
                 "libc": "glibc",
             },
         ),
+        (
+            True,
+            "nodejs",
+            "perf",
+            {
+                "exe": "/usr/local/bin/node",
+                "execfn": "/usr/local/bin/node",
+                "node_version": "v10.24.1",
+                "link": "dynamic",
+                "libc": "glibc",
+            },
+        ),
     ],
 )
 def test_app_metadata(
