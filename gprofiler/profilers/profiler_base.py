@@ -219,7 +219,9 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
     def _start_profiling_spawning(self, processes: List[Process]) -> None:
         with self._submit_lock:
             self._start_ts = time.monotonic()
-            self._threads = ThreadPoolExecutor()
+            # arbitrary high number of threads to make sure we can run profiling of many
+            # processes concurrently
+            self._threads = ThreadPoolExecutor(max_workers=999)
             self._preexisting_pids = [p.pid for p in processes]
 
     def _stop_profiling_spawning(self) -> None:
