@@ -203,3 +203,5 @@ def test_from_container_spawned_process(
         collapsed_text = wait_for_gprofiler_container(container, output_collapsed)
         collapsed = parse_one_collapsed(collapsed_text)
         assert_collapsed(collapsed)
+
+    assert b"Profiling spawned process" in container.logs()
