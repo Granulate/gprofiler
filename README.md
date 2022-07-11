@@ -128,7 +128,7 @@ Run the following to have gprofiler running continuously, in the background, upl
 ```bash
 wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler_$(uname -m) -O gprofiler
 sudo chmod +x gprofiler
-sudo sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE NAME>\" [options] > /dev/null 2>&1 &"
+sudo TMPDIR=/proc/self/cwd sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE NAME>\" [options] > /dev/null 2>&1 &"
 sleep 1
 pgrep gprofiler # make sure gprofiler has started
 ```
@@ -139,11 +139,7 @@ For non-daemon mode runes, you can remove the `setsid` and `> /dev/null 2>&1 &` 
 
 The logs can then be viewed in their default location (`/var/log/gprofiler`).
 
-gProfiler unpacks executables to `/tmp` by default; if your `/tmp` is marked with `noexec`,
-you can add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current working directory.
-```bash
-sudo TMPDIR=/proc/self/cwd ./gprofiler -cu --token="<TOKEN> --service-name="<SERVICE NAME>" [options]
-```
+`TMPDIR` is added because gProfiler unpacks executables to `/tmp` by default; this is done by `staticx`. For cases where `/tmp` is marked with `noexec`, we add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current working directory, which is surely executable before gProfiler was started in it.
 
 ### Executable known issues
 The following platforms are currently not supported with the gProfiler executable:
