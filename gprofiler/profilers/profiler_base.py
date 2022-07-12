@@ -238,6 +238,9 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
             self._preexisting_pids = None
 
     def _proc_exec_callback(self, tid: int, pid: int) -> None:
+        if not self._is_profiling_spawning:
+            return
+
         with contextlib.suppress(NoSuchProcess):
             self._sched.enter(self._BACKOFF_INIT, 0, self._check_process, (Process(pid), self._BACKOFF_INIT))
 
@@ -273,6 +276,7 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         self._stop_event.wait(self._duration)
 
         self._stop_profiling_spawning()
+        self._clear_sched()
         results_spawned = self._wait_for_profiles(self._futures)
         self._futures = {}
 
@@ -285,6 +289,10 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         while not (self._stop_event.is_set() or self._sched_stop):
             self._sched.run()
             self._stop_event.wait(0.1)
+
+    def _clear_sched(self) -> None:
+        for event in self._sched.queue:
+            self._sched.cancel(event)
 
     def _check_process(self, process: Process, interval: float) -> None:
         with contextlib.suppress(NoSuchProcess):
