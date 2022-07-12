@@ -27,7 +27,7 @@ from gprofiler import __version__
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.databricks_client import DatabricksClient
-from gprofiler.exceptions import APIError, NoProfilersEnabledError, SystemProfilerInitFailure
+from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import concatenate_profiles, merge_profiles
@@ -123,16 +123,12 @@ class GProfiler:
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
         self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
-        try:
-            self.system_profiler, self.process_profilers = get_profilers(
-                user_args,
-                storage_dir=self._temp_storage_dir.name,
-                stop_event=self._stop_event,
-                profile_spawned_processes=self._profile_spawned_processes,
-            )
-        except SystemProfilerInitFailure:
-            logger.exception("System profiler initialization has failed, exiting...")
-            sys.exit(1)
+        self.system_profiler, self.process_profilers = get_profilers(
+            user_args,
+            storage_dir=self._temp_storage_dir.name,
+            stop_event=self._stop_event,
+            profile_spawned_processes=self._profile_spawned_processes,
+        )
         if self._enrichment_options.container_names:
             self._container_names_client: Optional[ContainerNamesClient] = ContainerNamesClient()
         else:
@@ -278,8 +274,9 @@ class GProfiler:
         try:
             system_result = system_future.result()
         except Exception:
-            logger.exception(
-                "Running perf failed; consider running gProfiler with '--perf-mode disabled' to avoid using perf"
+            logger.critical(
+                "Running perf failed; consider running gProfiler with '--perf-mode disabled' to avoid using perf",
+                exc_info=True,
             )
             raise
         metadata = (

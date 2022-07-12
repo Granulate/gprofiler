@@ -80,7 +80,7 @@ class PerfProcess:
         except TimeoutError:
             process.kill()
             assert process.stdout is not None and process.stderr is not None
-            logger.error(f"perf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
+            logger.critical(f"perf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
             raise
         else:
             self._process = process
@@ -100,6 +100,13 @@ class PerfProcess:
     def wait_and_script(self) -> str:
         try:
             perf_data = wait_for_file_by_prefix(f"{self._output_path}.", self._dump_timeout_s, self._stop_event)
+        except Exception:
+            assert self._process is not None and self._process.stdout is not None and self._process.stderr is not None
+            logger.critical(
+                f"perf failed to dump output. stdout {self._process.stdout.read()!r}"
+                f" stderr {self._process.stderr.read()!r}"
+            )
+            raise
         finally:
             # always read its stderr
             # using read1() which performs just a single read() call and doesn't read until EOF
