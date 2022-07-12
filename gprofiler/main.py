@@ -93,6 +93,7 @@ class GProfiler:
         user_args: UserArgs,
         duration: int,
         profile_api_version: str,
+        profile_spawned_processes: bool = True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         controller_process: Optional[Process] = None,
     ):
@@ -103,6 +104,7 @@ class GProfiler:
         self._state = state
         self._remote_logs_handler = remote_logs_handler
         self._profile_api_version = profile_api_version
+        self._profile_spawned_processes = profile_spawned_processes
         self._collect_metrics = collect_metrics
         self._collect_metadata = collect_metadata
         self._enrichment_options = enrichment_options
@@ -125,6 +127,7 @@ class GProfiler:
             user_args,
             storage_dir=self._temp_storage_dir.name,
             stop_event=self._stop_event,
+            profile_spawned_processes=self._profile_spawned_processes,
         )
         if self._enrichment_options.container_names:
             self._container_names_client: Optional[ContainerNamesClient] = ContainerNamesClient()
@@ -579,6 +582,15 @@ def parse_cmd_args() -> configargparse.Namespace:
         " of the profiling due to repeated waiting for Spark's metrics server.",
     )
 
+    parser.add_argument(
+        "--profile-spawned-processes",
+        action="store_true",
+        dest="profile_spawned_processes",
+        default=False,
+        help="gProfiler will listen for process spawn events, and will profile new processes that are spawned after the"
+        " beginning of a session.",
+    )
+
     args = parser.parse_args()
 
     args.perf_inject = args.nodejs_mode == "perf"
@@ -797,6 +809,7 @@ def main() -> None:
             args.__dict__,
             args.duration,
             args.profile_api_version,
+            args.profile_spawned_processes,
             remote_logs_handler,
             controller_process,
         )

@@ -166,11 +166,13 @@ class SystemProfiler(ProfilerBase):
         duration: int,
         stop_event: Event,
         storage_dir: str,
+        profile_spawned_processes: bool,
         perf_mode: str,
         perf_dwarf_stack_size: int,
         perf_inject: bool,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
+        _ = profile_spawned_processes  # Required for mypy unused argument warning
         self._perfs: List[PerfProcess] = []
         self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
 
