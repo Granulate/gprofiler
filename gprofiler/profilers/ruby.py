@@ -128,6 +128,4 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
         return pgrep_maps(self.DETECTED_RUBY_PROCESSES_REGEX)
 
     def _should_profile_process(self, process: Process) -> bool:
-        return any(
-            re.match(self.DETECTED_RUBY_PROCESSES_REGEX, line) for line in read_proc_file(process, "maps").splitlines()
-        )
+        return re.search(self.DETECTED_RUBY_PROCESSES_REGEX, read_proc_file(process, "maps"), re.MULTILINE) is not None

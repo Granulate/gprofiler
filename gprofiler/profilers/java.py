@@ -1027,7 +1027,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         return pgrep_maps(DETECTED_JAVA_PROCESSES_REGEX)
 
     def _should_profile_process(self, process: Process) -> bool:
-        return re.match(DETECTED_JAVA_PROCESSES_REGEX, read_proc_file(process, "maps"), re.MULTILINE) is not None
+        return re.search(DETECTED_JAVA_PROCESSES_REGEX, read_proc_file(process, "maps"), re.MULTILINE) is not None
 
     def start(self) -> None:
         super().start()
