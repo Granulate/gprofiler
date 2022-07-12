@@ -358,7 +358,6 @@ def get_app_id(
 
     identifiers = _SPARK_IDENTIFIERS_MAP[runtime] if should_collect_spark_app_name else _IDENTIFIERS_MAP[runtime]
     appids = []
-
     for identifier in identifiers:
         try:
             appid = identifier.get_app_id(process)
