@@ -507,7 +507,6 @@ class AsyncProfiledProcess:
             [fdtransfer_path(), str(self.process.pid)],
             stop_event=self._stop_event,
             timeout=self._FDTRANSFER_TIMEOUT,
-            communicate=False,
         )
 
     def start_async_profiler(self, interval: int, second_try: bool = False, ap_timeout: int = 0) -> bool:
