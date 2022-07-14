@@ -764,7 +764,9 @@ class JavaProfiler(SpawningProcessProfilerBase):
         if java_safemode == JAVA_SAFEMODE_ALL:
             self._java_safemode = JAVA_SAFEMODE_ALL_OPTIONS
         else:
-            self._java_safemode = java_safemode.split(",") if java_safemode else []
+            # accept "" as empty, because sometimes people confuse and use --java-safemode="" in non-shell
+            # environment (e.g DaemonSet args) and thus the "" isn't eaten by the shell.
+            self._java_safemode = java_safemode.split(",") if (java_safemode and java_safemode != '""') else []
 
         assert all(
             o in JAVA_SAFEMODE_ALL_OPTIONS for o in self._java_safemode
