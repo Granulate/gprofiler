@@ -270,10 +270,14 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
             self._sched_thread.join()
 
     def snapshot(self) -> ProcessToProfileData:
+        end_ts = time.monotonic() + self._duration
+
         results = super().snapshot()
 
-        # wait for one duration, in case snapshot() found no processes
-        self._stop_event.wait(self._duration)
+        # wait for the duration, in case snapshot() found no processes and returns immediately.
+        duration_left = end_ts - time.monotonic()
+        if duration_left > 0:
+            self._stop_event.wait(duration_left)
 
         self._stop_profiling_spawning()
         self._clear_sched()
