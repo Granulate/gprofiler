@@ -43,21 +43,21 @@ class GProfilerLoggingAdapter(logging.LoggerAdapter):
         # may initialize before (at module import stage)
         self._state: Optional[State] = None
 
-    def _get_generic_extra(self) -> Dict[str, str]:
+    def _get_state_extra(self) -> Dict[str, str]:
         if self._state is None:
             try:
                 self._state = get_state()
             except UninitializedStateException:
                 return {}
 
-        generic_extra = {
+        state_extra = {
             RUN_ID_KEY: self._state.run_id,
         }
 
         if self._state.cycle_id:
-            generic_extra[CYCLE_ID_KEY] = self._state.cycle_id
+            state_extra[CYCLE_ID_KEY] = self._state.cycle_id
 
-        return generic_extra
+        return state_extra
 
     def process(self, msg: Any, kwargs: MutableMapping[str, Any]) -> Tuple[Any, MutableMapping[str, Any]]:
         extra_kwargs = {}
@@ -68,7 +68,7 @@ class GProfilerLoggingAdapter(logging.LoggerAdapter):
             else:
                 extra_kwargs[k] = v
 
-        extra_kwargs.update(self._get_generic_extra())
+        extra_kwargs.update(self._get_state_extra())
 
         extra = logging_kwargs.get("extra", {})
         extra["gprofiler_adapter_extra"] = extra_kwargs
