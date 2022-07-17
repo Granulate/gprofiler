@@ -12,7 +12,7 @@ from threading import Event
 from typing import Any, Dict, List, Optional
 
 from granulate_utils.linux.elf import is_statically_linked, read_elf_symbol, read_elf_va
-from granulate_utils.linux.process import is_musl
+from granulate_utils.linux.process import is_musl, process_exe
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
@@ -80,7 +80,7 @@ class PerfProcess:
         except TimeoutError:
             process.kill()
             assert process.stdout is not None and process.stderr is not None
-            logger.error(f"perf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
+            logger.critical(f"perf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
             raise
         else:
             self._process = process
@@ -100,6 +100,13 @@ class PerfProcess:
     def wait_and_script(self) -> str:
         try:
             perf_data = wait_for_file_by_prefix(f"{self._output_path}.", self._dump_timeout_s, self._stop_event)
+        except Exception:
+            assert self._process is not None and self._process.stdout is not None and self._process.stderr is not None
+            logger.critical(
+                f"perf failed to dump output. stdout {self._process.stdout.read()!r}"
+                f" stderr {self._process.stderr.read()!r}"
+            )
+            raise
         finally:
             # always read its stderr
             # using read1() which performs just a single read() call and doesn't read until EOF
@@ -159,13 +166,15 @@ class SystemProfiler(ProfilerBase):
         duration: int,
         stop_event: Event,
         storage_dir: str,
+        profile_spawned_processes: bool,
         perf_mode: str,
         perf_dwarf_stack_size: int,
         perf_inject: bool,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
+        _ = profile_spawned_processes  # Required for mypy unused argument warning
         self._perfs: List[PerfProcess] = []
-        self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event)]
+        self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
@@ -237,6 +246,20 @@ class PerfMetadata(ApplicationMetadata):
     def relevant_for_process(self, process: Process) -> bool:
         return False
 
+    def add_exe_metadata(self, process: Process, metadata: Dict[str, Any]) -> None:
+        try:
+            static = is_statically_linked(f"/proc/{process.pid}/exe")
+        except FileNotFoundError:
+            raise NoSuchProcess(process.pid)
+
+        exe_metadata: Dict[str, Any] = {"link": "static" if static else "dynamic"}
+        if not static:
+            exe_metadata["libc"] = "musl" if is_musl(process) else "glibc"
+        else:
+            exe_metadata["libc"] = None
+
+        metadata.update(exe_metadata)
+
 
 class GolangPerfMetadata(PerfMetadata):
     def relevant_for_process(self, process: Process) -> bool:
@@ -269,17 +292,18 @@ class GolangPerfMetadata(PerfMetadata):
         return golang_version_bytes.decode()
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        try:
-            static = is_statically_linked(f"/proc/{process.pid}/exe")
-        except FileNotFoundError:
-            raise NoSuchProcess(process.pid)
+        metadata = {"golang_version": self._get_golang_version(process)}
+        self.add_exe_metadata(process, metadata)
+        metadata.update(super().make_application_metadata(process))
+        return metadata
 
-        metadata = {"golang_version": self._get_golang_version(process), "link": "static" if static else "dynamic"}
 
-        if not static:
-            metadata["libc"] = "musl" if is_musl(process) else "glibc"
-        else:
-            metadata["libc"] = None
+class NodePerfMetadata(PerfMetadata):
+    def relevant_for_process(self, process: Process) -> bool:
+        return os.path.basename(process_exe(process)) == "node"
 
+    def make_application_metadata(self, process: Process) -> Dict[str, Any]:
+        metadata = {"node_version": self.get_exe_version_cached(process)}
+        self.add_exe_metadata(process, metadata)
         metadata.update(super().make_application_metadata(process))
         return metadata

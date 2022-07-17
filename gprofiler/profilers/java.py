@@ -49,7 +49,7 @@ from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
-from gprofiler.profilers.profiler_base import ProcessProfilerBase
+from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     GPROFILER_DIRECTORY_NAME,
@@ -64,7 +64,7 @@ from gprofiler.utils import (
 )
 from gprofiler.utils.fs import is_rw_exec_dir, safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
-from gprofiler.utils.process import process_comm
+from gprofiler.utils.process import process_comm, read_proc_file
 
 logger = get_logger_adapter(__name__)
 
@@ -507,7 +507,6 @@ class AsyncProfiledProcess:
             [fdtransfer_path(), str(self.process.pid)],
             stop_event=self._stop_event,
             timeout=self._FDTRANSFER_TIMEOUT,
-            communicate=False,
         )
 
     def start_async_profiler(self, interval: int, second_try: bool = False, ap_timeout: int = 0) -> bool:
@@ -576,8 +575,8 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
     assert m is not None, f"did not find build_str in {version_string!r}"
     build_str = m.group(1)
 
-    if version_str.endswith("-internal") or version_str.endswith("-ea"):
-        # strip the "internal" or "early access" suffixes
+    if any(version_str.endswith(suffix) for suffix in ("-internal", "-ea", "-ojdkbuild")):
+        # strip those suffixes to keep the rest of the parsing logic clean
         version_str = version_str.rsplit("-")[0]
 
     version_list = version_str.split(".")
@@ -590,10 +589,15 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
         major = version_list[1]
         minor = version_list[-1].split("_")[-1]
         version = Version(f"{major}.{minor}")
-        assert (
-            build_str[-4:-2] == "-b"
-        ), f"Did not find expected build number prefix in old-style java version: {build_str!r}"
-        build = int(build_str[-2:])
+        # find the -b or -ojdkbuild-
+        if "-b" in build_str:
+            build_split = build_str.split("-b")
+            # it can appear multiple times, e.g "(build 1.8.0_282-8u282-b08-0ubuntu1~16.04-b08)"
+            assert len(build_split) >= 2, f"Unexpected number of occurrences of '-b' in {build_str!r}"
+        else:
+            build_split = build_str.split("-ojdkbuild-")
+            assert len(build_split) == 2, f"Unexpected number of occurrences of '-ojdkbuild-' in {build_str!r}"
+        build = int(build_split[-1])
     else:
         # Since java 9 versioning became more normal, and looks like
         # <version>+<build_number>
@@ -691,7 +695,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
         ),
     ],
 )
-class JavaProfiler(ProcessProfilerBase):
+class JavaProfiler(SpawningProcessProfilerBase):
     JDK_EXCLUSIONS: List[str] = []  # currently empty
     # Major -> (min version, min build number of version)
     MINIMAL_SUPPORTED_VERSIONS = {
@@ -716,6 +720,7 @@ class JavaProfiler(ProcessProfilerBase):
         duration: int,
         stop_event: Event,
         storage_dir: str,
+        profile_spawned_processes: bool,
         java_async_profiler_buildids: bool,
         java_version_check: bool,
         java_async_profiler_mode: str,
@@ -728,7 +733,7 @@ class JavaProfiler(ProcessProfilerBase):
         java_mode: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
-        super().__init__(frequency, duration, stop_event, storage_dir)
+        super().__init__(frequency, duration, stop_event, storage_dir, profile_spawned_processes)
 
         self._interval = frequency_to_ap_interval(frequency)
         self._buildids = java_async_profiler_buildids
@@ -751,7 +756,7 @@ class JavaProfiler(ProcessProfilerBase):
         self._pids_to_remove: Set[int] = set()
         self._pid_to_java_version: Dict[int, Optional[str]] = {}
         self._kernel_messages_provider = get_kernel_messages_provider()
-        self._enabled_proc_events = False
+        self._enabled_proc_events_java = False
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
         self._metadata = JavaMetadata(self._stop_event)
 
@@ -767,7 +772,9 @@ class JavaProfiler(ProcessProfilerBase):
         if java_safemode == JAVA_SAFEMODE_ALL:
             self._java_safemode = JAVA_SAFEMODE_ALL_OPTIONS
         else:
-            self._java_safemode = java_safemode.split(",") if java_safemode else []
+            # accept "" as empty, because sometimes people confuse and use --java-safemode="" in non-shell
+            # environment (e.g DaemonSet args) and thus the "" isn't eaten by the shell.
+            self._java_safemode = java_safemode.split(",") if (java_safemode and java_safemode != '""') else []
 
         assert all(
             o in JAVA_SAFEMODE_ALL_OPTIONS for o in self._java_safemode
@@ -908,7 +915,7 @@ class JavaProfiler(ProcessProfilerBase):
 
         return False
 
-    def _profile_process(self, process: Process) -> ProfileData:
+    def _profile_process(self, process: Process, duration: int, spawned: bool) -> ProfileData:
         comm = process_comm(process)
         exe = process_exe(process)
         # TODO we can get the "java" binary by extracting the java home from the libjvm path,
@@ -918,7 +925,7 @@ class JavaProfiler(ProcessProfilerBase):
         else:
             java_version_output = None
 
-        if self._enabled_proc_events:
+        if self._enabled_proc_events_java:
             self._want_to_profile_pids.add(process.pid)
             # there's no reliable way to get the underlying cache of get_java_version, otherwise
             # I'd just use it.
@@ -941,10 +948,10 @@ class JavaProfiler(ProcessProfilerBase):
         # TODO: it is possible to run in contexts where we're unable to use proc_events but are able to listen
         # on kernel messages. we can add another mechanism to track PIDs (such as, prune PIDs which have exited)
         # then use the kernel messages listener without proc_events.
-        if self._enabled_proc_events:
+        if self._enabled_proc_events_java:
             self._profiled_pids.add(process.pid)
 
-        logger.info(f"Profiling process {process.pid} with async-profiler")
+        logger.info(f"Profiling{' spawned' if spawned else ''} process {process.pid} with async-profiler")
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_java_app_id(process, self._collect_spark_app_name)
 
@@ -959,11 +966,11 @@ class JavaProfiler(ProcessProfilerBase):
             self._jattach_timeout,
             self._ap_mcache,
         ) as ap_proc:
-            stackcollapse = self._profile_ap_process(ap_proc, comm)
+            stackcollapse = self._profile_ap_process(ap_proc, comm, duration)
 
         return ProfileData(stackcollapse, appid, app_metadata)
 
-    def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str) -> StackToSampleCount:
+    def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str, duration: int) -> StackToSampleCount:
         started = ap_proc.start_async_profiler(self._interval, ap_timeout=self._ap_timeout)
         if not started:
             logger.info(f"Found async-profiler already started on {ap_proc.process.pid}, trying to stop it...")
@@ -980,7 +987,7 @@ class JavaProfiler(ProcessProfilerBase):
                 )
 
         try:
-            wait_event(self._duration, self._stop_event, lambda: not is_process_running(ap_proc.process), interval=1)
+            wait_event(duration, self._stop_event, lambda: not is_process_running(ap_proc.process), interval=1)
         except TimeoutError:
             # Process still running. We will stop the profiler in finally block.
             pass
@@ -1034,6 +1041,9 @@ class JavaProfiler(ProcessProfilerBase):
             # profiling.
         return pgrep_maps(DETECTED_JAVA_PROCESSES_REGEX)
 
+    def _should_profile_process(self, process: Process) -> bool:
+        return re.search(DETECTED_JAVA_PROCESSES_REGEX, read_proc_file(process, "maps"), re.MULTILINE) is not None
+
     def start(self) -> None:
         super().start()
         try:
@@ -1045,12 +1055,12 @@ class JavaProfiler(ProcessProfilerBase):
                 exc_info=True,
             )
         else:
-            self._enabled_proc_events = True
+            self._enabled_proc_events_java = True
 
     def stop(self) -> None:
-        if self._enabled_proc_events:
+        if self._enabled_proc_events_java:
             proc_events.unregister_exit_callback(self._proc_exit_callback)
-            self._enabled_proc_events = False
+            self._enabled_proc_events_java = False
         super().stop()
 
     def _proc_exit_callback(self, tid: int, pid: int, exit_code: int) -> None:
