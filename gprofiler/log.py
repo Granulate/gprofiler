@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, MutableMapping, Optional, Tup
 
 from requests import RequestException
 
+from gprofiler import __version__
 from gprofiler.exceptions import APIError, UninitializedStateException
 from gprofiler.state import State, get_state
 
@@ -24,6 +25,7 @@ NO_SERVER_LOG_KEY = "no_server_log"
 NO_SERVER_EXTRA_KEY = "no_extra_to_server"
 RUN_ID_KEY = "run_id"
 CYCLE_ID_KEY = "cycle_id"
+GPROFILER_VERSION_KEY = "gprofiler_version"
 LOGGER_NAME_RE = re.compile(r"gprofiler(?:\..+)?")
 
 
@@ -69,6 +71,7 @@ class GProfilerLoggingAdapter(logging.LoggerAdapter):
                 extra_kwargs[k] = v
 
         extra_kwargs.update(self._get_state_extra())
+        extra_kwargs.update({GPROFILER_VERSION_KEY: __version__})
 
         extra = logging_kwargs.get("extra", {})
         extra["gprofiler_adapter_extra"] = extra_kwargs
@@ -173,7 +176,7 @@ class RemoteLogsHandler(logging.Handler):
 
 
 class ExtraFormatter(logging.Formatter):
-    FILTERED_EXTRA_KEYS = [CYCLE_ID_KEY, RUN_ID_KEY, NO_SERVER_LOG_KEY, NO_SERVER_EXTRA_KEY]
+    FILTERED_EXTRA_KEYS = [CYCLE_ID_KEY, RUN_ID_KEY, NO_SERVER_LOG_KEY, NO_SERVER_EXTRA_KEY, GPROFILER_VERSION_KEY]
 
     def format(self, record: LogRecord) -> str:
         formatted = super().format(record)
