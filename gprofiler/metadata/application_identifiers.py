@@ -289,7 +289,7 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
 
 
 class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
-    _JAVA_SPARK_EXECUTOR_ARG = "org.apache.spark.executor.CoarseGrainedExecutorBackend"
+    _JAVA_SPARK_EXECUTOR_ARG = "org.apache.spark.executor"
     _SPARK_PROPS_FILE = os.path.join("__spark_conf__", "__spark_conf__.properties")
     _APP_NAME_NOT_FOUND = "app name not found"
     _APP_NAME_KEY = "spark.app.name"
@@ -297,7 +297,7 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
     @staticmethod
     def _is_java_spark_executor(process: Process) -> bool:
         args = process.cmdline()
-        return _JavaSparkApplicationIdentifier._JAVA_SPARK_EXECUTOR_ARG in args
+        return any(_JavaSparkApplicationIdentifier._JAVA_SPARK_EXECUTOR_ARG in arg for arg in args)
 
     def get_app_id(self, process: Process) -> Optional[str]:
         if not self._is_java_spark_executor(process):
