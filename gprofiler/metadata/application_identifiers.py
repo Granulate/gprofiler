@@ -355,15 +355,12 @@ def get_app_id(
     assert _ApplicationIdentifier.enrichment_options is not None, "not initialized?"
     if not _ApplicationIdentifier.enrichment_options.application_identifiers:
         return None
-    _logger.debug(f"XXXXXXXXXX Getting app_id, should_collect_spark_app_name={should_collect_spark_app_name}")
-    _logger.debug(f"XXXXXXXXXX Identifiers: {_IDENTIFIERS_MAP[runtime]}, Spark's: {_SPARK_IDENTIFIERS_MAP[runtime]}")
+
     identifiers = _SPARK_IDENTIFIERS_MAP[runtime] if should_collect_spark_app_name else _IDENTIFIERS_MAP[runtime]
     appids = []
     for identifier in identifiers:
         try:
-            _logger.debug(f"XXXXXXXXXX Identifier: {identifier}, process: {process}")
             appid = identifier.get_app_id(process)
-            _logger.debug(f"XXXXXXXXXX Identifier: {appid}")
             if appid is not None:
                 if not aggregate_all:
                     return appid
