@@ -137,6 +137,36 @@ def get_mac_address() -> str:
     return UNKNOWN_VALUE
 
 
+def get_cpu_info() -> Tuple[str, str]:
+    """
+    Parse /proc/cpuinfo to get model name & flags.
+    """
+    try:
+        with open("/proc/cpuinfo") as f:
+            model_names = []
+            flags = []
+            for line in f:
+                m = re.match(r"^((?:model name)|(?:flags))[ \t]*: (.*)$", line)
+                if m is not None:
+                    field, value = m.groups()
+                    if field == "model name":
+                        model_names.append(value)
+                    else:
+                        assert field == "flags", f"unexpected field: {field!r}"
+                        flags.append(value)
+
+        if len(set(model_names)) != 1:
+            logger.warning(f"CPU model names differ between cores, reporting only the first: {model_names}")
+
+        if len(set(flags)) != 1:
+            logger.warning(f"CPU flags differ between cores, reporting only the first: {model_names}")
+
+        return model_names[0], flags[0]
+    except Exception:
+        logger.exception("Failed to get CPU model name & flags, reporting unknown")
+        return UNKNOWN_VALUE, UNKNOWN_VALUE
+
+
 @dataclass
 class SystemInfo:
     python_version: str
@@ -146,6 +176,8 @@ class SystemInfo:
     kernel_version: str
     system_name: str
     processors: int
+    cpu_model_name: str
+    cpu_flags: str
     memory_capacity_mb: int
     hostname: str
     os_name: str
@@ -175,6 +207,7 @@ def get_static_system_info() -> SystemInfo:
     cpu_count = os.cpu_count() or 0
     run_mode = get_run_mode()
     deployment_type = get_deployment_type(run_mode)
+    cpu_model_name, cpu_flags = get_cpu_info()
     return SystemInfo(
         python_version=sys.version,
         run_mode=run_mode,
@@ -183,6 +216,8 @@ def get_static_system_info() -> SystemInfo:
         kernel_version=uname.version,
         system_name=uname.system,
         processors=cpu_count,
+        cpu_model_name=cpu_model_name,
+        cpu_flags=cpu_flags,
         memory_capacity_mb=round(psutil.virtual_memory().total / 1024 / 1024),  # type: ignore # virtual_memory doesn't
         # have a return type is types-psutil
         hostname=hostname,
