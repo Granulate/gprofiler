@@ -161,9 +161,6 @@ systemctl enable $(pwd)/granulate-gprofiler.service
 systemctl start granulate-gprofiler.service
 ```
 
-The `GPROFILER_VERSION` can be used to pin gProfiler to a specific version (i.e `GPROFILER_VERSION=1.3.0`). If you don't specify this variable, the latest version is always downloaded.
-
-
 ## Running on Databricks
 For Databricks, the same installation instructions as specified in the [running as an executable](#running-as-an-executable) section can be used (make sure to run them in the initialization script of your node).
 

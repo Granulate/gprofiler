@@ -7,7 +7,6 @@
 
 if [ -z "${GPROFILER_TOKEN}" ]; then echo "missing GPROFILER_TOKEN!"; exit 1; fi
 if [ -z "${GPROFILER_SERVICE}" ]; then echo "missing GPROFILER_SERVICE!"; exit 1; fi
-GPROFILER_VERSION="${GPROFILER_VERSION:-latest}"
 
 HERE=$(dirname -- "$0")
 UNIT_NAME=granulate-gprofiler.service
@@ -31,10 +30,7 @@ if [ -f $UNIT_NAME ]; then
     done
 fi
 
-cat $TEMPLATE | \
-    sed "s/Environment=GPROFILER_TOKEN=/&${GPROFILER_TOKEN}/g" | \
-    sed "s/Environment=GPROFILER_SERVICE=/&${GPROFILER_SERVICE}/g" | \
-    sed "s/Environment=GPROFILER_VERSION=/&${GPROFILER_VERSION}/g" > $UNIT_NAME
+cat $TEMPLATE | sed "s/Environment=GPROFILER_TOKEN=/&${GPROFILER_TOKEN}/g;s/Environment=GPROFILER_SERVICE=/&${GPROFILER_SERVICE}/g" > $UNIT_NAME
 
 FULL_SERVICE_FILE_PATH=$(realpath -s $UNIT_NAME)
 
