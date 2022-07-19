@@ -20,6 +20,8 @@ from granulate_utils.linux.ns import run_in_ns
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import is_pyinstaller, run_process
 
+UNKNOWN_VALUE = "unknown"
+
 logger = get_logger_adapter(__name__)
 hostname: Optional[str] = None
 RUN_MODE_TO_DEPLOYMENT_TYPE: Dict[str, str] = {
@@ -57,7 +59,7 @@ def get_libc_version() -> Tuple[str, str]:
     if m is not None:
         return "musl", decode_libc_version(m.group(1))
 
-    return "unknown", decode_libc_version(ldd_version)
+    return UNKNOWN_VALUE, decode_libc_version(ldd_version)
 
 
 def is_container() -> bool:
@@ -76,7 +78,7 @@ def get_run_mode() -> str:
 
 
 def get_deployment_type(run_mode: str) -> str:
-    return RUN_MODE_TO_DEPLOYMENT_TYPE.get(run_mode, "unknown")
+    return RUN_MODE_TO_DEPLOYMENT_TYPE.get(run_mode, UNKNOWN_VALUE)
 
 
 def get_local_ip() -> str:
@@ -87,7 +89,7 @@ def get_local_ip() -> str:
         s.connect(("8.8.8.8", 53))
         return cast(str, s.getsockname()[0])
     except socket.error:
-        return "unknown"
+        return UNKNOWN_VALUE
     finally:
         s.close()
 
@@ -132,7 +134,7 @@ def get_mac_address() -> str:
         address = ":".join(["%02X" % i for i in mac])
         return address
 
-    return "unknown"
+    return UNKNOWN_VALUE
 
 
 @dataclass
@@ -205,11 +207,11 @@ def get_hostname() -> str:
 def _initialize_system_info() -> Any:
     # initialized first
     global hostname
-    hostname = "<unknown>"
-    distribution = ("unknown", "unknown", "unknown")
-    libc_version = ("unknown", "unknown")
-    mac_address = "unknown"
-    local_ip = "unknown"
+    hostname = f"<{UNKNOWN_VALUE}>"  # < > are added to further distinct it from a legit hostname
+    distribution = (UNKNOWN_VALUE, UNKNOWN_VALUE, UNKNOWN_VALUE)
+    libc_version = (UNKNOWN_VALUE, UNKNOWN_VALUE)
+    mac_address = UNKNOWN_VALUE
+    local_ip = UNKNOWN_VALUE
 
     # move to host mount NS for distro & ldd.
     # now, distro will read the files on host.
