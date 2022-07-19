@@ -313,9 +313,8 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
         props = dict(
             [line.split("#", 1)[0].split("=", 1) for line in props_text.splitlines() if not line.startswith("#")]
         )
-        app_name = props[self._APP_NAME_KEY]
-        if app_name is not None:
-            return f"spark: {app_name}"
+        if self._APP_NAME_KEY in props:
+            return f"spark: {props[self._APP_NAME_KEY]}"
         return self._APP_NAME_NOT_FOUND
 
 
@@ -335,8 +334,7 @@ _IDENTIFIERS_MAP: Dict[str, List[_ApplicationIdentifier]] = {
     ],
 }
 
-_SPARK_IDENTIFIERS_MAP = _IDENTIFIERS_MAP.copy()
-_SPARK_IDENTIFIERS_MAP["java"].insert(0, _JavaSparkApplicationIdentifier())
+_IDENTIFIERS_MAP["java_spark"] = _IDENTIFIERS_MAP["java"] + [_JavaSparkApplicationIdentifier()]
 
 
 def set_enrichment_options(enrichment_options: EnrichmentOptions) -> None:
@@ -344,9 +342,7 @@ def set_enrichment_options(enrichment_options: EnrichmentOptions) -> None:
 
 
 @functools.lru_cache(4096)  # NOTE: arbitrary cache size
-def get_app_id(
-    process: Process, runtime: str, aggregate_all: bool = False, should_collect_spark_app_name: bool = False
-) -> Optional[str]:
+def get_app_id(process: Process, runtime: str, aggregate_all: bool = False) -> Optional[str]:
     """
     Tries to identify the application running in a given process, application identification is fully heuristic,
     heuristics are being made on each application type available differ from each other and those their
@@ -356,9 +352,8 @@ def get_app_id(
     if not _ApplicationIdentifier.enrichment_options.application_identifiers:
         return None
 
-    identifiers = _SPARK_IDENTIFIERS_MAP[runtime] if should_collect_spark_app_name else _IDENTIFIERS_MAP[runtime]
     appids = []
-    for identifier in identifiers:
+    for identifier in _IDENTIFIERS_MAP[runtime]:
         try:
             appid = identifier.get_app_id(process)
             if appid is not None:
@@ -384,4 +379,4 @@ def get_python_app_id(process: Process) -> Optional[str]:
 
 
 def get_java_app_id(process: Process, should_collect_spark_app_name: bool = False) -> Optional[str]:
-    return get_app_id(process, "java", aggregate_all=True, should_collect_spark_app_name=should_collect_spark_app_name)
+    return get_app_id(process, "java_spark" if should_collect_spark_app_name else "java", aggregate_all=True)
