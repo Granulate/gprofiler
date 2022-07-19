@@ -25,4 +25,4 @@ cat $TEMPLATE | sed "s/Environment=GPROFILER_TOKEN=/&${GPROFILER_TOKEN}/g;s/Envi
 FULL_SERVICE_FILE_PATH=$(realpath -s $UNIT_NAME)
 
 echo "created ${FULL_SERVICE_FILE_PATH}!"
-echo -e "you can now install and start the service by running:\nsystemctl enable ${FULL_SERVICE_FILE_PATH}) && systemctl start ${UNIT_NAME}"
+echo -e "you can now install and start the service by running:\nsystemctl enable ${FULL_SERVICE_FILE_PATH})\nsystemctl start ${UNIT_NAME}"
