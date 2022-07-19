@@ -16,7 +16,7 @@ TEMPLATE=$HERE/$UNIT_NAME.template
 
 if [ ! -f $TEMPLATE ]; then
     echo "Downloading template"
-    wget -q https://raw.githubusercontent.com/Granulate/gprofiler/master/deploy/systemd/granulate-gprofiler.service.template -O $TEMPLATE || echo "Failed to download template!" && rm $TEMPLATE && exit 1
+    wget https://raw.githubusercontent.com/Granulate/gprofiler/master/deploy/systemd/granulate-gprofiler.service.template -O $TEMPLATE
 fi
 
 
