@@ -713,8 +713,6 @@ def main() -> None:
     verify_preconditions(args)
     state = init_state()
 
-    init_pid_file(args.pid_file)
-
     remote_logs_handler = RemoteLogsHandler() if _should_send_logs(args) else None
     global logger
     logger = initial_root_logger_setup(
@@ -729,6 +727,11 @@ def main() -> None:
     reset_umask()
     # assume we run in the root cgroup (when containerized, that's our view)
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
+
+    try:
+        init_pid_file(args.pid_file)
+    except BaseException:
+        logger.exception(f"Failed to write pid to '{args.pid_file}', continuing anyway")
 
     if args.databricks_job_name_as_service_name:
         # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
