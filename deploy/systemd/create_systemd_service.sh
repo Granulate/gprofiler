@@ -13,6 +13,12 @@ HERE=$(dirname -- "$0")
 UNIT_NAME=granulate-gprofiler.service
 TEMPLATE=$HERE/$UNIT_NAME.template
 
+if [ ! -f $TEMPLATE ]; then
+    echo "Downloading template"
+    wget -q https://raw.githubusercontent.com/Granulate/gprofiler/master/deploy/systemd/granulate-gprofiler.service.template -O $TEMPLATE
+fi
+
+
 if [ -f $UNIT_NAME ]; then
     echo "${UNIT_NAME} already exists"
     while true; do
