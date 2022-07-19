@@ -389,7 +389,7 @@ def parse_cmd_args() -> configargparse.Namespace:
         default_config_files=["/etc/gprofiler/config.ini"],
     )
     parser.add_argument(
-        "--pid-file", type=str, help='Override the pid-file location (default: %(default)s)"', default=DEFAULT_PID_FILE
+        "--pid-file", type=str, help="Override the pid-file location (default: %(default)s)", default=DEFAULT_PID_FILE
     )
     parser.add_argument("--config", is_config_file=True, help="Config file path")
     parser.add_argument(
