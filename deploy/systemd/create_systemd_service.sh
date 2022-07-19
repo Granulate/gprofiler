@@ -25,7 +25,11 @@ if [ -f $UNIT_NAME ]; then
     done
 fi
 
-cat $TEMPLATE | sed "s/<insert-token>/${GPROFILER_TOKEN}/g;s/<insert-service-name>/${GPROFILER_SERVICE}/g;s/<insert-version>/${GPROFILER_VERSION}/g" > $UNIT_NAME
+cat $TEMPLATE | \
+    sed "s/Environment=GPROFILER_TOKEN=/&${GPROFILER_TOKEN}/g" | \
+    sed "s/Environment=GPROFILER_SERVICE=/&${GPROFILER_SERVICE}/g" | \
+    sed "s/Environment=GPROFILER_VERSION=/&${GPROFILER_VERSION}/g" > $UNIT_NAME
+
 FULL_SERVICE_FILE_PATH=$(realpath -s $UNIT_NAME)
 
 echo "created ${FULL_SERVICE_FILE_PATH}!"

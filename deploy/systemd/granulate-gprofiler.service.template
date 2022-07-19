@@ -12,9 +12,9 @@ After=network.target
 Type=forking
 PIDFile=/var/gprofiler.pid
 User=root
-Environment=GPROFILER_SERVICE=<insert-service-name>
-Environment=GPROFILER_TOKEN=<insert-token>
-Environment=GPROFILER_VERSION=<insert-version>
+Environment=GPROFILER_SERVICE=
+Environment=GPROFILER_TOKEN=
+Environment=GPROFILER_VERSION=
 WorkingDirectory=/opt/granulate/gprofiler
 ExecStartPre=/bin/bash -c 'if [ -z "${GPROFILER_TOKEN}" ]; then echo "missing GPROFILER_TOKEN!"; exit 1; fi'
 ExecStartPre=/bin/bash -c 'if [ -z "${GPROFILER_SERVICE}" ]; then echo "missing GPROFILER_SERVICE!"; exit 1; fi'
