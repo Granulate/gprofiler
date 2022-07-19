@@ -18,17 +18,7 @@ if [ ! -f $TEMPLATE ]; then
 fi
 
 
-if [ -f $UNIT_NAME ]; then
-    echo "${UNIT_NAME} already exists"
-    while true; do
-        read -p "Are you sure you want to override it? ([y]es/[n]o)" yn
-        case $yn in
-            [Yy]* ) echo "Removing ${UNIT_NAME}"; break;;
-            [Nn]* ) exit 1;;
-            * ) echo "Invalid answer";;
-        esac
-    done
-fi
+if [ -f $UNIT_NAME ]; then echo "${UNIT_NAME} already exists, please remove it and re-run (and disable the service if installed from symlink)"; exit 1; fi
 
 cat $TEMPLATE | sed "s/Environment=GPROFILER_TOKEN=/&${GPROFILER_TOKEN}/g;s/Environment=GPROFILER_SERVICE=/&${GPROFILER_SERVICE}/g" > $UNIT_NAME
 
