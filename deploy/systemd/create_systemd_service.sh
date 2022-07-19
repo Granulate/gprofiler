@@ -5,6 +5,8 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
+set -ueo pipefail
+
 if [ -z "${GPROFILER_TOKEN}" ]; then echo "missing GPROFILER_TOKEN!"; exit 1; fi
 if [ -z "${GPROFILER_SERVICE}" ]; then echo "missing GPROFILER_SERVICE!"; exit 1; fi
 
