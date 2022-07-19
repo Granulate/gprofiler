@@ -730,7 +730,7 @@ def main() -> None:
 
     try:
         init_pid_file(args.pid_file)
-    except BaseException:
+    except Exception:
         logger.exception(f"Failed to write pid to '{args.pid_file}', continuing anyway")
 
     if args.databricks_job_name_as_service_name:
