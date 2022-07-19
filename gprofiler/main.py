@@ -59,6 +59,8 @@ DEFAULT_LOG_FILE = "/var/log/gprofiler/gprofiler.log"
 DEFAULT_LOG_MAX_SIZE = 1024 * 1024 * 5
 DEFAULT_LOG_BACKUP_COUNT = 1
 
+DEFAULT_PID_FILE = "/var/run/gprofiler.pid"
+
 DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 11
 
@@ -386,6 +388,9 @@ def parse_cmd_args() -> configargparse.Namespace:
         add_env_var_help=False,
         default_config_files=["/etc/gprofiler/config.ini"],
     )
+    parser.add_argument(
+        "--pid-file", type=str, help='Override the pid-file location (default: %(default)s)"', default=DEFAULT_PID_FILE
+    )
     parser.add_argument("--config", is_config_file=True, help="Config file path")
     parser.add_argument(
         "-f",
@@ -699,10 +704,16 @@ def _should_send_logs(args: configargparse.Namespace) -> bool:
     return bool(args.log_to_server and args.upload_results and args.profile_api_version != "v1")
 
 
+def init_pid_file(pid_file: str) -> None:
+    Path(pid_file).write_text(str(os.getpid()))
+
+
 def main() -> None:
     args = parse_cmd_args()
     verify_preconditions(args)
     state = init_state()
+
+    init_pid_file(args.pid_file)
 
     remote_logs_handler = RemoteLogsHandler() if _should_send_logs(args) else None
     global logger
