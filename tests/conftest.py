@@ -359,7 +359,8 @@ def assert_app_id(application_pid: int, runtime: str, in_container: bool) -> Gen
     # TODO: Change commandline of processes running not in containers so we'll be able to match against them.
     if in_container and runtime in desired_name_and_getter:
         getter, name = desired_name_and_getter[runtime]
-        assert getter(Process(application_pid)) == name
+        # https://github.com/python/mypy/issues/10740
+        assert getter(Process(application_pid)) == name  # type: ignore # noqa
 
 
 @fixture
