@@ -124,11 +124,13 @@ def chmod_path_parts(path: Path, add_mode: int) -> None:
         os.chmod(subpath, os.stat(subpath).st_mode | add_mode)
 
 
+def is_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) -> bool:
+    return any((function_name in record) for record in collapsed.keys())
+
+
 def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) -> None:
     print(f"collapsed: {collapsed}")
-    assert any(
-        (function_name in record) for record in collapsed.keys()
-    ), f"function {function_name!r} missing in collapsed data!"
+    assert is_function_in_collapsed(function_name, collapsed), f"function {function_name!r} missing in collapsed data!"
 
 
 def snapshot_one_profile(profiler: ProfilerInterface) -> ProfileData:
