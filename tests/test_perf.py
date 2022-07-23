@@ -14,7 +14,7 @@ from tests.utils import assert_function_in_collapsed, is_function_in_collapsed, 
 
 @pytest.mark.parametrize("runtime", ["native_fp", "native_dwarf"])
 @pytest.mark.parametrize("perf_mode", ["fp", "dwarf", "smart"])
-@pytest.mark.parametrize("in_container", [True])  # tests depend on the version we use in the image
+@pytest.mark.parametrize("in_container", [True])  # native app is built only for container
 def test_perf(
     tmp_path: Path,
     application_pid: int,
