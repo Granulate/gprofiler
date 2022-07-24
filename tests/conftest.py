@@ -94,6 +94,10 @@ def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
             "--interpreted-frames-native-stack",
             str(CONTAINERS_DIRECTORY / "nodejs/fibonacci.js"),
         ],
+        # these do not have non-container application - so it will result in an error if the command
+        # line is used.
+        "native_fp": ["/bin/false"],
+        "native_dwarf": ["/bin/false"],
     }[runtime]
 
 
@@ -157,6 +161,16 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
 def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[str, Image]]:
     images = {}
     for runtime in os.listdir(str(CONTAINERS_DIRECTORY)):
+        if runtime == "native":
+            path = CONTAINERS_DIRECTORY / runtime
+            images[runtime + "_fp"], _ = docker_client.images.build(
+                path=str(path), dockerfile=str(path / "fp.Dockerfile"), rm=True
+            )
+            images[runtime + "_dwarf"], _ = docker_client.images.build(
+                path=str(path), dockerfile=str(path / "dwarf.Dockerfile"), rm=True
+            )
+            continue
+
         images[runtime], _ = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime), rm=True)
 
         # for java - add additional images
