@@ -16,6 +16,6 @@ if [[ "$1" = "--ci" ]]; then
 fi
 
 isort --settings-path .isort.cfg $isort_extra_args .
-black --line-length 120 $black_extra_args --exclude "granulate-utils|venv" .
+black --line-length 120 $black_extra_args --exclude "granulate-utils|.*venv.*" .
 flake8 --config .flake8 .
 mypy .

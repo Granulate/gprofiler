@@ -27,6 +27,8 @@ from gprofiler.utils.perf import perf_path
 
 logger = get_logger_adapter(__name__)
 
+DEFAULT_PERF_DWARF_STACK_SIZE = 8192
+
 
 # TODO: automatically disable this profiler if can_i_use_perf_events() returns False?
 class PerfProcess:
@@ -145,7 +147,7 @@ class PerfProcess:
             help="The max stack size for the Dwarf perf, in bytes. Must be <=65528."
             " Relevant for --perf-mode dwarf|smart. Default: %(default)s",
             type=int,
-            default=8192,
+            default=DEFAULT_PERF_DWARF_STACK_SIZE,
             dest="perf_dwarf_stack_size",
         )
     ],

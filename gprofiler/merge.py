@@ -150,9 +150,9 @@ def add_highest_avg_depth_stacks_per_process(
             merged_pid_to_stacks_counters[pid] = fp_collapsed_stacks_counters
             continue
 
-        fp_frame_count_average = _get_average_frame_count(fp_collapsed_stacks_counters.keys())
+        fp_frame_count_average = get_average_frame_count(fp_collapsed_stacks_counters.keys())
         dwarf_collapsed_stacks_counters = dwarf_perf[pid]
-        dwarf_frame_count_average = _get_average_frame_count(dwarf_collapsed_stacks_counters.keys())
+        dwarf_frame_count_average = get_average_frame_count(dwarf_collapsed_stacks_counters.keys())
         if fp_frame_count_average > dwarf_frame_count_average:
             merged_pid_to_stacks_counters[pid] = fp_collapsed_stacks_counters
         else:
@@ -179,8 +179,27 @@ def scale_sample_counts(stacks: StackToSampleCount, ratio: float) -> StackToSamp
     return scaled_stacks
 
 
-def _get_average_frame_count(stacks: Iterable[str]) -> float:
-    frame_count_per_samples = [sample.count(";") for sample in stacks]
+def get_average_frame_count(samples: Iterable[str]) -> float:
+    """
+    Get the average frame count for all samples.
+    Avoids counting kernel frames because this function is used to determine whether FP stacks
+    or DWARF stacks are to be used. FP stacks are collected regardless of FP or DWARF, so we don't
+    count them in this heuristic.
+    """
+    frame_count_per_samples = []
+    for sample in samples:
+        kernel_split = sample.split("_[k];", 1)
+        if len(kernel_split) == 1:
+            kernel_split = sample.split("_[k] ", 1)
+
+        # Do we have any kernel frames in this sample?
+        if len(kernel_split) > 1:
+            # example: "a;b;c;d_[k];e_[k] 1" should return the same value as "a;b;c 1", so we don't
+            # add 1 to the frames count like we do in the other branch.
+            frame_count_per_samples.append(kernel_split[0].count(";"))
+        else:
+            # no kernel frames, so e.g "a;b;c 1" and frame count is one more than ";" count.
+            frame_count_per_samples.append(kernel_split[0].count(";") + 1)
     return sum(frame_count_per_samples) / len(frame_count_per_samples)
 
 
