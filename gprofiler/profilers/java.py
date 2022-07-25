@@ -51,7 +51,7 @@ from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
-from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
+from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     GPROFILER_DIRECTORY_NAME,
@@ -66,7 +66,7 @@ from gprofiler.utils import (
 )
 from gprofiler.utils.fs import is_rw_exec_dir, safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
-from gprofiler.utils.process import process_comm, read_proc_file
+from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
 
@@ -727,7 +727,7 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
         ),
     ],
 )
-class JavaProfiler(SpawningProcessProfilerBase):
+class JavaProfiler(ProcessProfilerBase):
     JDK_EXCLUSIONS: List[str] = []  # currently empty
     # Major -> (min version, min build number of version)
     MINIMAL_SUPPORTED_VERSIONS = {
@@ -752,7 +752,6 @@ class JavaProfiler(SpawningProcessProfilerBase):
         duration: int,
         stop_event: Event,
         storage_dir: str,
-        profile_spawned_processes: bool,
         java_async_profiler_buildids: bool,
         java_version_check: bool,
         java_async_profiler_mode: str,
@@ -765,7 +764,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_collect_process_run_times: Optional[List[int]],
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
-        super().__init__(frequency, duration, stop_event, storage_dir, profile_spawned_processes)
+        super().__init__(frequency, duration, stop_event, storage_dir)
 
         self._interval = frequency_to_ap_interval(frequency)
         self._buildids = java_async_profiler_buildids
@@ -787,7 +786,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._pids_to_remove: Set[int] = set()
         self._pid_to_java_version: Dict[int, Optional[str]] = {}
         self._kernel_messages_provider = get_kernel_messages_provider()
-        self._enabled_proc_events_java = False
+        self._enabled_proc_events = False
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
         self._metadata = JavaMetadata(self._stop_event)
         self._collect_process_run_times = java_collect_process_run_times
@@ -945,7 +944,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
 
         return False
 
-    def _profile_process(self, process: Process, duration: int) -> ProfileData:
+    def _profile_process(self, process: Process) -> ProfileData:
         comm = process_comm(process)
         exe = process_exe(process)
         # TODO we can get the "java" binary by extracting the java home from the libjvm path,
@@ -955,7 +954,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         else:
             java_version_output = None
 
-        if self._enabled_proc_events_java:
+        if self._enabled_proc_events:
             self._want_to_profile_pids.add(process.pid)
             # there's no reliable way to get the underlying cache of get_java_version, otherwise
             # I'd just use it.
@@ -978,7 +977,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         # TODO: it is possible to run in contexts where we're unable to use proc_events but are able to listen
         # on kernel messages. we can add another mechanism to track PIDs (such as, prune PIDs which have exited)
         # then use the kernel messages listener without proc_events.
-        if self._enabled_proc_events_java:
+        if self._enabled_proc_events:
             self._profiled_pids.add(process.pid)
 
         logger.info(f"Profiling process {process.pid} with async-profiler")
@@ -996,7 +995,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._jattach_timeout,
             self._ap_mcache,
         ) as ap_proc:
-            stackcollapse, process_uptime_str = self._profile_ap_process(ap_proc, comm, duration)
+            stackcollapse, process_uptime_str = self._profile_ap_process(ap_proc, comm)
 
         if process_uptime_str is not None:
             if appid:
@@ -1005,7 +1004,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
 
         return ProfileData(stackcollapse, appid, app_metadata)
 
-    def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str, duration: int) -> Tuple[StackToSampleCount, Optional[str]]:
+    def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str) -> Tuple[StackToSampleCount, Optional[str]]:
         process_uptime_str = None
         if self._collect_process_run_times is not None:
             uptime_calculator = ProcessUptimeCalculator(ap_proc.process)
@@ -1026,7 +1025,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
                 )
 
         try:
-            wait_event(duration, self._stop_event, lambda: not is_process_running(ap_proc.process), interval=1)
+            wait_event(self._duration, self._stop_event, lambda: not is_process_running(ap_proc.process), interval=1)
         except TimeoutError:
             # Process still running. We will stop the profiler in finally block.
             pass
@@ -1082,9 +1081,6 @@ class JavaProfiler(SpawningProcessProfilerBase):
             # profiling.
         return pgrep_maps(DETECTED_JAVA_PROCESSES_REGEX)
 
-    def _should_profile_process(self, process: Process) -> bool:
-        return any(line.endswith("/libjvm.so") for line in read_proc_file(process, "maps").splitlines())
-
     def start(self) -> None:
         super().start()
         try:
@@ -1096,12 +1092,12 @@ class JavaProfiler(SpawningProcessProfilerBase):
                 exc_info=True,
             )
         else:
-            self._enabled_proc_events_java = True
+            self._enabled_proc_events = True
 
     def stop(self) -> None:
-        if self._enabled_proc_events_java:
+        if self._enabled_proc_events:
             proc_events.unregister_exit_callback(self._proc_exit_callback)
-            self._enabled_proc_events_java = False
+            self._enabled_proc_events = False
         super().stop()
 
     def _proc_exit_callback(self, tid: int, pid: int, exit_code: int) -> None:

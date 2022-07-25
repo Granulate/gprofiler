@@ -60,13 +60,11 @@ class PHPSpyProfiler(ProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
-        profile_spawned_processes: bool,
         php_process_filter: str,
         php_mode: str,
     ):
         assert php_mode == "phpspy", "PHP profiler should not be initialized, wrong php_mode value given"
         super().__init__(frequency, duration, stop_event, storage_dir)
-        _ = profile_spawned_processes  # Required for mypy unused argument warning
         self._process: Optional[Popen] = None
         self._output_path = Path(self._storage_dir) / f"phpspy.{random_prefix()}.col"
         self._process_filter = php_process_filter

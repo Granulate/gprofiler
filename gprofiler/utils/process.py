@@ -14,19 +14,15 @@ def ensure_running(process: Process) -> None:
         raise NoSuchProcess(process.pid)
 
 
-def read_proc_file(process: Process, file: str) -> str:
+def process_comm(process: Process) -> str:
     try:
-        data = Path(f"/proc/{process.pid}/{file}").read_text()
-    except FileNotFoundError as e:
-        raise NoSuchProcess(process.pid) from e
+        status = Path(f"/proc/{process.pid}/status").read_text()
+    except FileNotFoundError:
+        raise NoSuchProcess(process.pid)
     else:
         # ensures we read the right comm (i.e PID was not reused)
         ensure_running(process)
-    return data
 
-
-def process_comm(process: Process) -> str:
-    status = read_proc_file(process, "status")
     name_line = status.splitlines()[0]
     assert name_line.startswith("Name:\t")
     return name_line.split("\t", 1)[1]

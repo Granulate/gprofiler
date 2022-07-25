@@ -2,9 +2,7 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-
 import os
-import re
 import signal
 from pathlib import Path
 from subprocess import CompletedProcess
@@ -20,10 +18,10 @@ from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import ProfileData
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.application_metadata import ApplicationMetadata
-from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
+from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
-from gprofiler.utils.process import process_comm, read_proc_file
+from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
 
@@ -71,26 +69,17 @@ class RubyMetadata(ApplicationMetadata):
     supported_archs=["x86_64", "aarch64"],
     default_mode="rbspy",
 )
-class RbSpyProfiler(SpawningProcessProfilerBase):
+class RbSpyProfiler(ProcessProfilerBase):
     RESOURCE_PATH = "ruby/rbspy"
     MAX_FREQUENCY = 100
     _EXTRA_TIMEOUT = 10  # extra time like given to py-spy
-    DETECTED_RUBY_PROCESSES_REGEX = r"(?:^.+/ruby[^/]*$)"
 
-    def __init__(
-        self,
-        frequency: int,
-        duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
-        profile_spawned_processes: bool,
-        ruby_mode: str,
-    ):
-        super().__init__(frequency, duration, stop_event, storage_dir, profile_spawned_processes)
+    def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str, ruby_mode: str):
+        super().__init__(frequency, duration, stop_event, storage_dir)
         assert ruby_mode == "rbspy", "Ruby profiler should not be initialized, wrong ruby_mode value given"
         self._metadata = RubyMetadata(self._stop_event)
 
-    def _make_command(self, pid: int, output_path: str, duration: int) -> List[str]:
+    def _make_command(self, pid: int, output_path: str) -> List[str]:
         return [
             resource_path(self.RESOURCE_PATH),
             "record",
@@ -98,7 +87,7 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
             "-r",
             str(self._frequency),
             "-d",
-            str(duration),
+            str(self._duration),
             "--nonblocking",  # Don’t pause the ruby process when collecting stack samples.
             "--on-cpu",  # only record when CPU is active
             "--format=collapsed",
@@ -110,7 +99,7 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
             str(pid),
         ]
 
-    def _profile_process(self, process: Process, duration: int) -> ProfileData:
+    def _profile_process(self, process: Process) -> ProfileData:
         logger.info(
             f"Profiling process {process.pid} with rbspy", cmdline=" ".join(process.cmdline()), no_extra_to_server=True
         )
@@ -122,9 +111,9 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
         with removed_path(local_output_path):
             try:
                 run_process(
-                    self._make_command(process.pid, local_output_path, duration),
+                    self._make_command(process.pid, local_output_path),
                     stop_event=self._stop_event,
-                    timeout=duration + self._EXTRA_TIMEOUT,
+                    timeout=self._duration + self._EXTRA_TIMEOUT,
                     kill_signal=signal.SIGKILL,
                 )
             except ProcessStoppedException:
@@ -134,9 +123,4 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
             return ProfileData(merge.parse_one_collapsed_file(Path(local_output_path), comm), appid, app_metadata)
 
     def _select_processes_to_profile(self) -> List[Process]:
-        return pgrep_maps(self.DETECTED_RUBY_PROCESSES_REGEX)
-
-    def _should_profile_process(self, process: Process) -> bool:
-        return any(
-            re.match(self.DETECTED_RUBY_PROCESSES_REGEX, line) for line in read_proc_file(process, "maps").splitlines()
-        )
+        return pgrep_maps(r"(?:^.+/ruby[^/]*$)")
