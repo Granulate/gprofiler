@@ -288,8 +288,38 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
         return None
 
 
+class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
+    _JAVA_SPARK_EXECUTOR_ARG = "org.apache.spark.executor"
+    _SPARK_PROPS_FILE = os.path.join("__spark_conf__", "__spark_conf__.properties")
+    _APP_NAME_NOT_FOUND = "app name not found"
+    _APP_NAME_KEY = "spark.app.name"
+
+    @staticmethod
+    def _is_java_spark_executor(process: Process) -> bool:
+        args = process.cmdline()
+        return any(_JavaSparkApplicationIdentifier._JAVA_SPARK_EXECUTOR_ARG in arg for arg in args)
+
+    def get_app_id(self, process: Process) -> Optional[str]:
+        if not self._is_java_spark_executor(process):
+            return None
+        props_path = os.path.join(process.cwd(), self._SPARK_PROPS_FILE)
+        if not os.path.exists(props_path):
+            _logger.warning(
+                f"Spark props file doesn't exist: {props_path}. Proces args: {process.cmdline()}, pid: {process.pid}"
+            )
+            return self._APP_NAME_NOT_FOUND
+        with open(props_path) as f:
+            props_text = f.read()
+        props = dict(
+            [line.split("#", 1)[0].split("=", 1) for line in props_text.splitlines() if not line.startswith("#")]
+        )
+        if self._APP_NAME_KEY in props:
+            return f"spark: {props[self._APP_NAME_KEY]}"
+        return self._APP_NAME_NOT_FOUND
+
+
 # Please note that the order matter, because the FIRST matching identifier will be used.
-# so when adding new identifiers pay attention to the order.
+# so when adding new identifiers pay attention to the order, unless aggregate_all is used.
 _IDENTIFIERS_MAP: Dict[str, List[_ApplicationIdentifier]] = {
     "python": [
         _GunicornTitleApplicationIdentifier(),
@@ -304,13 +334,15 @@ _IDENTIFIERS_MAP: Dict[str, List[_ApplicationIdentifier]] = {
     ],
 }
 
+_IDENTIFIERS_MAP["java_spark"] = _IDENTIFIERS_MAP["java"] + [_JavaSparkApplicationIdentifier()]
+
 
 def set_enrichment_options(enrichment_options: EnrichmentOptions) -> None:
     _ApplicationIdentifier.enrichment_options = enrichment_options
 
 
 @functools.lru_cache(4096)  # NOTE: arbitrary cache size
-def get_app_id(process: Process, runtime: str) -> Optional[str]:
+def get_app_id(process: Process, runtime: str, aggregate_all: bool = False) -> Optional[str]:
     """
     Tries to identify the application running in a given process, application identification is fully heuristic,
     heuristics are being made on each application type available differ from each other and those their
@@ -320,22 +352,25 @@ def get_app_id(process: Process, runtime: str) -> Optional[str]:
     if not _ApplicationIdentifier.enrichment_options.application_identifiers:
         return None
 
-    identifiers = _IDENTIFIERS_MAP[runtime]
-
-    for identifier in identifiers:
+    appids = []
+    for identifier in _IDENTIFIERS_MAP[runtime]:
         try:
             appid = identifier.get_app_id(process)
             if appid is not None:
-                return appid
+                if not aggregate_all:
+                    return appid
+                appids.append(appid)
 
         except NoSuchProcess:
-            return None
+            break
         except Exception:
             _logger.exception(
                 f"Application identifier {identifier} raised an exception while matching against process {process}"
             )
             continue
 
+    if len(appids) != 0:
+        return ", ".join(appids)
     return None
 
 
@@ -343,5 +378,5 @@ def get_python_app_id(process: Process) -> Optional[str]:
     return get_app_id(process, "python")
 
 
-def get_java_app_id(process: Process) -> Optional[str]:
-    return get_app_id(process, "java")
+def get_java_app_id(process: Process, should_collect_spark_app_name: bool = False) -> Optional[str]:
+    return get_app_id(process, "java_spark" if should_collect_spark_app_name else "java", aggregate_all=True)

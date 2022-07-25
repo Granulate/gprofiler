@@ -1,12 +1,16 @@
 import os
 import subprocess
+from contextlib import contextmanager
 from pathlib import Path
 from threading import Event
-from typing import Any, Dict, List, Optional
+from time import sleep
+from typing import Any, Dict, Iterator, List, Optional
 
 from docker import DockerClient
 from docker.errors import ContainerError
+from docker.models.containers import Container
 from docker.models.images import Image
+from docker.types import Mount
 
 from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
 from gprofiler.profilers.java import (
@@ -28,40 +32,36 @@ RUNTIME_PROFILERS = [
 ]
 
 
-def run_privileged_container(
+def start_privileged_container(
     docker_client: DockerClient,
     image: Image,
     command: List[str],
     volumes: Dict[str, Dict[str, str]] = None,
     **extra_kwargs: Any,
-) -> str:
+) -> Container:
     if volumes is None:
         volumes = {}
 
-    container = None
-    try:
-        container = docker_client.containers.run(
-            image,
-            command,
-            privileged=True,
-            network_mode="host",
-            pid_mode="host",
-            userns_mode="host",
-            volumes=volumes,
-            stderr=True,
-            detach=True,
-            **extra_kwargs,
-        )
-        # let it finish
-        exit_status = container.wait()["StatusCode"]
-        # and read its log
-        logs = container.logs(stdout=True, stderr=True)
+    return docker_client.containers.run(
+        image,
+        command,
+        privileged=True,
+        network_mode="host",
+        pid_mode="host",
+        userns_mode="host",
+        volumes=volumes,
+        stderr=True,
+        detach=True,
+        **extra_kwargs,
+    )
 
-        if exit_status != 0:
-            raise ContainerError(container, exit_status, command, image, logs)
-    finally:
-        if container is not None:
-            container.remove()
+
+def wait_for_container(container: Container) -> str:
+    exit_status = container.wait()["StatusCode"]
+    logs = container.logs(stdout=True, stderr=True)
+
+    if exit_status != 0:
+        raise ContainerError(container, exit_status, container.attrs["Config"]["Cmd"], container.image, logs)
 
     # print, so failing tests display it
     print(
@@ -73,6 +73,23 @@ def run_privileged_container(
     return logs.decode()
 
 
+def run_privileged_container(
+    docker_client: DockerClient,
+    image: Image,
+    command: List[str],
+    volumes: Dict[str, Dict[str, str]] = None,
+    **extra_kwargs: Any,
+) -> str:
+    container = None
+    try:
+        container = start_privileged_container(docker_client, image, command, volumes, **extra_kwargs)
+        return wait_for_container(container)
+
+    finally:
+        if container is not None:
+            container.remove()
+
+
 def _no_errors(logs: str) -> None:
     # example line: [2021-06-12 10:13:57,528] ERROR: gprofiler: ruby profiling failed
     assert "] ERROR: " not in logs, f"found ERRORs in gProfiler logs!: {logs}"
@@ -80,9 +97,9 @@ def _no_errors(logs: str) -> None:
 
 def run_gprofiler_in_container(docker_client: DockerClient, image: Image, command: List[str], **kwargs: Any) -> None:
     """
-    Wrapper around run_privileged_container() that also verifies there are not ERRORs in gProfiler's output log.
+    Wrapper around run_privileged_container() that also verifies there are no ERRORs in gProfiler's output log.
     """
-    assert "-v" in command, "plesae run with -v!"  # otherwise there are no loglevel prints
+    assert "-v" in command, "please run with -v!"  # otherwise there are no loglevel prints
     logs = run_privileged_container(docker_client, image, command, **kwargs)
     _no_errors(logs)
 
@@ -107,11 +124,13 @@ def chmod_path_parts(path: Path, add_mode: int) -> None:
         os.chmod(subpath, os.stat(subpath).st_mode | add_mode)
 
 
+def is_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) -> bool:
+    return any((function_name in record) for record in collapsed.keys())
+
+
 def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) -> None:
     print(f"collapsed: {collapsed}")
-    assert any(
-        (function_name in record) for record in collapsed.keys()
-    ), f"function {function_name!r} missing in collapsed data!"
+    assert is_function_in_collapsed(function_name, collapsed), f"function {function_name!r} missing in collapsed data!"
 
 
 def snapshot_one_profile(profiler: ProfilerInterface) -> ProfileData:
@@ -133,6 +152,7 @@ def make_java_profiler(
     duration: int = 1,
     stop_event: Event = Event(),
     storage_dir: str = None,
+    profile_spawned_processes: bool = False,
     java_async_profiler_buildids: bool = False,
     java_version_check: bool = True,
     java_async_profiler_mode: str = "cpu",
@@ -141,6 +161,7 @@ def make_java_profiler(
     java_safemode: str = JAVA_SAFEMODE_ALL,
     java_jattach_timeout: int = AsyncProfiledProcess._JATTACH_TIMEOUT,
     java_async_profiler_mcache: int = AsyncProfiledProcess._DEFAULT_MCACHE,
+    java_collect_spark_app_name_as_appid: bool = False,
     java_mode: str = "ap",
     java_collect_process_run_times: Optional[List[int]] = None,
 ) -> JavaProfiler:
@@ -150,6 +171,7 @@ def make_java_profiler(
         duration=duration,
         stop_event=stop_event,
         storage_dir=storage_dir,
+        profile_spawned_processes=profile_spawned_processes,
         java_async_profiler_buildids=java_async_profiler_buildids,
         java_version_check=java_version_check,
         java_async_profiler_mode=java_async_profiler_mode,
@@ -158,30 +180,125 @@ def make_java_profiler(
         java_safemode=java_safemode,
         java_jattach_timeout=java_jattach_timeout,
         java_async_profiler_mcache=java_async_profiler_mcache,
+        java_collect_spark_app_name_as_appid=java_collect_spark_app_name_as_appid,
         java_mode=java_mode,
         java_collect_process_run_times=java_collect_process_run_times,
     )
 
 
-def run_gprofiler_in_container_for_one_session(
+def start_gprofiler_in_container_for_one_session(
     docker_client: DockerClient,
     gprofiler_docker_image: Image,
     output_directory: Path,
+    output_path: Path,
     runtime_specific_args: List[str],
     profiler_flags: List[str],
-) -> str:
-    """
-    Runs the gProfiler container image for a single profiling session, and collects the output.
-    """
+) -> Container:
     inner_output_directory = "/tmp/gprofiler"
     volumes = {
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
     }
     args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args + profiler_flags
 
-    output_path = Path(output_directory / "last_profile.col")
     remove_path(str(output_path), missing_ok=True)
+    return start_privileged_container(
+        docker_client,
+        gprofiler_docker_image,
+        args,
+        volumes=volumes,
+    )
 
-    run_gprofiler_in_container(docker_client, gprofiler_docker_image, args, volumes=volumes)
 
+def wait_for_gprofiler_container(container: Container, output_path: Path) -> str:
+    """
+    Wrapper around wait_for_container() that also verifies there are not ERRORs in gProfiler's output log.
+    """
+    logs = wait_for_container(container)
+    _no_errors(logs)
     return output_path.read_text()
+
+
+def run_gprofiler_in_container_for_one_session(
+    docker_client: DockerClient,
+    gprofiler_docker_image: Image,
+    output_directory: Path,
+    output_path: Path,
+    runtime_specific_args: List[str],
+    profiler_flags: List[str],
+) -> str:
+    """
+    Runs the gProfiler container image for a single profiling session, and collects the output.
+    """
+    container: Container = None
+    try:
+        container = start_gprofiler_in_container_for_one_session(
+            docker_client, gprofiler_docker_image, output_directory, output_path, runtime_specific_args, profiler_flags
+        )
+        return wait_for_gprofiler_container(container, output_path)
+    finally:
+        if container is not None:
+            container.remove()
+
+
+def _print_process_output(popen: subprocess.Popen) -> None:
+    stdout, stderr = popen.communicate()
+    print(f"stdout: {stdout.decode()}")
+    print(f"stderr: {stderr.decode()}")
+
+
+@contextmanager
+def _application_process(command_line: List[str], check_app_exited: bool) -> Iterator[subprocess.Popen]:
+    # run as non-root to catch permission errors, etc.
+    def lower_privs() -> None:
+        os.setgid(1000)
+        os.setuid(1000)
+
+    popen = subprocess.Popen(
+        command_line, preexec_fn=lower_privs, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd="/tmp"
+    )
+    try:
+        # wait 2 seconds to ensure it starts
+        popen.wait(2)
+    except subprocess.TimeoutExpired:
+        pass
+    else:
+        _print_process_output(popen)
+        raise Exception(f"Command {command_line} exited unexpectedly with {popen.returncode}")
+
+    yield popen
+
+    if check_app_exited:
+        # ensure, again, that it still alive (if it exited prematurely it might provide bad data for the tests)
+        try:
+            popen.wait(0)
+        except subprocess.TimeoutExpired:
+            pass
+        else:
+            _print_process_output(popen)
+            raise Exception(f"Command {command_line} exited unexpectedly during the test with {popen.returncode}")
+
+    popen.kill()
+    _print_process_output(popen)
+
+
+@contextmanager
+def _application_docker_container(
+    docker_client: DockerClient,
+    application_docker_image: Image,
+    application_docker_mounts: List[Mount],
+    application_docker_capabilities: List[str],
+) -> Container:
+    container: Container = docker_client.containers.run(
+        application_docker_image,
+        detach=True,
+        user="5555:6666",
+        mounts=application_docker_mounts,
+        cap_add=application_docker_capabilities,
+    )
+    while container.status != "running":
+        if container.status == "exited":
+            raise Exception(container.logs().decode())
+        sleep(1)
+        container.reload()
+    yield container
+    container.remove(force=True)

@@ -128,7 +128,7 @@ Run the following to have gprofiler running continuously, in the background, upl
 ```bash
 wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler_$(uname -m) -O gprofiler
 sudo chmod +x gprofiler
-sudo sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE NAME>\" [options] > /dev/null 2>&1 &"
+sudo TMPDIR=/proc/self/cwd sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE NAME>\" [options] > /dev/null 2>&1 &"
 sleep 1
 pgrep gprofiler # make sure gprofiler has started
 ```
@@ -139,17 +139,27 @@ For non-daemon mode runes, you can remove the `setsid` and `> /dev/null 2>&1 &` 
 
 The logs can then be viewed in their default location (`/var/log/gprofiler`).
 
-gProfiler unpacks executables to `/tmp` by default; if your `/tmp` is marked with `noexec`,
-you can add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current working directory.
-```bash
-sudo TMPDIR=/proc/self/cwd ./gprofiler -cu --token="<TOKEN> --service-name="<SERVICE NAME>" [options]
-```
+`TMPDIR` is added because gProfiler unpacks executables to `/tmp` by default; this is done by `staticx`. For cases where `/tmp` is marked with `noexec`, we add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current working directory, which is surely executable before gProfiler was started in it.
 
 ### Executable known issues
 The following platforms are currently not supported with the gProfiler executable:
 + Alpine
 
 **Remark:** container-based execution works and can be used in those cases.
+
+## Running as systemd service
+
+You can generate a systemd service configuration that [runs gProfiler as an executable](#running-as-an-executable) (and therefore, bears the same [known issues](#executable-known-issues)) by running:
+
+``` bash
+curl -s https://raw.githubusercontent.com/Granulate/gprofiler/master/deploy/systemd/create_systemd_service.sh | GPROFILER_TOKEN=<TOKEN> GPROFILER_SERVICE=<SERVICE_NAME> bash
+```
+
+This script generates `granulate-gprofiler.service` in your working directory, and you can go ahead and install it by:
+```
+systemctl enable $(pwd)/granulate-gprofiler.service
+systemctl start granulate-gprofiler.service
+```
 
 ## Running on Databricks
 For Databricks, the same installation instructions as specified in the [running as an executable](#running-as-an-executable) section can be used (make sure to run them in the initialization script of your node).
@@ -301,7 +311,7 @@ sudo sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE
   Make sure to:
   - Replace `<TOKEN>` with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
   - Replace `<SERVICE>` with the service name you wish to use.
-2. Upload the script to an S3 bucket, for example: `s3://my-s3-bucket/gprofiler-bootstrap.sh` 
+2. Upload the script to an S3 bucket, for example: `s3://my-s3-bucket/gprofiler-bootstrap.sh`
 3. Create the EMR cluster with bootstrap-action to run the bootstrap script, this can be done both from the AWS Console and AWS CLI.
    - AWS Console Example:
      - Create an EMR Cluster from the AWS Console
@@ -311,7 +321,7 @@ sudo sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE
      - Add Action of type *Custom Action*
      - Fill in script location with the appropriate script location on your S3, for example `s3://my-s3-bucket/gprofiler-bootstrap.sh`
      ![img](https://user-images.githubusercontent.com/33522503/153876647-5f844c46-8d62-4d89-b612-9616043f1825.png)
-   - AWS CLI Example: 
+   - AWS CLI Example:
      ```bash
      aws emr create-cluster --name MY-Cluster ... --bootstrap-actions "Path=s3://my-s3-bucket/gprofiler-bootstrap.sh"
      ```
