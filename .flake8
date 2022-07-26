@@ -2,4 +2,4 @@
 max-line-length = 120
 # options for compatibility with black - see https://black.readthedocs.io/en/stable/compatible_configs.html#flake8
 extend-ignore = E203, W503
-exclude = .git,__pycache__,build,gprofiler.egg-info,venv,.venv,granulate-utils
+exclude = .git,__pycache__,build,gprofiler.egg-info,*venv*,granulate-utils
