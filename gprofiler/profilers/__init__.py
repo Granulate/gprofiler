@@ -4,5 +4,6 @@ from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.php import PHPSpyProfiler
 from gprofiler.profilers.python import PythonProfiler
 from gprofiler.profilers.ruby import RbSpyProfiler
+from gprofiler.profilers.dotnet import DotnetProfiler
 
 __all__ = ["JavaProfiler", "SystemProfiler", "PHPSpyProfiler", "PythonProfiler", "RbSpyProfiler", "DotnetProfiler"]

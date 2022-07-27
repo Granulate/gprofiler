@@ -45,7 +45,7 @@ RUN ./rbspy_build.sh
 RUN mv "/tmp/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /tmp/rbspy/rbspy
 
 # dotnet-trace
-FROM mcr.microsoft.com/dotnet/sdk:3.1.420 as dotnet-builder
+FROM mcr.microsoft.com/dotnet/sdk:6.0 as dotnet-builder
 ENV http_proxy http://proxy-dmz.intel.com:911
 ENV https_proxy http://proxy-dmz.intel.com:912
 RUN apt-get update && \
@@ -175,12 +175,15 @@ RUN set -e; \
     apt-get update && \
     apt-get upgrade -y && \
     apt-get install --no-install-recommends -y python3-pip && \
+    apt-get -y install sudo && \
+    apt-get install -qqq libicu66 && \
     if [ "$(uname -m)" = "aarch64" ]; then \
       apt-get install -y --no-install-recommends build-essential python3.8-dev; \
     fi && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+RUN useradd -m docker && echo "docker:docker" | chpasswd && adduser docker sudo
 COPY --from=bcc-builder /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
 # copy licenses and notice file.
 COPY --from=bcc-builder /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
@@ -209,7 +212,7 @@ COPY --from=dotnet-builder /usr/share/dotnet /usr/share/dotnet
 COPY --from=dotnet-builder /tmp/.dotnet gprofiler/resources/dotnet
 #RUN ./gprofiler/resources/.dotnet/tools/dotnet-trace
 COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
-
+# ENV PATH="${PATH}:/app/gprofiler/resources/dotnet/tools"
 # we want the latest pip
 # hadolint ignore=DL3013
 RUN pip3 install --upgrade --no-cache-dir pip
