@@ -8,6 +8,8 @@ ARG PYPERF_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f2
 ARG PERF_BUILDER_UBUNTU=@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c
 # phpspy - ubuntu:20.04
 ARG PHPSPY_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
+# dotnet builder ubuntu 20
+ARG DOTNET_BUILDER_UBUNTU=@sha256:749439ff7a431ab4bc38d43cea453dff9ae1ed89a707c318b5082f9b2b25fa22
 # async-profiler glibc build
 # requires CentOS 7 so the built DSO can be loaded into machines running with old glibc (tested up to centos:6),
 # we do make some modifications to the selected versioned symbols so that we don't use anything from >2.12 (what centos:6
@@ -45,7 +47,7 @@ RUN ./rbspy_build.sh
 RUN mv "/tmp/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /tmp/rbspy/rbspy
 
 # dotnet-trace
-FROM mcr.microsoft.com/dotnet/sdk:6.0 as dotnet-builder
+FROM mcr.microsoft.com/dotnet/sdk${DOTNET_BUILDER_UBUNTU} as dotnet-builder
 ENV http_proxy http://proxy-dmz.intel.com:911
 ENV https_proxy http://proxy-dmz.intel.com:912
 RUN apt-get update && \

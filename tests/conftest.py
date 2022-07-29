@@ -88,6 +88,7 @@ def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
         "python": ["python3", str(CONTAINERS_DIRECTORY / "python/lister.py")],
         "php": ["php", str(CONTAINERS_DIRECTORY / "php/fibonacci.php")],
         "ruby": ["ruby", str(CONTAINERS_DIRECTORY / "ruby/fibonacci.rb")],
+        "dotnet": ["dotnet", "run", str(CONTAINERS_DIRECTORY / "dotnet/Fibonacci.cs")],
         "nodejs": [
             "node",
             "--perf-prof",

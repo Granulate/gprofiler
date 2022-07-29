@@ -18,6 +18,7 @@ from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.php import PHPSpyProfiler
 from gprofiler.profilers.python import PySpyProfiler, PythonEbpfProfiler
 from gprofiler.profilers.ruby import RbSpyProfiler
+from gprofiler.profilers.dotnet import DotnetProfiler
 from gprofiler.utils import wait_event
 from tests import PHPSPY_DURATION
 from tests.conftest import AssertInCollapsed
@@ -90,6 +91,18 @@ def test_rbspy(
     gprofiler_docker_image: Image,
 ) -> None:
     with RbSpyProfiler(1000, 3, Event(), str(tmp_path), False, "rbspy") as profiler:
+        process_collapsed = snapshot_one_collapsed(profiler)
+        assert_collapsed(process_collapsed)
+
+
+@pytest.mark.parametrize("runtime", ["dotnet"])
+def test_dotnet_trace(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed: AssertInCollapsed,
+    gprofiler_docker_image: Image,
+) -> None:
+    with RbSpyProfiler(1000, 3, Event(), str(tmp_path), False, "dotnet-trace") as profiler:
         process_collapsed = snapshot_one_collapsed(profiler)
         assert_collapsed(process_collapsed)
 
