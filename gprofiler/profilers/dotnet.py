@@ -12,7 +12,6 @@ from threading import Event
 from typing import Any, Dict, List, Optional
 from granulate_utils.linux.process import process_exe
 from psutil import Process
-from gprofiler import merge
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import ProfileData
 from gprofiler.metadata.application_metadata import ApplicationMetadata
@@ -20,35 +19,14 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
-from gprofiler.utils.process import process_comm
 from gprofiler.utils.speedscope import load_speedscope_as_collapsed
 logger = get_logger_adapter(__name__)
 
-# class DotnetMetadata(ApplicationMetadata):
-#     _DOTNET_VERSION_TIMEOUT = 3
 
-#     def _get_dotnet_version(self, process: Process) -> str:
-#         if not os.path.basename(process.exe()).startswith("ruby"):
-#             # TODO: for dynamic executables, find the ruby binary that works with the loaded libruby, and
-#             # check it instead. For static executables embedding libruby - :shrug:
-#             raise NotImplementedError
-
-#         dotnet_path = f"/proc/{get_process_nspid(process.pid)}/exe"
-
-#         def _run_ruby_version() -> "CompletedProcess[bytes]":
-#             return run_process(
-#                 [
-#                     dotnet_path,
-#                     "--version",
-#                 ],
-#                 stop_event=self._stop_event,
-#                 timeout=self._RUBY_VERSION_TIMEOUT,
-#             )
-
-#         return run_in_ns(["pid", "mnt"], _run_ruby_version, process.pid).stdout.decode().strip()
 class DotnetMetadata(ApplicationMetadata):
-    
+
     _DOTNET_VERSION_TIMEOUT = 3
+
     @functools.lru_cache(4096)
     def _get_dotnet_version(self, process: Process) -> str:
         if not os.path.basename(process_exe(process)).startswith("dotnet"):
@@ -68,8 +46,6 @@ class DotnetMetadata(ApplicationMetadata):
         return metadata
 
 
-
-
 @register_profiler(
     "dotnet",
     possible_modes=["dotnet-trace", "disabled"],
@@ -77,10 +53,10 @@ class DotnetMetadata(ApplicationMetadata):
     default_mode="dotnet-trace",
 )
 class DotnetProfiler(ProcessProfilerBase):
-    
+
     RESOURCE_PATH = "dotnet/tools/dotnet-trace"
     MAX_FREQUENCY = 100
-    _EXTRA_TIMEOUT = 10 
+    _EXTRA_TIMEOUT = 10
 
     def __init__(
         self,
@@ -92,13 +68,12 @@ class DotnetProfiler(ProcessProfilerBase):
         dotnet_mode: str,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
-        self._process: Optional[subprocess.Popen] = None
-        assert dotnet_mode == "dotnet-trace", "Dotnet profiler should not be initialized, wrong dotnet-trace value given"
+        assert dotnet_mode == "dotnet-trace", \
+                              "Dotnet profiler should not be initialized, wrong dotnet-trace value given"
         self._metadata = DotnetMetadata(self._stop_event)
-#        self._metadata = DotnetMetadata(self._stop_event)
 
-    def _make_command(self, process, output_path: str, duration: int, metadata) -> List[str]:
-        result = run_process( 
+    def _make_command(self, process: Process, duration: int) -> List[str]:
+        result = run_process(
             f"ls /proc/{process.pid}/root/tmp | grep diagnostic ",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -109,11 +84,12 @@ class DotnetProfiler(ProcessProfilerBase):
         socket_list = result.stdout.decode("utf-8").split('\n')
         tempdir = f"TMPDIR=/proc/{process.pid}/root/tmp"
         internal_pid = str(process.pid)
-        if int(socket_list[0].split("-")[2]) != 1: # better check for multiple pids/sockets in a docker?
-            logger.info("NOT IN DOCKER")
+        metadata = None
+        if int(socket_list[0].split("-")[2]) != 1:
+            # we are not in docker, pid different than 1
             metadata = self._metadata.get_metadata(process)
         else:
-            logger.info("IN DOCKER")
+            # we are in docker, pid is 1
             internal_pid = "1"
         return [
             "sudo",
@@ -126,8 +102,8 @@ class DotnetProfiler(ProcessProfilerBase):
             internal_pid,
             "--duration",
             self._parse_duration(duration),
-            #           str(self._frequency),
-        ]
+            #           str(self._frequency), - TODO: frequency handling to be determined
+        ], metadata
 
     def _profile_process(self, process: Process, duration: int, spawned: bool) -> ProfileData:
         logger.info(
@@ -135,14 +111,14 @@ class DotnetProfiler(ProcessProfilerBase):
             cmdline=" ".join(process.cmdline()),
             no_extra_to_server=True,
         )
-        comm = process_comm(process)
         appid = None
-        local_output_path = os.path.join(self._storage_dir, f"dotnet-trace.{random_prefix()}.{process.pid}.col")
         app_metadata = None
+        local_output_path = os.path.join(self._storage_dir, f"dotnet-trace.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):
             try:
+                command, app_metadata = self._make_command(process, duration)
                 result = run_process(
-                    self._make_command(process, local_output_path, duration, app_metadata),
+                    command,
                     stop_event=self._stop_event,
                     timeout=self._duration + self._EXTRA_TIMEOUT,
                     kill_signal=signal.SIGKILL,
@@ -150,27 +126,29 @@ class DotnetProfiler(ProcessProfilerBase):
                 local_output_path = result.stdout.decode("utf-8").split("\t")[1].split("\n")[0]
             except ProcessStoppedException:
                 raise StopEventSetException
+            logger.info(app_metadata)
             logger.info(f"Finished profiling process {process.pid} with dotnet")
-            return ProfileData(load_speedscope_as_collapsed(Path(local_output_path), self._frequency), appid, app_metadata)
+            return ProfileData(load_speedscope_as_collapsed(Path(local_output_path), self._frequency),
+                               appid, app_metadata)
 
     def _parse_duration(self, duration: int):
         secs = duration
         time_list = []
         hours = 0
         mins = 0
-        if secs>=3600:
-            hours = (int)(secs/3600)
-            secs = secs%3600
-        if(secs>=60):
-            mins = (int)(secs/60)
-            secs = secs%60
+        if secs >= 3600:
+            hours = (int)(secs / 3600)
+            secs = secs % 3600
+        if(secs >= 60):
+            mins = (int)(secs / 60)
+            secs = secs % 60
         time_list.append(str(hours))
         time_list.append(str(mins))
         time_list.append(str(secs))
         dotnet_duration = "00"
         for period in time_list:
             print(period)
-            if len(period)==1:
+            if len(period) == 1:
                 dotnet_duration = dotnet_duration + ":0" + period
             else:
                 dotnet_duration = dotnet_duration + ":" + period
