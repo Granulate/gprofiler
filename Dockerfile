@@ -8,7 +8,7 @@ ARG PYPERF_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f2
 ARG PERF_BUILDER_UBUNTU=@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c
 # phpspy - ubuntu:20.04
 ARG PHPSPY_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
-# dotnet builder ubuntu 20
+# dotnet builder ubuntu:20.04
 ARG DOTNET_BUILDER_UBUNTU=@sha256:749439ff7a431ab4bc38d43cea453dff9ae1ed89a707c318b5082f9b2b25fa22
 # async-profiler glibc build
 # requires CentOS 7 so the built DSO can be loaded into machines running with old glibc (tested up to centos:6),
@@ -25,8 +25,6 @@ ARG GPROFILER_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a5
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
 WORKDIR /tmp
-ENV http_proxy http://proxy-dmz.intel.com:911
-ENV https_proxy http://proxy-dmz.intel.com:912
 COPY scripts/prepare_machine-unknown-linux-musl.sh .
 RUN ./prepare_machine-unknown-linux-musl.sh
 
@@ -48,8 +46,6 @@ RUN mv "/tmp/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /tmp/rbs
 
 # dotnet-trace
 FROM mcr.microsoft.com/dotnet/sdk${DOTNET_BUILDER_UBUNTU} as dotnet-builder
-ENV http_proxy http://proxy-dmz.intel.com:911
-ENV https_proxy http://proxy-dmz.intel.com:912
 RUN apt-get update && \
   dotnet tool install --global dotnet-trace
 RUN dotnet --version
@@ -58,9 +54,6 @@ RUN cp -r $HOME/.dotnet /tmp/.dotnet
 # perf
 FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder
 WORKDIR /tmp
-ENV http_proxy http://proxy-dmz.intel.com:911
-ENV https_proxy http://proxy-dmz.intel.com:912
-ENV ftp_proxy http://proxy-chain.intel.com:911
 COPY scripts/perf_env.sh .
 RUN ./perf_env.sh
 
@@ -72,8 +65,6 @@ RUN ./perf_build.sh
 
 # pyperf (bcc)
 FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-builder-base
-ENV http_proxy http://proxy-dmz.intel.com:911
-ENV https_proxy http://proxy-dmz.intel.com:912
 # not cleaning apt lists here - they are used by subsequent layers that base
 # on bcc-builder-base.
 # hadolint ignore=DL3009
@@ -128,8 +119,6 @@ RUN ./pyperf_build.sh
 # phpspy
 FROM ubuntu${PHPSPY_BUILDER_UBUNTU} AS phpspy-builder
 WORKDIR /tmp
-ENV http_proxy http://proxy-dmz.intel.com:911
-ENV https_proxy http://proxy-dmz.intel.com:912
 COPY scripts/phpspy_env.sh .
 RUN ./phpspy_env.sh
 COPY scripts/phpspy_build.sh .
@@ -138,8 +127,6 @@ RUN ./phpspy_build.sh
 # async-profiler glibc
 FROM centos${AP_BUILDER_CENTOS} AS async-profiler-builder-glibc
 WORKDIR /tmp
-ENV http_proxy http://proxy-dmz.intel.com:911
-ENV https_proxy http://proxy-dmz.intel.com:912
 COPY scripts/async_profiler_env_glibc.sh .
 RUN ./async_profiler_env_glibc.sh
 COPY scripts/async_profiler_build_shared.sh .
@@ -149,8 +136,6 @@ RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_glibc.sh
 # async-profiler musl
 FROM alpine${AP_BUILDER_ALPINE} AS async-profiler-builder-musl
 WORKDIR /tmp
-ENV http_proxy http://proxy-dmz.intel.com:911
-ENV https_proxy http://proxy-dmz.intel.com:912
 COPY scripts/async_profiler_env_musl.sh .
 RUN ./async_profiler_env_musl.sh
 COPY scripts/async_profiler_build_shared.sh .
@@ -159,8 +144,6 @@ RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_musl.sh
 
 # burn
 FROM golang${BURN_BUILDER_GOLANG} AS burn-builder
-ENV http_proxy http://proxy-dmz.intel.com:911
-ENV https_proxy http://proxy-dmz.intel.com:912
 WORKDIR /tmp
 COPY scripts/burn_build.sh .
 RUN ./burn_build.sh
@@ -168,8 +151,6 @@ RUN ./burn_build.sh
 # the gProfiler image itself, at last.
 FROM ubuntu${GPROFILER_BUILDER_UBUNTU}
 WORKDIR /app
-ENV http_proxy http://proxy-dmz.intel.com:911
-ENV https_proxy http://proxy-dmz.intel.com:912
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 # for Aarch64 - it has no .whl file for psutil - so it's trying to build from source.
 RUN cat /etc/lsb-release
@@ -212,9 +193,9 @@ COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
 
 COPY --from=dotnet-builder /usr/share/dotnet /usr/share/dotnet
 COPY --from=dotnet-builder /tmp/.dotnet gprofiler/resources/dotnet
-#RUN ./gprofiler/resources/.dotnet/tools/dotnet-trace
+
 COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
-# ENV PATH="${PATH}:/app/gprofiler/resources/dotnet/tools"
+
 # we want the latest pip
 # hadolint ignore=DL3013
 RUN pip3 install --upgrade --no-cache-dir pip
