@@ -126,7 +126,6 @@ class DotnetProfiler(ProcessProfilerBase):
                 local_output_path = result.stdout.decode("utf-8").split("\t")[1].split("\n")[0]
             except ProcessStoppedException:
                 raise StopEventSetException
-            logger.info(app_metadata)
             logger.info(f"Finished profiling process {process.pid} with dotnet")
             return ProfileData(load_speedscope_as_collapsed(Path(local_output_path), self._frequency),
                                appid, app_metadata)

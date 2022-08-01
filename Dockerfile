@@ -25,6 +25,7 @@ ARG GPROFILER_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a5
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
 WORKDIR /tmp
+
 COPY scripts/prepare_machine-unknown-linux-musl.sh .
 RUN ./prepare_machine-unknown-linux-musl.sh
 
@@ -54,6 +55,7 @@ RUN cp -r $HOME/.dotnet /tmp/.dotnet
 # perf
 FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder
 WORKDIR /tmp
+
 COPY scripts/perf_env.sh .
 RUN ./perf_env.sh
 
@@ -118,6 +120,7 @@ RUN ./pyperf_build.sh
 
 # phpspy
 FROM ubuntu${PHPSPY_BUILDER_UBUNTU} AS phpspy-builder
+
 WORKDIR /tmp
 COPY scripts/phpspy_env.sh .
 RUN ./phpspy_env.sh
@@ -153,7 +156,7 @@ FROM ubuntu${GPROFILER_BUILDER_UBUNTU}
 WORKDIR /app
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 # for Aarch64 - it has no .whl file for psutil - so it's trying to build from source.
-RUN cat /etc/lsb-release
+
 RUN set -e; \
     apt-get update && \
     apt-get upgrade -y && \
