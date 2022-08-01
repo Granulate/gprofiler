@@ -1,0 +1,8 @@
+psutil==5.8.0
+requests~=2.27.1
+grpcio==1.43.0
+protobuf==3.19.4
+docker==5.0.0
+dataclasses==0.8; python_version < '3.7'
+typing-extensions>=4.1.0
+pyelftools==0.28

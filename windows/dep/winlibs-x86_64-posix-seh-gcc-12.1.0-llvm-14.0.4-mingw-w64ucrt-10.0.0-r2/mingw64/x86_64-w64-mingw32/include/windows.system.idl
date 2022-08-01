@@ -1,0 +1,39 @@
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+
+#ifdef __WIDL__
+#pragma winrt ns_prefix
+#endif
+
+import "inspectable.idl";
+// import "asyncinfo.idl";
+// import "eventtoken.idl";
+// import "windowscontracts.idl";
+// import "windows.foundation.idl";
+// import "windows.applicationmodel.idl";
+// import "windows.gaming.input.idl";
+// import "windows.storage.idl";
+// import "windows.storage.search.idl";
+// import "windows.storage.streams.idl";
+// import "windows.system.diagnostics.idl";
+// import "windows.system.remoteSystems.idl";
+// import "windows.ui.popups.idl";
+// import "windows.ui.viewmanagement.idl";
+
+namespace Windows {
+    namespace System {
+        [
+         /* contract(Windows.Foundation.UniversalApiContract, 5.0), */
+         /* exclusiveto(Windows.System.DispatcherQueueController), */
+            uuid(22F34E66-50DB-4E36-A98D-61C01B384D20)
+        ]
+        interface IDispatcherQueueController : IInspectable
+        {
+            /* FIXME: fill methods once widl can support it */
+        }
+    }
+}
+
