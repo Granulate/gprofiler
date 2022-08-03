@@ -4,7 +4,6 @@
 #
 import logging
 import os
-import re
 import shutil
 import signal
 import threading
@@ -557,11 +556,12 @@ def test_java_jattach_async_profiler_log_output(
     ) as profiler:
         snapshot_one_profile(profiler)
 
+        log_records = list(filter(lambda r: r.message == "async-profiler log", caplog.records))
+        assert len(log_records) == 2  # start,stop
+        # start
         assert (
-            re.match(
-                # the "Install JVM debug symbols" is expected for the Java we test in container.
-                r"async-profiler log[^\n]ap_log=\[WARN\] Install JVM debug symbols to improve profile accuracy",
-                caplog.text,
-            )
-            is not None
+            log_records[0].gprofiler_adapter_extra["ap_log"]  # type: ignore
+            == "[WARN] Install JVM debug symbols to improve profile accuracy\n"
         )
+        # stop
+        assert log_records[1].gprofiler_adapter_extra["ap_log"] == ""  # type: ignore
