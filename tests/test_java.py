@@ -538,8 +538,7 @@ def test_java_attach_socket_missing(
         assert next(iter(profile.stacks.keys())) == "java;[Profiling error: exception JattachSocketMissingException]"
 
 
-# we're expected the debug symbols message, only in container because on the host
-# different Java may exist
+# we know what messages to expect when in container, not on the host Java
 @pytest.mark.parametrize("in_container", [True])
 def test_java_jattach_async_profiler_log_output(
     tmp_path: Path,
@@ -559,9 +558,6 @@ def test_java_jattach_async_profiler_log_output(
         log_records = list(filter(lambda r: r.message == "async-profiler log", caplog.records))
         assert len(log_records) == 2  # start,stop
         # start
-        assert (
-            log_records[0].gprofiler_adapter_extra["ap_log"]  # type: ignore
-            == "[WARN] Install JVM debug symbols to improve profile accuracy\n"
-        )
+        assert log_records[0].gprofiler_adapter_extra["ap_log"] == ""  # type: ignore
         # stop
         assert log_records[1].gprofiler_adapter_extra["ap_log"] == ""  # type: ignore
