@@ -29,7 +29,7 @@ DEFAULT_PROCESS_FILTER = "php-fpm"
 @register_profiler(
     "PHP",
     possible_modes=["phpspy", "disabled"],
-    supported_archs=["x86_64"],  # we don't build phpspy for others yet
+    supported_archs=["x86_64", "aarch64"],
     default_mode="disabled",
     profiler_arguments=[
         ProfilerArgument(

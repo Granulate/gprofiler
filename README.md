@@ -366,7 +366,7 @@ The runtime stacks are then merged into the data collected by `perf`, substituti
 | Python (py-spy)            | :heavy_check_mark: | :heavy_check_mark: |
 | Python (PyPerf eBPF)       | :heavy_check_mark: | :x:                |
 | Ruby (rbspy)               | :heavy_check_mark: | :heavy_check_mark: |
-| PHP (phpspy)               | :heavy_check_mark: | :x:                |
+| PHP (phpspy)               | :heavy_check_mark: | :heavy_check_mark: |
 | NodeJS (perf)              | :heavy_check_mark: | :heavy_check_mark: |
 
 ## perf-less mode

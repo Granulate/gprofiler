@@ -5,9 +5,6 @@
 #
 set -euo pipefail
 
-if [ "$(uname -m)" = "aarch64" ]; then
-  exit 0
-fi
 apt-get update
 apt-get install -y --no-install-recommends \
   git \
