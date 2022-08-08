@@ -5,7 +5,7 @@
 import functools
 import os
 import signal
-import subprocess
+import datetime
 from pathlib import Path
 
 from threading import Event
@@ -72,17 +72,17 @@ class DotnetProfiler(ProcessProfilerBase):
         self._metadata = DotnetMetadata(self._stop_event)
 
     def _make_command(self, process: Process, duration: int, output_path: str) -> List[str]:
-
-        internal_pid = get_process_nspid(process.pid)
+        if(duration > 3600 * 24):
+            raise ValueError("Duration exceeds one full day")
         return [
             resource_path(self.RESOURCE_PATH),
             "collect",
             "--format",
             "speedscope",
             "--process-id",
-            str(internal_pid),
+            str(get_process_nspid(process.pid)),
             "--duration",
-            self._parse_duration(duration),
+            str(datetime.timedelta(seconds=duration)),
             "--output",
             output_path,
             #           str(self._frequency), - TODO: frequency handling to be determined
@@ -96,45 +96,25 @@ class DotnetProfiler(ProcessProfilerBase):
         )
         appid = None
         app_metadata = self._metadata.get_metadata(process)
-        local_output_path = os.path.join(self._storage_dir, f"dotnet-trace.{random_prefix()}.{process.pid}")
+        # had to change the dots for minuses because of dotnet-trace removing the last part in other case
+        local_output_path = os.path.join(self._storage_dir, f"dotnet-trace-{random_prefix()}-{process.pid}")
         tempdir = f"/proc/{process.pid}/root/tmp"
         with removed_path(local_output_path):
             try:
-                result = run_process(
+                run_process(
                     self._make_command(process, duration, local_output_path),
                     env={"TMPDIR": tempdir},
                     stop_event=self._stop_event,
                     timeout=self._duration + self._EXTRA_TIMEOUT,
                     kill_signal=signal.SIGKILL,
                 )
+                local_output_path = local_output_path + ".speedscope.json"
+
             except ProcessStoppedException:
                 raise StopEventSetException
             logger.info(f"Finished profiling process {process.pid} with dotnet")
-            return ProfileData(load_speedscope_as_collapsed(Path(local_output_path + ".speedscope.json"), self._frequency),
-                               appid, app_metadata)
-
-    def _parse_duration(self, duration: int):
-        secs = duration
-        time_list = []
-        hours = 0
-        mins = 0
-        if secs >= 3600:
-            hours = (int)(secs / 3600)
-            secs = secs % 3600
-        if(secs >= 60):
-            mins = (int)(secs / 60)
-            secs = secs % 60
-        time_list.append(str(hours))
-        time_list.append(str(mins))
-        time_list.append(str(secs))
-        dotnet_duration = "00"
-        for period in time_list:
-            print(period)
-            if len(period) == 1:
-                dotnet_duration = dotnet_duration + ":0" + period
-            else:
-                dotnet_duration = dotnet_duration + ":" + period
-        return dotnet_duration
+            return ProfileData(load_speedscope_as_collapsed(Path(local_output_path),
+                               self._frequency), appid, app_metadata)
 
     def _select_processes_to_profile(self) -> List[Process]:
         return pgrep_maps(r"(?:^.+/dotnet[^/]*$)")
