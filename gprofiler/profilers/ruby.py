@@ -11,8 +11,8 @@ from pathlib import Path
 from threading import Event
 from typing import Any, Dict, List, Optional
 
-from granulate_utils.linux.elf import get_elf_id, get_mapped_dso_elf_id
-from granulate_utils.linux.process import process_exe
+from granulate_utils.linux.elf import get_elf_id
+from granulate_utils.linux.process import get_mapped_dso_elf_id, process_exe
 from psutil import Process
 
 from gprofiler import merge
