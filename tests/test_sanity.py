@@ -102,7 +102,7 @@ def test_dotnet_trace(
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
 ) -> None:
-    with RbSpyProfiler(1000, 3, Event(), str(tmp_path), False, "dotnet-trace") as profiler:
+    with DotnetProfiler(1000, 3, Event(), str(tmp_path), False, "dotnet-trace") as profiler:
         process_collapsed = snapshot_one_collapsed(profiler)
         assert_collapsed(process_collapsed)
 

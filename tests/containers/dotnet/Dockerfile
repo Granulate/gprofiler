@@ -2,8 +2,6 @@ FROM  mcr.microsoft.com/dotnet/sdk@sha256:749439ff7a431ab4bc38d43cea453dff9ae1ed
 
 WORKDIR /app
 
-RUN dotnet new console
-RUN rm Program.cs
 ADD Fibonacci.cs /app
-
+ADD dotnet.csproj /app
 CMD ["dotnet", "run", "Fibonacci.cs"]

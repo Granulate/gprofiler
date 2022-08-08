@@ -8,7 +8,7 @@ ARG PYPERF_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f2
 ARG PERF_BUILDER_UBUNTU=@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c
 # phpspy - ubuntu:20.04
 ARG PHPSPY_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
-# dotnet builder ubuntu:20.04
+# dotnet builder - mcr.microsoft.com/dotnet/sdk:6.0-focal
 ARG DOTNET_BUILDER_UBUNTU=@sha256:749439ff7a431ab4bc38d43cea453dff9ae1ed89a707c318b5082f9b2b25fa22
 # async-profiler glibc build
 # requires CentOS 7 so the built DSO can be loaded into machines running with old glibc (tested up to centos:6),
@@ -25,7 +25,6 @@ ARG GPROFILER_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a5
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
 WORKDIR /tmp
-
 COPY scripts/prepare_machine-unknown-linux-musl.sh .
 RUN ./prepare_machine-unknown-linux-musl.sh
 
@@ -49,13 +48,12 @@ RUN mv "/tmp/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /tmp/rbs
 FROM mcr.microsoft.com/dotnet/sdk${DOTNET_BUILDER_UBUNTU} as dotnet-builder
 RUN apt-get update && \
   dotnet tool install --global dotnet-trace
-RUN dotnet --version
+
 RUN cp -r $HOME/.dotnet /tmp/.dotnet
 
 # perf
 FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder
 WORKDIR /tmp
-
 COPY scripts/perf_env.sh .
 RUN ./perf_env.sh
 
@@ -120,7 +118,6 @@ RUN ./pyperf_build.sh
 
 # phpspy
 FROM ubuntu${PHPSPY_BUILDER_UBUNTU} AS phpspy-builder
-
 WORKDIR /tmp
 COPY scripts/phpspy_env.sh .
 RUN ./phpspy_env.sh
@@ -161,15 +158,13 @@ RUN set -e; \
     apt-get update && \
     apt-get upgrade -y && \
     apt-get install --no-install-recommends -y python3-pip && \
-    apt-get -y install sudo && \
-    apt-get install -qqq libicu66 && \
+    apt-get install -y libicu66 && \
     if [ "$(uname -m)" = "aarch64" ]; then \
       apt-get install -y --no-install-recommends build-essential python3.8-dev; \
     fi && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m docker && echo "docker:docker" | chpasswd && adduser docker sudo
 COPY --from=bcc-builder /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
 # copy licenses and notice file.
 COPY --from=bcc-builder /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
