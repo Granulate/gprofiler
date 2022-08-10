@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 from contextlib import contextmanager
 from pathlib import Path
@@ -20,7 +21,7 @@ from gprofiler.profilers.java import (
     JavaProfiler,
 )
 from gprofiler.profilers.profiler_base import ProfilerInterface
-from gprofiler.utils import remove_path
+from gprofiler.utils import remove_path, wait_event
 
 RUNTIME_PROFILERS = [
     ("java", "ap"),
@@ -54,6 +55,14 @@ def start_privileged_container(
         detach=True,
         **extra_kwargs,
     )
+
+
+def wait_for_log(container: Container, log: str, timeout: int = 60) -> None:
+    try:
+        wait_event(timeout, Event(), lambda: re.search(log.encode(), container.logs()) is not None)
+    except TimeoutError:
+        print(container.logs())
+        raise
 
 
 def wait_for_container(container: Container) -> str:
