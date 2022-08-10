@@ -59,7 +59,7 @@ def start_privileged_container(
 
 def wait_for_log(container: Container, log: str, timeout: int = 60) -> None:
     try:
-        wait_event(timeout, Event(), lambda: re.search(log.encode(), container.logs()) is not None)
+        wait_event(timeout, Event(), lambda: re.search(log.encode(), container.logs(), re.DOTALL) is not None)
     except TimeoutError:
         print(container.logs())
         raise
@@ -68,6 +68,7 @@ def wait_for_log(container: Container, log: str, timeout: int = 60) -> None:
 def wait_for_container(container: Container) -> str:
     exit_status = container.wait()["StatusCode"]
     logs = container.logs(stdout=True, stderr=True)
+    assert isinstance(logs, bytes), logs
 
     if exit_status != 0:
         raise ContainerError(container, exit_status, container.attrs["Config"]["Cmd"], container.image, logs)
@@ -75,10 +76,9 @@ def wait_for_container(container: Container) -> str:
     # print, so failing tests display it
     print(
         "Container logs:",
-        logs if len(logs) > 0 else "(empty, possibly because container was detached and is running now)",
+        logs.decode() if len(logs) > 0 else "(empty, possibly because container was detached and is running now)",
     )
 
-    assert isinstance(logs, bytes), logs
     return logs.decode()
 
 
