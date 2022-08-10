@@ -377,7 +377,7 @@ class GProfiler:
 
                 if self._controller_process is not None and not is_process_running(self._controller_process):
                     logger.info(f"Controller process {self._controller_process.pid} has exited; gProfiler stopping...")
-                    break
+                    # break
 
 
 def parse_cmd_args() -> configargparse.Namespace:
