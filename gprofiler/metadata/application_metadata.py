@@ -8,9 +8,8 @@ from subprocess import CompletedProcess
 from threading import Event, Lock
 from typing import Any, Dict, Optional
 
-from granulate_utils.linux.elf import read_process_execfn
 from granulate_utils.linux.ns import get_process_nspid, run_in_ns
-from granulate_utils.linux.process import is_process_running
+from granulate_utils.linux.process import is_process_running, read_process_execfn
 from psutil import NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter

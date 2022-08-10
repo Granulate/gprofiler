@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Dict, Optional, Tuple, cast
 
-import distro  # type: ignore
+import distro
 import psutil
 from granulate_utils.linux.ns import run_in_ns
 

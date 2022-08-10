@@ -147,6 +147,20 @@ The following platforms are currently not supported with the gProfiler executabl
 
 **Remark:** container-based execution works and can be used in those cases.
 
+## Running as systemd service
+
+You can generate a systemd service configuration that [runs gProfiler as an executable](#running-as-an-executable) (and therefore, bears the same [known issues](#executable-known-issues)) by running:
+
+``` bash
+curl -s https://raw.githubusercontent.com/Granulate/gprofiler/master/deploy/systemd/create_systemd_service.sh | GPROFILER_TOKEN=<TOKEN> GPROFILER_SERVICE=<SERVICE_NAME> bash
+```
+
+This script generates `granulate-gprofiler.service` in your working directory, and you can go ahead and install it by:
+```
+systemctl enable $(pwd)/granulate-gprofiler.service
+systemctl start granulate-gprofiler.service
+```
+
 ## Running on Databricks
 For Databricks, the same installation instructions as specified in the [running as an executable](#running-as-an-executable) section can be used (make sure to run them in the initialization script of your node).
 
@@ -297,7 +311,7 @@ sudo sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE
   Make sure to:
   - Replace `<TOKEN>` with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
   - Replace `<SERVICE>` with the service name you wish to use.
-2. Upload the script to an S3 bucket, for example: `s3://my-s3-bucket/gprofiler-bootstrap.sh` 
+2. Upload the script to an S3 bucket, for example: `s3://my-s3-bucket/gprofiler-bootstrap.sh`
 3. Create the EMR cluster with bootstrap-action to run the bootstrap script, this can be done both from the AWS Console and AWS CLI.
    - AWS Console Example:
      - Create an EMR Cluster from the AWS Console
@@ -307,7 +321,7 @@ sudo sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE
      - Add Action of type *Custom Action*
      - Fill in script location with the appropriate script location on your S3, for example `s3://my-s3-bucket/gprofiler-bootstrap.sh`
      ![img](https://user-images.githubusercontent.com/33522503/153876647-5f844c46-8d62-4d89-b612-9616043f1825.png)
-   - AWS CLI Example: 
+   - AWS CLI Example:
      ```bash
      aws emr create-cluster --name MY-Cluster ... --bootstrap-actions "Path=s3://my-s3-bucket/gprofiler-bootstrap.sh"
      ```
@@ -345,15 +359,15 @@ The runtime stacks are then merged into the data collected by `perf`, substituti
 
 ## Architecture support
 
-| Runtime                    | x86_64             | Aarch64            |
-|----------------------------|--------------------|--------------------|
-| perf (native, Golang, ...) | :heavy_check_mark: | :heavy_check_mark: |
-| Java (async-profiler)      | :heavy_check_mark: | :heavy_check_mark: |
-| Python (py-spy)            | :heavy_check_mark: | :heavy_check_mark: |
-| Python (PyPerf eBPF)       | :heavy_check_mark: | :x:                |
-| Ruby (rbspy)               | :heavy_check_mark: | :heavy_check_mark: |
-| PHP (phpspy)               | :heavy_check_mark: | :x:                |
-| NodeJS (perf)              | :heavy_check_mark: | :heavy_check_mark: |
+| Runtime                    | x86_64             | Aarch64                           |
+|----------------------------|--------------------|-----------------------------------|
+| perf (native, Golang, ...) | :heavy_check_mark: | :heavy_check_mark:                |
+| Java (async-profiler)      | :heavy_check_mark: | :heavy_check_mark:                |
+| Python (py-spy)            | :heavy_check_mark: | :heavy_check_mark:                |
+| Python (PyPerf eBPF)       | :heavy_check_mark: | :x:                               |
+| Ruby (rbspy)               | :heavy_check_mark: | :heavy_check_mark:                |
+| PHP (phpspy)               | :heavy_check_mark: | :heavy_check_mark: (experimental) |
+| NodeJS (perf)              | :heavy_check_mark: | :heavy_check_mark:                |
 
 ## perf-less mode
 
