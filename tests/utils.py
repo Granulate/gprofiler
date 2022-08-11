@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from threading import Event
 from time import sleep
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, Iterator, List, Optional
 
 from docker import DockerClient
 from docker.errors import ContainerError
@@ -57,9 +57,19 @@ def start_privileged_container(
     )
 
 
-def wait_for_log(container: Container, log: str, timeout: int = 60) -> None:
+# offset doesn't have a default value so that you don't forget it.
+def wait_for_log(container: Container, log: str, offset: int, timeout: int = 60) -> int:
+    def find_in_logs() -> Optional[int]:
+        m = re.search(log.encode(), container.logs(), re.DOTALL)
+        if m is not None:
+            return m.start()
+        return None
+
     try:
-        wait_event(timeout, Event(), lambda: re.search(log.encode(), container.logs(), re.DOTALL) is not None)
+        wait_event(timeout, Event(), lambda: find_in_logs() is not None)
+        ofs = find_in_logs()
+        assert ofs is not None
+        return ofs
     except TimeoutError:
         print(container.logs())
         raise

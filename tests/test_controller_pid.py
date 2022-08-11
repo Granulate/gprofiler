@@ -32,16 +32,16 @@ def test_controlller_pid(
 
         cycle_log = r"INFO: gprofiler: Saved flamegraph to "
         # wait one gprofiler cycle, to ensure gprofiler starts
-        wait_for_log(container, cycle_log)
+        first = wait_for_log(container, cycle_log, 0)
         # wait another to ensure it doesn't go down
-        wait_for_log(container, rf"{cycle_log}.*{cycle_log}")
+        second = wait_for_log(container, cycle_log, first + 1)
 
         # stop the processes
         proc.kill()
         proc.wait()
 
         # wait for gprofiler to identify it
-        wait_for_log(container, f"Controller process {proc.pid} has exited; gProfiler stopping...")
+        wait_for_log(container, f"Controller process {proc.pid} has exited; gProfiler stopping...", second)
 
         wait_for_container(container)
     finally:
