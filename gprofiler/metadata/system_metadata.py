@@ -20,6 +20,8 @@ from granulate_utils.linux.ns import run_in_ns
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import is_pyinstaller, run_process
 
+UNKNOWN_VALUE = "unknown"
+
 logger = get_logger_adapter(__name__)
 hostname: Optional[str] = None
 RUN_MODE_TO_DEPLOYMENT_TYPE: Dict[str, str] = {
@@ -57,7 +59,7 @@ def get_libc_version() -> Tuple[str, str]:
     if m is not None:
         return "musl", decode_libc_version(m.group(1))
 
-    return "unknown", decode_libc_version(ldd_version)
+    return UNKNOWN_VALUE, decode_libc_version(ldd_version)
 
 
 def is_container() -> bool:
@@ -76,7 +78,7 @@ def get_run_mode() -> str:
 
 
 def get_deployment_type(run_mode: str) -> str:
-    return RUN_MODE_TO_DEPLOYMENT_TYPE.get(run_mode, "unknown")
+    return RUN_MODE_TO_DEPLOYMENT_TYPE.get(run_mode, UNKNOWN_VALUE)
 
 
 def get_local_ip() -> str:
@@ -87,7 +89,7 @@ def get_local_ip() -> str:
         s.connect(("8.8.8.8", 53))
         return cast(str, s.getsockname()[0])
     except socket.error:
-        return "unknown"
+        return UNKNOWN_VALUE
     finally:
         s.close()
 
@@ -132,7 +134,37 @@ def get_mac_address() -> str:
         address = ":".join(["%02X" % i for i in mac])
         return address
 
-    return "unknown"
+    return UNKNOWN_VALUE
+
+
+def get_cpu_info() -> Tuple[str, str]:
+    """
+    Parse /proc/cpuinfo to get model name & flags.
+    """
+    try:
+        with open("/proc/cpuinfo") as f:
+            model_names = []
+            flags = []
+            for line in f:
+                m = re.match(r"^((?:model name)|(?:flags))[ \t]*: (.*)$", line)
+                if m is not None:
+                    field, value = m.groups()
+                    if field == "model name":
+                        model_names.append(value)
+                    else:
+                        assert field == "flags", f"unexpected field: {field!r}"
+                        flags.append(value)
+
+        if len(set(model_names)) != 1:
+            logger.warning(f"CPU model names differ between cores, reporting only the first: {model_names}")
+
+        if len(set(flags)) != 1:
+            logger.warning(f"CPU flags differ between cores, reporting only the first: {model_names}")
+
+        return model_names[0], flags[0]
+    except Exception:
+        logger.exception("Failed to get CPU model name & flags, reporting unknown")
+        return UNKNOWN_VALUE, UNKNOWN_VALUE
 
 
 @dataclass
@@ -144,6 +176,8 @@ class SystemInfo:
     kernel_version: str
     system_name: str
     processors: int
+    cpu_model_name: str
+    cpu_flags: str
     memory_capacity_mb: int
     hostname: str
     os_name: str
@@ -173,6 +207,7 @@ def get_static_system_info() -> SystemInfo:
     cpu_count = os.cpu_count() or 0
     run_mode = get_run_mode()
     deployment_type = get_deployment_type(run_mode)
+    cpu_model_name, cpu_flags = get_cpu_info()
     return SystemInfo(
         python_version=sys.version,
         run_mode=run_mode,
@@ -181,6 +216,8 @@ def get_static_system_info() -> SystemInfo:
         kernel_version=uname.version,
         system_name=uname.system,
         processors=cpu_count,
+        cpu_model_name=cpu_model_name,
+        cpu_flags=cpu_flags,
         memory_capacity_mb=round(psutil.virtual_memory().total / 1024 / 1024),  # type: ignore # virtual_memory doesn't
         # have a return type is types-psutil
         hostname=hostname,
@@ -205,11 +242,11 @@ def get_hostname() -> str:
 def _initialize_system_info() -> Any:
     # initialized first
     global hostname
-    hostname = "<unknown>"
-    distribution = ("unknown", "unknown", "unknown")
-    libc_version = ("unknown", "unknown")
-    mac_address = "unknown"
-    local_ip = "unknown"
+    hostname = f"<{UNKNOWN_VALUE}>"  # < > are added to further distinct it from a legit hostname
+    distribution = (UNKNOWN_VALUE, UNKNOWN_VALUE, UNKNOWN_VALUE)
+    libc_version = (UNKNOWN_VALUE, UNKNOWN_VALUE)
+    mac_address = UNKNOWN_VALUE
+    local_ip = UNKNOWN_VALUE
 
     # move to host mount NS for distro & ldd.
     # now, distro will read the files on host.
