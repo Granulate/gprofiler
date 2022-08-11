@@ -1,10 +1,11 @@
 import os
+import re
 import subprocess
 from contextlib import contextmanager
 from pathlib import Path
 from threading import Event
 from time import sleep
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, Iterator, List, Optional
 
 from docker import DockerClient
 from docker.errors import ContainerError
@@ -20,7 +21,7 @@ from gprofiler.profilers.java import (
     JavaProfiler,
 )
 from gprofiler.profilers.profiler_base import ProfilerInterface
-from gprofiler.utils import remove_path
+from gprofiler.utils import remove_path, wait_event
 
 RUNTIME_PROFILERS = [
     ("java", "ap"),
@@ -56,9 +57,28 @@ def start_privileged_container(
     )
 
 
+# offset doesn't have a default value so that you don't forget it.
+def wait_for_log(container: Container, log: str, offset: int, timeout: int = 60) -> int:
+    def find_in_logs() -> Optional[int]:
+        m = re.search(log.encode(), container.logs(), re.DOTALL)
+        if m is not None:
+            return m.start()
+        return None
+
+    try:
+        wait_event(timeout, Event(), lambda: find_in_logs() is not None)
+        ofs = find_in_logs()
+        assert ofs is not None
+        return ofs
+    except TimeoutError:
+        print(container.logs())
+        raise
+
+
 def wait_for_container(container: Container) -> str:
     exit_status = container.wait()["StatusCode"]
     logs = container.logs(stdout=True, stderr=True)
+    assert isinstance(logs, bytes), logs
 
     if exit_status != 0:
         raise ContainerError(container, exit_status, container.attrs["Config"]["Cmd"], container.image, logs)
@@ -66,10 +86,9 @@ def wait_for_container(container: Container) -> str:
     # print, so failing tests display it
     print(
         "Container logs:",
-        logs if len(logs) > 0 else "(empty, possibly because container was detached and is running now)",
+        logs.decode() if len(logs) > 0 else "(empty, possibly because container was detached and is running now)",
     )
 
-    assert isinstance(logs, bytes), logs
     return logs.decode()
 
 
