@@ -5,6 +5,7 @@
 
 from pathlib import Path
 from threading import Event
+from typing import cast
 
 import pytest
 from docker.models.containers import Container
@@ -56,6 +57,22 @@ def test_perf_fp_dwarf_smart(
         )
 
 
+def _restart_app_container(application_docker_container: Container) -> int:
+    application_docker_container.restart(timeout=0)
+    application_docker_container.reload()  # post restart
+    return cast(int, application_docker_container.attrs["State"]["Pid"])
+
+
+def _assert_comm_in_profile(profiler: SystemProfiler, application_pid: int, exec_comm: bool) -> None:
+    collapsed = snapshot_pid_collapsed(profiler, application_pid)
+    if exec_comm:
+        assert not is_function_in_collapsed("oative;", collapsed)
+        assert is_function_in_collapsed("native;", collapsed)
+    else:
+        assert is_function_in_collapsed("oative;", collapsed)
+        assert not is_function_in_collapsed("native;", collapsed)
+
+
 @pytest.mark.parametrize("runtime", ["native_change_comm"])
 @pytest.mark.parametrize("perf_mode", ["fp"])  # only fp is enough
 @pytest.mark.parametrize("in_container", [True])  # native app is built only for container
@@ -84,20 +101,14 @@ def test_perf_comm_change(
     I'm not sure it can be done, i.e is this info even kept anywhere).
     """
     with system_profiler as profiler:
-        collapsed = snapshot_pid_collapsed(profiler, application_pid)
         # first run - we get the changed name, because the app started before perf began recording.
-        assert is_function_in_collapsed("oative;", collapsed)
-        assert not is_function_in_collapsed("native;", collapsed)
+        _assert_comm_in_profile(profiler, application_pid, False)
 
         # now, while perf is still running & recording, we restart the app
-        application_docker_container.restart(timeout=0)
-        application_docker_container.reload()  # post restart
-        application_pid = application_docker_container.attrs["State"]["Pid"]
+        application_pid = _restart_app_container(application_docker_container)
 
         # second run - we get the original name, because the app started after perf began recording.
-        collapsed = snapshot_pid_collapsed(profiler, application_pid)
-        assert not is_function_in_collapsed("oative;", collapsed)
-        assert is_function_in_collapsed("native;", collapsed)
+        _assert_comm_in_profile(profiler, application_pid, True)
 
 
 @pytest.mark.xfail(reason="https://github.com/Granulate/gprofiler/issues/431")
@@ -124,16 +135,12 @@ def test_perf_thread_comm_is_process_comm(
         # our perf will prefer to use the exec comm, OR oldest comm available if exec
         # one is not present; see logic in thread__exec_comm().
 
-        collapsed = snapshot_pid_collapsed(profiler, application_pid)
         # first run - we get the changed name, because the app started before perf began recording.
         # note that we still pick the process name and not thread name! (thread native is 'pative')
-        assert is_function_in_collapsed("oative;", collapsed)
-        assert not is_function_in_collapsed("native;", collapsed)
+        _assert_comm_in_profile(profiler, application_pid, False)
 
         # now, while perf is still running & recording, we restart the app
-        application_docker_container.restart(timeout=0)
-        application_docker_container.reload()  # post restart
-        application_pid = application_docker_container.attrs["State"]["Pid"]
+        application_pid = _restart_app_container(application_docker_container)
 
         # for clarity, these are the COMM events that happen here:
         #   native 1925904 [006] 987095.271786: PERF_RECORD_COMM exec: native:1925904/1925904
@@ -142,9 +149,7 @@ def test_perf_thread_comm_is_process_comm(
         #   pative 1925947 [010] 987095.272656: PERF_RECORD_COMM: pative:1925904/1925947
         # we take the exec comm for all threads so we remain with the first, "native".
 
-        collapsed = snapshot_pid_collapsed(profiler, application_pid)
         # this fails - because in thread__fork(), perf takes only the current comm of the forking thread
         # and attaches it to the forked one. thus the exec comm (which is not current, but last) is lost.
         # the fix can be to copy all comms in thread__fork().
-        assert not is_function_in_collapsed("oative;", collapsed)
-        assert is_function_in_collapsed("native;", collapsed)
+        _assert_comm_in_profile(profiler, application_pid, True)
