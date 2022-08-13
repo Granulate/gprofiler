@@ -2,6 +2,7 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import glob
 import os
 import stat
 import subprocess
@@ -81,6 +82,11 @@ def java_command_line(tmp_path: Path, java_args: List[str]) -> List[str]:
 
 @fixture
 def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
+    # these do not have non-container application - so it will result in an error if the command
+    # line is used.
+    if runtime.startswith("native"):
+        return ["/bin/false"]
+
     return {
         "java": java_command_line,
         # note: here we run "python /path/to/lister.py" while in the container test we have
@@ -94,10 +100,6 @@ def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
             "--interpreted-frames-native-stack",
             str(CONTAINERS_DIRECTORY / "nodejs/fibonacci.js"),
         ],
-        # these do not have non-container application - so it will result in an error if the command
-        # line is used.
-        "native_fp": ["/bin/false"],
-        "native_dwarf": ["/bin/false"],
     }[runtime]
 
 
@@ -158,17 +160,15 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
 
 
 @fixture(scope="session")
-def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[str, Image]]:
+def application_docker_images(docker_client: DockerClient) -> Mapping[str, Image]:
     images = {}
     for runtime in os.listdir(str(CONTAINERS_DIRECTORY)):
         if runtime == "native":
-            path = CONTAINERS_DIRECTORY / runtime
-            images[runtime + "_fp"], _ = docker_client.images.build(
-                path=str(path), dockerfile=str(path / "fp.Dockerfile"), rm=True
-            )
-            images[runtime + "_dwarf"], _ = docker_client.images.build(
-                path=str(path), dockerfile=str(path / "dwarf.Dockerfile"), rm=True
-            )
+            for dockerfile in glob.glob(str(CONTAINERS_DIRECTORY / runtime / "*.Dockerfile")):
+                suffix = os.path.splitext(os.path.basename(dockerfile))[0]
+                images[f"{runtime}_{suffix}"], _ = docker_client.images.build(
+                    path=str(CONTAINERS_DIRECTORY / runtime), dockerfile=str(dockerfile), rm=True
+                )
             continue
 
         images[runtime], _ = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime), rm=True)
@@ -194,9 +194,7 @@ def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[s
                 path=str(CONTAINERS_DIRECTORY / runtime), dockerfile=str(musl_dockerfile), rm=True
             )
 
-    yield images
-    for image in images.values():
-        docker_client.images.remove(image.id, force=True)
+    return images
 
 
 @fixture
