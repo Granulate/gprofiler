@@ -6,7 +6,7 @@ WHERE python
 IF %ERRORLEVEL% NEQ 0 (
 	ECHO python wasn't found. Attempting to install...
 	ECHO Shell will close once complete. Re-run build.bat to proceed
-	.\dep\python-3.9.13-amd64.exe /passive PrependPath=1 Include_test=0
+	CALL .\dep\python-3.9.13-amd64.exe /passive PrependPath=1 Include_test=0
 )
 REM Get Python version
 FOR /f "tokens=1-2" %%i in ('python --version') do (
@@ -20,10 +20,21 @@ FOR /f "tokens=1-2" %%i in ('python --version') do (
 	)
 )
 @echo Installed python version: %PYTHON_VERSION%
-CALL build-pyspy.bat
+IF EXIST .\py-spy\py-spy.exe (
+	ECHO Found py-spy.exe
+) ELSE (
+	ECHO Building py-spy executable...
+	CALL build-pyspy.bat
+)
 CD app
 Rem On VPN: pip install --proxy "http://proxy-dmz.intel.com:912" --no-cache-dir --user --upgrade pip
 
+WHERE pip
+IF %ERRORLEVEL% NEQ 0 (
+	ECHO pip wasn't found.
+	ECHO Install pip for current and re-run build.bat
+	EXIT /B -1
+)
 pip install --no-cache-dir --user --upgrade pip
 MKDIR granulate-utils 2> NUL
 COPY ..\src\gprofiler\requirements.txt requirements.txt
