@@ -65,12 +65,17 @@ def _restart_app_container(application_docker_container: Container) -> int:
 
 def _assert_comm_in_profile(profiler: SystemProfiler, application_pid: int, exec_comm: bool) -> None:
     collapsed = snapshot_pid_collapsed(profiler, application_pid)
+    # native is the original comm
+    # oative is the changed comm of the main thread
+    # pative is the changed comm of other threads
     if exec_comm:
-        assert not is_function_in_collapsed("oative;", collapsed)
         assert is_function_in_collapsed("native;", collapsed)
+        assert not is_function_in_collapsed("oative;", collapsed)
+        assert not is_function_in_collapsed("pative;", collapsed)
     else:
-        assert is_function_in_collapsed("oative;", collapsed)
         assert not is_function_in_collapsed("native;", collapsed)
+        assert is_function_in_collapsed("oative;", collapsed)
+        assert not is_function_in_collapsed("pative;", collapsed)
 
 
 @pytest.mark.parametrize("runtime", ["native_change_comm"])
