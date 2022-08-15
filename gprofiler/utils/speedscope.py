@@ -4,7 +4,8 @@
 #
 
 # speedscope -> collapsed converter, aimed to work for dotnet-trace.
-# speedscope spec: https://github.com/jlfwong/speedscope/blob/639dae322b15fbcba5cd02c90335889fd285686a/src/lib/file-format-spec.ts
+# speedscope spec:
+# https://github.com/jlfwong/speedscope/blob/639dae322b15fbcba5cd02c90335889fd285686a/src/lib/file-format-spec.ts
 
 import json
 import math
