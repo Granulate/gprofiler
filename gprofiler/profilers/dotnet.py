@@ -2,21 +2,22 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import datetime
 import functools
 import os
 import signal
-import datetime
 from pathlib import Path
-
 from threading import Event
 from typing import Any, Dict, List, Optional
-from granulate_utils.linux.process import process_exe
+
 from granulate_utils.linux.ns import get_process_nspid
+from granulate_utils.linux.process import process_exe
 from psutil import Process
+
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import ProfileData
-from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
@@ -67,12 +68,13 @@ class DotnetProfiler(ProcessProfilerBase):
         dotnet_mode: str,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
-        assert dotnet_mode == "dotnet-trace", \
-                              "Dotnet profiler should not be initialized, wrong dotnet-trace value given"
+        assert (
+            dotnet_mode == "dotnet-trace"
+        ), "Dotnet profiler should not be initialized, wrong dotnet-trace value given"
         self._metadata = DotnetMetadata(self._stop_event)
 
     def _make_command(self, process: Process, duration: int, output_path: str) -> List[str]:
-        if(duration > 3600 * 24):
+        if duration > 3600 * 24:
             raise ValueError("Duration exceeds one full day")
         return [
             resource_path(self.RESOURCE_PATH),
@@ -113,8 +115,9 @@ class DotnetProfiler(ProcessProfilerBase):
             except ProcessStoppedException:
                 raise StopEventSetException
             logger.info(f"Finished profiling process {process.pid} with dotnet")
-            return ProfileData(load_speedscope_as_collapsed(Path(local_output_path),
-                               self._frequency), appid, app_metadata)
+            return ProfileData(
+                load_speedscope_as_collapsed(Path(local_output_path), self._frequency), appid, app_metadata
+            )
 
     def _select_processes_to_profile(self) -> List[Process]:
         return pgrep_maps(r"(?:^.+/dotnet[^/]*$)")

@@ -10,6 +10,7 @@ ARG AP_BUILDER_ALPINE
 ARG BURN_BUILDER_GOLANG
 ARG GPROFILER_BUILDER
 ARG PYPERF_BUILDER_UBUNTU
+ARG DOTNET_BUILDER_UBUNTU
 
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
@@ -31,6 +32,12 @@ WORKDIR /tmp
 COPY scripts/rbspy_build.sh .
 RUN ./rbspy_build.sh
 RUN mv "/tmp/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /tmp/rbspy/rbspy
+
+# dotnet-trace
+FROM mcr.microsoft.com/dotnet/sdk${DOTNET_BUILDER_UBUNTU} as dotnet-builder
+RUN apt-get update && \
+  dotnet tool install --global dotnet-trace
+RUN cp -r $HOME/.dotnet /tmp/.dotnet
 
 # perf
 FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder
@@ -134,7 +141,8 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then exit 0; fi; yum install -y \
     zlib-devel.x86_64 \
     xz-devel \
     ncurses-devel \
-    elfutils-libelf-devel && \
+    elfutils-libelf-devel \
+    libicu && \
     yum clean all
 
 RUN if [ "$(uname -m)" = "aarch64" ]; \
@@ -224,6 +232,10 @@ COPY --from=bcc-helpers /bpf_get_stack_offset/get_stack_offset gprofiler/resourc
 COPY --from=pyspy-builder /tmp/py-spy/py-spy gprofiler/resources/python/py-spy
 COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
 COPY --from=perf-builder /perf gprofiler/resources/perf
+
+COPY --from=dotnet-builder /usr/share/dotnet/host /usr/share/dotnet/host
+COPY --from=dotnet-builder /usr/share/dotnet/shared/Microsoft.NETCore.App /usr/share/dotnet/shared/Microsoft.NETCore.App
+COPY --from=dotnet-builder /tmp/.dotnet gprofiler/resources/dotnet
 
 COPY --from=phpspy-builder /tmp/phpspy/phpspy gprofiler/resources/php/phpspy
 COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
