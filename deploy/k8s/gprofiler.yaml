@@ -39,10 +39,8 @@ spec:
           imagePullPolicy: Always
           args:
             - -cu
-            - --token
-            - $(GPROFILER_TOKEN)
-            - --service-name
-            - $(GPROFILER_SERVICE)
+            - --token=$(GPROFILER_TOKEN)
+            - --service-name=$(GPROFILER_SERVICE)
           env:
             - name: GPROFILER_TOKEN
               value: @insert your token here@

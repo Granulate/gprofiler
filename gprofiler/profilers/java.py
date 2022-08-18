@@ -27,11 +27,10 @@ from granulate_utils.java import (
     locate_hotspot_error_file,
 )
 from granulate_utils.linux import proc_events
-from granulate_utils.linux.elf import get_mapped_dso_elf_id
 from granulate_utils.linux.kernel_messages import KernelMessage
 from granulate_utils.linux.ns import get_proc_root_path, get_process_nspid, resolve_proc_root_links, run_in_ns
 from granulate_utils.linux.oom import get_oom_entry
-from granulate_utils.linux.process import is_musl, is_process_running, process_exe
+from granulate_utils.linux.process import get_mapped_dso_elf_id, is_musl, is_process_running, process_exe
 from granulate_utils.linux.signals import get_signal_entry
 from packaging.version import Version
 from psutil import Process
@@ -473,21 +472,24 @@ class AsyncProfiledProcess:
             + self._get_extra_ap_args()
         ]
 
+    def _read_ap_log(self) -> str:
+        if not os.path.exists(self._log_path_host):
+            return "(log file doesn't exist)"
+
+        log = Path(self._log_path_host)
+        ap_log = log.read_text()
+        # clean immediately so we don't mix log messages from multiple invocations.
+        # this is also what AP's profiler.sh does.
+        log.unlink()
+        self._recreate_log()
+        return ap_log
+
     def _run_async_profiler(self, cmd: List[str]) -> None:
         try:
             # kill jattach with SIGTERM if it hangs. it will go down
             run_process(cmd, stop_event=self._stop_event, timeout=self._jattach_timeout, kill_signal=signal.SIGTERM)
         except CalledProcessError as e:  # catches CalledProcessTimeoutError as well
-            if os.path.exists(self._log_path_host):
-                log = Path(self._log_path_host)
-                ap_log = log.read_text()
-                # clean immediately so we don't mix log messages from multiple invocations.
-                # this is also what AP's profiler.sh does.
-                log.unlink()
-                self._recreate_log()
-            else:
-                ap_log = "(log file doesn't exist)"
-
+            ap_log = self._read_ap_log()
             is_loaded = f" {self._libap_path_process}\n" in Path(f"/proc/{self.process.pid}/maps").read_text()
 
             args = e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, is_loaded
@@ -498,6 +500,8 @@ class AsyncProfiledProcess:
                 raise JattachSocketMissingException(*args) from None
             else:
                 raise JattachException(*args) from None
+        else:
+            logger.debug("async-profiler log", jattach_cmd=cmd, ap_log=self._read_ap_log())
 
     def _run_fdtransfer(self) -> None:
         """

@@ -13,9 +13,9 @@ from subprocess import CompletedProcess, Popen
 from threading import Event
 from typing import Any, Dict, List, Match, NoReturn, Optional, Tuple, cast
 
-from granulate_utils.linux.elf import get_elf_id, get_mapped_dso_elf_id
+from granulate_utils.linux.elf import get_elf_id
 from granulate_utils.linux.ns import get_process_nspid, run_in_ns
-from granulate_utils.linux.process import is_process_running, process_exe
+from granulate_utils.linux.process import get_mapped_dso_elf_id, is_process_running, process_exe
 from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PROCESSES_REGEX
 from psutil import NoSuchProcess, Process
 

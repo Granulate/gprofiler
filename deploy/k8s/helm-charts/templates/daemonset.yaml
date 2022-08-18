@@ -17,10 +17,8 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
           - -cu
-          - --token
-          - $(GPROFILER_TOKEN)
-          - --service-name
-          - $(GPROFILER_SERVICE)
+          - --token=$(GPROFILER_TOKEN)
+          - --service-name=$(GPROFILER_SERVICE)
           {{  range .Values.gprofiler.extraArguments }}
           - {{ . }}
           {{ end }}

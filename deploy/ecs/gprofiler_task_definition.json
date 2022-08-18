@@ -11,10 +11,8 @@
             "essential": true,
             "command": [
                 "-cu",
-                "--token",
-                "<TOKEN>",
-                "--service-name",
-                "<SERVICE NAME>"
+                "--token=<TOKEN>",
+                "--service-name=<SERVICE NAME>"
             ],
             "user": "0:0",
             "privileged": true
