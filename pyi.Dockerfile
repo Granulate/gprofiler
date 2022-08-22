@@ -37,7 +37,7 @@ RUN mv "/tmp/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /tmp/rbs
 FROM mcr.microsoft.com/dotnet/sdk${DOTNET_BUILDER_UBUNTU} as dotnet-builder
 RUN apt-get update && \
   dotnet tool install --global dotnet-trace
-RUN cp -r $HOME/.dotnet /tmp/.dotnet
+RUN cp -r ~/.dotnet /tmp/dotnet
 
 # perf
 FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder
@@ -235,7 +235,7 @@ COPY --from=perf-builder /perf gprofiler/resources/perf
 
 COPY --from=dotnet-builder /usr/share/dotnet/host /usr/share/dotnet/host
 COPY --from=dotnet-builder /usr/share/dotnet/shared/Microsoft.NETCore.App /usr/share/dotnet/shared/Microsoft.NETCore.App
-COPY --from=dotnet-builder /tmp/.dotnet gprofiler/resources/dotnet
+COPY --from=dotnet-builder /tmp/dotnet gprofiler/resources/dotnet
 
 COPY --from=phpspy-builder /tmp/phpspy/phpspy gprofiler/resources/php/phpspy
 COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump

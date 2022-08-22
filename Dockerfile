@@ -51,7 +51,7 @@ FROM mcr.microsoft.com/dotnet/sdk${DOTNET_BUILDER_UBUNTU} as dotnet-builder
 RUN apt-get update && \
   dotnet tool install --global dotnet-trace
 
-RUN cp -r $HOME/.dotnet /tmp/.dotnet
+RUN cp -r $HOME/.dotnet /tmp/dotnet
 
 # perf
 FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder
@@ -195,7 +195,7 @@ COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
 
 COPY --from=dotnet-builder /usr/share/dotnet/host /usr/share/dotnet/host
 COPY --from=dotnet-builder /usr/share/dotnet/shared/Microsoft.NETCore.App /usr/share/dotnet/shared/Microsoft.NETCore.App
-COPY --from=dotnet-builder /tmp/.dotnet gprofiler/resources/dotnet
+COPY --from=dotnet-builder /tmp/dotnet gprofiler/resources/dotnet
 
 COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
 

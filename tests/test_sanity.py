@@ -14,11 +14,12 @@ from docker import DockerClient
 from docker.models.images import Image
 
 from gprofiler.merge import parse_one_collapsed
+from gprofiler.profilers.dotnet import DotnetProfiler
 from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.php import PHPSpyProfiler
 from gprofiler.profilers.python import PySpyProfiler, PythonEbpfProfiler
 from gprofiler.profilers.ruby import RbSpyProfiler
-from gprofiler.profilers.dotnet import DotnetProfiler
+
 from gprofiler.utils import wait_event
 from tests import PHPSPY_DURATION
 from tests.conftest import AssertInCollapsed
