@@ -38,10 +38,11 @@ class DotnetMetadata(ApplicationMetadata):
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         # dotnet version
-        version = self._get_dotnet_version(process)
-
-        metadata = {"dotnet_version": version}
-
+        try:
+            version = self._get_dotnet_version(process)
+            metadata = {"dotnet_version": version}
+        except:
+            metadata = {}
         metadata.update(super().make_application_metadata(process))
         return metadata
 
@@ -83,6 +84,8 @@ class DotnetProfiler(ProcessProfilerBase):
             "speedscope",
             "--process-id",
             str(get_process_nspid(process.pid)),
+            "--profile",
+            "cpu-sampling",
             "--duration",
             str(datetime.timedelta(seconds=duration)),
             "--output",
