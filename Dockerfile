@@ -157,7 +157,6 @@ FROM ubuntu${GPROFILER_BUILDER_UBUNTU}
 WORKDIR /app
 
 # for Aarch64 - it has no .whl file for psutil - so it's trying to build from source.
-
 RUN set -e; \
     apt-get update && \
     apt-get upgrade -y && \

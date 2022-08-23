@@ -41,8 +41,9 @@ class DotnetMetadata(ApplicationMetadata):
         try:
             version = self._get_dotnet_version(process)
             metadata = {"dotnet_version": version}
-        except:
+        except Exception:
             metadata = {}
+
         metadata.update(super().make_application_metadata(process))
         return metadata
 
