@@ -242,7 +242,7 @@ def get_java_version_logged(process: Process, stop_event: Event) -> str:
 class JavaMetadata(ApplicationMetadata):
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         if is_java_basename(process):
-            version = get_java_version(process, self._stop_event)
+            version = parse_jvm_version(get_java_version(process, self._stop_event)).__repr__()
         else:
             version = "not /java"
         # libjvm elfid - we care only about libjvm, not about the java exe itself which is a just small program

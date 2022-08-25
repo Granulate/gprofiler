@@ -51,9 +51,7 @@ from tests.utils import run_gprofiler_in_container_for_one_session
             {
                 "exe": "/usr/local/openjdk-8/bin/java",
                 "execfn": "/usr/local/openjdk-8/bin/java",
-                "java_version": 'openjdk version "1.8.0_275"\n'
-                "OpenJDK Runtime Environment (build 1.8.0_275-b01)\n"
-                "OpenJDK 64-Bit Server VM (build 25.275-b01, mixed mode)",
+                "java_version": "JvmVersion(8.275, 1, 'OpenJDK 64-Bit Server VM')",
                 "libjvm_elfid": "buildid:0542486ff00153ca0bcf9f2daea9a36c428d6cde",
             },
         ),
