@@ -707,9 +707,10 @@ class JavaProfiler(SpawningProcessProfilerBase):
     # Major -> (min version, min build number of version)
     MINIMAL_SUPPORTED_VERSIONS = {
         7: (Version("7.76"), 4),
-        8: (Version("8.72"), 15),
+        8: (Version("8.25"), 17),
         11: (Version("11.0.2"), 7),
         12: (Version("12.0.1"), 12),
+        13: (Version("13.0.1"), 9),
         14: (Version("14"), 33),
         15: (Version("15.0.1"), 9),
         16: (Version("16"), 36),
