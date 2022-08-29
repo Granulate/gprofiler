@@ -6,6 +6,7 @@ import functools
 import json
 import os
 import re
+import secrets
 import signal
 from enum import Enum
 from itertools import dropwhile
@@ -342,6 +343,7 @@ class AsyncProfiledProcess:
         self._buildids = buildids
         assert mode in ("cpu", "itimer"), f"unexpected mode: {mode}"
         self._mode = mode
+        self._fdtransfer_path = f"@async-profiler-{process.pid}-{secrets.token_hex(10)}" if mode == "cpu" else None
         self._ap_safemode = ap_safemode
         self._ap_args = ap_args
         self._jattach_timeout = jattach_timeout
@@ -461,7 +463,7 @@ class AsyncProfiledProcess:
             f"start,event={self._mode}"
             f"{self._get_ap_output_args()},interval={interval},"
             f"log={self._log_path_process}{',buildids' if self._buildids else ''}"
-            f"{',fdtransfer' if self._mode == 'cpu' else ''}"
+            f"{f',fdtransfer={self._fdtransfer_path}' if self._mode == 'cpu' else ''}"
             f",safemode={self._ap_safemode},timeout={ap_timeout}{self._get_extra_ap_args()}"
         ]
 
@@ -507,8 +509,9 @@ class AsyncProfiledProcess:
         """
         Start fdtransfer; it will fork & exit once ready, so we can continue with jattach.
         """
+        assert self._fdtransfer_path is not None  # should be set if fdntransfer is invoked
         run_process(
-            [fdtransfer_path(), str(self.process.pid)],
+            [fdtransfer_path(), self._fdtransfer_path, str(self.process.pid)],
             stop_event=self._stop_event,
             timeout=self._FDTRANSFER_TIMEOUT,
         )
