@@ -457,3 +457,11 @@ def is_pyinstaller() -> bool:
 
 def get_staticx_dir() -> Optional[str]:
     return os.getenv("STATICX_BUNDLE_DIR")
+
+def add_permission_dir(path: str, permission_for_file: int, permission_for_dir: int):
+    os.chmod(path, os.stat(path).st_mode | permission_for_dir)
+    for subpath in glob.glob(path + "/*"):
+        if os.path.isdir(subpath):
+            add_permission_dir(subpath, permission_for_file, permission_for_dir)
+        else:
+            os.chmod(subpath, os.stat(subpath).st_mode | permission_for_file)

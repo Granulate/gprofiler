@@ -25,6 +25,7 @@ from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import run_process, start_process, wait_event, wait_for_file_by_prefix
 from gprofiler.utils.perf import perf_path
 from gprofiler.utils.process import is_process_basename_matching
+from gprofiler.utils.node import clean_up_node_maps, generate_map_for_node_processes
 
 logger = get_logger_adapter(__name__)
 
@@ -173,6 +174,7 @@ class SystemProfiler(ProfilerBase):
         perf_mode: str,
         perf_dwarf_stack_size: int,
         perf_inject: bool,
+        perf_node_attach: bool,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
         _ = profile_spawned_processes  # Required for mypy unused argument warning
@@ -204,14 +206,18 @@ class SystemProfiler(ProfilerBase):
             self._perfs.append(self._perf_dwarf)
         else:
             self._perf_dwarf = None
-
+        self.perf_node_attach = perf_node_attach
         assert self._perf_fp is not None or self._perf_dwarf is not None
 
     def start(self) -> None:
+        if self.perf_node_attach:
+            generate_map_for_node_processes()
         for perf in self._perfs:
             perf.start()
 
     def stop(self) -> None:
+        if self.perf_node_attach:
+            clean_up_node_maps()
         for perf in reversed(self._perfs):
             perf.stop()
 

@@ -12,6 +12,9 @@ ARG BURN_BUILDER_GOLANG
 ARG GPROFILER_BUILDER
 ARG PYPERF_BUILDER_UBUNTU
 ARG DOTNET_BUILDER
+ARG DOTNET_BUILDER_UBUNTU
+ARG NODE_PACKAGE_BUILDER_MUSL
+ARG NODE_PACKAGE_BUILDER_GLIBC
 
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
@@ -97,6 +100,23 @@ WORKDIR /tmp
 
 COPY scripts/burn_build.sh .
 RUN ./burn_build.sh
+
+# node-package-builder-musl
+FROM alpine${NODE_PACKAGE_BUILDER_MUSL} AS node-package-builder-musl
+WORKDIR /tmp
+RUN apk add --no-cache curl g++ python3 make gcc git bash nodejs npm
+COPY scripts/build_node_package.sh .
+RUN ./build_node_package.sh
+
+# node-package-builder-glibc
+FROM ubuntu${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
+WORKDIR /tmp
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt update -y && apt install -y curl g++ python3 make gcc git
+RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash -
+RUN apt install -y nodejs
+COPY scripts/build_node_package.sh .
+RUN ./build_node_package.sh
 
 # bcc helpers
 # built on newer Ubuntu because they require new clang (newer than available in GPROFILER_BUILDER's CentOS 7)
@@ -260,6 +280,8 @@ COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/async-profile
 COPY --from=async-profiler-centos-min-test-glibc /libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
 COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
+COPY --from=node-package-builder-musl /tmp/module_build gprofiler/resources/node/module/musl
+COPY --from=node-package-builder-glibc /tmp/module_build gprofiler/resources/node/module/glibc
 
 COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
 
