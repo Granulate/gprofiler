@@ -14,3 +14,18 @@ make all
 
 # add a version file to the build directory
 echo -n "$VERSION" > build/async-profiler-version
+
+# build verifications regarding libstdc++.
+if ldd /bin/ls | grep -q musl ; then
+    # ensure no libstdc++
+    if ldd build/libasyncProfiler.so | grep -q "libstdc++"; then
+        echo "libstdc++ not expected!"
+        exit 1
+    fi
+else
+    # ensure libstdc++
+    if ! ldd build/libasyncProfiler.so | grep -q "libstdc++"; then
+        echo "libstdc++ not found!"
+        exit 1
+    fi
+fi
