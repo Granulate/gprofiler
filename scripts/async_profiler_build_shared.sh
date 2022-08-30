@@ -24,8 +24,9 @@ if ldd /bin/ls | grep -q musl ; then
     fi
 else
     # ensure libstdc++
-    if ! ldd build/libasyncProfiler.so | grep -q "libstdc++"; then
+    # if ldd build/libasyncProfiler.so | grep -q "libstdc++"; then
         echo "libstdc++ not found!"
+        ldd build/libasyncProfiler.so
         exit 1
-    fi
+    # fi
 fi
