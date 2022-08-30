@@ -4,9 +4,7 @@
 #
 from pathlib import Path
 
-import pytest
 from docker import DockerClient
-from docker.errors import ContainerError
 from docker.models.containers import Container
 from docker.models.images import Image
 
@@ -29,12 +27,10 @@ def test_mutex(
     gprofiler1 = start_gprofiler(docker_client, gprofiler_docker_image)
     gprofiler2 = start_gprofiler(docker_client, gprofiler_docker_image)
 
-    with pytest.raises(ContainerError) as e:
-        wait_for_container(gprofiler2)
-    assert isinstance(e, ContainerError)
-    assert e.logs == (
+    # exits without an error
+    assert wait_for_container(gprofiler2) == (
         "Could not acquire gProfiler's lock. Is it already running?"
-        " Try 'sudo netstat -xp | grep gprofiler' to see which process holds the lock."
+        " Try 'sudo netstat -xp | grep gprofiler' to see which process holds the lock.\n"
     )
 
-    wait_for_container(gprofiler1)  # w/o error
+    wait_for_container(gprofiler1)  # without an error as well
