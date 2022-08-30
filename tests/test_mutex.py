@@ -16,7 +16,7 @@ def start_gprofiler(
     gprofiler_docker_image: Image,
 ) -> Container:
     return start_gprofiler_in_container_for_one_session(
-        docker_client, gprofiler_docker_image, Path("/tmp"), Path("/tmp/collapsed"), [], []
+        docker_client, gprofiler_docker_image, Path("/tmp"), Path("/tmp/collapsed"), [], ["-d", "1"]
     )
 
 
