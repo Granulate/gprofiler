@@ -18,16 +18,14 @@ echo -n "$VERSION" > build/async-profiler-version
 # build verifications regarding libstdc++.
 if ldd /bin/ls | grep -q musl ; then
     # ensure no libstdc++
-    if ldd build/libasyncProfiler.so | grep -q "libstdc++"; then
+    if ldd build/libasyncProfiler.so | tee /dev/fd/2 | grep -q "libstdc++"; then
         echo "libstdc++ found!"
-        ldd build/libasyncProfiler.so
         exit 1
     fi
 else
     # ensure libstdc++
-    if ! ldd build/libasyncProfiler.so | grep -q "libstdc++"; then
+    if ! ldd build/libasyncProfiler.so | tee /dev/fd/2 | grep -q "libstdc++"; then
         echo "libstdc++ not found!"
-        ldd build/libasyncProfiler.so
         exit 1
     fi
 fi
