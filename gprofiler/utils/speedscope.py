@@ -11,7 +11,7 @@ import json
 import math
 import random
 from collections import Counter
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from gprofiler.gprofiler_types import StackToSampleCount
 
@@ -22,7 +22,9 @@ def _speedscope_frame_name(speedscope: Dict[str, Any], frame: int) -> str:
     return name
 
 
-def load_speedscope_as_collapsed(speedscope_path: str, frequncy_hz: int, add_comm: Optional[str] = None) -> StackToSampleCount:
+def load_speedscope_as_collapsed(
+    speedscope_path: str, frequncy_hz: int, add_comm: Optional[str] = None
+) -> StackToSampleCount:
     interval = 1 / frequncy_hz
     interval_ms = interval * 1000
 
