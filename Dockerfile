@@ -52,6 +52,8 @@ RUN apt-get update && \
   dotnet tool install --global dotnet-trace
 
 RUN cp -r $HOME/.dotnet /tmp/dotnet
+COPY scripts/dotnet_prepare_dependencies.sh .
+RUN ./dotnet_prepare_dependencies.sh
 
 # perf
 FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder
@@ -193,9 +195,10 @@ COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gp
 COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
 
 COPY --from=dotnet-builder /usr/share/dotnet/host /usr/share/dotnet/host
-COPY --from=dotnet-builder /usr/share/dotnet/shared/Microsoft.NETCore.App /usr/share/dotnet/shared/Microsoft.NETCore.App
+COPY --from=dotnet-builder /tmp/dotnet/deps /usr/share/dotnet/shared/Microsoft.NETCore.App/6.0.7
 COPY --from=dotnet-builder /tmp/dotnet gprofiler/resources/dotnet
 
+RUN gprofiler/resources/dotnet/tools/dotnet-trace ps
 COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
 
 # we want the latest pip

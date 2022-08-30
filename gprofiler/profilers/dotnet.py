@@ -22,6 +22,7 @@ from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
 from gprofiler.utils.speedscope import load_speedscope_as_collapsed
+from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
 
@@ -57,7 +58,6 @@ class DotnetMetadata(ApplicationMetadata):
 class DotnetProfiler(ProcessProfilerBase):
 
     RESOURCE_PATH = "dotnet/tools/dotnet-trace"
-    MAX_FREQUENCY = 100
     _EXTRA_TIMEOUT = 10
 
     def __init__(
@@ -104,6 +104,7 @@ class DotnetProfiler(ProcessProfilerBase):
         app_metadata = self._metadata.get_metadata(process)
         # had to change the dots for minuses because of dotnet-trace removing the last part in other case
         local_output_path = os.path.join(self._storage_dir, f"dotnet-trace-{random_prefix()}-{process.pid}")
+        # this causes dotnet-trace to lookup the socket in the mount namespace of the target process
         tempdir = f"/proc/{process.pid}/root/tmp"
         with removed_path(local_output_path):
             try:
@@ -115,12 +116,12 @@ class DotnetProfiler(ProcessProfilerBase):
                     kill_signal=signal.SIGKILL,
                 )
                 local_output_path = local_output_path + ".speedscope.json"
-
             except ProcessStoppedException:
                 raise StopEventSetException
             logger.info(f"Finished profiling process {process.pid} with dotnet")
+            comm = process_comm(process)
             return ProfileData(
-                load_speedscope_as_collapsed(Path(local_output_path), self._frequency), appid, app_metadata
+                load_speedscope_as_collapsed(Path(local_output_path), self._frequency, comm), appid, app_metadata
             )
 
     def _select_processes_to_profile(self) -> List[Process]:

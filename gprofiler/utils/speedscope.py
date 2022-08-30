@@ -11,7 +11,7 @@ import json
 import math
 import random
 from collections import Counter
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 from gprofiler.gprofiler_types import StackToSampleCount
 
@@ -22,7 +22,7 @@ def _speedscope_frame_name(speedscope: Dict[str, Any], frame: int) -> str:
     return name
 
 
-def load_speedscope_as_collapsed(speedscope_path: str, frequncy_hz: int) -> StackToSampleCount:
+def load_speedscope_as_collapsed(speedscope_path: str, frequncy_hz: int, add_comm: Optional[str] = None) -> StackToSampleCount:
     interval = 1 / frequncy_hz
     interval_ms = interval * 1000
 
@@ -39,6 +39,7 @@ def load_speedscope_as_collapsed(speedscope_path: str, frequncy_hz: int) -> Stac
 
         # needs to be a float, but dotnet-trace puts a string...
         last_ts = float(profile["startValue"])  # matches the ts of first event
+        comm_n = 0
         for event in profile["events"]:
             at = event["at"]
             elapsed = at - last_ts
@@ -52,6 +53,7 @@ def load_speedscope_as_collapsed(speedscope_path: str, frequncy_hz: int) -> Stac
                 stack.pop()
 
             frac, n = math.modf(elapsed / interval_ms)
+            comm_n = n
             assert int(n) == n
             for _ in range(int(n)):
                 stacks.append(tuple(stack))
@@ -59,6 +61,8 @@ def load_speedscope_as_collapsed(speedscope_path: str, frequncy_hz: int) -> Stac
                 stacks.append(tuple(stack))
 
         for s in stacks:
-            result_stacks[";".join(map(lambda f: _speedscope_frame_name(speedscope, f), s))] += 1
-
+            if add_comm is not None:
+                result_stacks[f"{add_comm};" + ";".join(map(lambda f: _speedscope_frame_name(speedscope, f), s))] += 1
+            else:
+                result_stacks[";".join(map(lambda f: _speedscope_frame_name(speedscope, f), s))] += 1
     return result_stacks

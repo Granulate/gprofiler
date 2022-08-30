@@ -5,5 +5,5 @@ WORKDIR /app
 ADD Fibonacci.dll /app
 ADD Fibonacci.deps.json /app
 ADD Fibonacci.runtimeconfig.json /app
-# ENV DOTNET_CLI_HOME = "/tmp"
+
 CMD ["dotnet", "Fibonacci.dll"]
