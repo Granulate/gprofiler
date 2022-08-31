@@ -163,7 +163,7 @@ RUN set -e; \
     apt-get update && \
     apt-get upgrade -y && \
     apt-get install --no-install-recommends -y python3-pip && \
-    apt-get install -y libicu66 && \
+    apt-get install --no-install-recommends -y libicu66 && \
     if [ "$(uname -m)" = "aarch64" ]; then \
       apt-get install -y --no-install-recommends build-essential python3.8-dev; \
     fi && \

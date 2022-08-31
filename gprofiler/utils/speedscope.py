@@ -41,7 +41,6 @@ def load_speedscope_as_collapsed(
 
         # needs to be a float, but dotnet-trace puts a string...
         last_ts = float(profile["startValue"])  # matches the ts of first event
-        comm_n = 0
         for event in profile["events"]:
             at = event["at"]
             elapsed = at - last_ts
@@ -55,7 +54,6 @@ def load_speedscope_as_collapsed(
                 stack.pop()
 
             frac, n = math.modf(elapsed / interval_ms)
-            comm_n = n
             assert int(n) == n
             for _ in range(int(n)):
                 stacks.append(tuple(stack))
