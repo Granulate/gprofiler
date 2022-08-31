@@ -35,10 +35,11 @@ RUN mv "/tmp/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /tmp/rbs
 
 # dotnet-trace
 FROM mcr.microsoft.com/dotnet/sdk${DOTNET_BUILDER_UBUNTU} as dotnet-builder
+WORKDIR /tmp
 RUN apt-get update && \
   dotnet tool install --global dotnet-trace
 
-RUN cp -r $HOME/.dotnet /tmp/dotnet
+RUN cp -r "$HOME/.dotnet" "/tmp/dotnet"
 COPY scripts/dotnet_prepare_dependencies.sh .
 RUN ./dotnet_prepare_dependencies.sh
 
