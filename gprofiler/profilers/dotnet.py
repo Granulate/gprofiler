@@ -121,7 +121,7 @@ class DotnetProfiler(ProcessProfilerBase):
             logger.info(f"Finished profiling process {process.pid} with dotnet")
             comm = process_comm(process)
             return ProfileData(
-                load_speedscope_as_collapsed(Path(local_output_path), self._frequency, comm), appid, app_metadata
+                load_speedscope_as_collapsed(local_output_path, self._frequency, comm), appid, app_metadata
             )
 
     def _select_processes_to_profile(self) -> List[Process]:
