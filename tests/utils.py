@@ -37,11 +37,12 @@ RUNTIME_PROFILERS = [
 ]
 
 
-def start_privileged_container(
+def start_container(
     docker_client: DockerClient,
     image: Image,
     command: List[str],
     volumes: Dict[str, Dict[str, str]] = None,
+    privileged: bool = False,
     **extra_kwargs: Any,
 ) -> Container:
     if volumes is None:
@@ -50,7 +51,7 @@ def start_privileged_container(
     return docker_client.containers.run(
         image,
         command,
-        privileged=True,
+        privileged=privileged,
         network_mode="host",
         pid_mode="host",
         userns_mode="host",
@@ -105,7 +106,7 @@ def run_privileged_container(
 ) -> str:
     container = None
     try:
-        container = start_privileged_container(docker_client, image, command, volumes, **extra_kwargs)
+        container = start_container(docker_client, image, command, volumes, privileged=True, **extra_kwargs)
         return wait_for_container(container)
 
     finally:
@@ -214,6 +215,7 @@ def start_gprofiler_in_container_for_one_session(
     output_path: Path,
     runtime_specific_args: List[str],
     profiler_flags: List[str],
+    privileged: bool = True,
 ) -> Container:
     inner_output_directory = "/tmp/gprofiler"
     volumes = {
@@ -222,10 +224,11 @@ def start_gprofiler_in_container_for_one_session(
     args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args + profiler_flags
 
     remove_path(str(output_path), missing_ok=True)
-    return start_privileged_container(
+    return start_container(
         docker_client,
         gprofiler_docker_image,
         args,
+        privileged=privileged,
         volumes=volumes,
     )
 
