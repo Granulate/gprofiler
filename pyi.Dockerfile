@@ -37,7 +37,10 @@ RUN mv "/tmp/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /tmp/rbs
 FROM mcr.microsoft.com/dotnet/sdk${DOTNET_BUILDER_UBUNTU} as dotnet-builder
 RUN apt-get update && \
   dotnet tool install --global dotnet-trace
-RUN cp -r ~/.dotnet /tmp/dotnet
+
+RUN cp -r $HOME/.dotnet /tmp/dotnet
+COPY scripts/dotnet_prepare_dependencies.sh .
+RUN ./dotnet_prepare_dependencies.sh
 
 # perf
 FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder
@@ -141,8 +144,7 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then exit 0; fi; yum install -y \
     zlib-devel.x86_64 \
     xz-devel \
     ncurses-devel \
-    elfutils-libelf-devel \
-    libicu && \
+    elfutils-libelf-devel && \
     yum clean all
 
 RUN if [ "$(uname -m)" = "aarch64" ]; \
@@ -234,7 +236,7 @@ COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
 COPY --from=perf-builder /perf gprofiler/resources/perf
 
 COPY --from=dotnet-builder /usr/share/dotnet/host /usr/share/dotnet/host
-COPY --from=dotnet-builder /usr/share/dotnet/shared/Microsoft.NETCore.App /usr/share/dotnet/shared/Microsoft.NETCore.App
+COPY --from=dotnet-builder /tmp/dotnet/deps /usr/share/dotnet/shared/Microsoft.NETCore.App/6.0.7
 COPY --from=dotnet-builder /tmp/dotnet gprofiler/resources/dotnet
 
 COPY --from=phpspy-builder /tmp/phpspy/phpspy gprofiler/resources/php/phpspy

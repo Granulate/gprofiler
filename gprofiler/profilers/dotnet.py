@@ -21,8 +21,8 @@ from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
-from gprofiler.utils.speedscope import load_speedscope_as_collapsed
 from gprofiler.utils.process import process_comm
+from gprofiler.utils.speedscope import load_speedscope_as_collapsed
 
 logger = get_logger_adapter(__name__)
 
