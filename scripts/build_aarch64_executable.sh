@@ -26,6 +26,7 @@ docker buildx build --platform=linux/arm64 \
     --build-arg PHPSPY_BUILDER_UBUNTU=$UBUNTU_VERSION \
     --build-arg AP_BUILDER_CENTOS=$CENTOS7_VERSION \
     --build-arg AP_BUILDER_ALPINE=$ALPINE_VERSION \
+    --build-arg AP_CENTOS_MIN=$CENTOS7_VERSION \
     --build-arg BURN_BUILDER_GOLANG=$GOLANG_VERSION \
     --build-arg GPROFILER_BUILDER=$CENTOS8_VERSION \
     . -f pyi.Dockerfile --output type=local,dest=build/aarch64/ $@
