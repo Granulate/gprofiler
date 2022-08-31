@@ -19,19 +19,14 @@ import docker
 import psutil
 import pytest
 from docker.models.containers import Container
+from granulate_utils.java import parse_jvm_version
 from granulate_utils.linux.elf import get_elf_buildid
 from granulate_utils.linux.ns import get_process_nspid
 from granulate_utils.linux.process import is_musl
 from packaging.version import Version
 from pytest import LogCaptureFixture, MonkeyPatch
 
-from gprofiler.profilers.java import (
-    AsyncProfiledProcess,
-    JavaProfiler,
-    frequency_to_ap_interval,
-    get_java_version,
-    parse_jvm_version,
-)
+from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler, frequency_to_ap_interval, get_java_version
 from gprofiler.utils import remove_prefix
 from tests.conftest import AssertInCollapsed
 from tests.type_utils import cast_away_optional
