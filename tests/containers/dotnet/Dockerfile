@@ -6,5 +6,5 @@ ADD Fibonacci.cs /app/Fibonacci
 RUN dotnet new console
 RUN rm Program.cs
 RUN dotnet publish -c Release -o .
-RUN ls
+
 CMD ["dotnet", "Fibonacci.dll"]
