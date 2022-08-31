@@ -13,9 +13,6 @@ ARG PHPSPY_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f2
 # we do make some modifications to the selected versioned symbols so that we don't use anything from >2.12 (what centos:6
 # has)
 ARG AP_BUILDER_CENTOS=@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e
-# minimum CentOS version we intend to support with async-profiler (different between x86_64, where we require
-  # an older version)
-ARG AP_CENTOS_MIN=:6
 # async-profiler musl build - alpine 3.14.2
 ARG AP_BUILDER_ALPINE=@sha256:69704ef328d05a9f806b6b8502915e6a0a4faa4d72018dc42343f511490daf8a
 # burn - golang:1.16.3
