@@ -194,11 +194,11 @@ COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gp
 
 COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
 
-COPY --from=dotnet-builder /usr/share/dotnet/host /usr/share/dotnet/host
-COPY --from=dotnet-builder /tmp/dotnet/deps /usr/share/dotnet/shared/Microsoft.NETCore.App/6.0.7
+ENV DOTNET_ROOT=/app/gprofiler/resources/dotnet
+COPY --from=dotnet-builder /usr/share/dotnet/host gprofiler/resources/dotnet/host
+COPY --from=dotnet-builder /tmp/dotnet/deps gprofiler/resources/dotnet/shared/Microsoft.NETCore.App/6.0.7
 COPY --from=dotnet-builder /tmp/dotnet gprofiler/resources/dotnet
 
-RUN gprofiler/resources/dotnet/tools/dotnet-trace ps
 COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
 
 # we want the latest pip

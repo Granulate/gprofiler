@@ -56,7 +56,6 @@ class DotnetMetadata(ApplicationMetadata):
     default_mode="dotnet-trace",
 )
 class DotnetProfiler(ProcessProfilerBase):
-
     RESOURCE_PATH = "dotnet/tools/dotnet-trace"
     _EXTRA_TIMEOUT = 10
 
