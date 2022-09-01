@@ -9,7 +9,6 @@ import re
 import secrets
 import signal
 from enum import Enum
-from itertools import dropwhile
 from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event, Lock
@@ -23,9 +22,11 @@ from granulate_utils.java import (
     NATIVE_FRAMES_REGEX,
     SIGINFO_REGEX,
     VM_INFO_REGEX,
+    JvmVersion,
     is_java_fatal_signal,
     java_exit_code_to_signo,
     locate_hotspot_error_file,
+    parse_jvm_version,
 )
 from granulate_utils.linux import proc_events
 from granulate_utils.linux.kernel_messages import KernelMessage
@@ -551,77 +552,6 @@ class AsyncProfiledProcess:
             raise
 
 
-class JvmVersion:
-    def __init__(self, version: Version, build: int, name: str):
-        self.version = version
-        self.build = build
-        self.name = name
-
-    def __repr__(self) -> str:
-        return f"JvmVersion({self.version}, {self.build!r}, {self.name!r})"
-
-
-# Parse java version information from "java -version" output
-def parse_jvm_version(version_string: str) -> JvmVersion:
-    # Example java -version output:
-    #   openjdk version "1.8.0_265"
-    #   OpenJDK Runtime Environment (AdoptOpenJDK)(build 1.8.0_265-b01)
-    #   OpenJDK 64-Bit Server VM (AdoptOpenJDK)(build 25.265-b01, mixed mode)
-    # We are taking the version from the first line, and the build number and vm name from the last line
-
-    lines = version_string.splitlines()
-
-    # the version always starts with "openjdk version" or "java version". strip all lines
-    # before that.
-    lines = list(dropwhile(lambda l: not ("openjdk version" in l or "java version" in l), lines))
-
-    # version is always in quotes
-    _, version_str, _ = lines[0].split('"')
-    # matches the build string from e.g (build 25.212-b04, mixed mode) -> "25.212-b04"
-    m = re.search(r"\(build ([^,)]+?)(?:,|\))", version_string)
-    assert m is not None, f"did not find build_str in {version_string!r}"
-    build_str = m.group(1)
-
-    if any(version_str.endswith(suffix) for suffix in ("-internal", "-ea", "-ojdkbuild")):
-        # strip those suffixes to keep the rest of the parsing logic clean
-        version_str = version_str.rsplit("-")[0]
-
-    version_list = version_str.split(".")
-    if version_list[0] == "1":
-        # For java 8 and prior, versioning looks like
-        # 1.<major>.0_<minor>-b<build_number>
-        # For example 1.8.0_242-b12 means 8.242 with build number 12
-        assert len(version_list) == 3, f"Unexpected number of elements for old-style java version: {version_list!r}"
-        assert "_" in version_list[-1], f"Did not find expected underscore in old-style java version: {version_list!r}"
-        major = version_list[1]
-        minor = version_list[-1].split("_")[-1]
-        version = Version(f"{major}.{minor}")
-        # find the -b or -ojdkbuild-
-        if "-b" in build_str:
-            build_split = build_str.split("-b")
-            # it can appear multiple times, e.g "(build 1.8.0_282-8u282-b08-0ubuntu1~16.04-b08)"
-            assert len(build_split) >= 2, f"Unexpected number of occurrences of '-b' in {build_str!r}"
-        else:
-            build_split = build_str.split("-ojdkbuild-")
-            assert len(build_split) == 2, f"Unexpected number of occurrences of '-ojdkbuild-' in {build_str!r}"
-        build = int(build_split[-1])
-    else:
-        # Since java 9 versioning became more normal, and looks like
-        # <version>+<build_number>
-        # For example, 11.0.11+9
-        version = Version(version_str)
-        assert "+" in build_str, f"Did not find expected build number prefix in new-style java version: {build_str!r}"
-        # The goal of the regex here is to read the build number until a non-digit character is encountered,
-        # since additional information can be appended after it, such as the platform name
-        matched = re.match(r"\d+", build_str[build_str.find("+") + 1 :])
-        assert matched, f"Unexpected build number format in new-style java version: {build_str!r}"
-        build = int(matched[0])
-
-    # There is no real format here, just use the entire description string
-    vm_name = lines[2].split("(build")[0].strip()
-    return JvmVersion(version, build, vm_name)
-
-
 @register_profiler(
     "Java",
     possible_modes=["ap", "disabled"],
@@ -707,9 +637,10 @@ class JavaProfiler(SpawningProcessProfilerBase):
     # Major -> (min version, min build number of version)
     MINIMAL_SUPPORTED_VERSIONS = {
         7: (Version("7.76"), 4),
-        8: (Version("8.72"), 15),
+        8: (Version("8.25"), 17),
         11: (Version("11.0.2"), 7),
         12: (Version("12.0.1"), 12),
+        13: (Version("13.0.1"), 9),
         14: (Version("14"), 33),
         15: (Version("15.0.1"), 9),
         16: (Version("16"), 36),
