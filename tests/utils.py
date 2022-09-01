@@ -43,6 +43,7 @@ def start_container(
     command: List[str],
     volumes: Dict[str, Dict[str, str]] = None,
     privileged: bool = False,
+    pid_mode: Optional[str] = "host",
     **extra_kwargs: Any,
 ) -> Container:
     if volumes is None:
@@ -53,7 +54,7 @@ def start_container(
         command,
         privileged=privileged,
         network_mode="host",
-        pid_mode="host",
+        pid_mode=pid_mode,
         userns_mode="host",
         volumes=volumes,
         stderr=True,
@@ -216,6 +217,8 @@ def start_gprofiler_in_container_for_one_session(
     runtime_specific_args: List[str],
     profiler_flags: List[str],
     privileged: bool = True,
+    user: int = 0,
+    pid_mode: Optional[str] = "host",
 ) -> Container:
     inner_output_directory = "/tmp/gprofiler"
     volumes = {
@@ -230,6 +233,8 @@ def start_gprofiler_in_container_for_one_session(
         args,
         privileged=privileged,
         volumes=volumes,
+        user=user,
+        pid_mode=pid_mode,
     )
 
 
