@@ -13,9 +13,6 @@ ARG PHPSPY_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f2
 # we do make some modifications to the selected versioned symbols so that we don't use anything from >2.12 (what centos:6
 # has)
 ARG AP_BUILDER_CENTOS=@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e
-# minimum CentOS version we intend to support with async-profiler (different between x86_64, where we require
-  # an older version)
-ARG AP_CENTOS_MIN=:6
 # async-profiler musl build - alpine 3.14.2
 ARG AP_BUILDER_ALPINE=@sha256:69704ef328d05a9f806b6b8502915e6a0a4faa4d72018dc42343f511490daf8a
 # burn - golang:1.16.3
@@ -130,12 +127,6 @@ COPY scripts/async_profiler_build_shared.sh .
 COPY scripts/async_profiler_build_glibc.sh .
 RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_glibc.sh
 
-# a build step to ensure the minimum CentOS version that we require can "ldd" our libasyncProfiler.so file.
-FROM centos${AP_CENTOS_MIN} AS async-profiler-centos-min-test-glibc
-SHELL ["/bin/bash", "-c", "-euo", "pipefail"]
-COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/libasyncProfiler.so /libasyncProfiler.so
-RUN if ldd /libasyncProfiler.so 2>&1 | grep -q "not found" ; then echo "libasyncProfiler.so is not compatible with minimum CentOS!"; ldd /libasyncProfiler.so; exit 1; fi
-
 # async-profiler musl
 FROM alpine${AP_BUILDER_ALPINE} AS async-profiler-builder-musl
 WORKDIR /tmp
@@ -184,7 +175,7 @@ COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/strings gprofiler
 
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/jattach gprofiler/resources/java/jattach
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
-COPY --from=async-profiler-centos-min-test-glibc /libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
+COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
 COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
 
