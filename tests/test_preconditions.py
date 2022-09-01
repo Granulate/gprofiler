@@ -91,11 +91,14 @@ def test_not_host_pid(
     )
 
 
-def test_host_pid_not_root(
+def test_host_pid_not_privileged(
     docker_client: DockerClient,
     gprofiler_docker_image: Image,
 ) -> None:
-    """ """
+    """
+    When run in host PID NS but not privileged, we will fail to take the mutex.
+    Ensure an appropriate message is written.
+    """
     gprofiler = start_gprofiler(docker_client, gprofiler_docker_image, privileged=False, user=0, pid_mode="host")
 
     # exits without an error

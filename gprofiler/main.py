@@ -4,7 +4,6 @@
 #
 import concurrent.futures
 import datetime
-import traceback
 import logging
 import logging.config
 import logging.handlers
@@ -12,6 +11,7 @@ import os
 import signal
 import sys
 import time
+import traceback
 from pathlib import Path
 from threading import Event
 from types import FrameType, TracebackType
