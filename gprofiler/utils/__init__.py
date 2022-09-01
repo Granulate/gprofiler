@@ -16,7 +16,6 @@ import string
 import subprocess
 import sys
 import time
-import traceback
 from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
@@ -387,13 +386,6 @@ def grab_gprofiler_mutex() -> bool:
         print(
             "Could not acquire gProfiler's lock. Is it already running?"
             " Try 'sudo netstat -xp | grep gprofiler' to see which process holds the lock.",
-            file=sys.stderr,
-        )
-        return False
-    except Exception:
-        traceback.print_exc()
-        print(
-            "Could not acquire gProfiler's lock due to an error. Are you running gProfiler in privileged mode?",
             file=sys.stderr,
         )
         return False

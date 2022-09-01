@@ -4,6 +4,7 @@
 #
 import concurrent.futures
 import datetime
+import traceback
 import logging
 import logging.config
 import logging.handlers
@@ -661,8 +662,16 @@ def verify_preconditions(args: configargparse.Namespace) -> None:
         )
         sys.exit(1)
 
-    if not grab_gprofiler_mutex():
-        sys.exit(0)
+    try:
+        if not grab_gprofiler_mutex():
+            sys.exit(0)
+    except Exception:
+        traceback.print_exc()
+        print(
+            "Could not acquire gProfiler's lock due to an error. Are you running gProfiler in privileged mode?",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     if args.log_usage and get_run_mode() not in ("k8s", "container"):
         # TODO: we *can* move into another cpuacct cgroup, to let this work also when run as a standalone

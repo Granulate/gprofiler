@@ -87,5 +87,22 @@ def test_not_host_pid(
     assert e.value.stderr == (
         b"Please run me in the init PID namespace! In Docker, make sure you pass '--pid=host'."
         b" In Kubernetes, add 'hostPID: true' in the Pod spec.\n"
-        b"You can disable this check with --disable-pidns-check."
+        b"You can disable this check with --disable-pidns-check.\n"
+    )
+
+
+def test_host_pid_not_root(
+    docker_client: DockerClient,
+    gprofiler_docker_image: Image,
+) -> None:
+    """ """
+    gprofiler = start_gprofiler(docker_client, gprofiler_docker_image, privileged=False, user=0, pid_mode="host")
+
+    # exits without an error
+    with pytest.raises(ContainerError) as e:
+        wait_for_container(gprofiler)
+
+    assert e.value.exit_status == 1
+    assert e.value.stderr.endswith(
+        b"Could not acquire gProfiler's lock due to an error. Are you running gProfiler in privileged mode?\n"
     )
