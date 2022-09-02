@@ -6,7 +6,6 @@ import datetime
 import functools
 import os
 import signal
-from pathlib import Path
 from threading import Event
 from typing import Any, Dict, List, Optional
 
