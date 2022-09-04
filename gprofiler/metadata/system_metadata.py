@@ -146,22 +146,23 @@ def get_cpu_info() -> Tuple[str, str]:
             model_names = []
             flags = []
             for line in f:
-                m = re.match(r"^((?:model name)|(?:flags))[ \t]*: (.*)$", line)
+                m = re.match(r"^((?:model name)|(?:flags)|(?:Features))[ \t]*: (.*)$", line)
                 if m is not None:
                     field, value = m.groups()
                     if field == "model name":
                         model_names.append(value)
                     else:
-                        assert field == "flags", f"unexpected field: {field!r}"
+                        # flags in x86_64, Features in aarch64
+                        assert field in ("flags", "Features"), f"unexpected field: {field!r}"
                         flags.append(value)
 
-        if len(set(model_names)) != 1:
+        if len(set(model_names)) > 1:
             logger.warning(f"CPU model names differ between cores, reporting only the first: {model_names}")
 
-        if len(set(flags)) != 1:
+        if len(set(flags)) > 1:
             logger.warning(f"CPU flags differ between cores, reporting only the first: {model_names}")
 
-        return model_names[0], flags[0]
+        return model_names[0] if len(model_names) else UNKNOWN_VALUE, flags[0] if len(flags) else UNKNOWN_VALUE
     except Exception:
         logger.exception("Failed to get CPU model name & flags, reporting unknown")
         return UNKNOWN_VALUE, UNKNOWN_VALUE
