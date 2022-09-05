@@ -81,7 +81,24 @@ def java_command_line(tmp_path: Path, java_args: List[str]) -> List[str]:
 
 
 @fixture
-def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
+def dotnet_command_line(tmp_path: Path) -> List[str]:
+    class_path = tmp_path / "dotnet"
+    class_path.mkdir()
+    class_path = class_path / "Fibonacci"
+    class_path.mkdir()
+    chmod_path_parts(class_path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
+    subprocess.run(["cp", str(CONTAINERS_DIRECTORY / "dotnet/Fibonacci.cs"), class_path])
+    subprocess.run(["dotnet", "new", "console", "--force"], cwd=class_path)
+    subprocess.run(["rm", "Program.cs"], cwd=class_path)
+    subprocess.run(["dotnet", "build", "-c", "Release"], cwd=class_path)
+    # dotnet building server (Roslyn) is waiting for its parent process to comple, which is pytest, it must be killed
+    # not to interfere with the actual test
+    subprocess.run(["pkill","-f","Roslyn"])
+    return ["dotnet", str(class_path / "bin/Release/net6.0/Fibonacci.dll"),"--project",str(class_path)]
+
+
+@fixture
+def command_line(runtime: str, java_command_line: List[str], dotnet_command_line: List[str]) -> List[str]:
     # these do not have non-container application - so it will result in an error if the command
     # line is used.
     if runtime.startswith("native"):
@@ -94,7 +111,12 @@ def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
         "python": ["python3", str(CONTAINERS_DIRECTORY / "python/lister.py")],
         "php": ["php", str(CONTAINERS_DIRECTORY / "php/fibonacci.php")],
         "ruby": ["ruby", str(CONTAINERS_DIRECTORY / "ruby/fibonacci.rb")],
-        "dotnet": ["dotnet", str(CONTAINERS_DIRECTORY / "dotnet/Fibonacci.dll")],
+        "dotnet": dotnet_command_line,
+        # "dotnet": [
+        #     "dotnet",
+        #     "run",
+        #     str(CONTAINERS_DIRECTORY / "dotnet/Fibonacci.cs"),
+        # ],
         "nodejs": [
             "node",
             "--perf-prof",

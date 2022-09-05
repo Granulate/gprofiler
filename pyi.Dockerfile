@@ -244,7 +244,7 @@ COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
 COPY --from=perf-builder /perf gprofiler/resources/perf
 
 COPY --from=dotnet-builder /usr/share/dotnet/host /usr/share/dotnet/host
-COPY --from=dotnet-builder /tmp/dotnet/deps /usr/share/dotnet/shared/Microsoft.NETCore.App/6.0.7
+COPY --from=dotnet-builder /tmp/dotnet/deps gprofiler/resources/dotnet/shared/Microsoft.NETCore.App/6.0.7
 COPY --from=dotnet-builder /tmp/dotnet gprofiler/resources/dotnet
 
 COPY --from=phpspy-builder /tmp/phpspy/phpspy gprofiler/resources/php/phpspy

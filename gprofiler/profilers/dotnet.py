@@ -108,7 +108,7 @@ class DotnetProfiler(ProcessProfilerBase):
             try:
                 run_process(
                     self._make_command(process, duration, local_output_path),
-                    env={"TMPDIR": tempdir},
+                    env={"TMPDIR": tempdir,"DOTNET_ROOT": "/app/gprofiler/resources/dotnet"},
                     stop_event=self._stop_event,
                     timeout=self._duration + self._EXTRA_TIMEOUT,
                     kill_signal=signal.SIGKILL,
