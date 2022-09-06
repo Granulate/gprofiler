@@ -104,11 +104,13 @@ class DotnetProfiler(ProcessProfilerBase):
         local_output_path = os.path.join(self._storage_dir, f"dotnet-trace-{random_prefix()}-{process.pid}")
         # this causes dotnet-trace to lookup the socket in the mount namespace of the target process
         tempdir = f"/proc/{process.pid}/root/tmp"
+        # go up two levels from the dotnet-trace binary location
+        dotnet_root = os.path.dirname(os.path.dirname(resource_path(self.RESOURCE_PATH)))
         with removed_path(local_output_path):
             try:
                 run_process(
                     self._make_command(process, duration, local_output_path),
-                    env={"TMPDIR": tempdir, "DOTNET_ROOT": "/app/gprofiler/resources/dotnet"},
+                    env={"TMPDIR": tempdir, "DOTNET_ROOT": dotnet_root},
                     stop_event=self._stop_event,
                     timeout=self._duration + self._EXTRA_TIMEOUT,
                     kill_signal=signal.SIGKILL,

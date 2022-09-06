@@ -244,7 +244,6 @@ COPY --from=pyspy-builder /tmp/py-spy/py-spy gprofiler/resources/python/py-spy
 COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
 COPY --from=perf-builder /perf gprofiler/resources/perf
 
-ENV DOTNET_ROOT=/app/gprofiler/resources/dotnet
 COPY --from=dotnet-builder /usr/share/dotnet/host gprofiler/resources/dotnet/host
 COPY --from=dotnet-builder /tmp/dotnet/deps gprofiler/resources/dotnet/shared/Microsoft.NETCore.App/6.0.7
 COPY --from=dotnet-builder /tmp/dotnet/tools gprofiler/resources/dotnet/tools
