@@ -65,7 +65,7 @@ from gprofiler.utils import (
 )
 from gprofiler.utils.fs import is_rw_exec_dir, safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
-from gprofiler.utils.process import process_comm, read_proc_file
+from gprofiler.utils.process import is_process_basename, process_comm, read_proc_file
 
 logger = get_logger_adapter(__name__)
 
@@ -190,7 +190,7 @@ class JattachSocketMissingException(JattachExceptionBase):
 
 
 def is_java_basename(process: Process) -> bool:
-    return os.path.basename(process_exe(process)) == "java"
+    return is_process_basename(process, r"^java$")
 
 
 _JAVA_VERSION_TIMEOUT = 5
