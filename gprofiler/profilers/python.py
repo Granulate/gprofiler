@@ -14,7 +14,7 @@ from threading import Event
 from typing import Any, Dict, List, Match, NoReturn, Optional, Tuple, cast
 
 from granulate_utils.linux.elf import get_elf_id
-from granulate_utils.linux.ns import get_process_nspid, run_in_ns
+from granulate_utils.linux.ns import get_process_nspid, is_running_in_init_pid, run_in_ns
 from granulate_utils.linux.process import get_mapped_dso_elf_id, is_process_running, process_exe
 from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PROCESSES_REGEX
 from psutil import NoSuchProcess, Process
@@ -342,6 +342,9 @@ class PythonEbpfProfiler(ProfilerBase):
         to verify those conditions stand anyway (and during our tests - we run gProfiler's executable
         in a container, so these steps have to run)
         """
+        # see explanation in https://github.com/Granulate/gprofiler/issues/443#issuecomment-1229515568
+        assert is_running_in_init_pid(), "PyPerf must run in init PID NS!"
+
         # increase memlock (Docker defaults to 64k which is not enough for the get_offset programs)
         resource.setrlimit(resource.RLIMIT_MEMLOCK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
 
