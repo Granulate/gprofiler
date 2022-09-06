@@ -7,5 +7,7 @@ ADD Fibonacci.java /app
 ADD MANIFEST.MF /app
 RUN javac Fibonacci.java
 RUN jar cvmf MANIFEST.MF Fibonacci.jar *.class
+# create a java binary with different basename, see test_java_different_basename
+RUN cp `which java` `which java`-notjava
 
 CMD ["sh", "-c", "java -jar Fibonacci.jar; sleep 10000"]

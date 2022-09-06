@@ -805,7 +805,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             if java_version_output is None:  # we don't get the java version if the exe isn't "java"
                 logger.warning(
                     "Non-java basenamed process (cannot get Java version), skipping... (disable "
-                    f" --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS} to profile it anyway)",
+                    f"--java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS} to profile it anyway)",
                     pid=process.pid,
                     exe=exe,
                 )
@@ -845,7 +845,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             if "libasyncProfiler.so" in mmap.path and f"/{GPROFILER_DIRECTORY_NAME}/" not in mmap.path:
                 logger.warning(
                     "Non-gProfiler async-profiler is already loaded to the target process."
-                    f" Disable --java-safemode={JavaSafemodeOptions.AP_LOADED_CHECK} to bypass this check.",
+                    f" (disable --java-safemode={JavaSafemodeOptions.AP_LOADED_CHECK} to bypass this check)",
                     pid=process.pid,
                     ap_path=mmap.path,
                 )
