@@ -81,6 +81,16 @@ from tests.utils import run_gprofiler_in_container_for_one_session
                 "libc": "glibc",
             },
         ),
+        (
+            True,
+            "dotnet",
+            "dotnet-trace",
+            {
+                "dotnet_version": "6.0.302",
+                "exe": "/usr/share/dotnet/dotnet",
+                "execfn": "/usr/bin/dotnet",
+            },
+        ),
     ],
 )
 def test_app_metadata(
