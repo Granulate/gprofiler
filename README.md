@@ -368,7 +368,7 @@ The runtime stacks are then merged into the data collected by `perf`, substituti
 | Ruby (rbspy)               | :heavy_check_mark:                | :heavy_check_mark:                |
 | PHP (phpspy)               | :heavy_check_mark:                | :heavy_check_mark: (experimental) |
 | NodeJS (perf)              | :heavy_check_mark:                | :heavy_check_mark:                |
-| .NET (dotnet-trace)        | :heavy_check_mark: (experimental) | :x:                               |               
+| .NET (dotnet-trace)        | :heavy_check_mark: (experimental) | :heavy_check_mark: (experimental) |
 
 ## perf-less mode
 
