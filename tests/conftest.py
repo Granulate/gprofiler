@@ -81,7 +81,31 @@ def java_command_line(tmp_path: Path, java_args: List[str]) -> List[str]:
 
 
 @fixture
-def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
+def dotnet_command_line(tmp_path: Path) -> List[str]:
+    class_path = tmp_path / "dotnet" / "Fibonacci"
+    class_path.mkdir(parents=True)
+    chmod_path_parts(class_path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
+    subprocess.run(["cp", str(CONTAINERS_DIRECTORY / "dotnet/Fibonacci.cs"), class_path])
+    subprocess.run(["dotnet", "new", "console", "--force"], cwd=class_path)
+    subprocess.run(["rm", "Program.cs"], cwd=class_path)
+    subprocess.run(
+        [
+            "dotnet",
+            "publish",
+            "-c",
+            "Release",
+            "-o",
+            ".",
+            "-p:UseRazorBuildServer=false",
+            "-p:UseSharedCompilation=false",
+        ],
+        cwd=class_path,
+    )
+    return ["dotnet", str(class_path / "Fibonacci.dll"), "--project", str(class_path)]
+
+
+@fixture
+def command_line(runtime: str, java_command_line: List[str], dotnet_command_line: List[str]) -> List[str]:
     # these do not have non-container application - so it will result in an error if the command
     # line is used.
     if runtime.startswith("native"):
@@ -94,6 +118,7 @@ def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
         "python": ["python3", str(CONTAINERS_DIRECTORY / "python/lister.py")],
         "php": ["php", str(CONTAINERS_DIRECTORY / "php/fibonacci.php")],
         "ruby": ["ruby", str(CONTAINERS_DIRECTORY / "ruby/fibonacci.rb")],
+        "dotnet": dotnet_command_line,
         "nodejs": [
             "node",
             "--perf-prof",
@@ -354,6 +379,7 @@ def assert_collapsed(runtime: str) -> AssertInCollapsed:
         "ruby": "fibonacci",
         "nodejs": "fibonacci",
         "golang": "fibonacci",
+        "dotnet": "Fibonacci",
     }[runtime]
 
     return partial(assert_function_in_collapsed, function_name)

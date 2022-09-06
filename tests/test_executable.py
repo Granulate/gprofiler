@@ -79,6 +79,7 @@ def test_executable(
         ("python", "py-spy"),
         ("ruby", "rbspy"),
         ("php", "phpspy"),
+        ("dotnet", "dotnet-trace"),
     ],
 )
 @pytest.mark.parametrize(

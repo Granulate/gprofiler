@@ -8,6 +8,8 @@ ARG PYPERF_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f2
 ARG PERF_BUILDER_UBUNTU=@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c
 # phpspy - ubuntu:20.04
 ARG PHPSPY_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
+# dotnet builder - mcr.microsoft.com/dotnet/sdk:6.0-focal
+ARG DOTNET_BUILDER_UBUNTU=@sha256:749439ff7a431ab4bc38d43cea453dff9ae1ed89a707c318b5082f9b2b25fa22
 # async-profiler glibc build
 # requires CentOS 7 so the built DSO can be loaded into machines running with old glibc (tested up to centos:6),
 # we do make some modifications to the selected versioned symbols so that we don't use anything from >2.12 (what centos:6
@@ -42,6 +44,16 @@ WORKDIR /tmp
 COPY scripts/rbspy_build.sh .
 RUN ./rbspy_build.sh
 RUN mv "/tmp/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /tmp/rbspy/rbspy
+
+# dotnet-trace
+FROM mcr.microsoft.com/dotnet/sdk${DOTNET_BUILDER_UBUNTU} as dotnet-builder
+WORKDIR /tmp
+RUN apt-get update && \
+  dotnet tool install --global dotnet-trace
+
+RUN cp -r "$HOME/.dotnet" "/tmp/dotnet"
+COPY scripts/dotnet_prepare_dependencies.sh .
+RUN ./dotnet_prepare_dependencies.sh
 
 # perf
 FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder
@@ -151,6 +163,7 @@ RUN set -e; \
     apt-get update && \
     apt-get upgrade -y && \
     apt-get install --no-install-recommends -y python3-pip && \
+    apt-get install --no-install-recommends -y libicu66 && \
     if [ "$(uname -m)" = "aarch64" ]; then \
       apt-get install -y --no-install-recommends build-essential python3.8-dev; \
     fi && \
@@ -180,6 +193,11 @@ COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/libasyncProfil
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
 
 COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
+
+ENV DOTNET_ROOT=/app/gprofiler/resources/dotnet
+COPY --from=dotnet-builder /usr/share/dotnet/host gprofiler/resources/dotnet/host
+COPY --from=dotnet-builder /tmp/dotnet/deps gprofiler/resources/dotnet/shared/Microsoft.NETCore.App/6.0.7
+COPY --from=dotnet-builder /tmp/dotnet/tools gprofiler/resources/dotnet/tools
 
 COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
 

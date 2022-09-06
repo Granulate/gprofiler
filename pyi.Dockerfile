@@ -11,6 +11,7 @@ ARG AP_CENTOS_MIN
 ARG BURN_BUILDER_GOLANG
 ARG GPROFILER_BUILDER
 ARG PYPERF_BUILDER_UBUNTU
+ARG DOTNET_BUILDER_UBUNTU
 
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
@@ -32,6 +33,16 @@ WORKDIR /tmp
 COPY scripts/rbspy_build.sh .
 RUN ./rbspy_build.sh
 RUN mv "/tmp/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /tmp/rbspy/rbspy
+
+# dotnet-trace
+FROM mcr.microsoft.com/dotnet/sdk${DOTNET_BUILDER_UBUNTU} as dotnet-builder
+WORKDIR /tmp
+RUN apt-get update && \
+  dotnet tool install --global dotnet-trace
+
+RUN cp -r "$HOME/.dotnet" "/tmp/dotnet"
+COPY scripts/dotnet_prepare_dependencies.sh .
+RUN ./dotnet_prepare_dependencies.sh
 
 # perf
 FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder
@@ -185,7 +196,8 @@ RUN yum clean all && yum --setopt=skip_missing_names_on_install=False install -y
         python3 \
         curl \
         python3-pip \
-        python3-devel
+        python3-devel \
+        libicu
 
 # needed for aarch64 (for staticx)
 RUN set -e; \
@@ -231,6 +243,10 @@ COPY --from=bcc-helpers /bpf_get_stack_offset/get_stack_offset gprofiler/resourc
 COPY --from=pyspy-builder /tmp/py-spy/py-spy gprofiler/resources/python/py-spy
 COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
 COPY --from=perf-builder /perf gprofiler/resources/perf
+
+COPY --from=dotnet-builder /usr/share/dotnet/host gprofiler/resources/dotnet/host
+COPY --from=dotnet-builder /tmp/dotnet/deps gprofiler/resources/dotnet/shared/Microsoft.NETCore.App/6.0.7
+COPY --from=dotnet-builder /tmp/dotnet/tools gprofiler/resources/dotnet/tools
 
 COPY --from=phpspy-builder /tmp/phpspy/phpspy gprofiler/resources/php/phpspy
 COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump

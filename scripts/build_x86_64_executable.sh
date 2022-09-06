@@ -15,6 +15,8 @@ UBUNTU_VERSION=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88e
 AP_BUILDER_CENTOS=@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e
 # async-profiler musl - alpine
 AP_BUILDER_ALPINE=@sha256:69704ef328d05a9f806b6b8502915e6a0a4faa4d72018dc42343f511490daf8a
+# dotnet builder - mcr.microsoft.com/dotnet/sdk:6.0-focal
+DOTNET_BUILDER_UBUNTU=@sha256:749439ff7a431ab4bc38d43cea453dff9ae1ed89a707c318b5082f9b2b25fa22
 # minimum CentOS version we intend to support with async-profiler (different between x86_64, where we require
 # an older version)
 AP_CENTOS_MIN=:6
@@ -36,4 +38,5 @@ DOCKER_BUILDKIT=1 docker build -f pyi.Dockerfile --output type=local,dest=build/
     --build-arg AP_CENTOS_MIN=$AP_CENTOS_MIN \
     --build-arg BURN_BUILDER_GOLANG=$BURN_BUILDER_GOLANG \
     --build-arg GPROFILER_BUILDER=$GPROFILER_BUILDER \
+    --build-arg DOTNET_BUILDER_UBUNTU=$DOTNET_BUILDER_UBUNTU \
     . $@
