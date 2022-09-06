@@ -196,7 +196,8 @@ RUN yum clean all && yum --setopt=skip_missing_names_on_install=False install -y
         python3 \
         curl \
         python3-pip \
-        python3-devel
+        python3-devel \
+        libicu
 
 # needed for aarch64 (for staticx)
 RUN set -e; \
@@ -243,9 +244,10 @@ COPY --from=pyspy-builder /tmp/py-spy/py-spy gprofiler/resources/python/py-spy
 COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
 COPY --from=perf-builder /perf gprofiler/resources/perf
 
-COPY --from=dotnet-builder /usr/share/dotnet/host /usr/share/dotnet/host
+ENV DOTNET_ROOT=/app/gprofiler/resources/dotnet
+COPY --from=dotnet-builder /usr/share/dotnet/host gprofiler/resources/dotnet/host
 COPY --from=dotnet-builder /tmp/dotnet/deps gprofiler/resources/dotnet/shared/Microsoft.NETCore.App/6.0.7
-COPY --from=dotnet-builder /tmp/dotnet gprofiler/resources/dotnet
+COPY --from=dotnet-builder /tmp/dotnet/tools gprofiler/resources/dotnet/tools
 
 COPY --from=phpspy-builder /tmp/phpspy/phpspy gprofiler/resources/php/phpspy
 COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
