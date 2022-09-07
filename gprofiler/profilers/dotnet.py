@@ -57,6 +57,7 @@ class DotnetMetadata(ApplicationMetadata):
 class DotnetProfiler(ProcessProfilerBase):
     RESOURCE_PATH = "dotnet/tools/dotnet-trace"
     _EXTRA_TIMEOUT = 10
+    _DOTNET_FRAME_SUFFIX = "_[net]"
 
     def __init__(
         self,
@@ -121,7 +122,9 @@ class DotnetProfiler(ProcessProfilerBase):
             logger.info(f"Finished profiling process {process.pid} with dotnet")
             comm = process_comm(process)
             return ProfileData(
-                load_speedscope_as_collapsed(local_output_path, self._frequency, comm), appid, app_metadata
+                load_speedscope_as_collapsed(local_output_path, self._frequency, comm, self._DOTNET_FRAME_SUFFIX),
+                appid,
+                app_metadata,
             )
 
     def _select_processes_to_profile(self) -> List[Process]:
