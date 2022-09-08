@@ -326,6 +326,18 @@ sudo sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE
      aws emr create-cluster --name MY-Cluster ... --bootstrap-actions "Path=s3://my-s3-bucket/gprofiler-bootstrap.sh"
      ```
 
+## Running via an Ansible playbook
+Download the [playbook](./deploy/dataproc/gprofiler_initialization_action.sh) and run it this way:
+```
+ansible-playbook -i ... gprofiler_playbook.yml --extra-vars "gprofiler_token='<TOKEN>'" --extra-vars "gprofiler_service='<SERVICE NAME>'"
+```
+
+**Note** - the playbook defaults to `hosts: all`, make sure to modify the pattern to your liking before running.
+
+The playbook defines 2 more variables:
+* `gprofiler_path` - path to download gProfiler to, `/tmp/gprofiler` by default.
+* `gprofiler_args` - additional arguments to pass to gProfiler, empty by default. You can use it to pass, for example, `'--profiling-frequency 15'` to change the frequency.
+
 ## Running from source
 gProfiler requires Python 3.6+ to run.
 
