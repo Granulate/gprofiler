@@ -180,6 +180,7 @@ class SystemInfo:
     cpu_flags: str
     memory_capacity_mb: int
     hostname: str
+    system: str
     os_name: str
     os_release: str
     os_codename: str
@@ -221,6 +222,7 @@ def get_static_system_info() -> SystemInfo:
         memory_capacity_mb=round(psutil.virtual_memory().total / 1024 / 1024),  # type: ignore # virtual_memory doesn't
         # have a return type is types-psutil
         hostname=hostname,
+        system=platform.system(),
         os_name=os_name,
         os_release=os_release,
         os_codename=os_codename,
