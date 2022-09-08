@@ -327,7 +327,7 @@ sudo sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE
      ```
 
 ## Running via an Ansible playbook
-Download the [playbook](./deploy/dataproc/gprofiler_initialization_action.sh) and run it this way:
+Download the [playbook](./deploy/ansible/gprofiler_playbook.yml) and run it this way:
 ```
 ansible-playbook -i ... gprofiler_playbook.yml --extra-vars "gprofiler_token='<TOKEN>'" --extra-vars "gprofiler_service='<SERVICE NAME>'"
 ```
