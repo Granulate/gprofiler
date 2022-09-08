@@ -124,6 +124,10 @@ def command_line(runtime: str, java_command_line: List[str], dotnet_command_line
             "--interpreted-frames-native-stack",
             str(CONTAINERS_DIRECTORY / "nodejs/fibonacci.js"),
         ],
+        "nodejs-attach": [
+            "node",
+            str(CONTAINERS_DIRECTORY / "nodejs/fibonacci.js"),
+        ],
     }[runtime]
 
 
@@ -131,7 +135,7 @@ def command_line(runtime: str, java_command_line: List[str], dotnet_command_line
 def application_executable(runtime: str) -> str:
     if runtime == "golang":
         return "fibonacci"
-    elif runtime == "nodejs":
+    elif runtime in ("nodejs", "nodejs-attach"):
         return "node"
     return runtime
 
@@ -405,6 +409,7 @@ def runtime_specific_args(runtime: str) -> List[str]:
         ],
         "python": ["-d", "3"],  # Burner python tests make syscalls and we want to record python + kernel stacks
         "nodejs": ["--nodejs-mode", "perf"],  # enable NodeJS profiling
+        "nodejs-attach": ["--nodejs-mode", "attach-maps"],
     }.get(runtime, [])
 
 
@@ -421,6 +426,7 @@ def assert_collapsed(runtime: str) -> AssertInCollapsed:
         "nodejs": "fibonacci",
         "golang": "fibonacci",
         "dotnet": "Fibonacci",
+        "nodejs-attach": "fibonacci",
     }[runtime]
 
     return partial(assert_function_in_collapsed, function_name)

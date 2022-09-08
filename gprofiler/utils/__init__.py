@@ -26,7 +26,7 @@ from typing import Any, Callable, Iterator, List, Optional, Tuple, Union, cast
 
 import importlib_resources
 import psutil
-from granulate_utils.exceptions import CouldNotAcquireMutex
+from granulate_utils.exceptions import CouldNotAcquireMutex, MissingExePath
 from granulate_utils.linux.mutex import try_acquire_mutex
 from granulate_utils.linux.ns import run_in_ns
 from granulate_utils.linux.process import process_exe
@@ -273,7 +273,7 @@ def pgrep_exe(match: str) -> List[Process]:
         try:
             if pattern.match(process_exe(process)):
                 procs.append(process)
-        except psutil.NoSuchProcess:  # process might have died meanwhile
+        except (psutil.NoSuchProcess, MissingExePath):  # process might have died meanwhile
             continue
     return procs
 
@@ -458,7 +458,8 @@ def is_pyinstaller() -> bool:
 def get_staticx_dir() -> Optional[str]:
     return os.getenv("STATICX_BUNDLE_DIR")
 
-def add_permission_dir(path: str, permission_for_file: int, permission_for_dir: int):
+
+def add_permission_dir(path: str, permission_for_file: int, permission_for_dir: int) -> None:
     os.chmod(path, os.stat(path).st_mode | permission_for_dir)
     for subpath in glob.glob(path + "/*"):
         if os.path.isdir(subpath):

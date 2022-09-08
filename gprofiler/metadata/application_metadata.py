@@ -6,13 +6,12 @@
 import functools
 from threading import Event, Lock
 from typing import Any, Dict, Optional
-from . import get_exe_version
 
 from granulate_utils.linux.process import is_process_running, read_process_execfn
 from psutil import NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter
-
+from gprofiler.metadata import get_exe_version
 
 logger = get_logger_adapter(__name__)
 
@@ -36,9 +35,8 @@ class ApplicationMetadata:
                 if not is_process_running(process):
                     del self._cache[process]
 
-
     def get_exe_version(self, process: Process, version_arg: str = "--version", try_stderr: bool = False) -> str:
-        return get_exe_version(process, version_arg, try_stderr)
+        return get_exe_version(process, self._stop_event, self._GET_VERSION_TIMEOUT, version_arg, try_stderr)
 
     @functools.lru_cache(4096)
     def get_exe_version_cached(self, process: Process, version_arg: str = "--version", try_stderr: bool = False) -> str:

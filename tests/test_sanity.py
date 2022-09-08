@@ -116,11 +116,43 @@ def test_nodejs(
     gprofiler_docker_image: Image,
 ) -> None:
     with SystemProfiler(
-        1000, 6, Event(), str(tmp_path), False, perf_mode="fp", perf_inject=True, perf_dwarf_stack_size=0,
+        1000,
+        6,
+        Event(),
+        str(tmp_path),
+        False,
+        perf_mode="fp",
+        perf_inject=True,
+        perf_dwarf_stack_size=0,
         perf_node_attach=False,
     ) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
+
+
+@pytest.mark.parametrize("runtime", ["nodejs-attach"])
+def test_nodejs_attach_maps(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed: AssertInCollapsed,
+) -> None:
+    with SystemProfiler(
+        1000,
+        6,
+        Event(),
+        str(tmp_path),
+        False,
+        perf_mode="fp",
+        perf_inject=False,
+        perf_dwarf_stack_size=0,
+        perf_node_attach=True,
+    ) as profiler:
+        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
+        assert_collapsed(process_collapsed)
+        # check for node built-in functions
+        assert_function_in_collapsed("node::Start", process_collapsed)
+        # check for v8 built-in functions
+        assert_function_in_collapsed("v8::Function::Call", process_collapsed)
 
 
 @pytest.mark.parametrize("runtime", ["python"])

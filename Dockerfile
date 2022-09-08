@@ -1,4 +1,5 @@
 # these need to be defined before any FROM - otherwise, the ARGs expand to empty strings.
+
 # pyspy & rbspy, using the same builder for both pyspy and rbspy since they share build dependencies - rust:latest 1.52.1
 ARG RUST_BUILDER_VERSION=@sha256:9c106c1222abe1450f45774273f36246ebf257623ed51280dbc458632d14c9fc
 # pyperf - ubuntu 20.04
@@ -154,18 +155,17 @@ RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_musl.sh
 # node-package-builder-musl
 FROM alpine${NODE_PACKAGE_BUILDER_MUSL} AS node-package-builder-musl
 WORKDIR /tmp
+COPY scripts/node_builder_musl_env.sh .
+RUN ./node_builder_musl_env.sh
 COPY scripts/build_node_package.sh .
-RUN apk add --no-cache curl g++ python3 make gcc git bash nodejs npm
 RUN ./build_node_package.sh
 
 # node-package-builder-glibc
 FROM ubuntu${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
 WORKDIR /tmp
+COPY scripts/node_builder_glibc_env.sh .
+RUN ./node_builder_glibc_env.sh
 COPY scripts/build_node_package.sh .
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update -y && apt install -y curl g++ python3 make gcc git
-RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash -
-RUN apt install -y nodejs
 RUN ./build_node_package.sh
 
 # burn

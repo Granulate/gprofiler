@@ -23,9 +23,9 @@ from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import run_process, start_process, wait_event, wait_for_file_by_prefix
+from gprofiler.utils.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.utils.perf import perf_path
 from gprofiler.utils.process import is_process_basename_matching
-from gprofiler.utils.node import clean_up_node_maps, generate_map_for_node_processes
 
 logger = get_logger_adapter(__name__)
 
@@ -180,7 +180,7 @@ class SystemProfiler(ProfilerBase):
         _ = profile_spawned_processes  # Required for mypy unused argument warning
         self._perfs: List[PerfProcess] = []
         self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
-
+        self._node_processes: List[Process] = []
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
                 self._frequency,
@@ -206,18 +206,20 @@ class SystemProfiler(ProfilerBase):
             self._perfs.append(self._perf_dwarf)
         else:
             self._perf_dwarf = None
+
         self.perf_node_attach = perf_node_attach
         assert self._perf_fp is not None or self._perf_dwarf is not None
 
     def start(self) -> None:
         if self.perf_node_attach:
-            generate_map_for_node_processes()
+            self._node_processes = get_node_processes()
+            generate_map_for_node_processes(self._node_processes)
         for perf in self._perfs:
             perf.start()
 
     def stop(self) -> None:
         if self.perf_node_attach:
-            clean_up_node_maps()
+            clean_up_node_maps(self._node_processes)
         for perf in reversed(self._perfs):
             perf.stop()
 
@@ -235,6 +237,11 @@ class SystemProfiler(ProfilerBase):
         return None
 
     def snapshot(self) -> ProcessToProfileData:
+        if self.perf_node_attach:
+            new_processes = [process for process in get_node_processes() if process not in self._node_processes]
+            generate_map_for_node_processes(new_processes)
+            self._node_processes.extend(new_processes)
+
         if self._stop_event.wait(self._duration):
             raise StopEventSetException
 

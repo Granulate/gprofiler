@@ -12,7 +12,6 @@ ARG BURN_BUILDER_GOLANG
 ARG GPROFILER_BUILDER
 ARG PYPERF_BUILDER_UBUNTU
 ARG DOTNET_BUILDER
-ARG DOTNET_BUILDER_UBUNTU
 ARG NODE_PACKAGE_BUILDER_MUSL
 ARG NODE_PACKAGE_BUILDER_GLIBC
 
@@ -104,17 +103,16 @@ RUN ./burn_build.sh
 # node-package-builder-musl
 FROM alpine${NODE_PACKAGE_BUILDER_MUSL} AS node-package-builder-musl
 WORKDIR /tmp
-RUN apk add --no-cache curl g++ python3 make gcc git bash nodejs npm
+COPY scripts/node_builder_musl_env.sh .
+RUN ./node_builder_musl_env.sh
 COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
 
 # node-package-builder-glibc
 FROM ubuntu${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
 WORKDIR /tmp
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update -y && apt install -y curl g++ python3 make gcc git
-RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash -
-RUN apt install -y nodejs
+COPY scripts/node_builder_glibc_env.sh .
+RUN ./node_builder_glibc_env.sh
 COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
 

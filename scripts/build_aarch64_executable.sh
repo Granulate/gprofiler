@@ -20,7 +20,6 @@ ALPINE_VERSION=@sha256:b06a5cf61b2956088722c4f1b9a6f71dfe95f0b1fe285d44195452b8a
 # mcr.microsoft.com/dotnet/sdk:6.0-focal
 DOTNET_BUILDER=@sha256:749439ff7a431ab4bc38d43cea453dff9ae1ed89a707c318b5082f9b2b25fa22
 
-
 mkdir -p build/aarch64
 docker buildx build --platform=linux/arm64 \
     --build-arg RUST_BUILDER_VERSION=$RUST_VERSION \
