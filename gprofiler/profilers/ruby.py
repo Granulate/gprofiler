@@ -33,7 +33,7 @@ class RubyMetadata(ApplicationMetadata):
 
     @functools.lru_cache(4096)
     def _get_ruby_version(self, process: Process) -> str:
-        if is_process_basename(process, r"^ruby"):  # startswith match
+        if not is_process_basename(process, r"^ruby"):  # startswith match
             # TODO: for dynamic executables, find the ruby binary that works with the loaded libruby, and
             # check it instead. For static executables embedding libruby - :shrug:
             raise NotImplementedError
