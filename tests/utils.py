@@ -160,7 +160,7 @@ def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCou
 
 def snapshot_one_profile(profiler: ProfilerInterface) -> ProfileData:
     result = profiler.snapshot()
-    assert len(result) == 1
+    assert len(result) == 1, result
     return next(iter(result.values()))
 
 
