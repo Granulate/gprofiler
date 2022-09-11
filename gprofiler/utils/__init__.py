@@ -4,8 +4,6 @@
 #
 import ctypes
 import datetime
-import errno
-import fcntl
 import glob
 import logging
 import os
@@ -28,6 +26,8 @@ from typing import Any, Callable, Iterator, List, Optional, Tuple, Union, cast
 
 import importlib_resources
 import psutil
+from granulate_utils.exceptions import CouldNotAcquireMutex
+from granulate_utils.linux.mutex import try_acquire_mutex
 from granulate_utils.linux.ns import run_in_ns
 from granulate_utils.linux.process import process_exe
 from psutil import Process
@@ -380,45 +380,18 @@ def grab_gprofiler_mutex() -> bool:
     """
     GPROFILER_LOCK = "\x00gprofiler_lock"
 
-    def _take_lock() -> Tuple[bool, Optional[socket.socket]]:  # like Rust's Result<Option> :(
-        s = socket.socket(socket.AF_UNIX)
-
-        try:
-            s.bind(GPROFILER_LOCK)
-        except OSError as e:
-            if e.errno != errno.EADDRINUSE:
-                raise
-
-            # already taken :/
-            return False, None
-        else:
-            # don't let child programs we execute inherit it.
-            fcntl.fcntl(s, fcntl.F_SETFD, fcntl.fcntl(s, fcntl.F_GETFD) | fcntl.FD_CLOEXEC)
-
-            return True, s
-
-    res = run_in_ns(["net"], _take_lock)
-    if res is None:
-        # exception in run_in_ns
-        print(
-            "Could not acquire gProfiler's lock due to an error. Are you running gProfiler in privileged mode?",
-            file=sys.stderr,
-        )
-        return False
-    elif res[0]:
-        assert res[1] is not None
-
-        global gprofiler_mutex
-        # hold the reference so lock remains taken
-        gprofiler_mutex = res[1]
-        return True
-    else:
+    try:
+        run_in_ns(["net"], lambda: try_acquire_mutex(GPROFILER_LOCK), passthrough_exception=True)
+    except CouldNotAcquireMutex:
         print(
             "Could not acquire gProfiler's lock. Is it already running?"
             " Try 'sudo netstat -xp | grep gprofiler' to see which process holds the lock.",
             file=sys.stderr,
         )
         return False
+    else:
+        # success
+        return True
 
 
 def atomically_symlink(target: str, link_node: str) -> None:
