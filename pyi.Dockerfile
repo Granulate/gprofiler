@@ -11,7 +11,7 @@ ARG AP_CENTOS_MIN
 ARG BURN_BUILDER_GOLANG
 ARG GPROFILER_BUILDER
 ARG PYPERF_BUILDER_UBUNTU
-ARG DOTNET_BUILDER_UBUNTU
+ARG DOTNET_BUILDER
 
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
@@ -35,7 +35,7 @@ RUN ./rbspy_build.sh
 RUN mv "/tmp/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /tmp/rbspy/rbspy
 
 # dotnet-trace
-FROM mcr.microsoft.com/dotnet/sdk${DOTNET_BUILDER_UBUNTU} as dotnet-builder
+FROM mcr.microsoft.com/dotnet/sdk${DOTNET_BUILDER} as dotnet-builder
 WORKDIR /tmp
 RUN apt-get update && \
   dotnet tool install --global dotnet-trace
