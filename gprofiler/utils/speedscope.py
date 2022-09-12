@@ -23,7 +23,10 @@ def _speedscope_frame_name(speedscope: Dict[str, Any], frame: int) -> str:
 
 
 def load_speedscope_as_collapsed(
-    speedscope_path: str, frequncy_hz: int, add_comm: Optional[str] = None
+    speedscope_path: str,
+    frequncy_hz: int,
+    add_comm: Optional[str] = None,
+    frame_suffix: str = "",
 ) -> StackToSampleCount:
     interval = 1 / frequncy_hz
     interval_ms = interval * 1000
@@ -61,8 +64,8 @@ def load_speedscope_as_collapsed(
                 stacks.append(tuple(stack))
 
         for s in stacks:
-            if add_comm is not None:
-                result_stacks[f"{add_comm};" + ";".join(map(lambda f: _speedscope_frame_name(speedscope, f), s))] += 1
-            else:
-                result_stacks[";".join(map(lambda f: _speedscope_frame_name(speedscope, f), s))] += 1
+            result_stacks[
+                (f"{add_comm};" if add_comm is not None else "")
+                + ";".join(map(lambda f: _speedscope_frame_name(speedscope, f) + frame_suffix, s))
+            ] += 1
     return result_stacks
