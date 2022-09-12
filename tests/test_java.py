@@ -616,7 +616,7 @@ def test_java_different_basename(
             application_pid = container.attrs["State"]["Pid"]
             profile = snapshot_pid_profile(profiler, application_pid)
             if change_argv0:
-                # we changed basename - we should run the profiler
+                # we changed basename - we should have run the profiler
                 assert profile.app_metadata is not None
                 assert (
                     os.path.basename(profile.app_metadata["execfn"])
@@ -626,7 +626,7 @@ def test_java_different_basename(
                 assert_function_in_collapsed(f"{java_notjava_basename};", profile.stacks)
                 assert_collapsed(profile.stacks)
             else:
-                # we didn't change basename - we should not run the profiler due to a different basename.
+                # we didn't change basename - we should not have run the profiler due to a different basename.
                 assert profile.stacks == Counter(
                     {f"{java_notjava_basename};[Profiling skipped: profiling this JVM is not supported]": 1}
                 )
