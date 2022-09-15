@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 from io import StringIO
+from random import randint
 from typing import List, TextIO
 from unittest.mock import Mock
 
@@ -16,6 +17,7 @@ PROCESS_CWD = "/my/dir"
 
 def process_with_cmdline(cmdline: List[str]) -> Mock:
     process = Mock()
+    process.pid = randint(100, 32767)
     process.cmdline.return_value = cmdline
     process.cwd.return_value = PROCESS_CWD
     return process
@@ -103,6 +105,26 @@ def test_uwsgi_ini_file(monkeypatch: MonkeyPatch) -> None:
     # --ini with no uwsgi section
     config = "[app:blabla]\nxx = yy\n\n"
     assert "uwsgi: my.ini" == get_python_app_id(process_with_cmdline(["uwsgi", "a", "b", "--ini", "my.ini"]))
+
+
+def test_uwsgi_get_emperor() -> None:
+    environ = environ = {"UWSGI_EMPEROR_FD": "123"}
+
+    # emperor (monitor) -> vassal (app master) -> worker
+
+    worker = process_with_cmdline(["uwsgi", "a", "b", "--ini", "my.ini"])
+    worker.environ.return_value = environ
+    vassal = process_with_cmdline(["uwsgi", "a", "b", "--ini", "my.ini"])
+    vassal.environ.return_value = environ
+    emperor = process_with_cmdline(["uwsgi", "--emperor", "/some/folder", "--emperor=/another/folder"])
+
+    worker.parent.return_value = vassal
+    vassal.parent.return_value = emperor
+
+    found_emperor = _UwsgiApplicationIdentifier._get_emperor(worker)
+    assert found_emperor is not None
+    assert found_emperor.process is emperor
+    assert set(found_emperor.apps) == set(["/some/folder", "/another/folder"])
 
 
 def test_celery_with_app() -> None:
