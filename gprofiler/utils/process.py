@@ -36,7 +36,7 @@ def process_comm(process: Process) -> str:
 
 
 @lru_cache(maxsize=512)
-def is_process_basename(process: Process, basename_pattern: str) -> bool:
+def is_process_basename_matching(process: Process, basename_pattern: str) -> bool:
     if re.match(basename_pattern, os.path.basename(process_exe(process))):
         return True
 

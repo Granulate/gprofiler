@@ -19,7 +19,7 @@ from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
-from gprofiler.utils.process import is_process_basename, process_comm
+from gprofiler.utils.process import is_process_basename_matching, process_comm
 from gprofiler.utils.speedscope import load_speedscope_as_collapsed
 
 logger = get_logger_adapter(__name__)
@@ -30,7 +30,7 @@ class DotnetMetadata(ApplicationMetadata):
 
     @functools.lru_cache(4096)
     def _get_dotnet_version(self, process: Process) -> str:
-        if not is_process_basename(process, r"^dotnet"):  # startswith check
+        if not is_process_basename_matching(process, r"^dotnet"):  # startswith check
             raise NotImplementedError
         version = self.get_exe_version(process)  # not using cached version here since this wrapper is a cache
         return version

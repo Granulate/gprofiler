@@ -23,7 +23,7 @@ from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
-from gprofiler.utils.process import is_process_basename, process_comm, read_proc_file
+from gprofiler.utils.process import is_process_basename_matching, process_comm, read_proc_file
 
 logger = get_logger_adapter(__name__)
 
@@ -33,7 +33,7 @@ class RubyMetadata(ApplicationMetadata):
 
     @functools.lru_cache(4096)
     def _get_ruby_version(self, process: Process) -> str:
-        if not is_process_basename(process, r"^ruby"):  # startswith match
+        if not is_process_basename_matching(process, r"^ruby"):  # startswith match
             # TODO: for dynamic executables, find the ruby binary that works with the loaded libruby, and
             # check it instead. For static executables embedding libruby - :shrug:
             raise NotImplementedError

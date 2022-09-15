@@ -51,7 +51,7 @@ from gprofiler.utils import (
     wait_event,
     wait_for_file_by_prefix,
 )
-from gprofiler.utils.process import is_process_basename, process_comm, read_proc_file
+from gprofiler.utils.process import is_process_basename_matching, process_comm, read_proc_file
 
 logger = get_logger_adapter(__name__)
 
@@ -97,7 +97,7 @@ class PythonMetadata(ApplicationMetadata):
     _PYTHON_VERSION_TIMEOUT = 3
 
     def _run_process_python(self, process: Process, args: List[str]) -> Tuple[str, str]:
-        if not is_process_basename(process, application_identifiers._PYTHON_BIN_RE):
+        if not is_process_basename_matching(process, application_identifiers._PYTHON_BIN_RE):
             # TODO: for dynamic executables, find the python binary that works with the loaded libpython, and
             # check it instead. For static executables embedding libpython - :shrug:
             raise NotImplementedError

@@ -24,7 +24,7 @@ from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import run_process, start_process, wait_event, wait_for_file_by_prefix
 from gprofiler.utils.perf import perf_path
-from gprofiler.utils.process import is_process_basename
+from gprofiler.utils.process import is_process_basename_matching
 
 logger = get_logger_adapter(__name__)
 
@@ -303,7 +303,7 @@ class GolangPerfMetadata(PerfMetadata):
 
 class NodePerfMetadata(PerfMetadata):
     def relevant_for_process(self, process: Process) -> bool:
-        return is_process_basename(process, r"^node$")
+        return is_process_basename_matching(process, r"^node$")
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         metadata = {"node_version": self.get_exe_version_cached(process)}
