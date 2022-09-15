@@ -135,12 +135,12 @@ class PerfProcess:
 @register_profiler(
     "Perf",
     possible_modes=["fp", "dwarf", "smart", "disabled"],
-    default_mode="fp",
+    default_mode="smart",
     supported_archs=["x86_64", "aarch64"],
     profiler_mode_argument_help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge"
     " them by choosing the best result per process. If 'disabled' is chosen, do not invoke"
     " 'perf' at all. The output, in that case, is the concatenation of the results from all"
-    " of the runtime profilers.",
+    " of the runtime profilers. Defaults to 'smart'.",
     profiler_arguments=[
         ProfilerArgument(
             "--perf-dwarf-stack-size",
