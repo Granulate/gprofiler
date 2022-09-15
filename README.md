@@ -81,7 +81,7 @@ Profiling using eBPF incurs lower overhead & provides kernel & native stacks.
 * `--perf-mode`: Controls the global perf strategy. Must be one of the following options:
     * `fp` - Use Frame Pointers for the call graph
     * `dwarf` - Use DWARF for the call graph (adds the `--call-graph dwarf` argument to the `perf` command)
-    * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process.
+    * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process. *This is the default.*
     * `disabled` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
 
 ## Other options
