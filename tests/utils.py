@@ -168,8 +168,12 @@ def snapshot_one_collapsed(profiler: ProfilerInterface) -> StackToSampleCount:
     return snapshot_one_profile(profiler).stacks
 
 
+def snapshot_pid_profile(profiler: ProfilerInterface, pid: int) -> ProfileData:
+    return profiler.snapshot()[pid]
+
+
 def snapshot_pid_collapsed(profiler: ProfilerInterface, pid: int) -> StackToSampleCount:
-    return profiler.snapshot()[pid].stacks
+    return snapshot_pid_profile(profiler, pid).stacks
 
 
 def make_java_profiler(
@@ -316,6 +320,7 @@ def _application_docker_container(
     application_docker_image: Image,
     application_docker_mounts: List[Mount],
     application_docker_capabilities: List[str],
+    application_docker_command: Optional[List[str]] = None,
 ) -> Container:
     container: Container = docker_client.containers.run(
         application_docker_image,
@@ -323,6 +328,7 @@ def _application_docker_container(
         user="5555:6666",
         mounts=application_docker_mounts,
         cap_add=application_docker_capabilities,
+        command=application_docker_command,
     )
     while container.status != "running":
         if container.status == "exited":

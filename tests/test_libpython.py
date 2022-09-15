@@ -36,8 +36,9 @@ def test_python_select_by_libpython(
     assert_collapsed: AssertInCollapsed,
 ) -> None:
     """
-    Tests that profiling of processes running Python, whose basename(readlink("/proc/pid/exe")) isn't "python".
-    (for example, uwsgi). We expect to select these because they have "libpython" in their "/proc/pid/maps".
+    Tests that profiling of processes running Python, whose basename(readlink("/proc/pid/exe")) isn't "python"
+    (and also their comm isn't "python", for example, uwsgi).
+    We expect to select these because they have "libpython" in their "/proc/pid/maps".
     This test runs a Python named "shmython".
     """
     with PythonProfiler(1000, 1, Event(), str(tmp_path), False, "pyspy", True, None) as profiler:

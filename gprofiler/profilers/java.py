@@ -65,7 +65,7 @@ from gprofiler.utils import (
 )
 from gprofiler.utils.fs import is_rw_exec_dir, safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
-from gprofiler.utils.process import process_comm, read_proc_file
+from gprofiler.utils.process import is_process_basename_matching, process_comm, read_proc_file
 
 logger = get_logger_adapter(__name__)
 
@@ -190,7 +190,7 @@ class JattachSocketMissingException(JattachExceptionBase):
 
 
 def is_java_basename(process: Process) -> bool:
-    return os.path.basename(process_exe(process)) == "java"
+    return is_process_basename_matching(process, r"^java$")
 
 
 _JAVA_VERSION_TIMEOUT = 5
@@ -805,7 +805,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             if java_version_output is None:  # we don't get the java version if the exe isn't "java"
                 logger.warning(
                     "Non-java basenamed process (cannot get Java version), skipping... (disable "
-                    f" --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS} to profile it anyway)",
+                    f"--java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS} to profile it anyway)",
                     pid=process.pid,
                     exe=exe,
                 )
@@ -845,7 +845,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             if "libasyncProfiler.so" in mmap.path and f"/{GPROFILER_DIRECTORY_NAME}/" not in mmap.path:
                 logger.warning(
                     "Non-gProfiler async-profiler is already loaded to the target process."
-                    f" Disable --java-safemode={JavaSafemodeOptions.AP_LOADED_CHECK} to bypass this check.",
+                    f" (disable --java-safemode={JavaSafemodeOptions.AP_LOADED_CHECK} to bypass this check)",
                     pid=process.pid,
                     ap_path=mmap.path,
                 )

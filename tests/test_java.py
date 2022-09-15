@@ -18,7 +18,9 @@ from typing import Any, Optional
 import docker
 import psutil
 import pytest
+from docker import DockerClient
 from docker.models.containers import Container
+from docker.models.images import Image
 from granulate_utils.java import parse_jvm_version
 from granulate_utils.linux.elf import get_elf_buildid
 from granulate_utils.linux.ns import get_process_nspid
@@ -26,11 +28,24 @@ from granulate_utils.linux.process import is_musl
 from packaging.version import Version
 from pytest import LogCaptureFixture, MonkeyPatch
 
-from gprofiler.profilers.java import AsyncProfiledProcess, JavaProfiler, frequency_to_ap_interval, get_java_version
+from gprofiler.profilers.java import (
+    JAVA_SAFEMODE_ALL,
+    AsyncProfiledProcess,
+    JavaProfiler,
+    frequency_to_ap_interval,
+    get_java_version,
+)
 from gprofiler.utils import remove_prefix
 from tests.conftest import AssertInCollapsed
 from tests.type_utils import cast_away_optional
-from tests.utils import assert_function_in_collapsed, make_java_profiler, snapshot_one_collapsed, snapshot_one_profile
+from tests.utils import (
+    _application_docker_container,
+    assert_function_in_collapsed,
+    make_java_profiler,
+    snapshot_one_collapsed,
+    snapshot_one_profile,
+    snapshot_pid_profile,
+)
 
 
 def get_lib_path(application_pid: int, path: str) -> str:
@@ -564,3 +579,67 @@ def test_java_jattach_async_profiler_log_output(
         )
         # stop
         assert log_records[1].gprofiler_adapter_extra["ap_log"] == ""  # type: ignore
+
+
+@pytest.mark.parametrize(
+    "change_argv0", [pytest.param(True, id="argv0 is java"), pytest.param(False, id="argv0 is not java")]
+)
+def test_java_different_basename(
+    tmp_path: Path,
+    docker_client: DockerClient,
+    application_docker_image: Image,
+    assert_collapsed: AssertInCollapsed,
+    caplog: LogCaptureFixture,
+    change_argv0: bool,
+) -> None:
+    """
+    Tests that we can profile a Java app that runs with non-java "comm", by reading the argv0 instead.
+    """
+    java_notjava_basename = "java-notjava"
+
+    with make_java_profiler(
+        storage_dir=str(tmp_path),
+        duration=1,
+        java_safemode=JAVA_SAFEMODE_ALL,  # explicitly enable, for basename checks
+    ) as profiler:
+        with _application_docker_container(
+            docker_client,
+            application_docker_image,
+            [],
+            [],
+            application_docker_command=[
+                "bash",
+                "-c",
+                f"{'exec -a java ' if change_argv0 else ''}{java_notjava_basename} -jar Fibonacci.jar",
+            ],
+        ) as container:
+            application_pid = container.attrs["State"]["Pid"]
+            profile = snapshot_pid_profile(profiler, application_pid)
+            if change_argv0:
+                # we changed basename - we should have run the profiler
+                assert profile.app_metadata is not None
+                assert (
+                    os.path.basename(profile.app_metadata["execfn"])
+                    == os.path.basename(profile.app_metadata["exe"])
+                    == java_notjava_basename
+                )
+                assert_function_in_collapsed(f"{java_notjava_basename};", profile.stacks)
+                assert_collapsed(profile.stacks)
+            else:
+                # we didn't change basename - we should not have run the profiler due to a different basename.
+                assert profile.stacks == Counter(
+                    {f"{java_notjava_basename};[Profiling skipped: profiling this JVM is not supported]": 1}
+                )
+                log_records = list(
+                    filter(
+                        lambda r: r.message
+                        == "Non-java basenamed process (cannot get Java version), skipping... (disable"
+                        " --java-safemode=java-extended-version-checks to profile it anyway)",
+                        caplog.records,
+                    )
+                )
+                assert len(log_records) == 1
+                assert (
+                    os.path.basename(log_records[0].gprofiler_adapter_extra["exe"])  # type: ignore
+                    == java_notjava_basename
+                )
