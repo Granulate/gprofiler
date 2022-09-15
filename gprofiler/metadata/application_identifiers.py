@@ -211,7 +211,7 @@ class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
         if wsgi_config_file is not None:
             return f"uwsgi: {wsgi_config_file}"
         else:
-            return "uwsgi: wsgi module not found"
+            return "uwsgi: ini file / wsgi module not found"
 
 
 class _CeleryApplicationIdentifier(_ApplicationIdentifier):
