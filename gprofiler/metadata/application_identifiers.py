@@ -159,6 +159,20 @@ class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
         config_file = _get_cli_arg_by_name(cmdline, "--ini", check_for_equals_arg=True)
         if config_file is _NON_AVAILABLE_ARG:
             config_file = _get_cli_arg_by_name(cmdline, "--ini-paste", check_for_equals_arg=True)
+        if config_file is _NON_AVAILABLE_ARG:
+            config_file = _get_cli_arg_by_name(cmdline, "--ini-paste-logged", check_for_equals_arg=True)
+        if config_file is _NON_AVAILABLE_ARG:
+            # uwsgi also accepts just .ini files without any preceeding arg (checked on version 2.0.20)
+            inis = list(filter(lambda arg: arg.endswith(".ini"), cmdline))
+            if len(inis) > 0:
+                if len(inis) > 1:
+                    _logger.warning(
+                        f"{cls.__name__} Couldn't find uwsgi wsgi module, both from cmdline and from config file",
+                        cmdline=process.cmdline(),
+                        no_extra_to_server=True,
+                    )
+                else:
+                    config_file = inis[0]
 
         if config_file is _NON_AVAILABLE_ARG:
             return None, None
@@ -194,7 +208,10 @@ class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
             cmdline=process.cmdline(),
             no_extra_to_server=True,
         )
-        return f"uwsgi: {wsgi_config_file}"
+        if wsgi_config_file is not None:
+            return f"uwsgi: {wsgi_config_file}"
+        else:
+            return "uwsgi: ini file / wsgi module not found"
 
 
 class _CeleryApplicationIdentifier(_ApplicationIdentifier):
