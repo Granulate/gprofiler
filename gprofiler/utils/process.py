@@ -6,13 +6,14 @@
 import os
 import re
 from functools import lru_cache
+from typing import Match, Optional
 
 from granulate_utils.linux.process import process_exe, read_proc_file
 from psutil import Process
 
 
-def search_proc_maps(process: Process, pattern: str):
-    return re.search(pattern, read_proc_file(process, 'maps').decode(), re.MULTILINE)
+def search_proc_maps(process: Process, pattern: str) -> Optional[Match[str]]:
+    return re.search(pattern, read_proc_file(process, "maps").decode(), re.MULTILINE)
 
 
 def process_comm(process: Process) -> str:
