@@ -2,13 +2,13 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import glob
 import os
 import stat
 import subprocess
-from contextlib import contextmanager
+from contextlib import _GeneratorContextManager, contextmanager
 from functools import partial
 from pathlib import Path
-from time import sleep
 from typing import Any, Callable, Generator, Iterable, Iterator, List, Mapping, Optional, cast
 
 import docker
@@ -24,7 +24,12 @@ from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.metadata.application_identifiers import get_java_app_id, get_python_app_id, set_enrichment_options
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
-from tests.utils import assert_function_in_collapsed, chmod_path_parts
+from tests.utils import (
+    _application_docker_container,
+    _application_process,
+    assert_function_in_collapsed,
+    chmod_path_parts,
+)
 
 
 @fixture
@@ -76,7 +81,36 @@ def java_command_line(tmp_path: Path, java_args: List[str]) -> List[str]:
 
 
 @fixture
-def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
+def dotnet_command_line(tmp_path: Path) -> List[str]:
+    class_path = tmp_path / "dotnet" / "Fibonacci"
+    class_path.mkdir(parents=True)
+    chmod_path_parts(class_path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
+    subprocess.run(["cp", str(CONTAINERS_DIRECTORY / "dotnet/Fibonacci.cs"), class_path])
+    subprocess.run(["dotnet", "new", "console", "--force"], cwd=class_path)
+    subprocess.run(["rm", "Program.cs"], cwd=class_path)
+    subprocess.run(
+        [
+            "dotnet",
+            "publish",
+            "-c",
+            "Release",
+            "-o",
+            ".",
+            "-p:UseRazorBuildServer=false",
+            "-p:UseSharedCompilation=false",
+        ],
+        cwd=class_path,
+    )
+    return ["dotnet", str(class_path / "Fibonacci.dll"), "--project", str(class_path)]
+
+
+@fixture
+def command_line(runtime: str, java_command_line: List[str], dotnet_command_line: List[str]) -> List[str]:
+    # these do not have non-container application - so it will result in an error if the command
+    # line is used.
+    if runtime.startswith("native"):
+        return ["/bin/false"]
+
     return {
         "java": java_command_line,
         # note: here we run "python /path/to/lister.py" while in the container test we have
@@ -84,6 +118,7 @@ def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
         "python": ["python3", str(CONTAINERS_DIRECTORY / "python/lister.py")],
         "php": ["php", str(CONTAINERS_DIRECTORY / "php/fibonacci.php")],
         "ruby": ["ruby", str(CONTAINERS_DIRECTORY / "ruby/fibonacci.rb")],
+        "dotnet": dotnet_command_line,
         "nodejs": [
             "node",
             "--perf-prof",
@@ -95,7 +130,11 @@ def command_line(runtime: str, java_command_line: List[str]) -> List[str]:
 
 @fixture
 def application_executable(runtime: str) -> str:
-    return "fibonacci" if runtime == "golang" else runtime
+    if runtime == "golang":
+        return "fibonacci"
+    elif runtime == "nodejs":
+        return "node"
+    return runtime
 
 
 @fixture
@@ -115,12 +154,6 @@ def gprofiler_exe(request: FixtureRequest, tmp_path: Path) -> Path:
     return tmp_path / "gprofiler"
 
 
-def _print_process_output(popen: subprocess.Popen) -> None:
-    stdout, stderr = popen.communicate()
-    print(f"stdout: {stdout.decode()}")
-    print(f"stderr: {stderr.decode()}")
-
-
 @fixture
 def check_app_exited() -> bool:
     """Override this to prevent checking if app exited prematurely (useful for simulating crash)."""
@@ -135,37 +168,8 @@ def application_process(
         yield None
         return
     else:
-        # run as non-root to catch permission errors, etc.
-        def lower_privs() -> None:
-            os.setgid(1000)
-            os.setuid(1000)
-
-        popen = subprocess.Popen(
-            command_line, preexec_fn=lower_privs, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd="/tmp"
-        )
-        try:
-            # wait 2 seconds to ensure it starts
-            popen.wait(2)
-        except subprocess.TimeoutExpired:
-            pass
-        else:
-            _print_process_output(popen)
-            raise Exception(f"Command {command_line} exited unexpectedly with {popen.returncode}")
-
-        yield popen
-
-        if check_app_exited:
-            # ensure, again, that it still alive (if it exited prematurely it might provide bad data for the tests)
-            try:
-                popen.wait(0)
-            except subprocess.TimeoutExpired:
-                pass
-            else:
-                _print_process_output(popen)
-                raise Exception(f"Command {command_line} exited unexpectedly during the test with {popen.returncode}")
-
-        popen.kill()
-        _print_process_output(popen)
+        with _application_process(command_line, check_app_exited) as popen:
+            yield popen
 
 
 @fixture(scope="session")
@@ -181,9 +185,17 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
 
 
 @fixture(scope="session")
-def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[str, Image]]:
+def application_docker_images(docker_client: DockerClient) -> Mapping[str, Image]:
     images = {}
     for runtime in os.listdir(str(CONTAINERS_DIRECTORY)):
+        if runtime == "native":
+            for dockerfile in glob.glob(str(CONTAINERS_DIRECTORY / runtime / "*.Dockerfile")):
+                suffix = os.path.splitext(os.path.basename(dockerfile))[0]
+                images[f"{runtime}_{suffix}"], _ = docker_client.images.build(
+                    path=str(CONTAINERS_DIRECTORY / runtime), dockerfile=str(dockerfile), rm=True
+                )
+            continue
+
         images[runtime], _ = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime), rm=True)
 
         # for java - add additional images
@@ -207,9 +219,7 @@ def application_docker_images(docker_client: DockerClient) -> Iterable[Mapping[s
                 path=str(CONTAINERS_DIRECTORY / runtime), dockerfile=str(musl_dockerfile), rm=True
             )
 
-    yield images
-    for image in images.values():
-        docker_client.images.remove(image.id, force=True)
+    return images
 
 
 @fixture
@@ -284,25 +294,45 @@ def application_docker_container(
         yield None
         return
     else:
-        container: Container = docker_client.containers.run(
-            application_docker_image,
-            detach=True,
-            user="5555:6666",
-            mounts=application_docker_mounts,
-            cap_add=application_docker_capabilities,
-        )
-        while container.status != "running":
-            if container.status == "exited":
-                raise Exception(container.logs().decode())
-            sleep(1)
-            container.reload()
-        yield container
-        container.remove(force=True)
+        with _application_docker_container(
+            docker_client, application_docker_image, application_docker_mounts, application_docker_capabilities
+        ) as container:
+            yield container
 
 
 @fixture
 def output_directory(tmp_path: Path) -> Path:
     return tmp_path / "output"
+
+
+@fixture
+def output_collapsed(output_directory: Path) -> Path:
+    return output_directory / "last_profile.col"
+
+
+@fixture
+def application_factory(
+    in_container: bool,
+    docker_client: DockerClient,
+    application_docker_image: Image,
+    output_directory: Path,
+    application_docker_mounts: List[docker.types.Mount],
+    application_docker_capabilities: List[str],
+    command_line: List[str],
+    check_app_exited: bool,
+) -> Callable[[], _GeneratorContextManager]:
+    @contextmanager
+    def _run_application() -> Iterator[int]:
+        if in_container:
+            with _application_docker_container(
+                docker_client, application_docker_image, application_docker_mounts, application_docker_capabilities
+            ) as container:
+                yield container.attrs["State"]["Pid"]
+        else:
+            with _application_process(command_line, check_app_exited) as process:
+                yield process.pid
+
+    return _run_application
 
 
 @fixture
@@ -349,6 +379,7 @@ def assert_collapsed(runtime: str) -> AssertInCollapsed:
         "ruby": "fibonacci",
         "nodejs": "fibonacci",
         "golang": "fibonacci",
+        "dotnet": "Fibonacci",
     }[runtime]
 
     return partial(assert_function_in_collapsed, function_name)
@@ -366,7 +397,8 @@ def assert_app_id(application_pid: int, runtime: str, in_container: bool) -> Gen
     # TODO: Change commandline of processes running not in containers so we'll be able to match against them.
     if in_container and runtime in desired_name_and_getter:
         getter, name = desired_name_and_getter[runtime]
-        assert getter(Process(application_pid)) == name
+        # https://github.com/python/mypy/issues/10740
+        assert getter(Process(application_pid)) == name  # type: ignore # noqa
 
 
 @fixture

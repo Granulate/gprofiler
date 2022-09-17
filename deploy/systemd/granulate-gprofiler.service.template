@@ -1,0 +1,28 @@
+#
+# Copyright (c) Granulate. All rights reserved.
+# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+#
+
+[Unit]
+Description=Granulate gProfiler Agent
+Documentation=https://profiler.granulate.io/
+After=network.target
+
+[Service]
+PIDFile=/var/run/gprofiler.pid
+User=root
+Environment=GPROFILER_SERVICE=
+Environment=GPROFILER_TOKEN=
+WorkingDirectory=/opt/granulate/gprofiler
+ExecStartPre=/bin/bash -c 'if [ -z "${GPROFILER_TOKEN}" ]; then echo "missing GPROFILER_TOKEN!"; exit 1; fi'
+ExecStartPre=/bin/bash -c 'if [ -z "${GPROFILER_SERVICE}" ]; then echo "missing GPROFILER_SERVICE!"; exit 1; fi'
+ExecStartPre=/bin/bash -c 'wget --no-verbose https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler_$(uname -m) -O gprofiler && chmod +x gprofiler'
+ExecStart=/opt/granulate/gprofiler/gprofiler -cu --token='${GPROFILER_TOKEN}' --service-name='${GPROFILER_SERVICE}'
+TimeoutStopSec=10
+
+KillMode=process
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

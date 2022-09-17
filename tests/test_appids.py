@@ -58,6 +58,7 @@ def test_uwsgi_ini_file(monkeypatch: MonkeyPatch) -> None:
     config = "[app:blabla]\nxx = yy\n\n[uwsgi]\nmodule = mymod"
 
     def get_uwsgi_config(process: Process, config_file: str) -> TextIO:
+        assert config_file == "my.ini"
         return StringIO(config)
 
     monkeypatch.setattr(_UwsgiApplicationIdentifier, "_open_uwsgi_config_file", get_uwsgi_config)
@@ -69,6 +70,7 @@ def test_uwsgi_ini_file(monkeypatch: MonkeyPatch) -> None:
     assert f"uwsgi: my.ini ({PROCESS_CWD}/mymod.py)" == get_python_app_id(
         process_with_cmdline(["uwsgi", "a", "b", "--ini=my.ini"])
     )
+
     # --ini-paste
     assert f"uwsgi: my.ini ({PROCESS_CWD}/mymod.py)" == get_python_app_id(
         process_with_cmdline(["uwsgi", "a", "b", "--ini-paste", "my.ini"])
@@ -76,6 +78,28 @@ def test_uwsgi_ini_file(monkeypatch: MonkeyPatch) -> None:
     assert f"uwsgi: my.ini ({PROCESS_CWD}/mymod.py)" == get_python_app_id(
         process_with_cmdline(["uwsgi", "a", "b", "--ini-paste=my.ini"])
     )
+
+    # --ini-paste-logged
+    assert f"uwsgi: my.ini ({PROCESS_CWD}/mymod.py)" == get_python_app_id(
+        process_with_cmdline(["uwsgi", "a", "b", "--ini-paste-logged", "my.ini"])
+    )
+    assert f"uwsgi: my.ini ({PROCESS_CWD}/mymod.py)" == get_python_app_id(
+        process_with_cmdline(["uwsgi", "a", "b", "--ini-paste-logged=my.ini"])
+    )
+
+    # just one '.ini' file - selected
+    assert f"uwsgi: my.ini ({PROCESS_CWD}/mymod.py)" == get_python_app_id(
+        process_with_cmdline(["uwsgi", "a", "b", "my.ini"])
+    )
+    # many '.ini' files - not selected
+    assert "uwsgi: ini file / wsgi module not found" == get_python_app_id(
+        process_with_cmdline(["uwsgi", "a", "b", "my.ini", "my2.ini"])
+    )
+    # many '.ini' files but one is with --ini - it is selected
+    assert f"uwsgi: my.ini ({PROCESS_CWD}/mymod.py)" == get_python_app_id(
+        process_with_cmdline(["uwsgi", "a", "b", "--ini=my.ini", "my2.ini"])
+    )
+
     # --ini with no uwsgi section
     config = "[app:blabla]\nxx = yy\n\n"
     assert "uwsgi: my.ini" == get_python_app_id(process_with_cmdline(["uwsgi", "a", "b", "--ini", "my.ini"]))

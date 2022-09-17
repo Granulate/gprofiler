@@ -7,9 +7,11 @@ ARG PERF_BUILDER_UBUNTU
 ARG PHPSPY_BUILDER_UBUNTU
 ARG AP_BUILDER_CENTOS
 ARG AP_BUILDER_ALPINE
+ARG AP_CENTOS_MIN
 ARG BURN_BUILDER_GOLANG
 ARG GPROFILER_BUILDER
 ARG PYPERF_BUILDER_UBUNTU
+ARG DOTNET_BUILDER
 
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
@@ -31,6 +33,16 @@ WORKDIR /tmp
 COPY scripts/rbspy_build.sh .
 RUN ./rbspy_build.sh
 RUN mv "/tmp/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /tmp/rbspy/rbspy
+
+# dotnet-trace
+FROM mcr.microsoft.com/dotnet/sdk${DOTNET_BUILDER} as dotnet-builder
+WORKDIR /tmp
+RUN apt-get update && \
+  dotnet tool install --global dotnet-trace
+
+RUN cp -r "$HOME/.dotnet" "/tmp/dotnet"
+COPY scripts/dotnet_prepare_dependencies.sh .
+RUN ./dotnet_prepare_dependencies.sh
 
 # perf
 FROM ubuntu${PERF_BUILDER_UBUNTU} AS perf-builder
@@ -63,6 +75,12 @@ RUN ./async_profiler_env_glibc.sh
 COPY scripts/async_profiler_build_shared.sh .
 COPY scripts/async_profiler_build_glibc.sh .
 RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_glibc.sh
+
+# a build step to ensure the minimum CentOS version that we require can "ldd" our libasyncProfiler.so file.
+FROM centos${AP_CENTOS_MIN} AS async-profiler-centos-min-test-glibc
+SHELL ["/bin/bash", "-c", "-euo", "pipefail"]
+COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/libasyncProfiler.so /libasyncProfiler.so
+RUN if ldd /libasyncProfiler.so 2>&1 | grep -q "not found" ; then echo "libasyncProfiler.so is not compatible with minimum CentOS!"; ldd /libasyncProfiler.so; exit 1; fi
 
 # async-profiler musl
 FROM alpine${AP_BUILDER_ALPINE} AS async-profiler-builder-musl
@@ -178,7 +196,8 @@ RUN yum clean all && yum --setopt=skip_missing_names_on_install=False install -y
         python3 \
         curl \
         python3-pip \
-        python3-devel
+        python3-devel \
+        libicu
 
 # needed for aarch64 (for staticx)
 RUN set -e; \
@@ -225,6 +244,10 @@ COPY --from=pyspy-builder /tmp/py-spy/py-spy gprofiler/resources/python/py-spy
 COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
 COPY --from=perf-builder /perf gprofiler/resources/perf
 
+COPY --from=dotnet-builder /usr/share/dotnet/host gprofiler/resources/dotnet/host
+COPY --from=dotnet-builder /tmp/dotnet/deps gprofiler/resources/dotnet/shared/Microsoft.NETCore.App/6.0.7
+COPY --from=dotnet-builder /tmp/dotnet/tools gprofiler/resources/dotnet/tools
+
 COPY --from=phpspy-builder /tmp/phpspy/phpspy gprofiler/resources/php/phpspy
 COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
 COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/strings gprofiler/resources/php/strings
@@ -234,7 +257,7 @@ COPY --from=async-profiler-builder-glibc /usr/bin/xargs gprofiler/resources/php/
 
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/jattach gprofiler/resources/java/jattach
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
-COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
+COPY --from=async-profiler-centos-min-test-glibc /libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
 COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
 

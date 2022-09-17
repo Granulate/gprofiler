@@ -81,7 +81,7 @@ Profiling using eBPF incurs lower overhead & provides kernel & native stacks.
 * `--perf-mode`: Controls the global perf strategy. Must be one of the following options:
     * `fp` - Use Frame Pointers for the call graph
     * `dwarf` - Use DWARF for the call graph (adds the `--call-graph dwarf` argument to the `perf` command)
-    * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process.
+    * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process. *This is the default.*
     * `disabled` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
 
 ## Other options
@@ -128,7 +128,7 @@ Run the following to have gprofiler running continuously, in the background, upl
 ```bash
 wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler_$(uname -m) -O gprofiler
 sudo chmod +x gprofiler
-sudo sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE NAME>\" [options] > /dev/null 2>&1 &"
+sudo TMPDIR=/proc/self/cwd sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE NAME>\" [options] > /dev/null 2>&1 &"
 sleep 1
 pgrep gprofiler # make sure gprofiler has started
 ```
@@ -139,17 +139,27 @@ For non-daemon mode runes, you can remove the `setsid` and `> /dev/null 2>&1 &` 
 
 The logs can then be viewed in their default location (`/var/log/gprofiler`).
 
-gProfiler unpacks executables to `/tmp` by default; if your `/tmp` is marked with `noexec`,
-you can add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current working directory.
-```bash
-sudo TMPDIR=/proc/self/cwd ./gprofiler -cu --token="<TOKEN> --service-name="<SERVICE NAME>" [options]
-```
+`TMPDIR` is added because gProfiler unpacks executables to `/tmp` by default; this is done by `staticx`. For cases where `/tmp` is marked with `noexec`, we add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current working directory, which is surely executable before gProfiler was started in it.
 
 ### Executable known issues
 The following platforms are currently not supported with the gProfiler executable:
 + Alpine
 
 **Remark:** container-based execution works and can be used in those cases.
+
+## Running as systemd service
+
+You can generate a systemd service configuration that [runs gProfiler as an executable](#running-as-an-executable) (and therefore, bears the same [known issues](#executable-known-issues)) by running:
+
+``` bash
+curl -s https://raw.githubusercontent.com/Granulate/gprofiler/master/deploy/systemd/create_systemd_service.sh | GPROFILER_TOKEN=<TOKEN> GPROFILER_SERVICE=<SERVICE_NAME> bash
+```
+
+This script generates `granulate-gprofiler.service` in your working directory, and you can go ahead and install it by:
+```
+systemctl enable $(pwd)/granulate-gprofiler.service
+systemctl start granulate-gprofiler.service
+```
 
 ## Running on Databricks
 For Databricks, the same installation instructions as specified in the [running as an executable](#running-as-an-executable) section can be used (make sure to run them in the initialization script of your node).
@@ -301,7 +311,7 @@ sudo sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE
   Make sure to:
   - Replace `<TOKEN>` with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
   - Replace `<SERVICE>` with the service name you wish to use.
-2. Upload the script to an S3 bucket, for example: `s3://my-s3-bucket/gprofiler-bootstrap.sh` 
+2. Upload the script to an S3 bucket, for example: `s3://my-s3-bucket/gprofiler-bootstrap.sh`
 3. Create the EMR cluster with bootstrap-action to run the bootstrap script, this can be done both from the AWS Console and AWS CLI.
    - AWS Console Example:
      - Create an EMR Cluster from the AWS Console
@@ -311,10 +321,22 @@ sudo sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE
      - Add Action of type *Custom Action*
      - Fill in script location with the appropriate script location on your S3, for example `s3://my-s3-bucket/gprofiler-bootstrap.sh`
      ![img](https://user-images.githubusercontent.com/33522503/153876647-5f844c46-8d62-4d89-b612-9616043f1825.png)
-   - AWS CLI Example: 
+   - AWS CLI Example:
      ```bash
      aws emr create-cluster --name MY-Cluster ... --bootstrap-actions "Path=s3://my-s3-bucket/gprofiler-bootstrap.sh"
      ```
+
+## Running via an Ansible playbook
+Download the [playbook](./deploy/ansible/gprofiler_playbook.yml) and run it this way:
+```
+ansible-playbook -i ... gprofiler_playbook.yml --extra-vars "gprofiler_token='<TOKEN>'" --extra-vars "gprofiler_service='<SERVICE NAME>'"
+```
+
+**Note** - the playbook defaults to `hosts: all`, make sure to modify the pattern to your liking before running.
+
+The playbook defines 2 more variables:
+* `gprofiler_path` - path to download gProfiler to, `/tmp/gprofiler` by default.
+* `gprofiler_args` - additional arguments to pass to gProfiler, empty by default. You can use it to pass, for example, `'--profiling-frequency 15'` to change the frequency.
 
 ## Running from source
 gProfiler requires Python 3.6+ to run.
@@ -343,21 +365,24 @@ Alongside `perf`, gProfiler invokes runtime-specific profilers for processes bas
   * Uses [Granulate's fork](https://github.com/Granulate/rbspy) of the [rbspy](https://github.com/rbspy/rbspy) profiler.
 * NodeJS (version >= 10 for functioning `--perf-prof`):
   * Uses `perf inject --jit` and NodeJS's ability to generate jitdump files. See [NodeJS profiling options](#nodejs-profiling-options).
+* .NET runtime
+  * Uses dotnet-trace.
 
 The runtime-specific profilers produce stack traces that include runtime information (i.e, stacks of Java/Python functions), unlike `perf` which produces native stacks of the JVM / CPython interpreter.
 The runtime stacks are then merged into the data collected by `perf`, substituting the *native* stacks `perf` has collected for those processes.
 
 ## Architecture support
 
-| Runtime                    | x86_64             | Aarch64            |
-|----------------------------|--------------------|--------------------|
-| perf (native, Golang, ...) | :heavy_check_mark: | :heavy_check_mark: |
-| Java (async-profiler)      | :heavy_check_mark: | :heavy_check_mark: |
-| Python (py-spy)            | :heavy_check_mark: | :heavy_check_mark: |
-| Python (PyPerf eBPF)       | :heavy_check_mark: | :x:                |
-| Ruby (rbspy)               | :heavy_check_mark: | :heavy_check_mark: |
-| PHP (phpspy)               | :heavy_check_mark: | :x:                |
-| NodeJS (perf)              | :heavy_check_mark: | :heavy_check_mark: |
+| Runtime                    | x86_64                            | Aarch64                           |
+|----------------------------|-----------------------------------|-----------------------------------|
+| perf (native, Golang, ...) | :heavy_check_mark:                | :heavy_check_mark:                |
+| Java (async-profiler)      | :heavy_check_mark:                | :heavy_check_mark:                |
+| Python (py-spy)            | :heavy_check_mark:                | :heavy_check_mark:                |
+| Python (PyPerf eBPF)       | :heavy_check_mark:                | :x:                               |
+| Ruby (rbspy)               | :heavy_check_mark:                | :heavy_check_mark:                |
+| PHP (phpspy)               | :heavy_check_mark:                | :heavy_check_mark: (experimental) |
+| NodeJS (perf)              | :heavy_check_mark:                | :heavy_check_mark:                |
+| .NET (dotnet-trace)        | :heavy_check_mark: (experimental) | :heavy_check_mark: (experimental) |
 
 ## perf-less mode
 
@@ -396,6 +421,7 @@ We recommend going through our [contribution guide](https://github.com/granulate
 * [bcc](https://github.com/iovisor/bcc) (for PyPerf) by the IO Visor project. See [our fork](https://github.com/Granulate/bcc).
 * [phpspy](https://github.com/adsr/phpspy) by [Adam Saponara](https://github.com/adsr). See [our fork](https://github.com/Granulate/phpspy).
 * [rbspy](https://github.com/rbspy/rbspy) by the rbspy project. See [our fork](https://github.com/Granulate/rbspy).
+* [dotnet-trace](https://github.com/dotnet/diagnostics/tree/main/src/Tools/dotnet-trace)
 
 # Footnotes
 

@@ -11,6 +11,7 @@ import os
 import signal
 import sys
 import time
+import traceback
 from pathlib import Path
 from threading import Event
 from types import FrameType, TracebackType
@@ -27,7 +28,7 @@ from gprofiler import __version__
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.databricks_client import DatabricksClient
-from gprofiler.exceptions import APIError, NoProfilersEnabledError, SystemProfilerInitFailure
+from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import concatenate_profiles, merge_profiles
@@ -58,6 +59,8 @@ logger: logging.LoggerAdapter
 DEFAULT_LOG_FILE = "/var/log/gprofiler/gprofiler.log"
 DEFAULT_LOG_MAX_SIZE = 1024 * 1024 * 5
 DEFAULT_LOG_BACKUP_COUNT = 1
+
+DEFAULT_PID_FILE = "/var/run/gprofiler.pid"
 
 DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 11
@@ -93,6 +96,7 @@ class GProfiler:
         user_args: UserArgs,
         duration: int,
         profile_api_version: str,
+        profile_spawned_processes: bool = True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         controller_process: Optional[Process] = None,
     ):
@@ -103,6 +107,7 @@ class GProfiler:
         self._state = state
         self._remote_logs_handler = remote_logs_handler
         self._profile_api_version = profile_api_version
+        self._profile_spawned_processes = profile_spawned_processes
         self._collect_metrics = collect_metrics
         self._collect_metadata = collect_metadata
         self._enrichment_options = enrichment_options
@@ -121,15 +126,12 @@ class GProfiler:
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
         self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
-        try:
-            self.system_profiler, self.process_profilers = get_profilers(
-                user_args,
-                storage_dir=self._temp_storage_dir.name,
-                stop_event=self._stop_event,
-            )
-        except SystemProfilerInitFailure:
-            logger.exception("System profiler initialization has failed, exiting...")
-            sys.exit(1)
+        self.system_profiler, self.process_profilers = get_profilers(
+            user_args,
+            storage_dir=self._temp_storage_dir.name,
+            stop_event=self._stop_event,
+            profile_spawned_processes=self._profile_spawned_processes,
+        )
         if self._enrichment_options.container_names:
             self._container_names_client: Optional[ContainerNamesClient] = ContainerNamesClient()
         else:
@@ -275,8 +277,9 @@ class GProfiler:
         try:
             system_result = system_future.result()
         except Exception:
-            logger.exception(
-                "Running perf failed; consider running gProfiler with '--perf-mode disabled' to avoid using perf"
+            logger.critical(
+                "Running perf failed; consider running gProfiler with '--perf-mode disabled' to avoid using perf",
+                exc_info=True,
             )
             raise
         metadata = (
@@ -385,6 +388,9 @@ def parse_cmd_args() -> configargparse.Namespace:
         add_config_file_help=True,
         add_env_var_help=False,
         default_config_files=["/etc/gprofiler/config.ini"],
+    )
+    parser.add_argument(
+        "--pid-file", type=str, help="Override the pid-file location (default: %(default)s)", default=DEFAULT_PID_FILE
     )
     parser.add_argument("--config", is_config_file=True, help="Config file path")
     parser.add_argument(
@@ -582,6 +588,15 @@ def parse_cmd_args() -> configargparse.Namespace:
         " of the profiling due to repeated waiting for Spark's metrics server.",
     )
 
+    parser.add_argument(
+        "--profile-spawned-processes",
+        action="store_true",
+        dest="profile_spawned_processes",
+        default=False,
+        help="gProfiler will listen for process spawn events, and will profile new processes that are spawned after the"
+        " beginning of a session.",
+    )
+
     args = parser.parse_args()
 
     args.perf_inject = args.nodejs_mode == "perf"
@@ -647,8 +662,16 @@ def verify_preconditions(args: configargparse.Namespace) -> None:
         )
         sys.exit(1)
 
-    if not grab_gprofiler_mutex():
-        sys.exit(0)
+    try:
+        if not grab_gprofiler_mutex():
+            sys.exit(0)
+    except Exception:
+        traceback.print_exc()
+        print(
+            "Could not acquire gProfiler's lock due to an error. Are you running gProfiler in privileged mode?",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     if args.log_usage and get_run_mode() not in ("k8s", "container"):
         # TODO: we *can* move into another cpuacct cgroup, to let this work also when run as a standalone
@@ -690,6 +713,10 @@ def _should_send_logs(args: configargparse.Namespace) -> bool:
     return bool(args.log_to_server and args.upload_results and args.profile_api_version != "v1")
 
 
+def init_pid_file(pid_file: str) -> None:
+    Path(pid_file).write_text(str(os.getpid()))
+
+
 def main() -> None:
     args = parse_cmd_args()
     verify_preconditions(args)
@@ -709,6 +736,11 @@ def main() -> None:
     reset_umask()
     # assume we run in the root cgroup (when containerized, that's our view)
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
+
+    try:
+        init_pid_file(args.pid_file)
+    except Exception:
+        logger.exception(f"Failed to write pid to '{args.pid_file}', continuing anyway")
 
     if args.databricks_job_name_as_service_name:
         # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
@@ -800,6 +832,7 @@ def main() -> None:
             args.__dict__,
             args.duration,
             args.profile_api_version,
+            args.profile_spawned_processes,
             remote_logs_handler,
             controller_process,
         )

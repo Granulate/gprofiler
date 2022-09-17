@@ -24,8 +24,11 @@ from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import run_process, start_process, wait_event, wait_for_file_by_prefix
 from gprofiler.utils.perf import perf_path
+from gprofiler.utils.process import is_process_basename_matching
 
 logger = get_logger_adapter(__name__)
+
+DEFAULT_PERF_DWARF_STACK_SIZE = 8192
 
 
 # TODO: automatically disable this profiler if can_i_use_perf_events() returns False?
@@ -80,7 +83,7 @@ class PerfProcess:
         except TimeoutError:
             process.kill()
             assert process.stdout is not None and process.stderr is not None
-            logger.error(f"perf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
+            logger.critical(f"perf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
             raise
         else:
             self._process = process
@@ -100,6 +103,13 @@ class PerfProcess:
     def wait_and_script(self) -> str:
         try:
             perf_data = wait_for_file_by_prefix(f"{self._output_path}.", self._dump_timeout_s, self._stop_event)
+        except Exception:
+            assert self._process is not None and self._process.stdout is not None and self._process.stderr is not None
+            logger.critical(
+                f"perf failed to dump output. stdout {self._process.stdout.read()!r}"
+                f" stderr {self._process.stderr.read()!r}"
+            )
+            raise
         finally:
             # always read its stderr
             # using read1() which performs just a single read() call and doesn't read until EOF
@@ -126,19 +136,19 @@ class PerfProcess:
 @register_profiler(
     "Perf",
     possible_modes=["fp", "dwarf", "smart", "disabled"],
-    default_mode="fp",
+    default_mode="smart",
     supported_archs=["x86_64", "aarch64"],
     profiler_mode_argument_help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge"
     " them by choosing the best result per process. If 'disabled' is chosen, do not invoke"
     " 'perf' at all. The output, in that case, is the concatenation of the results from all"
-    " of the runtime profilers.",
+    " of the runtime profilers. Defaults to 'smart'.",
     profiler_arguments=[
         ProfilerArgument(
             "--perf-dwarf-stack-size",
             help="The max stack size for the Dwarf perf, in bytes. Must be <=65528."
             " Relevant for --perf-mode dwarf|smart. Default: %(default)s",
             type=int,
-            default=8192,
+            default=DEFAULT_PERF_DWARF_STACK_SIZE,
             dest="perf_dwarf_stack_size",
         )
     ],
@@ -159,13 +169,15 @@ class SystemProfiler(ProfilerBase):
         duration: int,
         stop_event: Event,
         storage_dir: str,
+        profile_spawned_processes: bool,
         perf_mode: str,
         perf_dwarf_stack_size: int,
         perf_inject: bool,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
+        _ = profile_spawned_processes  # Required for mypy unused argument warning
         self._perfs: List[PerfProcess] = []
-        self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event)]
+        self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
@@ -237,6 +249,20 @@ class PerfMetadata(ApplicationMetadata):
     def relevant_for_process(self, process: Process) -> bool:
         return False
 
+    def add_exe_metadata(self, process: Process, metadata: Dict[str, Any]) -> None:
+        try:
+            static = is_statically_linked(f"/proc/{process.pid}/exe")
+        except FileNotFoundError:
+            raise NoSuchProcess(process.pid)
+
+        exe_metadata: Dict[str, Any] = {"link": "static" if static else "dynamic"}
+        if not static:
+            exe_metadata["libc"] = "musl" if is_musl(process) else "glibc"
+        else:
+            exe_metadata["libc"] = None
+
+        metadata.update(exe_metadata)
+
 
 class GolangPerfMetadata(PerfMetadata):
     def relevant_for_process(self, process: Process) -> bool:
@@ -269,17 +295,18 @@ class GolangPerfMetadata(PerfMetadata):
         return golang_version_bytes.decode()
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        try:
-            static = is_statically_linked(f"/proc/{process.pid}/exe")
-        except FileNotFoundError:
-            raise NoSuchProcess(process.pid)
+        metadata = {"golang_version": self._get_golang_version(process)}
+        self.add_exe_metadata(process, metadata)
+        metadata.update(super().make_application_metadata(process))
+        return metadata
 
-        metadata = {"golang_version": self._get_golang_version(process), "link": "static" if static else "dynamic"}
 
-        if not static:
-            metadata["libc"] = "musl" if is_musl(process) else "glibc"
-        else:
-            metadata["libc"] = None
+class NodePerfMetadata(PerfMetadata):
+    def relevant_for_process(self, process: Process) -> bool:
+        return is_process_basename_matching(process, r"^node$")
 
+    def make_application_metadata(self, process: Process) -> Dict[str, Any]:
+        metadata = {"node_version": self.get_exe_version_cached(process)}
+        self.add_exe_metadata(process, metadata)
         metadata.update(super().make_application_metadata(process))
         return metadata
