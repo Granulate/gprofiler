@@ -5,12 +5,13 @@
 from pathlib import Path
 from threading import Event
 
+import psutil
 import pytest
-from docker.models.containers import Container
+from granulate_utils.linux.process import is_musl
 
 from gprofiler.profilers.python import PythonProfiler
 from tests.conftest import AssertInCollapsed
-from tests.utils import snapshot_pid_collapsed
+from tests.utils import assert_function_in_collapsed, snapshot_pid_collapsed
 
 
 @pytest.fixture
@@ -22,7 +23,7 @@ def runtime() -> str:
 @pytest.mark.parametrize("application_image_tag", ["libpython"])
 def test_python_select_by_libpython(
     tmp_path: Path,
-    application_docker_container: Container,
+    application_pid: int,
     assert_collapsed: AssertInCollapsed,
 ) -> None:
     """
@@ -32,6 +33,62 @@ def test_python_select_by_libpython(
     This test runs a Python named "shmython".
     """
     with PythonProfiler(1000, 1, Event(), str(tmp_path), False, "pyspy", True, None) as profiler:
-        process_collapsed = snapshot_pid_collapsed(profiler, application_docker_container.attrs["State"]["Pid"])
+        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
     assert_collapsed(process_collapsed)
     assert all(stack.startswith("shmython") for stack in process_collapsed.keys())
+
+
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize(
+    "application_image_tag",
+    [
+        "2.7-glibc",
+        "2.7-musl",
+        "3.5-glibc",
+        "3.5-musl",
+        "3.6-glibc",
+        "3.6-musl",
+        "3.7-glibc",
+        "3.7-musl",
+        "3.8-glibc",
+        "3.8-musl",
+        "3.9-glibc",
+        "3.9-musl",
+        "3.10-glibc",
+        "3.10-musl",
+    ],
+)
+@pytest.mark.parametrize("profiler_type", ["py-spy", "pyperf"])
+def test_python_matrix(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed: AssertInCollapsed,
+    profiler_type: str,
+    application_image_tag: str,
+) -> None:
+    python_version, libc = application_image_tag.split("-")
+
+    if python_version == "3.5" and profiler_type == "pyperf":
+        pytest.skip("PyPerf doesn't support Python 3.5!")
+
+    with PythonProfiler(1000, 2, Event(), str(tmp_path), False, profiler_type, True, None) as profiler:
+        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
+
+    assert_collapsed(process_collapsed)
+    # searching for "python_version.", because ours is without the patchlevel.
+    assert_function_in_collapsed(f"standard-library=={python_version}.", process_collapsed)
+
+    assert libc in ("musl", "glibc")
+    assert (libc == "musl") == is_musl(psutil.Process(application_pid))
+
+    if profiler_type == "pyperf":
+        # we expect to see kernel code
+        assert_function_in_collapsed("do_syscall_64_[k]", process_collapsed)
+        # and native user code
+        assert_function_in_collapsed(
+            "PyEval_EvalFrameEx_[pn]" if python_version == "2.7" else "_PyEval_EvalFrameDefault_[pn]", process_collapsed
+        )
+        # ensure class name exists for instance methods
+        assert_function_in_collapsed("lister.Burner.burner", process_collapsed)
+        # ensure class name exists for class methods
+        assert_function_in_collapsed("lister.Lister.lister", process_collapsed)
