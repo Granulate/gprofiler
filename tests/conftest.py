@@ -2,14 +2,13 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import glob
 import os
 import stat
 import subprocess
 from contextlib import _GeneratorContextManager, contextmanager
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Generator, Iterable, Iterator, List, Mapping, Optional, cast
+from typing import Any, Callable, Dict, Generator, Iterable, Iterator, List, Mapping, Optional, cast
 
 import docker
 import pytest
@@ -184,47 +183,93 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
     yield docker_client.images.get("gprofiler")
 
 
+def _build_image(
+    docker_client: DockerClient, runtime: str, dockerfile: str = "Dockerfile", **kwargs: Dict[str, Any]
+) -> Image:
+    base_path = CONTAINERS_DIRECTORY / runtime
+    return docker_client.images.build(path=str(base_path), rm=True, dockerfile=str(base_path / dockerfile), **kwargs)[0]
+
+
+def dotnet_images(docker_client: DockerClient) -> Mapping[str, Image]:
+    return {
+        "": _build_image(docker_client, "dotnet"),
+    }
+
+
+def golang_images(docker_client: DockerClient) -> Mapping[str, Image]:
+    return {
+        "": _build_image(docker_client, "golang"),
+    }
+
+
+def java_images(docker_client: DockerClient) -> Mapping[str, Image]:
+    return {
+        "": _build_image(docker_client, "java"),
+        "j9": _build_image(docker_client, "java", buildargs={"JAVA_BASE_IMAGE": "adoptopenjdk/openjdk8-openj9"}),
+        "zing": _build_image(docker_client, "java", dockerfile="zing.Dockerfile"),
+        "musl": _build_image(docker_client, "java", dockerfile="musl.Dockerfile"),
+    }
+
+
+def native_images(docker_client: DockerClient) -> Mapping[str, Image]:
+    return {
+        "fp": _build_image(docker_client, "native", dockerfile="fp.Dockerfile"),
+        "dwarf": _build_image(docker_client, "native", dockerfile="dwarf.Dockerfile"),
+        "change_comm": _build_image(docker_client, "native", dockerfile="change_comm.Dockerfile"),
+        "thread_comm": _build_image(docker_client, "native", dockerfile="thread_comm.Dockerfile"),
+    }
+
+
+def nodejs_images(docker_client: DockerClient) -> Mapping[str, Image]:
+    return {
+        "": _build_image(docker_client, "nodejs"),
+    }
+
+
+def php_images(docker_client: DockerClient) -> Mapping[str, Image]:
+    return {
+        "": _build_image(docker_client, "php"),
+    }
+
+
+def python_images(docker_client: DockerClient) -> Mapping[str, Image]:
+    return {
+        "": _build_image(docker_client, "python"),
+        "libpython": _build_image(docker_client, "python", dockerfile="libpython.Dockerfile"),
+    }
+
+
+def ruby_images(docker_client: DockerClient) -> Mapping[str, Image]:
+    return {
+        "": _build_image(docker_client, "ruby"),
+    }
+
+
+def image_name(runtime: str, image_tag: str) -> str:
+    return runtime + ("_" + image_tag if image_tag else "")
+
+
 @fixture(scope="session")
 def application_docker_images(docker_client: DockerClient) -> Mapping[str, Image]:
     images = {}
-    for runtime in os.listdir(str(CONTAINERS_DIRECTORY)):
-        if runtime == "native":
-            for dockerfile in glob.glob(str(CONTAINERS_DIRECTORY / runtime / "*.Dockerfile")):
-                suffix = os.path.splitext(os.path.basename(dockerfile))[0]
-                images[f"{runtime}_{suffix}"], _ = docker_client.images.build(
-                    path=str(CONTAINERS_DIRECTORY / runtime), dockerfile=str(dockerfile), rm=True
-                )
-            continue
-
-        images[runtime], _ = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime), rm=True)
-
-        # for java - add additional images
-        if runtime == "java":
-            images[runtime + "_j9"], _ = docker_client.images.build(
-                path=str(CONTAINERS_DIRECTORY / runtime),
-                rm=True,
-                buildargs={"JAVA_BASE_IMAGE": "adoptopenjdk/openjdk8-openj9"},
-            )
-
-            images[runtime + "_zing"], _ = docker_client.images.build(
-                path=str(CONTAINERS_DIRECTORY / runtime),
-                rm=True,
-                dockerfile=str(CONTAINERS_DIRECTORY / runtime / "zing.Dockerfile"),
-            )
-
-        # build musl image if exists
-        musl_dockerfile = CONTAINERS_DIRECTORY / runtime / "musl.Dockerfile"
-        if musl_dockerfile.exists():
-            images[runtime + "_musl"], _ = docker_client.images.build(
-                path=str(CONTAINERS_DIRECTORY / runtime), dockerfile=str(musl_dockerfile), rm=True
-            )
-
+    image_generators: Dict[str, Callable[[DockerClient], Mapping[str, Image]]] = {
+        "dotnet": dotnet_images,
+        "golang": golang_images,
+        "java": java_images,
+        "native": native_images,
+        "nodejs": nodejs_images,
+        "php": php_images,
+        "python": python_images,
+        "ruby": ruby_images,
+    }
+    for runtime, func in image_generators.items():
+        images.update({image_name(runtime, tag): image for tag, image in func(docker_client).items()})
     return images
 
 
 @fixture
-def image_suffix() -> str:
-    # lets tests override this value and use a suffixed image, e.g _musl or _j9.
+def application_image_tag() -> str:
+    # lets tests override this value and use a "tagged" image, e.g "musl" or "j9".
     return ""
 
 
@@ -232,10 +277,9 @@ def image_suffix() -> str:
 def application_docker_image(
     application_docker_images: Mapping[str, Image],
     runtime: str,
-    image_suffix: str,
+    application_image_tag: str,
 ) -> Iterable[Image]:
-    runtime = runtime + image_suffix
-    yield application_docker_images[runtime]
+    yield application_docker_images[image_name(runtime, application_image_tag)]
 
 
 @fixture
