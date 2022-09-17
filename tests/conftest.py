@@ -184,65 +184,10 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
 
 
 def _build_image(
-    docker_client: DockerClient, runtime: str, dockerfile: str = "Dockerfile", **kwargs: Dict[str, Any]
+    docker_client: DockerClient, runtime: str, dockerfile: str = "Dockerfile", **kwargs: Mapping[str, Any]
 ) -> Image:
     base_path = CONTAINERS_DIRECTORY / runtime
     return docker_client.images.build(path=str(base_path), rm=True, dockerfile=str(base_path / dockerfile), **kwargs)[0]
-
-
-def dotnet_images(docker_client: DockerClient) -> Mapping[str, Image]:
-    return {
-        "": _build_image(docker_client, "dotnet"),
-    }
-
-
-def golang_images(docker_client: DockerClient) -> Mapping[str, Image]:
-    return {
-        "": _build_image(docker_client, "golang"),
-    }
-
-
-def java_images(docker_client: DockerClient) -> Mapping[str, Image]:
-    return {
-        "": _build_image(docker_client, "java"),
-        "j9": _build_image(docker_client, "java", buildargs={"JAVA_BASE_IMAGE": "adoptopenjdk/openjdk8-openj9"}),
-        "zing": _build_image(docker_client, "java", dockerfile="zing.Dockerfile"),
-        "musl": _build_image(docker_client, "java", dockerfile="musl.Dockerfile"),
-    }
-
-
-def native_images(docker_client: DockerClient) -> Mapping[str, Image]:
-    return {
-        "fp": _build_image(docker_client, "native", dockerfile="fp.Dockerfile"),
-        "dwarf": _build_image(docker_client, "native", dockerfile="dwarf.Dockerfile"),
-        "change_comm": _build_image(docker_client, "native", dockerfile="change_comm.Dockerfile"),
-        "thread_comm": _build_image(docker_client, "native", dockerfile="thread_comm.Dockerfile"),
-    }
-
-
-def nodejs_images(docker_client: DockerClient) -> Mapping[str, Image]:
-    return {
-        "": _build_image(docker_client, "nodejs"),
-    }
-
-
-def php_images(docker_client: DockerClient) -> Mapping[str, Image]:
-    return {
-        "": _build_image(docker_client, "php"),
-    }
-
-
-def python_images(docker_client: DockerClient) -> Mapping[str, Image]:
-    return {
-        "": _build_image(docker_client, "python"),
-        "libpython": _build_image(docker_client, "python", dockerfile="libpython.Dockerfile"),
-    }
-
-
-def ruby_images(docker_client: DockerClient) -> Mapping[str, Image]:
-    return {
-        "": _build_image(docker_client, "ruby"),
-    }
 
 
 def image_name(runtime: str, image_tag: str) -> str:
@@ -251,19 +196,44 @@ def image_name(runtime: str, image_tag: str) -> str:
 
 @fixture(scope="session")
 def application_docker_images(docker_client: DockerClient) -> Mapping[str, Image]:
-    images = {}
-    image_generators: Dict[str, Callable[[DockerClient], Mapping[str, Image]]] = {
-        "dotnet": dotnet_images,
-        "golang": golang_images,
-        "java": java_images,
-        "native": native_images,
-        "nodejs": nodejs_images,
-        "php": php_images,
-        "python": python_images,
-        "ruby": ruby_images,
+    runtime_image_listing: Dict[str, Dict[str, Dict[str, Any]]] = {
+        "dotnet": {
+            "": {},
+        },
+        "golang": {
+            "": {},
+        },
+        "java": {
+            "": {},
+            "j9": dict(buildargs={"JAVA_BASE_IMAGE": "adoptopenjdk/openjdk8-openj9"}),
+            "zing": dict(dockerfile="zing.Dockerfile"),
+            "musl": dict(dockerfile="musl.Dockerfile"),
+        },
+        "native": {
+            "fp": dict(dockerfile="fp.Dockerfile"),
+            "dwarf": dict(dockerfile="dwarf.Dockerfile"),
+            "change_comm": dict(dockerfile="change_comm.Dockerfile"),
+            "thread_comm": dict(dockerfile="thread_comm.Dockerfile"),
+        },
+        "nodejs": {
+            "": {},
+        },
+        "php": {
+            "": {},
+        },
+        "python": {
+            "": {},
+            "libpython": dict(dockerfile="libpython.Dockerfile"),
+        },
+        "ruby": {"": {}},
     }
-    for runtime, func in image_generators.items():
-        images.update({image_name(runtime, tag): image for tag, image in func(docker_client).items()})
+
+    images = {}
+    for runtime, tags_listing in runtime_image_listing.items():
+        for tag, args in tags_listing.items():
+            name = image_name(runtime, tag)
+            assert name not in images
+            images[name] = _build_image(docker_client, runtime, **args)
     return images
 
 
