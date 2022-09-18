@@ -5,7 +5,6 @@
 
 import functools
 import os
-import re
 import signal
 from pathlib import Path
 from threading import Event
@@ -23,7 +22,7 @@ from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
-from gprofiler.utils.process import is_process_basename_matching, process_comm, read_proc_file
+from gprofiler.utils.process import is_process_basename_matching, process_comm, search_proc_maps
 
 logger = get_logger_adapter(__name__)
 
@@ -128,4 +127,4 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
         return pgrep_maps(self.DETECTED_RUBY_PROCESSES_REGEX)
 
     def _should_profile_process(self, process: Process) -> bool:
-        return re.search(self.DETECTED_RUBY_PROCESSES_REGEX, read_proc_file(process, "maps"), re.MULTILINE) is not None
+        return search_proc_maps(process, self.DETECTED_RUBY_PROCESSES_REGEX) is not None
