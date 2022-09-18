@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 #
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
@@ -17,17 +17,17 @@ set -euo pipefail
 
 rustup target add $(uname -m)-unknown-linux-musl
 
-apt-get update && apt-get install -y musl-dev musl-tools
+apk add --no-cache musl-dev make git  # git used by next scripts
 
 mkdir builds && cd builds
 
 wget https://github.com/libunwind/libunwind/releases/download/v1.5/libunwind-1.5.0.tar.gz
 tar -xf libunwind-1.5.0.tar.gz
-pushd libunwind-1.5.0
-CC=musl-gcc ./configure --disable-minidebuginfo --enable-ptrace --disable-tests --disable-documentation
+cd libunwind-1.5.0
+./configure --disable-minidebuginfo --enable-ptrace --disable-tests --disable-documentation || { cat config.log ; exit 1; }
 make
 make install
-popd
+cd ..
 rm -r libunwind-1.5.0
 rm libunwind-1.5.0.tar.gz
 
@@ -35,13 +35,13 @@ ZLIB_VERSION=1.2.12
 ZLIB_FILE="zlib-$ZLIB_VERSION.tar.xz"
 wget "https://zlib.net/$ZLIB_FILE"
 tar -xf "$ZLIB_FILE"
-pushd "zlib-$ZLIB_VERSION"
+cd "zlib-$ZLIB_VERSION"
 # note the use of --prefix here. it matches the directory https://github.com/benfred/remoteprocess/blob/master/build.rs expects to find libs for musl.
 # the libunwind configure may install it in /usr/local/lib for all I care, but if we override /usr/local/lib/libz... with the musl ones,
 # it won't do any good...
 # --static - we don't need the shared build, we compile everything statically anyway.
-CC=musl-gcc ./configure --prefix=/usr/local/musl/$(uname -m)-unknown-linux-musl --static
+./configure --prefix=/usr/local/musl/$(uname -m)-unknown-linux-musl --static
 make
 make install
-popd
+cd ..
 rm -fr $ZLIB_FILE zlib-*
