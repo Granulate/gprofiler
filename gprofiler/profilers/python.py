@@ -11,7 +11,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from subprocess import CompletedProcess, Popen
 from threading import Event
-from typing import Any, Dict, List, Match, NoReturn, Optional, Tuple, cast
+from typing import Any, Dict, List, Match, NoReturn, Optional, cast
 
 from granulate_utils.linux.elf import get_elf_id
 from granulate_utils.linux.ns import get_process_nspid, is_running_in_init_pid, run_in_ns
@@ -94,43 +94,43 @@ def _add_versions_to_stacks(
 
 
 class PythonMetadata(ApplicationMetadata):
-    _PYTHON_VERSION_TIMEOUT = 3
-
-    def _run_process_python(self, process: Process, args: List[str]) -> Tuple[str, str]:
-        if not is_process_basename_matching(process, application_identifiers._PYTHON_BIN_RE):
-            # TODO: for dynamic executables, find the python binary that works with the loaded libpython, and
-            # check it instead. For static executables embedding libpython - :shrug:
-            raise NotImplementedError
-
-        python_path = f"/proc/{get_process_nspid(process.pid)}/exe"
-
-        def _run_python_process_in_ns() -> "CompletedProcess[bytes]":
-            return run_process(
-                [
-                    python_path,
-                ]
-                + args,
-                stop_event=self._stop_event,
-                timeout=self._PYTHON_VERSION_TIMEOUT,
-            )
-
-        cp = run_in_ns(["pid", "mnt"], _run_python_process_in_ns, process.pid)
-        return cp.stdout.decode().strip(), cp.stderr.decode().strip()
+    _PYTHON_TIMEOUT = 3
 
     def _get_python_version(self, process: Process) -> Optional[str]:
         try:
-            stdout, stderr = self._run_process_python(process, ["-V"])
-            if stdout:
-                return stdout
-            # Python 2 prints -V to stderr, so return that instead.
-            return stderr
+            if is_process_basename_matching(process, application_identifiers._PYTHON_BIN_RE):
+                version_arg = "-V"
+                prefix = ""
+            elif is_process_basename_matching(process, r"^uwsgi$"):
+                version_arg = "--python-version"
+                # for compatibility, we add this prefix (to match python -V)
+                prefix = "Python "
+            else:
+                # TODO: for dynamic executables, find the python binary that works with the loaded libpython, and
+                # check it instead. For static executables embedding libpython - :shrug:
+                raise NotImplementedError
+
+            # Python 2 prints -V to stderr, so try that as well.
+            return prefix + self.get_exe_version_cached(process, version_arg=version_arg, try_stderr=True)
         except Exception:
             return None
 
     def _get_sys_maxunicode(self, process: Process) -> Optional[str]:
         try:
-            stdout, stderr = self._run_process_python(process, ["-S", "-c", "import sys; print(sys.maxunicode)"])
-            return stdout
+            if not is_process_basename_matching(process, application_identifiers._PYTHON_BIN_RE):
+                # see same raise above
+                raise NotImplementedError
+
+            python_path = f"/proc/{get_process_nspid(process.pid)}/exe"
+
+            def _run_python_process_in_ns() -> "CompletedProcess[bytes]":
+                return run_process(
+                    [python_path, "-S", "-c", "import sys; print(sys.maxunicode)"],
+                    stop_event=self._stop_event,
+                    timeout=self._PYTHON_TIMEOUT,
+                )
+
+            return run_in_ns(["pid", "mnt"], _run_python_process_in_ns, process.pid).stdout.decode().strip()
         except Exception:
             return None
 
