@@ -40,7 +40,9 @@ from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.profiler_base import ProfilerBase, ProfilerInterface, SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.profilers.python_ebpf import PythonEbpfProfiler, PythonEbpfError
+from gprofiler.platform import is_windows
+if not is_windows():
+    from gprofiler.profilers.python_ebpf import PythonEbpfProfiler, PythonEbpfError
 from gprofiler.utils import (
     pgrep_maps,
     poll_process,
@@ -340,7 +342,7 @@ class PythonProfiler(ProfilerInterface):
                 logger.warning("PyPerf is supported only on x86_64, falling back to py-spy")
             python_mode = "pyspy"
 
-        if python_mode in ("auto", "pyperf"):
+        if python_mode in ("auto", "pyperf") and not is_windows():
             self._ebpf_profiler = self._create_ebpf_profiler(
                 frequency,
                 duration,
@@ -354,7 +356,8 @@ class PythonProfiler(ProfilerInterface):
             self._ebpf_profiler = None
 
         if python_mode == "pyspy" or (self._ebpf_profiler is None and python_mode == "auto"):
-            self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(
+            self._pyspy_profiler: Optional[PySpyProfiler] = PySpy
+            Profiler(
                 frequency,
                 duration,
                 stop_event,
@@ -365,32 +368,33 @@ class PythonProfiler(ProfilerInterface):
         else:
             self._pyspy_profiler = None
 
-    def _create_ebpf_profiler(
-        self,
-        frequency: int,
-        duration: int,
-        stop_event: Event,
-        storage_dir: str,
-        profile_spawned_processes: bool,
-        add_versions: bool,
-        user_stacks_pages: Optional[int],
-    ) -> Optional[PythonEbpfProfiler]:
-        try:
-            profiler = PythonEbpfProfiler(
-                frequency,
-                duration,
-                stop_event,
-                storage_dir,
-                profile_spawned_processes,
-                add_versions=add_versions,
-                user_stacks_pages=user_stacks_pages,
-            )
-            profiler.test()
-            return profiler
-        except Exception as e:
-            logger.debug(f"eBPF profiler error: {str(e)}")
-            logger.info("Python eBPF profiler initialization failed")
-            return None
+    if not is_windows():
+        def _create_ebpf_profiler(
+            self,
+            frequency: int,
+            duration: int,
+            stop_event: Event,
+            storage_dir: str,
+            profile_spawned_processes: bool,
+            add_versions: bool,
+            user_stacks_pages: Optional[int],
+        ) -> Optional[PythonEbpfProfiler]:
+            try:
+                profiler = PythonEbpfProfiler(
+                    frequency,
+                    duration,
+                    stop_event,
+                    storage_dir,
+                    profile_spawned_processes,
+                    add_versions=add_versions,
+                    user_stacks_pages=user_stacks_pages,
+                )
+                profiler.test()
+                return profiler
+            except Exception as e:
+                logger.debug(f"eBPF profiler error: {str(e)}")
+                logger.info("Python eBPF profiler initialization failed")
+                return None
 
     def start(self) -> None:
         if self._ebpf_profiler is not None:

@@ -1,5 +1,6 @@
 import glob
 import os
+import resource
 import signal
 from pathlib import Path
 from subprocess import Popen
@@ -25,10 +26,6 @@ from gprofiler.utils import (
         wait_for_file_by_prefix,
 )
 
-from gprofiler import is_windows
-if not is_windows():
-    import resource
-
 class PythonEbpfError(CalledProcessError):
     """
     An error encountered while running PyPerf.
@@ -43,7 +40,7 @@ class PythonEbpfProfiler(ProfilerBase):
     _EVENTS_BUFFER_PAGES = 256  # 1mb and needs to be physically contiguous
     # 28mb (each symbol is 224 bytes), but needn't be physicall contiguous so don't care
     _SYMBOLS_MAP_SIZE = 131072
-    _DUMP_SIGNAL = signal.SIGUSR2 if not is_windows() else signal.SIGFPE
+    _DUMP_SIGNAL = signal.SIGUSR2
     _DUMP_TIMEOUT = 5  # seconds
     _POLL_TIMEOUT = 10  # seconds
     _GET_OFFSETS_TIMEOUT = 5  # seconds
@@ -90,8 +87,7 @@ class PythonEbpfProfiler(ProfilerBase):
         in a container, so these steps have to run)
         """
         # increase memlock (Docker defaults to 64k which is not enough for the get_offset programs)
-        if not is_windows():
-            resource.setrlimit(resource.RLIMIT_MEMLOCK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
+        resource.setrlimit(resource.RLIMIT_MEMLOCK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
 
         # mount /sys/kernel/debug in our container
         if not os.path.ismount("/sys/kernel/debug"):
