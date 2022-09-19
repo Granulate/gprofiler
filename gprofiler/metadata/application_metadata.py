@@ -37,7 +37,7 @@ class ApplicationMetadata:
                 if not is_process_running(process):
                     del self._cache[process]
 
-    def get_exe_version(self, process: Process, version_arg: str = "--version") -> str:
+    def get_exe_version(self, process: Process, version_arg: str = "--version", try_stderr: bool = False) -> str:
         """
         Runs {process.exe()} --version in the appropriate namespace
         """
@@ -46,11 +46,17 @@ class ApplicationMetadata:
         def _run_get_version() -> "CompletedProcess[bytes]":
             return run_process([exe_path, version_arg], stop_event=self._stop_event, timeout=self._GET_VERSION_TIMEOUT)
 
-        return run_in_ns(["pid", "mnt"], _run_get_version, process.pid).stdout.decode().strip()
+        cp = run_in_ns(["pid", "mnt"], _run_get_version, process.pid)
+        stdout = cp.stdout.decode().strip()
+        # return stderr if stdout is empty, some apps print their version to stderr.
+        if try_stderr and not stdout:
+            return cp.stderr.decode().strip()
+
+        return stdout
 
     @functools.lru_cache(4096)
-    def get_exe_version_cached(self, process: Process, version_arg: str = "--version") -> str:
-        return self.get_exe_version(process, version_arg)
+    def get_exe_version_cached(self, process: Process, version_arg: str = "--version", try_stderr: bool = False) -> str:
+        return self.get_exe_version(process, version_arg, try_stderr)
 
     def get_metadata(self, process: Process) -> Optional[Dict]:
         metadata = self._cache.get(process)
