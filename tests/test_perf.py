@@ -116,7 +116,6 @@ def test_perf_comm_change(
         _assert_comm_in_profile(profiler, application_pid, True)
 
 
-@pytest.mark.xfail(reason="https://github.com/Granulate/gprofiler/issues/431")
 @pytest.mark.parametrize("runtime", ["native_thread_comm"])
 @pytest.mark.parametrize("perf_mode", ["fp"])  # only fp is enough
 @pytest.mark.parametrize("in_container", [True])  # native app is built only for container
