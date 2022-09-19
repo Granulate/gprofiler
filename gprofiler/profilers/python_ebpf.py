@@ -7,24 +7,27 @@ from subprocess import Popen
 from threading import Event
 from typing import Dict, List, NoReturn, Optional
 
-from gprofiler.exceptions import (
-        CalledProcessError,
-        StopEventSetException,
-)
-from gprofiler.gprofiler_types import (
-        ProcessToProfileData,
-        ProfileData,
-)
+from psutil import NoSuchProcess, Process
+
+from gprofiler import merge
+from gprofiler.exceptions import CalledProcessError, StopEventSetException
+from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData
+from gprofiler.log import get_logger_adapter
+from gprofiler.metadata import application_identifiers
 from gprofiler.profilers.profiler_base import ProfilerBase
+from gprofiler.profilers.python import PythonMetadata, _add_versions_to_stacks
 from gprofiler.utils import (
-        poll_process,
-        random_prefix,
-        resource_path,
-        run_process,
-        start_process,
-        wait_event,
-        wait_for_file_by_prefix,
+    poll_process,
+    random_prefix,
+    resource_path,
+    run_process,
+    start_process,
+    wait_event,
+    wait_for_file_by_prefix,
 )
+
+logger = get_logger_adapter(__name__)
+
 
 class PythonEbpfError(CalledProcessError):
     """
@@ -116,12 +119,7 @@ class PythonEbpfProfiler(ProfilerBase):
             return offset
 
     def _offset_args(self) -> List[str]:
-        return [
-            "--fs-offset",
-            str(self._kernel_fs_offset()),
-            "--stack-offset",
-            str(self._kernel_stack_offset()),
-        ]
+        return ["--fs-offset", str(self._kernel_fs_offset()), "--stack-offset", str(self._kernel_stack_offset())]
 
     def test(self) -> None:
         self._ebpf_environment()

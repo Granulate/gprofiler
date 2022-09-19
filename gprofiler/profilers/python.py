@@ -2,19 +2,17 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import glob
 import os
 import re
-import resource
 import signal
 from collections import Counter, defaultdict
 from pathlib import Path
-from subprocess import CompletedProcess, Popen
+from subprocess import CompletedProcess
 from threading import Event
-from typing import Any, Dict, List, Match, NoReturn, Optional, Tuple, cast
+from typing import Any, Dict, List, Match, Optional, Tuple, cast
 
 from granulate_utils.linux.elf import get_elf_id
-from granulate_utils.linux.ns import get_process_nspid, is_running_in_init_pid, run_in_ns
+from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from granulate_utils.linux.process import get_mapped_dso_elf_id, is_process_running, process_exe
 from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PROCESSES_REGEX
 from psutil import NoSuchProcess, Process
@@ -38,22 +36,14 @@ from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
-from gprofiler.profilers.profiler_base import ProfilerBase, ProfilerInterface, SpawningProcessProfilerBase
-from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.platform import is_windows
+from gprofiler.profilers.profiler_base import ProfilerInterface, SpawningProcessProfilerBase
+from gprofiler.profilers.registry import ProfilerArgument, register_profiler
+
 if not is_windows():
     from gprofiler.profilers.python_ebpf import PythonEbpfProfiler, PythonEbpfError
-from gprofiler.utils import (
-    pgrep_maps,
-    poll_process,
-    random_prefix,
-    removed_path,
-    resource_path,
-    run_process,
-    start_process,
-    wait_event,
-    wait_for_file_by_prefix,
-)
+
+from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
 from gprofiler.utils.process import is_process_basename_matching, process_comm, read_proc_file
 
 logger = get_logger_adapter(__name__)
@@ -108,14 +98,7 @@ class PythonMetadata(ApplicationMetadata):
         python_path = f"/proc/{get_process_nspid(process.pid)}/exe"
 
         def _run_python_process_in_ns() -> "CompletedProcess[bytes]":
-            return run_process(
-                [
-                    python_path,
-                ]
-                + args,
-                stop_event=self._stop_event,
-                timeout=self._PYTHON_VERSION_TIMEOUT,
-            )
+            return run_process([python_path] + args, stop_event=self._stop_event, timeout=self._PYTHON_VERSION_TIMEOUT)
 
         cp = run_in_ns(["pid", "mnt"], _run_python_process_in_ns, process.pid)
         return cp.stdout.decode().strip(), cp.stderr.decode().strip()
@@ -233,11 +216,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
                 ):
                     logger.debug(f"Profiled process {process.pid} exited before py-spy could start")
                     return ProfileData(
-                        self._profiling_error_stack(
-                            "error",
-                            comm,
-                            "process exited before py-spy started",
-                        ),
+                        self._profiling_error_stack("error", comm, "process exited before py-spy started"),
                         appid,
                         app_metadata,
                     )
@@ -356,8 +335,7 @@ class PythonProfiler(ProfilerInterface):
             self._ebpf_profiler = None
 
         if python_mode == "pyspy" or (self._ebpf_profiler is None and python_mode == "auto"):
-            self._pyspy_profiler: Optional[PySpyProfiler] = PySpy
-            Profiler(
+            self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(
                 frequency,
                 duration,
                 stop_event,
@@ -369,6 +347,7 @@ class PythonProfiler(ProfilerInterface):
             self._pyspy_profiler = None
 
     if not is_windows():
+
         def _create_ebpf_profiler(
             self,
             frequency: int,

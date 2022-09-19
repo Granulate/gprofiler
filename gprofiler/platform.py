@@ -7,6 +7,7 @@ from functools import lru_cache
 
 WINDOWS_PLATFORM_NAME = "win32"
 
+
 @lru_cache(maxsize=None)
 def is_windows() -> bool:
     return sys.platform == WINDOWS_PLATFORM_NAME
