@@ -2,17 +2,18 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import functools
+
 import os
 import signal
-import struct
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
 from typing import Any, Dict, List, Optional
 
-from granulate_utils.linux.elf import is_statically_linked, read_elf_symbol, read_elf_va
+from granulate_utils.golang import get_process_golang_version, is_golang_process
+from granulate_utils.linux.elf import is_statically_linked
 from granulate_utils.linux.process import is_musl
+from granulate_utils.node import is_node_process
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
@@ -24,7 +25,6 @@ from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import run_process, start_process, wait_event, wait_for_file_by_prefix
 from gprofiler.utils.perf import perf_path
-from gprofiler.utils.process import is_process_basename_matching
 
 logger = get_logger_adapter(__name__)
 
@@ -266,36 +266,10 @@ class PerfMetadata(ApplicationMetadata):
 
 class GolangPerfMetadata(PerfMetadata):
     def relevant_for_process(self, process: Process) -> bool:
-        version = self._get_golang_version(process)
-        return version is not None
-
-    @functools.lru_cache(maxsize=4096)
-    def _get_golang_version(self, process: Process) -> Optional[str]:
-        elf_path = f"/proc/{process.pid}/exe"
-        try:
-            symbol_data = read_elf_symbol(elf_path, "runtime.buildVersion", 16)
-        except FileNotFoundError:
-            raise NoSuchProcess(process.pid)
-        if symbol_data is None:
-            return None
-
-        # Declaration of go string type:
-        # type stringStruct struct {
-        # 	str unsafe.Pointer
-        # 	len int
-        # }
-        addr, length = struct.unpack("QQ", symbol_data)
-        try:
-            golang_version_bytes = read_elf_va(elf_path, addr, length)
-        except FileNotFoundError:
-            raise NoSuchProcess(process.pid)
-        if golang_version_bytes is None:
-            return None
-
-        return golang_version_bytes.decode()
+        return is_golang_process(process)
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        metadata = {"golang_version": self._get_golang_version(process)}
+        metadata = {"golang_version": get_process_golang_version(process)}
         self.add_exe_metadata(process, metadata)
         metadata.update(super().make_application_metadata(process))
         return metadata
@@ -303,7 +277,7 @@ class GolangPerfMetadata(PerfMetadata):
 
 class NodePerfMetadata(PerfMetadata):
     def relevant_for_process(self, process: Process) -> bool:
-        return is_process_basename_matching(process, r"^node$")
+        return is_node_process(process)
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         metadata = {"node_version": self.get_exe_version_cached(process)}

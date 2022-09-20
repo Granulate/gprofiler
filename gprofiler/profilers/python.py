@@ -15,7 +15,12 @@ from typing import Any, Dict, List, Match, NoReturn, Optional, cast
 
 from granulate_utils.linux.elf import get_elf_id
 from granulate_utils.linux.ns import get_process_nspid, is_running_in_init_pid, run_in_ns
-from granulate_utils.linux.process import get_mapped_dso_elf_id, is_process_running, process_exe
+from granulate_utils.linux.process import (
+    get_mapped_dso_elf_id,
+    is_process_basename_matching,
+    is_process_running,
+    process_exe,
+)
 from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PROCESSES_REGEX
 from psutil import NoSuchProcess, Process
 
@@ -51,7 +56,7 @@ from gprofiler.utils import (
     wait_event,
     wait_for_file_by_prefix,
 )
-from gprofiler.utils.process import is_process_basename_matching, process_comm, search_proc_maps
+from gprofiler.utils.process import process_comm, search_proc_maps
 
 logger = get_logger_adapter(__name__)
 

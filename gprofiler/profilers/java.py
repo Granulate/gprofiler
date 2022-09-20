@@ -32,7 +32,13 @@ from granulate_utils.linux import proc_events
 from granulate_utils.linux.kernel_messages import KernelMessage
 from granulate_utils.linux.ns import get_proc_root_path, get_process_nspid, resolve_proc_root_links, run_in_ns
 from granulate_utils.linux.oom import get_oom_entry
-from granulate_utils.linux.process import get_mapped_dso_elf_id, is_musl, is_process_running, process_exe
+from granulate_utils.linux.process import (
+    get_mapped_dso_elf_id,
+    is_musl,
+    is_process_basename_matching,
+    is_process_running,
+    process_exe,
+)
 from granulate_utils.linux.signals import get_signal_entry
 from packaging.version import Version
 from psutil import Process
@@ -65,7 +71,7 @@ from gprofiler.utils import (
 )
 from gprofiler.utils.fs import is_rw_exec_dir, safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
-from gprofiler.utils.process import is_process_basename_matching, process_comm, search_proc_maps
+from gprofiler.utils.process import process_comm, search_proc_maps
 
 logger = get_logger_adapter(__name__)
 

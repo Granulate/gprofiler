@@ -10,6 +10,7 @@ from threading import Event
 from typing import Any, Dict, List, Optional
 
 from granulate_utils.linux.ns import get_process_nspid
+from granulate_utils.linux.process import is_process_basename_matching
 from psutil import Process
 
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
@@ -19,7 +20,7 @@ from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
-from gprofiler.utils.process import is_process_basename_matching, process_comm
+from gprofiler.utils.process import process_comm
 from gprofiler.utils.speedscope import load_speedscope_as_collapsed
 
 logger = get_logger_adapter(__name__)
