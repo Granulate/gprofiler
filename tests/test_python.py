@@ -6,12 +6,9 @@ from pathlib import Path
 from threading import Event
 
 import pytest
-from docker import DockerClient
 from docker.models.containers import Container
-from docker.models.images import Image
 
 from gprofiler.profilers.python import PythonProfiler
-from tests import CONTAINERS_DIRECTORY
 from tests.conftest import AssertInCollapsed
 from tests.utils import snapshot_pid_collapsed
 
@@ -21,15 +18,8 @@ def runtime() -> str:
     return "python"
 
 
-@pytest.fixture(scope="session")
-def application_docker_image(docker_client: DockerClient) -> Image:
-    dockerfile = CONTAINERS_DIRECTORY / "python" / "Dockerfile.libpython"
-    image: Image = docker_client.images.build(path=str(dockerfile.parent), dockerfile=str(dockerfile), rm=True)[0]
-    yield image
-    docker_client.images.remove(image.id, force=True)
-
-
 @pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("application_image_tag", ["libpython"])
 def test_python_select_by_libpython(
     tmp_path: Path,
     application_docker_container: Container,
