@@ -266,7 +266,10 @@ class PerfMetadata(ApplicationMetadata):
 
 class GolangPerfMetadata(PerfMetadata):
     def relevant_for_process(self, process: Process) -> bool:
-        return is_golang_process(process)
+        try:
+            return is_golang_process(process)
+        except Exception:
+            return False
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         metadata = {"golang_version": get_process_golang_version(process)}
