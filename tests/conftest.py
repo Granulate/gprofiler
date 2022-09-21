@@ -81,7 +81,6 @@ def java_command_line(tmp_path: Path, java_args: List[str]) -> List[str]:
 
 @fixture
 def dotnet_command_line(tmp_path: Path) -> List[str]:
-    return []
     class_path = tmp_path / "dotnet" / "Fibonacci"
     class_path.mkdir(parents=True)
     chmod_path_parts(class_path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)

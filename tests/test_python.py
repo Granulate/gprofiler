@@ -76,6 +76,9 @@ def test_python_matrix(
     if python_version == "3.5" and profiler_type == "pyperf":
         pytest.skip("PyPerf doesn't support Python 3.5!")
 
+    if python_version == "2.7" and profiler_type == "pyperf" and libc == "glibc" and app == "uwsgi":
+        pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/485")
+
     with PythonProfiler(1000, 2, Event(), str(tmp_path), False, profiler_type, True, None) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
 
