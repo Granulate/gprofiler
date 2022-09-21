@@ -7,6 +7,7 @@ from subprocess import Popen
 from threading import Event
 from typing import Dict, List, NoReturn, Optional
 
+from granulate_utils.linux.ns import is_running_in_init_pid
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
@@ -54,11 +55,13 @@ class PythonEbpfProfiler(ProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
+        profile_spawned_processes: bool,
         *,
         add_versions: bool,
         user_stacks_pages: Optional[int] = None,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
+        _ = profile_spawned_processes  # Required for mypy unused argument warning
         self.process: Optional[Popen] = None
         self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
         self.add_versions = add_versions
@@ -89,6 +92,9 @@ class PythonEbpfProfiler(ProfilerBase):
         to verify those conditions stand anyway (and during our tests - we run gProfiler's executable
         in a container, so these steps have to run)
         """
+        # see explanation in https://github.com/Granulate/gprofiler/issues/443#issuecomment-1229515568
+        assert is_running_in_init_pid(), "PyPerf must run in init PID NS!"
+
         # increase memlock (Docker defaults to 64k which is not enough for the get_offset programs)
         resource.setrlimit(resource.RLIMIT_MEMLOCK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
 
@@ -119,7 +125,12 @@ class PythonEbpfProfiler(ProfilerBase):
             return offset
 
     def _offset_args(self) -> List[str]:
-        return ["--fs-offset", str(self._kernel_fs_offset()), "--stack-offset", str(self._kernel_stack_offset())]
+        return [
+            "--fs-offset",
+            str(self._kernel_fs_offset()),
+            "--stack-offset",
+            str(self._kernel_stack_offset()),
+        ]
 
     def test(self) -> None:
         self._ebpf_environment()
