@@ -10,6 +10,7 @@ from subprocess import Popen
 from threading import Event
 from typing import Any, Dict, List, Optional
 
+from granulate_utils.exceptions import MissingExePath
 from granulate_utils.golang import get_process_golang_version, is_golang_process
 from granulate_utils.linux.elf import is_statically_linked
 from granulate_utils.linux.process import is_musl
@@ -268,7 +269,7 @@ class GolangPerfMetadata(PerfMetadata):
     def relevant_for_process(self, process: Process) -> bool:
         try:
             return is_golang_process(process)
-        except Exception:
+        except MissingExePath:
             return False
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
