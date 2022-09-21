@@ -58,9 +58,9 @@ def test_python_select_by_libpython(
         "3.10-glibc-python",
         "3.10-musl-python",
         "2.7-glibc-uwsgi",
-        # "2.7-musl-uwsgi",
+        "2.7-musl-uwsgi",
         "3.7-glibc-uwsgi",
-        # "3.7-musl-uwsgi",
+        "3.7-musl-uwsgi",
     ],
 )
 @pytest.mark.parametrize("profiler_type", ["py-spy", "pyperf"])
@@ -76,7 +76,7 @@ def test_python_matrix(
     if python_version == "3.5" and profiler_type == "pyperf":
         pytest.skip("PyPerf doesn't support Python 3.5!")
 
-    if python_version == "2.7" and profiler_type == "pyperf" and libc == "glibc" and app == "uwsgi":
+    if python_version == "2.7" and profiler_type == "pyperf" and app == "uwsgi":
         pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/485")
 
     with PythonProfiler(1000, 2, Event(), str(tmp_path), False, profiler_type, True, None) as profiler:
