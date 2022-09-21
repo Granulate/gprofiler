@@ -6,7 +6,7 @@ import os
 import stat
 import subprocess
 from contextlib import _GeneratorContextManager, contextmanager
-from functools import partial
+from functools import lru_cache, partial
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, Iterable, Iterator, List, Mapping, Optional, cast
 
@@ -186,6 +186,7 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
 def _build_image(
     docker_client: DockerClient, runtime: str, dockerfile: str = "Dockerfile", **kwargs: Mapping[str, Any]
 ) -> Image:
+    print("called for", runtime, dockerfile)
     base_path = CONTAINERS_DIRECTORY / runtime
     return docker_client.images.build(path=str(base_path), rm=True, dockerfile=str(base_path / dockerfile), **kwargs)[0]
 
@@ -195,7 +196,7 @@ def image_name(runtime: str, image_tag: str) -> str:
 
 
 @fixture(scope="session")
-def application_docker_images(docker_client: DockerClient) -> Mapping[str, Image]:
+def application_docker_images(docker_client: DockerClient) -> Mapping[str, Callable[[], Image]]:
     runtime_image_listing: Dict[str, Dict[str, Dict[str, Any]]] = {
         "dotnet": {
             "": {},
@@ -233,7 +234,12 @@ def application_docker_images(docker_client: DockerClient) -> Mapping[str, Image
         for tag, args in tags_listing.items():
             name = image_name(runtime, tag)
             assert name not in images
-            images[name] = _build_image(docker_client, runtime, **args)
+
+            @lru_cache(maxsize=1)
+            def image_builder() -> Image:
+                return _build_image(docker_client, runtime, **args)
+
+            images[name] = image_builder
     return images
 
 
@@ -245,11 +251,11 @@ def application_image_tag() -> str:
 
 @fixture
 def application_docker_image(
-    application_docker_images: Mapping[str, Image],
+    application_docker_images: Mapping[str, Callable[[], Image]],
     runtime: str,
     application_image_tag: str,
 ) -> Iterable[Image]:
-    yield application_docker_images[image_name(runtime, application_image_tag)]
+    yield application_docker_images[image_name(runtime, application_image_tag)]()
 
 
 @fixture
