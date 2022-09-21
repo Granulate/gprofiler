@@ -5,7 +5,7 @@
 #
 set -euo pipefail
 
-git clone --depth 1 -b v1.2.2 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 2c991423e7b20d36a3bda3ff9393967c87139227
+git clone --depth 1 -b pyperf_caching https://github.com/IzabellaRaulin/bcc.git && cd bcc && git reset --hard 3bd5e37eab84e8c2ad76c76cc446d5720b697ea3
 
 # (after clone, because we copy the licenses)
 # TODO support aarch64
