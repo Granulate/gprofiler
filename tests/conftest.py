@@ -6,7 +6,7 @@ import os
 import stat
 import subprocess
 from contextlib import _GeneratorContextManager, contextmanager
-from functools import partial
+from functools import lru_cache, partial
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, Iterable, Iterator, List, Mapping, Optional, cast
 
@@ -183,6 +183,7 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
     yield docker_client.images.get("gprofiler")
 
 
+@lru_cache(maxsize=1024)
 def _build_image(
     docker_client: DockerClient, runtime: str, dockerfile: str = "Dockerfile", **kwargs: Mapping[str, Any]
 ) -> Image:
