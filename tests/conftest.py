@@ -247,7 +247,7 @@ def application_image_tag() -> str:
     return ""
 
 
-@fixture(scope="session")  # session so it caches each image.
+@fixture
 def application_docker_image(
     docker_client: DockerClient,
     application_docker_image_configs: Mapping[str, Dict[str, Any]],
