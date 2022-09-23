@@ -23,6 +23,7 @@ and install all needed dependencies with:
 ````bash
 pip3 install -r requirements.txt
 pip3 install -r dev-requirements.txt
+pip3 install -r test-requirements.txt
 ````
 
 This above commands installs all packages required for building, developing and testing the project.
@@ -31,25 +32,41 @@ This above commands installs all packages required for building, developing and 
 
 ### Standard build
 There are build scripts under `scripts/` for all components gProfiler uses.
-They are all invoked during the Docker build (described ahead).
-If you don't want to build them, you can copy the built artifacts from the latest Docker image build; there's an helper script to do that:
+They are all invoked during the Docker build (described ahead). Do not invoke them manually.
+If you don't want to build the binaries yourself, you can copy the built artifacts from the latest Docker image build; there's an helper script to do that:
 ```bash
 ./scripts/copy_resources_from_image.sh
 ```
 
-The above command will download all dependencies to the `gprofiler/resources` directory.
-
+The above command will get the `granulate/gprofiler:latest` image and extract all dependencies to the `gprofiler/resources` directory.
 
 ### Docker build
 Alternatively, you can build the docker image, including all dependencies, through:
 ```bash
-docker build -t granulate/gprofiler .
+./scripts/build_x86_64_container.sh -t gprofiler
 ```
 
+To build the gProfiler executable, you can run `./scripts/build_x86_64_executable.sh`.
+
+There are matching scripts for `aarch64`.
+
+## Linting
+
+Make sure you have installed `requirements.txt` and `dev-requirements.txt` as described in the [installation](#installation) section, and make sure the versions match as well (`black` of different versions, for example, may yield different formatting results).
+
+The Python linters & formatters can be run with `./lint.sh`. The Dockerfile linter can be run with `./dockerfile_lint.sh`.
+
 ## Testing
+Tests require to run as root, so make sure that the Python environment as described in [installation](#installation) is installed properly for "root" as well.
+
 To run all automated tests simply run:
 ```bash
 sudo ./tests/test.sh
+```
+
+To run specific tests you can use:
+```bash
+cd tests && sudo python3 -m pytest -v -k "test_..."
 ```
 
 ## Contributing to gProfiler

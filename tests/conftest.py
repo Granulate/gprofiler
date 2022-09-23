@@ -195,7 +195,7 @@ def image_name(runtime: str, image_tag: str) -> str:
 
 
 @fixture(scope="session")
-def application_docker_images(docker_client: DockerClient) -> Mapping[str, Image]:
+def application_docker_image_configs() -> Mapping[str, Dict[str, Any]]:
     runtime_image_listing: Dict[str, Dict[str, Dict[str, Any]]] = {
         "dotnet": {
             "": {},
@@ -224,16 +224,42 @@ def application_docker_images(docker_client: DockerClient) -> Mapping[str, Image
         "python": {
             "": {},
             "libpython": dict(dockerfile="libpython.Dockerfile"),
+            "2.7-glibc-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "2.7-slim"}),
+            "2.7-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "2.7-alpine"}),
+            "3.5-glibc-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.5-slim"}),
+            "3.5-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.5-alpine"}),
+            "3.6-glibc-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.6-slim"}),
+            "3.6-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.6-alpine"}),
+            "3.7-glibc-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.7-slim"}),
+            "3.7-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.7-alpine"}),
+            "3.8-glibc-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.8-slim"}),
+            "3.8-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.8-alpine"}),
+            "3.9-glibc-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.9-slim"}),
+            "3.9-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.9-alpine"}),
+            "3.10-glibc-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.10-slim"}),
+            "3.10-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.10-alpine"}),
+            "2.7-glibc-uwsgi": dict(
+                dockerfile="uwsgi.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "2.7"}
+            ),  # not slim - need gcc
+            "2.7-musl-uwsgi": dict(dockerfile="uwsgi.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "2.7-alpine"}),
+            "3.7-glibc-uwsgi": dict(
+                dockerfile="uwsgi.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.7"}
+            ),  # not slim - need gcc
+            "3.7-musl-uwsgi": dict(dockerfile="uwsgi.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.7-alpine"}),
         },
         "ruby": {"": {}},
     }
 
     images = {}
     for runtime, tags_listing in runtime_image_listing.items():
-        for tag, args in tags_listing.items():
+        for tag, kwargs in tags_listing.items():
             name = image_name(runtime, tag)
             assert name not in images
-            images[name] = _build_image(docker_client, runtime, **args)
+
+            assert runtime not in kwargs
+            kwargs["runtime"] = runtime
+
+            images[name] = kwargs
     return images
 
 
@@ -245,11 +271,12 @@ def application_image_tag() -> str:
 
 @fixture
 def application_docker_image(
-    application_docker_images: Mapping[str, Image],
+    docker_client: DockerClient,
+    application_docker_image_configs: Mapping[str, Dict[str, Any]],
     runtime: str,
     application_image_tag: str,
 ) -> Iterable[Image]:
-    yield application_docker_images[image_name(runtime, application_image_tag)]
+    yield _build_image(docker_client, **application_docker_image_configs[image_name(runtime, application_image_tag)])
 
 
 @fixture
