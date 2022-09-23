@@ -324,12 +324,12 @@ class PythonProfiler(ProfilerInterface):
 
         assert python_mode in ("auto", "pyperf", "pyspy"), f"unexpected mode: {python_mode}"
 
-        if get_arch() != "x86_64":
+        if get_arch() != "x86_64" or is_windows():
             if python_mode == "pyperf":
                 logger.warning("PyPerf is supported only on x86_64, falling back to py-spy")
             python_mode = "pyspy"
 
-        if python_mode in ("auto", "pyperf") and not is_windows():
+        if python_mode in ("auto", "pyperf"):
             self._ebpf_profiler = self._create_ebpf_profiler(
                 frequency,
                 duration,
