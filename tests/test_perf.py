@@ -116,7 +116,6 @@ def test_perf_comm_change(
         _assert_comm_in_profile(profiler, application_pid, True)
 
 
-@pytest.mark.xfail(reason="https://github.com/Granulate/gprofiler/issues/431")
 @pytest.mark.parametrize("runtime", ["native_thread_comm"])
 @pytest.mark.parametrize("perf_mode", ["fp"])  # only fp is enough
 @pytest.mark.parametrize("in_container", [True])  # native app is built only for container
@@ -131,8 +130,6 @@ def test_perf_thread_comm_is_process_comm(
     changes its comm.
     The stack output by perf should use the comm of the process (i.e the main thread), and when the process
     starts after perf, the exec comm of the process should be used (see test_perf_comm_change)
-
-    This test currently fails but describes the desired behavior.
     """
     with system_profiler as profiler:
         # running perf & script now with --show-task-events would show:
@@ -153,8 +150,4 @@ def test_perf_thread_comm_is_process_comm(
         #   oative 1925904 [006] 987095.272545: PERF_RECORD_FORK(1925904:1925947):(1925904:1925904)
         #   pative 1925947 [010] 987095.272656: PERF_RECORD_COMM: pative:1925904/1925947
         # we take the exec comm for all threads so we remain with the first, "native".
-
-        # this fails - because in thread__fork(), perf takes only the current comm of the forking thread
-        # and attaches it to the forked one. thus the exec comm (which is not current, but last) is lost.
-        # the fix can be to copy all comms in thread__fork().
         _assert_comm_in_profile(profiler, application_pid, True)

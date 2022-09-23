@@ -48,6 +48,11 @@ from tests.utils import (
 )
 
 
+@pytest.fixture
+def runtime() -> str:
+    return "java"
+
+
 def get_lib_path(application_pid: int, path: str) -> str:
     libs = set()
     for m in psutil.Process(application_pid).memory_maps():
@@ -76,11 +81,6 @@ class AsyncProfiledProcessForTests(AsyncProfiledProcess):
         self._run_async_profiler(
             self._get_base_cmd() + [f"status,log={self._log_path_process},file={self._output_path_process}"],
         )
-
-
-@pytest.fixture
-def runtime() -> str:
-    return "java"
 
 
 def test_async_profiler_already_running(
@@ -146,7 +146,7 @@ def test_java_async_profiler_cpu_mode(
 
 
 @pytest.mark.parametrize("in_container", [True])
-@pytest.mark.parametrize("image_suffix", ["_musl"])
+@pytest.mark.parametrize("application_image_tag", ["musl"])
 def test_java_async_profiler_musl_and_cpu(
     tmp_path: Path,
     application_pid: int,
@@ -339,7 +339,7 @@ def test_async_profiler_stops_after_given_timeout(
 
 
 @pytest.mark.parametrize("in_container", [True])
-@pytest.mark.parametrize("image_suffix,search_for", [("_j9", "OpenJ9"), ("_zing", "Zing")])
+@pytest.mark.parametrize("application_image_tag,search_for", [("j9", "OpenJ9"), ("zing", "Zing")])
 def test_sanity_other_jvms(
     tmp_path: Path,
     application_pid: int,
