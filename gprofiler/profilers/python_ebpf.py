@@ -19,8 +19,8 @@ from gprofiler.exceptions import CalledProcessError, StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
+from gprofiler.profilers import python
 from gprofiler.profilers.profiler_base import ProfilerBase
-from gprofiler.profilers.python import PythonMetadata, _add_versions_to_stacks
 from gprofiler.utils import (
     poll_process,
     random_prefix,
@@ -71,7 +71,7 @@ class PythonEbpfProfiler(ProfilerBase):
         self.add_versions = add_versions
         self.user_stacks_pages = user_stacks_pages
         self._kernel_offsets: Dict[str, int] = {}
-        self._metadata = PythonMetadata(self._stop_event)
+        self._metadata = python.PythonMetadata(self._stop_event)
 
     @classmethod
     def _pyperf_error(cls, process: Popen) -> NoReturn:
@@ -232,7 +232,7 @@ class PythonEbpfProfiler(ProfilerBase):
             collapsed_path.unlink()
         parsed = merge.parse_many_collapsed(collapsed_text)
         if self.add_versions:
-            parsed = _add_versions_to_stacks(parsed)
+            parsed = python._add_versions_to_stacks(parsed)
         profiles = {}
         for pid in parsed:
             try:
