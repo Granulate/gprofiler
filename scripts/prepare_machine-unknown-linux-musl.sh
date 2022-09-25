@@ -15,7 +15,7 @@ set -euo pipefail
 # in any way, building it static solves all issues. and I find it better to use more recent versions of libraries
 # like libunwind/zlib.
 
-rustup target add $(uname -m)-unknown-linux-musl
+rustup target add "$(uname -m)"-unknown-linux-musl
 
 apt-get update && apt-get install -y musl-dev musl-tools
 
@@ -40,7 +40,7 @@ pushd "zlib-$ZLIB_VERSION"
 # the libunwind configure may install it in /usr/local/lib for all I care, but if we override /usr/local/lib/libz... with the musl ones,
 # it won't do any good...
 # --static - we don't need the shared build, we compile everything statically anyway.
-CC=musl-gcc ./configure --prefix=/usr/local/musl/$(uname -m)-unknown-linux-musl --static
+CC=musl-gcc ./configure --prefix=/usr/local/musl/"$(uname -m)"-unknown-linux-musl --static
 make
 make install
 popd

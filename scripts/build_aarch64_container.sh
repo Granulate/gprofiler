@@ -28,4 +28,4 @@ docker buildx build --platform=linux/arm64 \
     --build-arg BURN_BUILDER_GOLANG=$GOLANG_VERSION \
     --build-arg GPROFILER_BUILDER_UBUNTU=$UBUNTU_VERSION \
     --build-arg DOTNET_BUILDER=$DOTNET_BUILDER \
-    . $@
+    . "$@"

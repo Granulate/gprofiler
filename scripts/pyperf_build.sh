@@ -9,7 +9,7 @@ git clone --depth 1 -b v1.2.3 https://github.com/Granulate/bcc.git && cd bcc && 
 
 # (after clone, because we copy the licenses)
 # TODO support aarch64
-if [ $(uname -m) != "x86_64" ]; then
+if [ "$(uname -m)" != "x86_64" ]; then
     mkdir -p /bcc/root/share/bcc/examples/cpp/
     touch /bcc/root/share/bcc/examples/cpp/PyPerf
     exit 0

@@ -39,4 +39,4 @@ DOCKER_BUILDKIT=1 docker build -f pyi.Dockerfile --output type=local,dest=build/
     --build-arg BURN_BUILDER_GOLANG=$BURN_BUILDER_GOLANG \
     --build-arg GPROFILER_BUILDER=$GPROFILER_BUILDER \
     --build-arg DOTNET_BUILDER=$DOTNET_BUILDER \
-    . $@
+    . "$@"
