@@ -16,7 +16,7 @@ if [ "$(uname -m)" = "aarch64" ]; then
     # higher value for make -j kills the GH runner (build gets OOM)
     nproc=2
 else
-    nproc=
+    nproc=$(nproc)
 fi
 
 ./configure --prefix=/usr --disable-tests --disable-documentation && make install -j "$nproc"
