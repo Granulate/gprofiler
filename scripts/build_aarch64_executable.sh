@@ -32,4 +32,4 @@ docker buildx build --platform=linux/arm64 \
     --build-arg BURN_BUILDER_GOLANG=$GOLANG_VERSION \
     --build-arg GPROFILER_BUILDER=$CENTOS8_VERSION \
     --build-arg DOTNET_BUILDER=$DOTNET_BUILDER \
-    . -f pyi.Dockerfile --output type=local,dest=build/aarch64/ $@
+    . -f pyi.Dockerfile --output type=local,dest=build/aarch64/ "$@"

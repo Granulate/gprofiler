@@ -54,7 +54,7 @@ There are matching scripts for `aarch64`.
 
 Make sure you have installed `requirements.txt` and `dev-requirements.txt` as described in the [installation](#installation) section, and make sure the versions match as well (`black` of different versions, for example, may yield different formatting results).
 
-The Python linters & formatters can be run with `./lint.sh`. The Dockerfile linter can be run with `./dockerfile_lint.sh`.
+The Python linters & formatters can be run with `./lint.sh`. The Dockerfile linter can be run with `./dockerfile_lint.sh`. The shell linter can be run with `./shell_lint.sh`.
 
 ## Testing
 Tests require to run as root, so make sure that the Python environment as described in [installation](#installation) is installed properly for "root" as well.
