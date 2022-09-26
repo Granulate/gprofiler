@@ -9,9 +9,9 @@ if not is_windows():
     from gprofiler.profilers.php import PHPSpyProfiler
     from gprofiler.profilers.ruby import RbSpyProfiler
 
-__all__ = ["PythonProfiler", "SystemProfiler"]
+__all__ = ["PythonProfiler"]
 
 if not is_windows():
-    __all__ += ["JavaProfiler", "PHPSpyProfiler", "RbSpyProfiler", "DotnetProfiler"]
+    __all__ += ["JavaProfiler", "PHPSpyProfiler", "RbSpyProfiler", "SystemProfiler", "DotnetProfiler"]
 
 del is_windows
