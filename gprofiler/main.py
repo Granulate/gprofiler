@@ -801,10 +801,12 @@ def main() -> None:
             logger.error(f"Server error: {e}")
             sys.exit(1)
         except RequestException as e:
+            proxy = get_https_proxy()
+            proxy_str = repr(proxy) if proxy is not None else "none"
             logger.error(
                 "Failed to connect to server. It might be blocked by your security rules / firewall,"
                 " or you might require a proxy to access it from your environment?"
-                f" Proxy used: {repr(get_https_proxy()) or 'none'}. Error: {e}"
+                f" Proxy used: {proxy_str}. Error: {e}"
             )
             sys.exit(1)
 
