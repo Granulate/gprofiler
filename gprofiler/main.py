@@ -804,7 +804,7 @@ def main() -> None:
             logger.error(
                 "Failed to connect to server. It might be blocked by your security rules / firewall,"
                 " or you might require a proxy to access it from your environment?"
-                f" Proxy used: {get_https_proxy() or 'none'!r}. Error: {e}"
+                f" Proxy used: {repr(get_https_proxy()) or 'none'}. Error: {e}"
             )
             sys.exit(1)
 
