@@ -11,11 +11,14 @@ import pytest
 from docker.models.containers import Container
 
 from gprofiler.profilers.perf import DEFAULT_PERF_DWARF_STACK_SIZE, SystemProfiler
-from tests.utils import assert_function_in_collapsed, is_function_in_collapsed, snapshot_pid_collapsed
+from tests.utils import assert_function_in_collapsed, is_function_in_collapsed, snapshot_pid_collapsed, snapshot_pid_profile
 
 
 @pytest.fixture
-def system_profiler(tmp_path: Path, perf_mode: str) -> SystemProfiler:
+def system_profiler(tmp_path: Path, perf_mode: str, inject_dso: bool = False) -> SystemProfiler:
+    return make_system_profiler(tmp_path, perf_mode, inject_dso)
+
+def make_system_profiler(tmp_path: Path, perf_mode: str, inject_dso: bool = False) -> SystemProfiler:
     return SystemProfiler(
         99,
         1,
@@ -25,6 +28,7 @@ def system_profiler(tmp_path: Path, perf_mode: str) -> SystemProfiler:
         perf_mode=perf_mode,
         perf_inject=False,
         perf_dwarf_stack_size=DEFAULT_PERF_DWARF_STACK_SIZE,
+        inject_dso=inject_dso
     )
 
 
@@ -151,3 +155,22 @@ def test_perf_thread_comm_is_process_comm(
         #   pative 1925947 [010] 987095.272656: PERF_RECORD_COMM: pative:1925904/1925947
         # we take the exec comm for all threads so we remain with the first, "native".
         _assert_comm_in_profile(profiler, application_pid, True)
+
+@pytest.mark.parametrize("runtime", ["native_thread_comm"])
+@pytest.mark.parametrize("perf_mode", ["fp"])
+@pytest.mark.parametrize("in_container", [True])
+def test_dso_name_in_perf_profile(
+    application_pid: int,
+    application_docker_container: Container,
+    perf_mode: str,
+    tmp_path: Path,
+) -> None:
+    with make_system_profiler(tmp_path, perf_mode, inject_dso=False) as profiler:
+        collapsed = snapshot_pid_profile(profiler, application_pid).stacks
+        assert is_function_in_collapsed("recursive;", collapsed)
+        assert not is_function_in_collapsed("recursive[native]", collapsed)
+    with make_system_profiler(tmp_path, perf_mode, inject_dso=True) as profiler:
+        collapsed = snapshot_pid_profile(profiler, application_pid).stacks
+        assert not is_function_in_collapsed("recursive;", collapsed)
+        assert is_function_in_collapsed("recursive[native]", collapsed)
+    pass

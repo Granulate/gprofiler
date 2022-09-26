@@ -41,6 +41,7 @@ from tests.type_utils import cast_away_optional
 from tests.utils import (
     _application_docker_container,
     assert_function_in_collapsed,
+    is_function_in_collapsed,
     make_java_profiler,
     snapshot_one_collapsed,
     snapshot_one_profile,
@@ -643,3 +644,27 @@ def test_java_different_basename(
                     os.path.basename(log_records[0].gprofiler_adapter_extra["exe"])  # type: ignore
                     == java_notjava_basename
                 )
+
+@pytest.mark.parametrize("in_container", [True])
+def test_dso_name_in_ap_profile(
+    tmp_path: Path,
+    application_pid: int,
+) -> None:
+    with make_java_profiler(
+        storage_dir=str(tmp_path),
+        duration=3,
+        frequency=999
+    ) as profiler:
+        collapsed = snapshot_pid_profile(profiler, application_pid).stacks
+        assert is_function_in_collapsed("jni_NewObject", collapsed)
+        assert not is_function_in_collapsed("jni_NewObject[libjvm.so]", collapsed)
+    with make_java_profiler(
+        storage_dir=str(tmp_path),
+        duration=3,
+        frequency=999
+        , java_async_profiler_args=",lib"
+    ) as profiler:
+        collapsed = snapshot_pid_profile(profiler, application_pid).stacks
+        assert is_function_in_collapsed("jni_NewObject", collapsed)
+        assert is_function_in_collapsed("jni_NewObject[libjvm.so]", collapsed)
+    pass
