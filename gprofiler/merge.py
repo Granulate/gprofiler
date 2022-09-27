@@ -94,7 +94,7 @@ def parse_many_collapsed(text: str) -> ProcessToStackSampleCounters:
     return results
 
 
-def _collapse_stack(comm: str, stack: str, inject_dso: bool = False) -> str:
+def _collapse_stack(comm: str, stack: str, insert_dso_name: bool = False) -> str:
     """
     Collapse a single stack from "perf".
     """
@@ -109,7 +109,7 @@ def _collapse_stack(comm: str, stack: str, inject_dso: bool = False) -> str:
         # append kernel annotation
         elif "kernel" in dso or "vmlinux" in dso:
             sym += "_[k]"
-        elif inject_dso and dso != "[unknown]":
+        elif insert_dso_name and dso != "[unknown]":
             sym += f"[{dso}]"
         funcs.append(sym)
     return ";".join(funcs)
@@ -118,10 +118,10 @@ def _collapse_stack(comm: str, stack: str, inject_dso: bool = False) -> str:
 def merge_global_perfs(
     raw_fp_perf: Optional[str],
     raw_dwarf_perf: Optional[str],
-    inject_dso: bool = False
+    insert_dso_name: bool = False
 ) -> ProcessToStackSampleCounters:
-    fp_perf = _parse_perf_script(raw_fp_perf, inject_dso)
-    dwarf_perf = _parse_perf_script(raw_dwarf_perf, inject_dso)
+    fp_perf = _parse_perf_script(raw_fp_perf, insert_dso_name)
+    dwarf_perf = _parse_perf_script(raw_dwarf_perf, insert_dso_name)
 
     if raw_fp_perf is None:
         return dwarf_perf
@@ -209,7 +209,7 @@ def get_average_frame_count(samples: Iterable[str]) -> float:
     return sum(frame_count_per_samples) / len(frame_count_per_samples)
 
 
-def _parse_perf_script(script: Optional[str], inject_dso: bool = False) -> ProcessToStackSampleCounters:
+def _parse_perf_script(script: Optional[str], insert_dso_name: bool = False) -> ProcessToStackSampleCounters:
     pid_to_collapsed_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
 
     if script is None:
@@ -230,7 +230,7 @@ def _parse_perf_script(script: Optional[str], inject_dso: bool = False) -> Proce
             comm = sample_dict["comm"]
             stack = sample_dict["stack"]
             if stack is not None:
-                pid_to_collapsed_stacks_counters[pid][_collapse_stack(comm, stack, inject_dso)] += 1
+                pid_to_collapsed_stacks_counters[pid][_collapse_stack(comm, stack, insert_dso_name)] += 1
         except Exception:
             logger.exception(f"Error processing sample: {sample}")
     return pid_to_collapsed_stacks_counters
