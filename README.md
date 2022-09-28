@@ -91,6 +91,8 @@ gProfiler uses the Python `requests` package, which works with standard HTTP pro
 If running gProfiler as an executable and using `sudo`, make sure to run `sudo -E` if you have the environment variable defined (otherwise, `sudo` will forget it). Alternatively, you can run `sudo https_proxy=my-proxy /path/to/gprofiler ...`.
 If running gProfiler as a Docker container, make sure to add `-e https_proxy=my-proxy` to the `docker run` command line (the spawned container does not inherit your set of environment variables, you have to pass it manually).
 
+If you still get connection errors, make sure the proxy is indeed used by the profiler - in the `Failed to connect to server` error message you'll see the proxy used by the profiler (under `Proxy used:`).
+
 ### Sending logs to server
 **By default, gProfiler sends logs to Granulate Performance Studio** (when using `--upload-results`/`-u` flag)
 This behavior can be disabled by passing `--dont-send-logs` or the setting environment variable `GPROFILER_DONT_SEND_LOGS=1`.

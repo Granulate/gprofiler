@@ -53,6 +53,7 @@ from gprofiler.utils import (
     resource_path,
     run_process,
 )
+from gprofiler.utils.proxy import get_https_proxy
 
 logger: logging.LoggerAdapter
 
@@ -800,9 +801,12 @@ def main() -> None:
             logger.error(f"Server error: {e}")
             sys.exit(1)
         except RequestException as e:
+            proxy = get_https_proxy()
+            proxy_str = repr(proxy) if proxy is not None else "none"
             logger.error(
                 "Failed to connect to server. It might be blocked by your security rules / firewall,"
-                f" or you might require a proxy to access it from your environment? {e}"
+                " or you might require a proxy to access it from your environment?"
+                f" Proxy used: {proxy_str}. Error: {e}"
             )
             sys.exit(1)
 
