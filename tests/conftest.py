@@ -68,6 +68,19 @@ def java_args() -> Tuple[str]:
     return cast(Tuple[str], ())
 
 
+def make_path_world_accessible(path: Path) -> None:
+    """
+    Makes path and its subparts accessible by all.
+    """
+    chmod_path_parts(path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
+
+
+@fixture
+def tmp_path_world_accessible(tmp_path: Path) -> Path:
+    make_path_world_accessible(tmp_path)
+    return tmp_path
+
+
 @fixture(scope="session")
 def artifacts_dir(tmp_path_factory: TempPathFactory) -> Path:
     return tmp_path_factory.mktemp("artifacts")
@@ -76,10 +89,9 @@ def artifacts_dir(tmp_path_factory: TempPathFactory) -> Path:
 @lru_cache(maxsize=None)
 def java_command_line(path: Path, java_args: Tuple[str]) -> List[str]:
     class_path = path / "java"
-    class_path.mkdir()
-    # make all directories readable & executable by all.
+    class_path.mkdir(exist_ok=True)
     # Java fails with permissions errors: "Error: Could not find or load main class Fibonacci"
-    chmod_path_parts(class_path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
+    make_path_world_accessible(class_path)
     subprocess.run(["javac", CONTAINERS_DIRECTORY / "java/Fibonacci.java", "-d", class_path])
     return ["java"] + list(java_args) + ["-cp", str(class_path), "Fibonacci"]
 
@@ -88,7 +100,7 @@ def java_command_line(path: Path, java_args: Tuple[str]) -> List[str]:
 def dotnet_command_line(path: Path) -> List[str]:
     class_path = path / "dotnet" / "Fibonacci"
     class_path.mkdir(parents=True)
-    chmod_path_parts(class_path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
+    make_path_world_accessible(class_path)
     subprocess.run(["cp", str(CONTAINERS_DIRECTORY / "dotnet/Fibonacci.cs"), class_path])
     subprocess.run(["dotnet", "new", "console", "--force"], cwd=class_path)
     subprocess.run(["rm", "Program.cs"], cwd=class_path)
