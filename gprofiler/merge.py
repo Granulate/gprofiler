@@ -35,7 +35,7 @@ SAMPLE_REGEX = re.compile(
 # ffffffff81082227 mmput+0x57 ([kernel.kallsyms])
 # 0 [unknown] ([unknown])
 # 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
-FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \(\[?/?(?:[^/]+/)*(.*?)\]?\)$")
+FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \(\[?(.*?)\]?\)$")
 
 
 def parse_one_collapsed(collapsed: str, add_comm: Optional[str] = None) -> StackToSampleCount:
@@ -109,8 +109,8 @@ def _collapse_stack(comm: str, stack: str, insert_dso_name: bool = False) -> str
         # append kernel annotation
         elif "kernel" in dso or "vmlinux" in dso:
             sym += "_[k]"
-        elif insert_dso_name and dso != "[unknown]":
-            sym += f"[{dso}]"
+        elif insert_dso_name:
+            sym += f" [{dso}]"
         funcs.append(sym)
     return ";".join(funcs)
 

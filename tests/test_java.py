@@ -660,5 +660,5 @@ def test_dso_name_in_ap_profile(
     ) as profiler:
         collapsed = snapshot_pid_profile(profiler, application_pid).stacks
         assert is_function_in_collapsed("jni_NewObject", collapsed)
-        assert insert_dso_name == is_function_in_collapsed("jni_NewObject[libjvm.so]", collapsed)
+        assert insert_dso_name == is_function_in_collapsed("jni_NewObject [libjvm.so]", collapsed)
     pass

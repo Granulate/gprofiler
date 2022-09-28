@@ -173,4 +173,4 @@ def test_dso_name_in_perf_profile(
     with system_profiler as profiler:
         collapsed = snapshot_pid_profile(profiler, application_pid).stacks
         assert is_function_in_collapsed("recursive", collapsed)
-        assert insert_dso_name == is_function_in_collapsed("recursive[native]", collapsed)
+        assert insert_dso_name == is_function_in_collapsed("recursive [/native]", collapsed)
