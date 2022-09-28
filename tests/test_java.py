@@ -218,9 +218,9 @@ def test_java_safemode_build_number_check(
 @pytest.mark.parametrize(
     "in_container,java_args,check_app_exited",
     [
-        (False, [], False),  # default
+        (False, (), False),  # default
         (False, ("-XX:ErrorFile=/tmp/my_custom_error_file.log",), False),  # custom error file
-        (True, [], False),  # containerized (other params are ignored)
+        (True, (), False),  # containerized (other params are ignored)
     ],
 )
 def test_hotspot_error_file(
