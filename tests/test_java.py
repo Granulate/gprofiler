@@ -84,13 +84,16 @@ class AsyncProfiledProcessForTests(AsyncProfiledProcess):
 
 
 def test_async_profiler_already_running(
-    application_pid: int, assert_collapsed: AssertInCollapsed, tmp_path: Path, caplog: LogCaptureFixture
+    application_pid: int,
+    assert_collapsed: AssertInCollapsed,
+    tmp_path_world_accessible: Path,
+    caplog: LogCaptureFixture,
 ) -> None:
     """
     Test we're able to restart async-profiler in case it's already running in the process and get results normally.
     """
     caplog.set_level(logging.INFO)
-    with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
+    with make_java_profiler(storage_dir=str(tmp_path_world_accessible)) as profiler:
         process = profiler._select_processes_to_profile()[0]
 
         with AsyncProfiledProcess(
@@ -218,9 +221,9 @@ def test_java_safemode_build_number_check(
 @pytest.mark.parametrize(
     "in_container,java_args,check_app_exited",
     [
-        (False, [], False),  # default
-        (False, ["-XX:ErrorFile=/tmp/my_custom_error_file.log"], False),  # custom error file
-        (True, [], False),  # containerized (other params are ignored)
+        (False, (), False),  # default
+        (False, ("-XX:ErrorFile=/tmp/my_custom_error_file.log",), False),  # custom error file
+        (True, (), False),  # containerized (other params are ignored)
     ],
 )
 def test_hotspot_error_file(
@@ -287,14 +290,17 @@ def test_already_loaded_async_profiler_profiling_failure(
 @pytest.mark.parametrize("in_container", [False])
 @pytest.mark.parametrize("check_app_exited", [False])  # we're killing it, the exit check will raise.
 def test_async_profiler_output_written_upon_jvm_exit(
-    tmp_path: Path, application_pid: int, assert_collapsed: AssertInCollapsed, caplog: LogCaptureFixture
+    tmp_path_world_accessible: Path,
+    application_pid: int,
+    assert_collapsed: AssertInCollapsed,
+    caplog: LogCaptureFixture,
 ) -> None:
     """
     Make sure async-profiler writes output upon process exit (and we manage to read it correctly)
     """
     caplog.set_level(logging.DEBUG)
 
-    with make_java_profiler(storage_dir=str(tmp_path), duration=10) as profiler:
+    with make_java_profiler(storage_dir=str(tmp_path_world_accessible), duration=10) as profiler:
 
         def delayed_kill() -> None:
             time.sleep(3)
@@ -311,7 +317,10 @@ def test_async_profiler_output_written_upon_jvm_exit(
 # test only once
 @pytest.mark.parametrize("in_container", [False])
 def test_async_profiler_stops_after_given_timeout(
-    tmp_path: Path, application_pid: int, assert_collapsed: AssertInCollapsed, caplog: LogCaptureFixture
+    tmp_path_world_accessible: Path,
+    application_pid: int,
+    assert_collapsed: AssertInCollapsed,
+    caplog: LogCaptureFixture,
 ) -> None:
     caplog.set_level(logging.DEBUG)
 
@@ -319,7 +328,7 @@ def test_async_profiler_stops_after_given_timeout(
     timeout_s = 5
     with AsyncProfiledProcessForTests(
         process=process,
-        storage_dir=str(tmp_path),
+        storage_dir=str(tmp_path_world_accessible),
         stop_event=Event(),
         buildids=False,
         mode="itimer",
@@ -410,7 +419,7 @@ def test_java_async_profiler_buildids(
     ],
 )
 def test_java_noexec_dirs(
-    tmp_path: Path,
+    tmp_path_world_accessible: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     caplog: LogCaptureFixture,
@@ -434,7 +443,7 @@ def test_java_noexec_dirs(
         # mount because /tmp is not necessarily tmpfs; and that'll hide all current files in /tmp).
         monkeypatch.setattr(gprofiler.profilers.java, "POSSIBLE_AP_DIRS", (noexec_tmp_dir, run_dir))
 
-    with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
+    with make_java_profiler(storage_dir=str(tmp_path_world_accessible)) as profiler:
         assert_collapsed(snapshot_one_collapsed(profiler))
 
     # should use this path instead of /tmp/gprofiler_tmp/...

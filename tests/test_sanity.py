@@ -37,14 +37,14 @@ from tests.utils import (
 
 @pytest.mark.parametrize("runtime", ["java"])
 def test_java_from_host(
-    tmp_path: Path,
+    tmp_path_world_accessible: Path,
     application_pid: int,
     assert_app_id: Callable,
     assert_collapsed: AssertInCollapsed,
 ) -> None:
     with make_java_profiler(
         frequency=99,
-        storage_dir=str(tmp_path),
+        storage_dir=str(tmp_path_world_accessible),
         java_async_profiler_mode="itimer",
     ) as profiler:
         _ = assert_app_id  # Required for mypy unused argument warning

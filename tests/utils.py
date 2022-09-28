@@ -144,8 +144,12 @@ def chmod_path_parts(path: Path, add_mode: int) -> None:
     """
     Adds 'add_mode' to all parts in 'path'.
     """
+    assert os.path.isabs(path), f"absolute path required: {path}"
     for i in range(1, len(path.parts)):
-        subpath = os.path.join(*path.parts[:i])
+        subpath = os.path.join(*path.parts[: i + 1])
+        if subpath == "/":
+            # skip chmodding /
+            continue
         os.chmod(subpath, os.stat(subpath).st_mode | add_mode)
 
 
