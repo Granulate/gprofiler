@@ -124,10 +124,6 @@ def command_line(runtime: str, java_command_line: List[str], dotnet_command_line
             "--interpreted-frames-native-stack",
             str(CONTAINERS_DIRECTORY / "nodejs/fibonacci.js"),
         ],
-        "nodejs-attach": [
-            "node",
-            str(CONTAINERS_DIRECTORY / "nodejs/fibonacci.js"),
-        ],
     }[runtime]
 
 
@@ -135,7 +131,7 @@ def command_line(runtime: str, java_command_line: List[str], dotnet_command_line
 def application_executable(runtime: str) -> str:
     if runtime == "golang":
         return "fibonacci"
-    elif runtime in ("nodejs", "nodejs-attach"):
+    elif runtime == "nodejs":
         return "node"
     return runtime
 
@@ -220,7 +216,8 @@ def application_docker_image_configs() -> Mapping[str, Dict[str, Any]]:
             "thread_comm": dict(dockerfile="thread_comm.Dockerfile"),
         },
         "nodejs": {
-            "": {},
+            "": dict(buildargs={"NODE_RUNTIME_FLAGS": "--perf-prof --interpreted-frames-native-stack"}),
+            "without-flags": dict(buildargs={"NODE_RUNTIME_FLAGS": ""}),
         },
         "php": {
             "": {},
@@ -388,7 +385,11 @@ def application_pid(
 
     # Application might be run using "sh -c ...", we detect the case and return the "real" application pid
     process = Process(pid)
-    if process.cmdline()[0] == "sh" and process.cmdline()[1] == "-c" and len(process.children(recursive=False)) == 1:
+    if (
+        process.cmdline()[0].endswith("sh")
+        and process.cmdline()[1] == "-c"
+        and len(process.children(recursive=False)) == 1
+    ):
         pid = process.children(recursive=False)[0].pid
 
     return pid
@@ -409,7 +410,6 @@ def runtime_specific_args(runtime: str) -> List[str]:
         ],
         "python": ["-d", "3"],  # Burner python tests make syscalls and we want to record python + kernel stacks
         "nodejs": ["--nodejs-mode", "perf"],  # enable NodeJS profiling
-        "nodejs-attach": ["--nodejs-mode", "attach-maps"],
     }.get(runtime, [])
 
 
@@ -426,7 +426,6 @@ def assert_collapsed(runtime: str) -> AssertInCollapsed:
         "nodejs": "fibonacci",
         "golang": "fibonacci",
         "dotnet": "Fibonacci",
-        "nodejs-attach": "fibonacci",
     }[runtime]
 
     return partial(assert_function_in_collapsed, function_name)

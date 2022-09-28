@@ -41,4 +41,4 @@ DOCKER_BUILDKIT=1 docker build -f pyi.Dockerfile --output type=local,dest=build/
     --build-arg DOTNET_BUILDER=$DOTNET_BUILDER \
     --build-arg NODE_PACKAGE_BUILDER_MUSL=$AP_BUILDER_ALPINE \
     --build-arg NODE_PACKAGE_BUILDER_GLIBC=$UBUNTU_VERSION \
-    . $@
+    . "$@"

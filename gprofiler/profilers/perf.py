@@ -12,7 +12,7 @@ from threading import Event
 from typing import Any, Dict, List, Optional
 
 from granulate_utils.linux.elf import is_statically_linked, read_elf_symbol, read_elf_va
-from granulate_utils.linux.process import is_musl
+from granulate_utils.linux.process import is_musl, is_process_running
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
@@ -181,6 +181,7 @@ class SystemProfiler(ProfilerBase):
         self._perfs: List[PerfProcess] = []
         self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
         self._node_processes: List[Process] = []
+
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
                 self._frequency,
@@ -219,6 +220,7 @@ class SystemProfiler(ProfilerBase):
 
     def stop(self) -> None:
         if self.perf_node_attach:
+            self._node_processes = [process for process in self._node_processes if is_process_running(process)]
             clean_up_node_maps(self._node_processes)
         for perf in reversed(self._perfs):
             perf.stop()
@@ -238,6 +240,7 @@ class SystemProfiler(ProfilerBase):
 
     def snapshot(self) -> ProcessToProfileData:
         if self.perf_node_attach:
+            self._node_processes = [process for process in self._node_processes if is_process_running(process)]
             new_processes = [process for process in get_node_processes() if process not in self._node_processes]
             generate_map_for_node_processes(new_processes)
             self._node_processes.extend(new_processes)

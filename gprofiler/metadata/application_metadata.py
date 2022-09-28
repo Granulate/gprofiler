@@ -11,7 +11,7 @@ from granulate_utils.linux.process import is_process_running, read_process_execf
 from psutil import NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata import get_exe_version
+from gprofiler.metadata.versions import get_exe_version
 
 logger = get_logger_adapter(__name__)
 

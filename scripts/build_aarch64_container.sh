@@ -30,5 +30,4 @@ docker buildx build --platform=linux/arm64 \
     --build-arg DOTNET_BUILDER=$DOTNET_BUILDER \
     --build-arg NODE_PACKAGE_BUILDER_MUSL=$ALPINE_VERSION \
     --build-arg NODE_PACKAGE_BUILDER_GLIBC=$UBUNTU_VERSION \
-    . $@
-
+    . "$@"

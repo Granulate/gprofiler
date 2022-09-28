@@ -5,15 +5,17 @@ set -euo pipefail
 MODULE_PATH=/tmp/module
 BUILD_TARGET_DIR=/tmp/module_build
 
+GIT_REV=20eb88a
 git clone https://github.com/mmarchini-oss/node-linux-perf.git $MODULE_PATH
 cd $MODULE_PATH
-git reset --hard 20eb88a35ab256313dfb0f14645456ebf046ac1b
+git reset --hard $GIT_REV
 
 npm install -g node-gyp
 curl -L https://github.com/nodejs/nan/archive/refs/tags/v2.16.0.tar.gz -o nan.tar.gz
 tar -vxzf nan.tar.gz -C /tmp
 NAN_PATH=$(realpath /tmp/nan-*)
 export NAN_PATH
+# providing nan module by path, rather than npm, because of using node-gyp instead of npm
 sed -i 's/node \-e \\"require('\''nan'\'')\\"/echo $NAN_PATH/g' binding.gyp
 rm -rf nan.tar.gz
 mkdir $BUILD_TARGET_DIR
@@ -23,19 +25,21 @@ for node_version in "${node_versions[@]}"; do
     node-gyp build --target="$node_version"
     t=(${node_version//./ })
     node_major_version=${t[0]}
-    mkdir "$BUILD_TARGET_DIR/$node_major_version"
-    cp "$MODULE_PATH/linux-perf.js" "$BUILD_TARGET_DIR/$node_major_version/."
-    mkdir -p "$BUILD_TARGET_DIR/$node_major_version/build/Release"
-    cp "$MODULE_PATH/build/Release/linux-perf.node" "$BUILD_TARGET_DIR/$node_major_version/build/Release/linux-perf.node"
+    mkdir -p "$BUILD_TARGET_DIR/$GIT_REV/$node_major_version"
+    cp "$MODULE_PATH/linux-perf.js" "$BUILD_TARGET_DIR/$GIT_REV/$node_major_version/."
+    mkdir -p "$BUILD_TARGET_DIR/$GIT_REV/$node_major_version/build/Release"
+    # we need to preserve original path required by linux-perf.js
+    cp "$MODULE_PATH/build/Release/linux-perf.node" "$BUILD_TARGET_DIR/$GIT_REV/$node_major_version/build/Release/linux-perf.node"
     rm -rf "$MODULE_PATH/build"
 done
 for node_major_version in {12..16}; do
     node-gyp configure --target="$node_major_version.0.0"
     node-gyp build --target="$node_major_version.0.0"
-    mkdir "$BUILD_TARGET_DIR/$node_major_version"
-    cp "$MODULE_PATH/linux-perf.js" "$BUILD_TARGET_DIR/$node_major_version/."
-    mkdir -p "$BUILD_TARGET_DIR/$node_major_version/build/Release"
-    cp "$MODULE_PATH/build/Release/linux-perf.node" "$BUILD_TARGET_DIR/$node_major_version/build/Release/linux-perf.node"
+    mkdir -p "$BUILD_TARGET_DIR/$GIT_REV/$node_major_version"
+    cp "$MODULE_PATH/linux-perf.js" "$BUILD_TARGET_DIR/$GIT_REV/$node_major_version/."
+    mkdir -p "$BUILD_TARGET_DIR/$GIT_REV/$node_major_version/build/Release"
+    cp "$MODULE_PATH/build/Release/linux-perf.node" "$BUILD_TARGET_DIR/$GIT_REV/$node_major_version/build/Release/linux-perf.node"
     rm -rf "$MODULE_PATH/build"
 done
 rm -rf "$NAN_PATH"
+echo -n "$GIT_REV" > $BUILD_TARGET_DIR/version
