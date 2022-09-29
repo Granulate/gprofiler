@@ -74,7 +74,7 @@ def resource_path(relative_path: str = "") -> str:
 @lru_cache(maxsize=None)
 def is_root() -> bool:
     if is_windows():
-        return IsUserAnAdmin() == 1
+        return assert_cast(int, IsUserAnAdmin()) == 1
     else:
         return os.geteuid() == 0
 
