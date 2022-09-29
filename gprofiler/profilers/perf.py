@@ -20,10 +20,10 @@ from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import AppMetadata, ProcessToProfileData, ProfileData
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.application_metadata import ApplicationMetadata
+from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import run_process, start_process, wait_event, wait_for_file_by_prefix
-from gprofiler.utils.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.utils.perf import perf_path
 from gprofiler.utils.process import is_process_basename_matching
 

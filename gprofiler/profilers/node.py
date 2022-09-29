@@ -17,7 +17,7 @@ from websocket._core import WebSocket
 
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.versions import get_exe_version
-from gprofiler.utils import add_permission_dir, pgrep_exe, resource_path
+from gprofiler.utils import TEMPORARY_STORAGE_PATH, add_permission_dir, pgrep_exe, resource_path
 
 logger = get_logger_adapter(__name__)
 
@@ -36,6 +36,7 @@ def _get_node_major_version(process: psutil.Process) -> str:
     return node_version[1:].split(".")[0]
 
 
+@lru_cache(maxsize=1)
 def _get_dso_git_rev() -> str:
     libc_dso_version_file = resource_path(os.path.join("node", "module", "glibc", "version"))
     musl_dso_version_file = resource_path(os.path.join("node", "module", "musl", "version"))
@@ -51,7 +52,7 @@ def _get_dso_git_rev() -> str:
 @lru_cache()
 def _get_dest_inside_container(musl: bool, node_version: str) -> str:
     libc = "musl" if musl else "glibc"
-    return os.path.join("/", "tmp", "node_module", _get_dso_git_rev(), libc, node_version)
+    return os.path.join(TEMPORARY_STORAGE_PATH, "node_module", _get_dso_git_rev(), libc, node_version)
 
 
 def _start_debugger(pid: int) -> None:

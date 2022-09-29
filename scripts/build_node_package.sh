@@ -15,6 +15,7 @@ curl -L https://github.com/nodejs/nan/archive/refs/tags/v2.16.0.tar.gz -o nan.ta
 tar -vxzf nan.tar.gz -C /tmp
 NAN_PATH=$(realpath /tmp/nan-*)
 export NAN_PATH
+# shellcheck disable=SC2016 # expression shouldn't be expanded
 # providing nan module by path, rather than npm, because of using node-gyp instead of npm
 sed -i 's/node \-e \\"require('\''nan'\'')\\"/echo $NAN_PATH/g' binding.gyp
 rm -rf nan.tar.gz
@@ -23,6 +24,7 @@ node_versions=( "10.10.0" "11.0.0" )
 for node_version in "${node_versions[@]}"; do
     node-gyp configure --target="$node_version"  --build_v8_with_gn=false
     node-gyp build --target="$node_version"
+    # shellcheck disable=SC2206 # string is expected to be splitted here
     t=(${node_version//./ })
     node_major_version=${t[0]}
     mkdir -p "$BUILD_TARGET_DIR/$GIT_REV/$node_major_version"
