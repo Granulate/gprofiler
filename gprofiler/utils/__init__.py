@@ -32,6 +32,12 @@ from granulate_utils.linux.ns import run_in_ns
 from granulate_utils.linux.process import process_exe
 from psutil import Process
 
+from gprofiler.platform import is_windows
+
+if is_windows():
+    import pythoncom
+    import wmi
+
 from gprofiler.exceptions import (
     CalledProcessError,
     CalledProcessTimeoutError,
@@ -44,7 +50,11 @@ from gprofiler.log import get_logger_adapter
 logger = get_logger_adapter(__name__)
 
 GPROFILER_DIRECTORY_NAME = "gprofiler_tmp"
-TEMPORARY_STORAGE_PATH = f"/tmp/{GPROFILER_DIRECTORY_NAME}"
+TEMPORARY_STORAGE_PATH = (
+    f"/tmp/{GPROFILER_DIRECTORY_NAME}"
+    if not is_windows()
+    else os.getenv("USERPROFILE", default=os.getcwd()) + f"\\AppData\\Local\\Temp\\{GPROFILER_DIRECTORY_NAME}"
+)
 
 gprofiler_mutex: Optional[socket.socket] = None
 
@@ -62,7 +72,10 @@ def resource_path(relative_path: str = "") -> str:
 
 @lru_cache(maxsize=None)
 def is_root() -> bool:
-    return os.geteuid() == 0
+    if is_windows():
+        return ctypes.windll.shell32.IsUserAnAdmin() == 1
+    else:
+        return os.geteuid() == 0
 
 
 libc: Optional[ctypes.CDLL] = None
@@ -125,10 +138,12 @@ def start_process(
             env = env if env is not None else os.environ.copy()
             env.update({"LD_LIBRARY_PATH": ""})
 
-    cur_preexec_fn = kwargs.pop("preexec_fn", os.setpgrp)
-
-    if term_on_parent_death:
-        cur_preexec_fn = wrap_callbacks([set_child_termination_on_parent_death, cur_preexec_fn])
+    if is_windows():
+        cur_preexec_fn = None  # preexec_fn is not supported on Windows platforms. subprocess.py reports this.
+    else:
+        cur_preexec_fn = kwargs.pop("preexec_fn", os.setpgrp)
+        if term_on_parent_death:
+            cur_preexec_fn = wrap_callbacks([set_child_termination_on_parent_death, cur_preexec_fn])
 
     popen = Popen(
         cmd,
@@ -207,7 +222,7 @@ def run_process(
     via_staticx: bool = False,
     check: bool = True,
     timeout: int = None,
-    kill_signal: signal.Signals = signal.SIGKILL,
+    kill_signal: signal.Signals = signal.SIGTERM if is_windows() else signal.SIGKILL,
     communicate: bool = True,
     stdin: bytes = None,
     **kwargs: Any,
@@ -267,15 +282,28 @@ def run_process(
 
 
 def pgrep_exe(match: str) -> List[Process]:
-    pattern = re.compile(match)
-    procs = []
-    for process in psutil.process_iter():
-        try:
-            if pattern.match(process_exe(process)):
-                procs.append(process)
-        except psutil.NoSuchProcess:  # process might have died meanwhile
-            continue
-    return procs
+    if is_windows():
+        pythoncom.CoInitialize()
+        w = wmi.WMI()
+        return [
+            Process(pid=p.ProcessId)
+            for p in w.Win32_Process()
+            if match in p.Name.lower() and p.ProcessId != os.getpid()
+        ]
+    else:
+        pattern = re.compile(match)
+        procs = []
+        for process in psutil.process_iter():
+            # Added to prevent AttributeError on processes that have pid == 0
+            if process.pid == 0:
+                continue
+            # End edit
+            try:
+                if pattern.match(process_exe(process)):
+                    procs.append(process)
+            except psutil.NoSuchProcess:  # process might have died meanwhile
+                continue
+        return procs
 
 
 def pgrep_maps(match: str) -> List[Process]:
@@ -378,6 +406,10 @@ def grab_gprofiler_mutex() -> bool:
     on filesystem structure (as happens with file-based locks).
     In order to see who's holding the lock now, you can run "sudo netstat -xp | grep gprofiler".
     """
+    # Bypass due to lack of Windows support
+    if is_windows():
+        # TODO: Windows specific mutex needed
+        return True
     GPROFILER_LOCK = "\x00gprofiler_lock"
 
     try:
@@ -402,6 +434,9 @@ def atomically_symlink(target: str, link_node: str) -> None:
     """
     tmp_path = link_node + ".tmp"
     os.symlink(target, tmp_path)
+    # Windows does not support renaming existing symlink
+    if is_windows() and os.path.exists(link_node):
+        os.remove(link_node)
     os.rename(tmp_path, link_node)
 
 

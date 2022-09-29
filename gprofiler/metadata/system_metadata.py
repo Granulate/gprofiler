@@ -1,6 +1,5 @@
 import array
 import errno
-import fcntl
 import os
 import platform
 import re
@@ -18,7 +17,11 @@ import psutil
 from granulate_utils.linux.ns import run_in_ns
 
 from gprofiler.log import get_logger_adapter
+from gprofiler.platform import is_windows
 from gprofiler.utils import is_pyinstaller, run_process
+
+if not is_windows():
+    import fcntl
 
 UNKNOWN_VALUE = "unknown"
 
@@ -98,6 +101,8 @@ def get_mac_address() -> str:
     """
     Gets the MAC address of the first non-loopback interface.
     """
+    if is_windows():
+        return UNKNOWN_VALUE
 
     assert sys.maxsize > 2**32, "expected to run on 64-bit!"
     SIZE_OF_STUCT_ifreq = 40  # correct for 64-bit
@@ -142,6 +147,10 @@ def get_cpu_info() -> Tuple[str, str]:
     Parse /proc/cpuinfo to get model name & flags.
     """
     try:
+        if is_windows():
+            win_flags, model = platform.processor().split(",")
+            return model, win_flags
+
         with open("/proc/cpuinfo") as f:
             model_names = []
             flags = []
@@ -195,14 +204,22 @@ class SystemInfo:
 
 
 def get_static_system_info() -> SystemInfo:
-    hostname, distribution, libc_tuple, mac_address, local_ip = _initialize_system_info()
-    clock = getattr(time, "CLOCK_BOOTTIME", time.CLOCK_MONOTONIC)
-    try:
-        spawn_uptime_ms = time.clock_gettime(clock)
-    except OSError as error:
-        if error.errno != errno.EINVAL:
-            raise
-        spawn_uptime_ms = time.clock_gettime(time.CLOCK_MONOTONIC)
+    if is_windows():
+        hostname = platform.node()
+        distribution = platform.system(), platform.release(), platform.version()
+        libc_tuple = platform.libc_ver()
+        mac_address = ""  # Use netifaces pip package
+        local_ip = ""  # Use netifaces pip package
+        spawn_uptime_ms = time.monotonic() * 1000
+    else:
+        hostname, distribution, libc_tuple, mac_address, local_ip = _initialize_system_info()
+        clock = getattr(time, "CLOCK_BOOTTIME", time.CLOCK_MONOTONIC)
+        try:
+            spawn_uptime_ms = time.clock_gettime(clock)
+        except OSError as error:
+            if error.errno != errno.EINVAL:
+                raise
+            spawn_uptime_ms = time.clock_gettime(time.CLOCK_MONOTONIC)
     libc_type, libc_version = libc_tuple
     os_name, os_release, os_codename = distribution
     uname = platform.uname()
