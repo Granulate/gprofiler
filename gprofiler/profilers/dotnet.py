@@ -55,7 +55,7 @@ class DotnetMetadata(ApplicationMetadata):
 )
 class DotnetProfiler(ProcessProfilerBase):
     RESOURCE_PATH = "dotnet/tools/dotnet-trace"
-    _EXTRA_TIMEOUT = 10
+    _EXTRA_TIMEOUT = 60
     _DOTNET_FRAME_SUFFIX = "_[net]"
 
     def __init__(

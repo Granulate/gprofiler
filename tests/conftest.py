@@ -6,9 +6,9 @@ import os
 import stat
 import subprocess
 from contextlib import _GeneratorContextManager, contextmanager
-from functools import partial
+from functools import lru_cache, partial
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, Iterable, Iterator, List, Mapping, Optional, cast
+from typing import Any, Callable, Dict, Generator, Iterable, Iterator, List, Mapping, Optional, Tuple, cast
 
 import docker
 import pytest
@@ -17,7 +17,7 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 from psutil import Process
-from pytest import FixtureRequest, fixture
+from pytest import FixtureRequest, TempPathFactory, fixture
 
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.metadata.application_identifiers import get_java_app_id, get_python_app_id, set_enrichment_options
@@ -64,26 +64,43 @@ def in_container(request: FixtureRequest) -> bool:
 
 
 @fixture
-def java_args() -> List[str]:
-    return []
+def java_args() -> Tuple[str]:
+    return cast(Tuple[str], ())
+
+
+def make_path_world_accessible(path: Path) -> None:
+    """
+    Makes path and its subparts accessible by all.
+    """
+    chmod_path_parts(path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
 
 
 @fixture
-def java_command_line(tmp_path: Path, java_args: List[str]) -> List[str]:
-    class_path = tmp_path / "java"
-    class_path.mkdir()
-    # make all directories readable & executable by all.
+def tmp_path_world_accessible(tmp_path: Path) -> Path:
+    make_path_world_accessible(tmp_path)
+    return tmp_path
+
+
+@fixture(scope="session")
+def artifacts_dir(tmp_path_factory: TempPathFactory) -> Path:
+    return tmp_path_factory.mktemp("artifacts")
+
+
+@lru_cache(maxsize=None)
+def java_command_line(path: Path, java_args: Tuple[str]) -> List[str]:
+    class_path = path / "java"
+    class_path.mkdir(exist_ok=True)
     # Java fails with permissions errors: "Error: Could not find or load main class Fibonacci"
-    chmod_path_parts(class_path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
+    make_path_world_accessible(class_path)
     subprocess.run(["javac", CONTAINERS_DIRECTORY / "java/Fibonacci.java", "-d", class_path])
-    return ["java"] + java_args + ["-cp", str(class_path), "Fibonacci"]
+    return ["java"] + list(java_args) + ["-cp", str(class_path), "Fibonacci"]
 
 
-@fixture
-def dotnet_command_line(tmp_path: Path) -> List[str]:
-    class_path = tmp_path / "dotnet" / "Fibonacci"
+@lru_cache(maxsize=None)
+def dotnet_command_line(path: Path) -> List[str]:
+    class_path = path / "dotnet" / "Fibonacci"
     class_path.mkdir(parents=True)
-    chmod_path_parts(class_path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
+    make_path_world_accessible(class_path)
     subprocess.run(["cp", str(CONTAINERS_DIRECTORY / "dotnet/Fibonacci.cs"), class_path])
     subprocess.run(["dotnet", "new", "console", "--force"], cwd=class_path)
     subprocess.run(["rm", "Program.cs"], cwd=class_path)
@@ -104,27 +121,32 @@ def dotnet_command_line(tmp_path: Path) -> List[str]:
 
 
 @fixture
-def command_line(runtime: str, java_command_line: List[str], dotnet_command_line: List[str]) -> List[str]:
-    # these do not have non-container application - so it will result in an error if the command
-    # line is used.
+def command_line(runtime: str, artifacts_dir: Path, java_args: Tuple[str]) -> List[str]:
     if runtime.startswith("native"):
+        # these do not have non-container application - so it will result in an error if the command
+        # line is used.
         return ["/bin/false"]
-
-    return {
-        "java": java_command_line,
+    elif runtime == "java":
+        return java_command_line(artifacts_dir, java_args)
+    elif runtime == "python":
         # note: here we run "python /path/to/lister.py" while in the container test we have
         # "CMD /path/to/lister.py", to test processes with non-python /proc/pid/comm
-        "python": ["python3", str(CONTAINERS_DIRECTORY / "python/lister.py")],
-        "php": ["php", str(CONTAINERS_DIRECTORY / "php/fibonacci.php")],
-        "ruby": ["ruby", str(CONTAINERS_DIRECTORY / "ruby/fibonacci.rb")],
-        "dotnet": dotnet_command_line,
-        "nodejs": [
+        return ["python3", str(CONTAINERS_DIRECTORY / "python/lister.py")]
+    elif runtime == "php":
+        return ["php", str(CONTAINERS_DIRECTORY / "php/fibonacci.php")]
+    elif runtime == "ruby":
+        return ["ruby", str(CONTAINERS_DIRECTORY / "ruby/fibonacci.rb")]
+    elif runtime == "dotnet":
+        return dotnet_command_line(artifacts_dir)
+    elif runtime == "nodejs":
+        return [
             "node",
             "--perf-prof",
             "--interpreted-frames-native-stack",
             str(CONTAINERS_DIRECTORY / "nodejs/fibonacci.js"),
-        ],
-    }[runtime]
+        ]
+    else:
+        raise NotImplementedError(runtime)
 
 
 @fixture
