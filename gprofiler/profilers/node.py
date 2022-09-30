@@ -1,11 +1,16 @@
+#
+# Copyright (c) Granulate. All rights reserved.
+# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+#
 import json
 import os
+from pathlib import Path
 import shutil
 import signal
 import stat
 from functools import lru_cache
 from threading import Event
-from typing import Dict, List, cast
+from typing import Any, Dict, List, cast
 
 import psutil
 import requests
@@ -40,10 +45,8 @@ def _get_node_major_version(process: psutil.Process) -> str:
 def _get_dso_git_rev() -> str:
     libc_dso_version_file = resource_path(os.path.join("node", "module", "glibc", "version"))
     musl_dso_version_file = resource_path(os.path.join("node", "module", "musl", "version"))
-    with open(libc_dso_version_file) as f:
-        libc_dso_ver = f.readline()
-    with open(musl_dso_version_file) as f:
-        musl_dso_ver = f.readline()
+    libc_dso_ver = Path(libc_dso_version_file).read_text()
+    musl_dso_ver = Path(musl_dso_version_file).read_text()
     # with no build errors this should always be the same
     assert libc_dso_ver == musl_dso_ver
     return libc_dso_ver
@@ -70,7 +73,7 @@ def _get_debugger_url() -> str:
     # ref: https://github.com/nodejs/node/blob/2849283c4cebbfbf523cc24303941dc36df9332f/src/node_options.h#L90
     # in our case it won't be changed
     port = 9229
-    debugger_url_response = requests.get(f"http://127.0.0.1:{port}/json/list")
+    debugger_url_response = requests.get(f"http://127.0.0.1:{port}/json/list", timeout=3)
     if debugger_url_response.status_code != 200 or "application/json" not in debugger_url_response.headers.get(
         "Content-Type", ""
     ):
@@ -107,12 +110,12 @@ def _send_socket_request(sock: WebSocket, cdp_request: Dict) -> None:
         raise NodeDebuggerUnexpectedResponse(message)
 
 
-def _get_node_pid(sock: WebSocket) -> int:
+def _execute_js_command(sock: WebSocket, command: str) -> Any:
     cdp_request = {
         "id": 1,
         "method": "Runtime.evaluate",
         "params": {
-            "expression": "process.pid",
+            "expression": command,
             "replMode": True,
         },
     }
@@ -123,53 +126,52 @@ def _get_node_pid(sock: WebSocket) -> int:
     except json.JSONDecodeError:
         raise NodeDebuggerUnexpectedResponse(message)
     try:
-        return cast(int, message["result"]["result"]["value"])
+        return message["result"]["result"]["value"]
     except KeyError:
         raise NodeDebuggerUnexpectedResponse(message)
 
 
-def _load_dso(sock: WebSocket, module_path: str) -> None:
+def _change_dso_state(sock: WebSocket, module_path: str, action: str) -> None:
+    assert action in ("start", "stop"), "_change_dso_state supports only start and stop actions"
     cdp_request = {
         "id": 1,
         "method": "Runtime.evaluate",
         "params": {
-            "expression": f'process.mainModule.require("{os.path.join(module_path, "linux-perf.js")}").start()',
+            "expression": f'process.mainModule.require("{os.path.join(module_path, "linux-perf.js")}").{action}()',
             "replMode": True,
         },
     }
     _send_socket_request(sock, cdp_request)
 
 
-def _stop_dso(sock: WebSocket, module_path: str) -> None:
-    cdp_request = {
-        "id": 1,
-        "method": "Runtime.evaluate",
-        "params": {
-            "expression": f'process.mainModule.require("{os.path.join(module_path, "linux-perf.js")}").stop()',
-            "replMode": True,
-        },
-    }
-    _send_socket_request(sock, cdp_request)
-
-
-def validate_ns(nspid: int, expected_ns_link_name: str) -> None:
+def _validate_ns(nspid: int, expected_ns_link_name: str) -> None:
     actual_nspid_name = os.readlink(os.path.join("/proc", str(nspid), "ns", "pid"))
     assert (
         actual_nspid_name == expected_ns_link_name
     ), f"Wrong namespace, expected {expected_ns_link_name}, got {actual_nspid_name}"
 
 
-def validate_pid(expected_pid: int, sock: WebSocket) -> None:
-    actual_pid = _get_node_pid(sock)
-    assert expected_pid == actual_pid, f"Wrong pid, expected  {expected_pid}, actual {actual_pid}"
+def _validate_ns_node(sock: WebSocket, nspid: str, expected_ns_link_name: str) -> None:
+    command = f'const fs = process.mainModule.require("fs"); fs.readlinkSync("/proc/{nspid}/ns/pid")'
+    actual_ns_link_name = cast(str,_execute_js_command(sock, command))
+    logger.debug(f"Found link by node: {actual_ns_link_name}")
+    assert (
+        actual_ns_link_name == expected_ns_link_name
+    ), f"Wrong namespace, expected {expected_ns_link_name}, got {actual_ns_link_name}"
+
+
+def _validate_pid(expected_pid: int, sock: WebSocket) -> None:
+    actual_pid = cast(int, _execute_js_command(sock, "process.pid"))
+    assert expected_pid == actual_pid, f"Wrong pid, expected {expected_pid}, actual {actual_pid}"
 
 
 def create_debugger_socket(nspid: int, ns_link_name: str) -> WebSocket:
-    validate_ns(nspid, ns_link_name)
+    _validate_ns(nspid, ns_link_name)
     debugger_url = _get_debugger_url()
     sock = create_connection(debugger_url)
     sock.settimeout(10)
-    validate_pid(nspid, sock)
+    _validate_ns_node(sock, nspid, ns_link_name)
+    _validate_pid(nspid, sock)
     return sock
 
 
@@ -188,13 +190,13 @@ def _copy_module_into_process_ns(process: psutil.Process, musl: bool, version: s
 
 def _generate_perf_map(module_path: str, nspid: int, ns_link_name: str) -> None:
     sock = create_debugger_socket(nspid, ns_link_name)
-    _load_dso(sock, module_path)
+    _change_dso_state(sock, module_path, "start")
 
 
 def _clean_up(module_path: str, nspid: int, ns_link_name: str) -> None:
     sock = create_debugger_socket(nspid, ns_link_name)
     try:
-        _stop_dso(sock, module_path)
+        _change_dso_state(sock, module_path, "stop")
     finally:
         os.remove(os.path.join("/tmp", f"perf-{nspid}.map"))
 
