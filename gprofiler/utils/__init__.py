@@ -37,7 +37,6 @@ from gprofiler.platform import is_windows
 if is_windows():
     import pythoncom  # type: ignore
     import wmi  # type: ignore
-    from ctypes.windll.shell32 import IsUserAnAdmin  # type: ignore
 
 from gprofiler.exceptions import (
     CalledProcessError,
@@ -74,7 +73,7 @@ def resource_path(relative_path: str = "") -> str:
 @lru_cache(maxsize=None)
 def is_root() -> bool:
     if is_windows():
-        return assert_cast(int, IsUserAnAdmin()) == 1
+        return cast(int, ctypes.windll.shell32.IsUserAnAdmin()) == 1  # type: ignore
     else:
         return os.geteuid() == 0
 
