@@ -430,9 +430,6 @@ def atomically_symlink(target: str, link_node: str) -> None:
     """
     tmp_path = link_node + ".tmp"
     os.symlink(target, tmp_path)
-    # Windows does not support renaming existing symlink
-    if is_windows() and os.path.exists(link_node):
-        os.remove(link_node)
     os.rename(tmp_path, link_node)
 
 
