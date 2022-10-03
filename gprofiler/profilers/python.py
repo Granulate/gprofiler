@@ -36,11 +36,11 @@ from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
-from gprofiler.platform import is_windows
+from gprofiler.platform import is_windows, is_linux
 from gprofiler.profilers.profiler_base import ProfilerInterface, SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 
-if not is_windows():
+if is_linux():
     from gprofiler.profilers.python_ebpf import PythonEbpfProfiler, PythonEbpfError
 
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
@@ -354,7 +354,7 @@ class PythonProfiler(ProfilerInterface):
         else:
             self._pyspy_profiler = None
 
-    if not is_windows():
+    if is_linux():
 
         def _create_ebpf_profiler(
             self,

@@ -14,9 +14,9 @@ from psutil import NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.enrichment import EnrichmentOptions
-from gprofiler.platform import is_windows
+from gprofiler.platform import is_linux
 
-if not is_windows():
+if is_linux():
     from gprofiler.metadata.application_identifiers_java import (
         _JavaJarApplicationIdentifier,
         _JavaSparkApplicationIdentifier,
@@ -294,7 +294,7 @@ _IDENTIFIERS_MAP: Dict[str, List[_ApplicationIdentifier]] = {
     ],
 }
 
-if not is_windows():
+if is_linux():
     _IDENTIFIERS_MAP["java"] = [_JavaJarApplicationIdentifier()]
     _IDENTIFIERS_MAP["java_spark"] = _IDENTIFIERS_MAP["java"] + [_JavaSparkApplicationIdentifier()]
 

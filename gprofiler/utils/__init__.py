@@ -32,7 +32,7 @@ from granulate_utils.linux.ns import run_in_ns
 from granulate_utils.linux.process import process_exe
 from psutil import Process
 
-from gprofiler.platform import is_windows
+from gprofiler.platform import is_linux, is_windows
 
 if is_windows():
     import pythoncom  # type: ignore
@@ -52,7 +52,7 @@ logger = get_logger_adapter(__name__)
 GPROFILER_DIRECTORY_NAME = "gprofiler_tmp"
 TEMPORARY_STORAGE_PATH = (
     f"/tmp/{GPROFILER_DIRECTORY_NAME}"
-    if not is_windows()
+    if is_linux()
     else os.getenv("USERPROFILE", default=os.getcwd()) + f"\\AppData\\Local\\Temp\\{GPROFILER_DIRECTORY_NAME}"
 )
 

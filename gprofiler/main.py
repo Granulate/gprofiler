@@ -54,6 +54,7 @@ from gprofiler.utils import (
     run_process,
 )
 from gprofiler.utils.proxy import get_https_proxy
+from gprofiler.platform import is_linux
 
 logger: logging.LoggerAdapter
 
@@ -664,7 +665,7 @@ def verify_preconditions(args: configargparse.Namespace) -> None:
         sys.exit(1)
 
     try:
-        if not grab_gprofiler_mutex():
+        if is_linux() and not grab_gprofiler_mutex():
             sys.exit(0)
     except Exception:
         traceback.print_exc()
