@@ -406,10 +406,6 @@ def grab_gprofiler_mutex() -> bool:
     on filesystem structure (as happens with file-based locks).
     In order to see who's holding the lock now, you can run "sudo netstat -xp | grep gprofiler".
     """
-    # Bypass due to lack of Windows support
-    if is_windows():
-        # TODO: Windows specific mutex needed
-        return True
     GPROFILER_LOCK = "\x00gprofiler_lock"
 
     try:
