@@ -165,7 +165,7 @@ class GProfiler:
         last_output = os.path.join(self._output_dir, last_output_name)
         prev_output = Path(last_output).resolve()
         if is_windows() and os.path.exists(last_output):
-            os.remove(last_output) 
+            os.remove(last_output)
         atomically_symlink(os.path.basename(output_path), last_output)
         # delete if rotating & there was a link target before.
         if self._rotating_output and os.path.basename(prev_output) != last_output_name:
