@@ -22,6 +22,8 @@ from gprofiler.utils import is_pyinstaller, run_process
 
 if not is_windows():
     import fcntl
+else:
+    import netifaces  # type: ignore
 
 UNKNOWN_VALUE = "unknown"
 
@@ -203,13 +205,29 @@ class SystemInfo:
     spawn_uptime_ms: float
 
 
+def get_windows_network_details() -> Tuple[str, str]:
+    IPV4_PATTERN = r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
+    LOOPBACK = "127.0.0.1"
+    ADDR_KEY = "addr"
+    MAC_KEY = -1000
+    for iface in netifaces.interfaces():
+        mac_address = None
+        for key, addresses in netifaces.ifaddresses(iface).items():
+            for address in addresses:
+                if key == MAC_KEY:
+                    mac_address = address[ADDR_KEY]
+                    continue
+                if re.match(IPV4_PATTERN, address[ADDR_KEY]) is not None and address[ADDR_KEY] != LOOPBACK:
+                    return cast(Tuple[str, str], (mac_address, address[ADDR_KEY]))
+    return UNKNOWN_VALUE, UNKNOWN_VALUE
+
+
 def get_static_system_info() -> SystemInfo:
     if is_windows():
         hostname = platform.node()
         distribution = platform.system(), platform.release(), platform.version()
         libc_tuple = platform.libc_ver()
-        mac_address = ""  # Use netifaces pip package
-        local_ip = ""  # Use netifaces pip package
+        mac_address, local_ip = get_windows_network_details()
         spawn_uptime_ms = time.monotonic() * 1000
     else:
         hostname, distribution, libc_tuple, mac_address, local_ip = _initialize_system_info()
