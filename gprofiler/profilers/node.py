@@ -4,11 +4,11 @@
 #
 import json
 import os
-from pathlib import Path
 import shutil
 import signal
 import stat
 from functools import lru_cache
+from pathlib import Path
 from threading import Event
 from typing import Any, Dict, List, cast
 
@@ -144,17 +144,9 @@ def _change_dso_state(sock: WebSocket, module_path: str, action: str) -> None:
     _send_socket_request(sock, cdp_request)
 
 
-def _validate_ns(nspid: int, expected_ns_link_name: str) -> None:
-    actual_nspid_name = os.readlink(os.path.join("/proc", str(nspid), "ns", "pid"))
-    assert (
-        actual_nspid_name == expected_ns_link_name
-    ), f"Wrong namespace, expected {expected_ns_link_name}, got {actual_nspid_name}"
-
-
-def _validate_ns_node(sock: WebSocket, nspid: str, expected_ns_link_name: str) -> None:
-    command = f'const fs = process.mainModule.require("fs"); fs.readlinkSync("/proc/{nspid}/ns/pid")'
-    actual_ns_link_name = cast(str,_execute_js_command(sock, command))
-    logger.debug(f"Found link by node: {actual_ns_link_name}")
+def _validate_ns_node(sock: WebSocket, expected_ns_link_name: str) -> None:
+    command = 'const fs = process.mainModule.require("fs"); fs.readlinkSync("/proc/self/ns/pid")'
+    actual_ns_link_name = cast(str, _execute_js_command(sock, command))
     assert (
         actual_ns_link_name == expected_ns_link_name
     ), f"Wrong namespace, expected {expected_ns_link_name}, got {actual_ns_link_name}"
@@ -166,11 +158,10 @@ def _validate_pid(expected_pid: int, sock: WebSocket) -> None:
 
 
 def create_debugger_socket(nspid: int, ns_link_name: str) -> WebSocket:
-    _validate_ns(nspid, ns_link_name)
     debugger_url = _get_debugger_url()
     sock = create_connection(debugger_url)
     sock.settimeout(10)
-    _validate_ns_node(sock, nspid, ns_link_name)
+    _validate_ns_node(sock, ns_link_name)
     _validate_pid(nspid, sock)
     return sock
 

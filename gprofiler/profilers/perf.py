@@ -212,6 +212,8 @@ class SystemProfiler(ProfilerBase):
         assert self._perf_fp is not None or self._perf_dwarf is not None
 
     def start(self) -> None:
+        # we have to also generate maps here,
+        # it might be too late for first round to generate it in snapshot()
         if self.perf_node_attach:
             self._node_processes = get_node_processes()
             generate_map_for_node_processes(self._node_processes)
