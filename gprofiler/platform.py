@@ -8,9 +8,11 @@ from functools import lru_cache
 WINDOWS_PLATFORM_NAME = "win32"
 LINUX_PLATFORM_NAME = "linux"
 
+
 @lru_cache(maxsize=None)
 def is_windows() -> bool:
     return sys.platform == WINDOWS_PLATFORM_NAME
+
 
 @lru_cache(maxsize=None)
 def is_linux() -> bool:

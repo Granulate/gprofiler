@@ -36,6 +36,7 @@ from gprofiler.metadata.application_identifiers import set_enrichment_options
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
+from gprofiler.platform import is_linux
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
@@ -54,7 +55,6 @@ from gprofiler.utils import (
     run_process,
 )
 from gprofiler.utils.proxy import get_https_proxy
-from gprofiler.platform import is_linux
 
 logger: logging.LoggerAdapter
 

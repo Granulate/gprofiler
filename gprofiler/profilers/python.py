@@ -36,7 +36,7 @@ from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
-from gprofiler.platform import is_windows, is_linux
+from gprofiler.platform import is_linux, is_windows
 from gprofiler.profilers.profiler_base import ProfilerInterface, SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 

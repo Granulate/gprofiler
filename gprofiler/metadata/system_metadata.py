@@ -17,7 +17,7 @@ import psutil
 from granulate_utils.linux.ns import run_in_ns
 
 from gprofiler.log import get_logger_adapter
-from gprofiler.platform import is_windows, is_linux
+from gprofiler.platform import is_linux, is_windows
 from gprofiler.utils import is_pyinstaller, run_process
 
 if is_linux():
