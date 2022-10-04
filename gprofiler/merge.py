@@ -104,13 +104,13 @@ def _collapse_stack(comm: str, stack: str, insert_dso_name: bool = False) -> str
         assert m is not None, f"bad line: {line}"
         sym, dso = m.groups()
         sym = sym.split("+")[0]  # strip the offset part.
-        if sym == "[unknown]" and dso != "[unknown]":
-            sym = f"[{dso}]"
+        if sym == "[unknown]" and dso != "unknown":
+            sym = f"({dso})"
         # append kernel annotation
         elif "kernel" in dso or "vmlinux" in dso:
             sym += "_[k]"
         elif insert_dso_name:
-            sym += f" [{dso}]"
+            sym += f" ({dso})"
         funcs.append(sym)
     return ";".join(funcs)
 

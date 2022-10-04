@@ -180,6 +180,7 @@ class SystemProfiler(ProfilerBase):
         self._perfs: List[PerfProcess] = []
         self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
         self._insert_dso_name = insert_dso_name
+
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
                 self._frequency,
@@ -242,7 +243,7 @@ class SystemProfiler(ProfilerBase):
             for k, v in merge.merge_global_perfs(
                 self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
                 self._perf_dwarf.wait_and_script() if self._perf_dwarf is not None else None,
-                self._insert_dso_name
+                self._insert_dso_name,
             ).items()
         }
 

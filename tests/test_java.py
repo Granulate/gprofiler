@@ -42,6 +42,7 @@ from tests.utils import (
     _application_docker_container,
     assert_function_in_collapsed,
     is_function_in_collapsed,
+    is_pattern_in_collapsed,
     make_java_profiler,
     snapshot_one_collapsed,
     snapshot_one_profile,
@@ -654,20 +655,21 @@ def test_java_different_basename(
                     == java_notjava_basename
                 )
 
+
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("insert_dso_name", [False, True])
 def test_dso_name_in_ap_profile(
     tmp_path: Path,
     application_pid: int,
-    insert_dso_name: bool
+    insert_dso_name: bool,
 ) -> None:
     with make_java_profiler(
         storage_dir=str(tmp_path),
         duration=3,
         frequency=999,
-        java_async_profiler_args=",lib" if insert_dso_name else ""
+        java_async_profiler_args="lib" if insert_dso_name else ""
     ) as profiler:
         collapsed = snapshot_pid_profile(profiler, application_pid).stacks
         assert is_function_in_collapsed("jni_NewObject", collapsed)
-        assert insert_dso_name == is_function_in_collapsed("jni_NewObject [libjvm.so]", collapsed)
+        assert insert_dso_name == is_pattern_in_collapsed(r"jni_NewObject \(.+?/libjvm.so\)", collapsed)
     pass

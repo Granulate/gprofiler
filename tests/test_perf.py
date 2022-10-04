@@ -31,7 +31,7 @@ def make_system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) 
         perf_mode=perf_mode,
         perf_inject=False,
         perf_dwarf_stack_size=DEFAULT_PERF_DWARF_STACK_SIZE,
-        insert_dso_name=insert_dso_name
+        insert_dso_name=insert_dso_name,
     )
 
 
@@ -167,10 +167,8 @@ def test_dso_name_in_perf_profile(
     system_profiler: SystemProfiler,
     application_pid: int,
     insert_dso_name: bool,
-    # tmp_path: Path,
-    # perf_mode: str
 ) -> None:
     with system_profiler as profiler:
         collapsed = snapshot_pid_profile(profiler, application_pid).stacks
         assert is_function_in_collapsed("recursive", collapsed)
-        assert insert_dso_name == is_function_in_collapsed("recursive [/native]", collapsed)
+        assert insert_dso_name == is_function_in_collapsed("recursive (/native)", collapsed)
