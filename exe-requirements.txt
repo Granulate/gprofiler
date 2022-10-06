@@ -12,3 +12,4 @@ pyinstaller==4.10; platform.machine == "aarch64"
 # staying with 0.12.1 for the mean time...
 staticx==0.12.1; platform.machine == "x86_64"
 netifaces==0.11.0; sys.platform == "win32"
+WMI==1.5.1; sys.platform == "win32"
