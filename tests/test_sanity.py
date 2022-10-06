@@ -28,7 +28,6 @@ from tests.utils import (
     assert_function_in_collapsed,
     make_java_profiler,
     run_gprofiler_in_container_for_one_session,
-    snapshot_one_collapsed,
     snapshot_pid_collapsed,
     start_gprofiler_in_container_for_one_session,
     wait_for_gprofiler_container,
@@ -48,7 +47,7 @@ def test_java_from_host(
         java_async_profiler_mode="itimer",
     ) as profiler:
         _ = assert_app_id  # Required for mypy unused argument warning
-        process_collapsed = snapshot_one_collapsed(profiler)
+        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
 
 
@@ -92,7 +91,7 @@ def test_rbspy(
     gprofiler_docker_image: Image,
 ) -> None:
     with RbSpyProfiler(1000, 3, Event(), str(tmp_path), False, "rbspy") as profiler:
-        process_collapsed = snapshot_one_collapsed(profiler)
+        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
 
 
@@ -104,7 +103,7 @@ def test_dotnet_trace(
     gprofiler_docker_image: Image,
 ) -> None:
     with DotnetProfiler(1000, 3, Event(), str(tmp_path), False, "dotnet-trace") as profiler:
-        process_collapsed = snapshot_one_collapsed(profiler)
+        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
 
 
