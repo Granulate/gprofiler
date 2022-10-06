@@ -665,9 +665,9 @@ def test_dso_name_in_ap_profile(
 ) -> None:
     with make_java_profiler(
         storage_dir=str(tmp_path),
+        insert_dso_name=insert_dso_name,
         duration=3,
         frequency=999,
-        java_async_profiler_args="lib" if insert_dso_name else ""
     ) as profiler:
         collapsed = snapshot_pid_profile(profiler, application_pid).stacks
         assert is_function_in_collapsed("jni_NewObject", collapsed)

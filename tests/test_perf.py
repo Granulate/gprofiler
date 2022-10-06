@@ -3,7 +3,9 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
+import logging
 from pathlib import Path
+from pprint import pformat
 from threading import Event
 from typing import cast
 
@@ -27,11 +29,11 @@ def make_system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) 
         1,
         Event(),
         str(tmp_path),
+        insert_dso_name,
         False,
         perf_mode=perf_mode,
         perf_inject=False,
         perf_dwarf_stack_size=DEFAULT_PERF_DWARF_STACK_SIZE,
-        insert_dso_name=insert_dso_name,
     )
 
 
@@ -170,5 +172,6 @@ def test_dso_name_in_perf_profile(
 ) -> None:
     with system_profiler as profiler:
         collapsed = snapshot_pid_profile(profiler, application_pid).stacks
+        logging.warning(f"{'HONYA' if insert_dso_name else 'NIKUYA'}: {pformat(collapsed, indent=2)}")
         assert is_function_in_collapsed("recursive", collapsed)
         assert insert_dso_name == is_function_in_collapsed("recursive (/native)", collapsed)
