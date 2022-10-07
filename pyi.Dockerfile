@@ -315,7 +315,7 @@ COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # we use list_needed_libs.sh to list the dynamic dependencies of *all* of our resources,
 # and make staticx pack them as well.
 # using scl here to get the proper LD_LIBRARY_PATH set
-# hadolint ignore=SC2046
+# hadolint ignore=SC2046,SC2086
 RUN set -e; \
     if [ $(uname -m) != "aarch64" ]; then \
         source scl_source enable devtoolset-8 llvm-toolset-7 ; \
