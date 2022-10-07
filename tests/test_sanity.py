@@ -116,7 +116,7 @@ def test_nodejs(
     gprofiler_docker_image: Image,
 ) -> None:
     with SystemProfiler(
-        1000, 6, Event(), str(tmp_path), False,  False, perf_mode="fp", perf_inject=True, perf_dwarf_stack_size=0
+        1000, 6, Event(), str(tmp_path), False, False, perf_mode="fp", perf_inject=True, perf_dwarf_stack_size=0
     ) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)

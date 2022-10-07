@@ -101,6 +101,7 @@ def test_async_profiler_already_running(
         with AsyncProfiledProcess(
             process=process,
             storage_dir=profiler._storage_dir,
+            insert_dso_name=False,
             stop_event=profiler._stop_event,
             buildids=False,
             mode=profiler._mode,
@@ -113,6 +114,7 @@ def test_async_profiler_already_running(
         with AsyncProfiledProcessForTests(
             process=process,
             storage_dir=profiler._storage_dir,
+            insert_dso_name=False,
             stop_event=profiler._stop_event,
             buildids=False,
             mode="itimer",
@@ -331,6 +333,7 @@ def test_async_profiler_stops_after_given_timeout(
     with AsyncProfiledProcessForTests(
         process=process,
         storage_dir=str(tmp_path_world_accessible),
+        insert_dso_name=False,
         stop_event=Event(),
         buildids=False,
         mode="itimer",
@@ -672,4 +675,3 @@ def test_dso_name_in_ap_profile(
         collapsed = snapshot_pid_profile(profiler, application_pid).stacks
         assert is_function_in_collapsed("jni_NewObject", collapsed)
         assert insert_dso_name == is_pattern_in_collapsed(r"jni_NewObject \(.+?/libjvm.so\)", collapsed)
-    pass

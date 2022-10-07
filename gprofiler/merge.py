@@ -116,9 +116,7 @@ def _collapse_stack(comm: str, stack: str, insert_dso_name: bool = False) -> str
 
 
 def merge_global_perfs(
-    raw_fp_perf: Optional[str],
-    raw_dwarf_perf: Optional[str],
-    insert_dso_name: bool = False
+    raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str], insert_dso_name: bool = False
 ) -> ProcessToStackSampleCounters:
     fp_perf = _parse_perf_script(raw_fp_perf, insert_dso_name)
     dwarf_perf = _parse_perf_script(raw_dwarf_perf, insert_dso_name)

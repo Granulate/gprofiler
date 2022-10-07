@@ -13,15 +13,23 @@ import pytest
 from docker.models.containers import Container
 
 from gprofiler.profilers.perf import DEFAULT_PERF_DWARF_STACK_SIZE, SystemProfiler
-from tests.utils import assert_function_in_collapsed, is_function_in_collapsed, snapshot_pid_collapsed, snapshot_pid_profile
+from tests.utils import (
+    assert_function_in_collapsed,
+    is_function_in_collapsed,
+    snapshot_pid_collapsed,
+    snapshot_pid_profile,
+)
+
 
 @pytest.fixture
 def insert_dso_name() -> bool:
     return False
 
+
 @pytest.fixture
 def system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) -> SystemProfiler:
     return make_system_profiler(tmp_path, perf_mode, insert_dso_name)
+
 
 def make_system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) -> SystemProfiler:
     return SystemProfiler(
@@ -161,6 +169,7 @@ def test_perf_thread_comm_is_process_comm(
         # we take the exec comm for all threads so we remain with the first, "native".
         _assert_comm_in_profile(profiler, application_pid, True)
 
+
 @pytest.mark.parametrize("runtime", ["native_thread_comm"])
 @pytest.mark.parametrize("perf_mode", ["fp"])
 @pytest.mark.parametrize("insert_dso_name", [False, True])
@@ -172,6 +181,5 @@ def test_dso_name_in_perf_profile(
 ) -> None:
     with system_profiler as profiler:
         collapsed = snapshot_pid_profile(profiler, application_pid).stacks
-        logging.warning(f"{'HONYA' if insert_dso_name else 'NIKUYA'}: {pformat(collapsed, indent=2)}")
         assert is_function_in_collapsed("recursive", collapsed)
         assert insert_dso_name == is_function_in_collapsed("recursive (/native)", collapsed)

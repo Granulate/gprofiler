@@ -71,7 +71,9 @@ class ProfilerBase(ProfilerInterface):
     MAX_FREQUENCY: Optional[int] = None
     MIN_DURATION: Optional[int] = None
 
-    def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str, insert_dso_name: bool):
+    def __init__(
+        self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str, insert_dso_name: bool
+    ):
         self._frequency = limit_frequency(self.MAX_FREQUENCY, frequency, self.__class__.__name__, logger)
         if self.MIN_DURATION is not None and duration < self.MIN_DURATION:
             raise ValueError(

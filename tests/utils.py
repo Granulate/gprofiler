@@ -159,7 +159,7 @@ def is_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) 
 
 def is_pattern_in_collapsed(pattern: str, collapsed: StackToSampleCount) -> bool:
     regex = re.compile(pattern, re.IGNORECASE)
-    return any((regex.search(record) and True) for record in collapsed.keys())
+    return any(regex.search(record) is not None for record in collapsed.keys())
 
 
 def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) -> None:
