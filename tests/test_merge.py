@@ -121,20 +121,22 @@ def test_get_average_frame_count(samples: str, count: float) -> None:
             "	7fae fstatat64+0xe (/lib/libc-2.33.so)\n"
             "	0040 [unknown] ([unknown])",
             dict(
-                dso_true="[unknown] (unknown);fstatat64 (/lib/libc-2.33.so);strncpy_from_user_[k];(/tmp/perf-123.map);page_fault_[k]",
+                dso_true="[unknown] (unknown);fstatat64 (/lib/libc-2.33.so);"
+                "strncpy_from_user_[k];(/tmp/perf-123.map);page_fault_[k]",
                 dso_false="[unknown];fstatat64;strncpy_from_user_[k];(/tmp/perf-123.map);page_fault_[k]",
             ),
             id="mixed_stack",
         ),
         pytest.param(
             "	b7ac [unknown] ([unknown])\n"
-            "	7fae LinkResolver::resolve_invokedynamic+0xbe (/opt/java/lib/libjvm.so)\n"
+            "	7fae Resolver::_invokedynamic+0xbe (/opt/java/lib/libjvm.so)\n"
             "	7f2f [unknown] (/tmp/perf-123.map)\n"
             "	7f8e JavaMain+0xcfe (/opt/java/lib/libjli.so)\n"
             "	7fdb start_thread+0xdb (/lib/libpthread-2.27.so)\n",
             dict(
-                dso_true="start_thread (/lib/libpthread-2.27.so);JavaMain (/opt/java/lib/libjli.so);(/tmp/perf-123.map);LinkResolver::resolve_invokedynamic (/opt/java/lib/libjvm.so);[unknown] (unknown)",
-                dso_false="start_thread;JavaMain;(/tmp/perf-123.map);LinkResolver::resolve_invokedynamic;[unknown]",
+                dso_true="start_thread (/lib/libpthread-2.27.so);JavaMain (/opt/java/lib/libjli.so);"
+                "(/tmp/perf-123.map);Resolver::_invokedynamic (/opt/java/lib/libjvm.so);[unknown] (unknown)",
+                dso_false="start_thread;JavaMain;(/tmp/perf-123.map);Resolver::_invokedynamic;[unknown]",
             ),
             id="mixed_java_stack",
         ),

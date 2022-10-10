@@ -3,9 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
-import logging
 from pathlib import Path
-from pprint import pformat
 from threading import Event
 from typing import cast
 
