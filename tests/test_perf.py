@@ -42,6 +42,7 @@ def make_system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) 
         perf_mode=perf_mode,
         perf_inject=False,
         perf_dwarf_stack_size=DEFAULT_PERF_DWARF_STACK_SIZE,
+        perf_node_attach=False,
     )
 
 

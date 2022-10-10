@@ -439,9 +439,10 @@ def parse_cmd_args() -> configargparse.Namespace:
         "--nodejs-mode",
         dest="nodejs_mode",
         default="disabled",
-        choices=["perf", "disabled", "none"],
-        help="Select the NodeJS profiling mode: perf (run 'perf inject --jit' on perf results, to augment them"
-        " with jitdump files of NodeJS processes, if present) or disabled (no runtime-specific profilers for NodeJS)",
+        choices=["attach-maps", "perf", "disabled", "none"],
+        help="Select the NodeJS profiling mode: attach-maps (generates perf-maps at runtime),"
+        " perf (run 'perf inject --jit' on perf results, to augment them with jitdump files"
+        " of NodeJS processes, if present) or disabled (no runtime-specific profilers for NodeJS)",
     )
 
     nodejs_options.add_argument(
@@ -607,6 +608,7 @@ def parse_cmd_args() -> configargparse.Namespace:
     args = parser.parse_args()
 
     args.perf_inject = args.nodejs_mode == "perf"
+    args.perf_node_attach = args.nodejs_mode == "attach-maps"
 
     if args.upload_results:
         if not args.server_token:
@@ -623,8 +625,8 @@ def parse_cmd_args() -> configargparse.Namespace:
     if args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
         parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode 'smart' or 'dwarf'")
 
-    if args.nodejs_mode == "perf" and args.perf_mode not in ("fp", "smart"):
-        parser.error("--nodejs-mode perf requires --perf-mode 'fp' or 'smart'")
+    if args.nodejs_mode in ("perf", "attach-maps") and args.perf_mode not in ("fp", "smart"):
+        parser.error("--nodejs-mode perf or attach-maps requires --perf-mode 'fp' or 'smart'")
 
     return args
 

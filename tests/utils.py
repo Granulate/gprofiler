@@ -167,16 +167,6 @@ def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCou
     assert is_function_in_collapsed(function_name, collapsed), f"function {function_name!r} missing in collapsed data!"
 
 
-def snapshot_one_profile(profiler: ProfilerInterface) -> ProfileData:
-    result = profiler.snapshot()
-    assert len(result) == 1, result
-    return next(iter(result.values()))
-
-
-def snapshot_one_collapsed(profiler: ProfilerInterface) -> StackToSampleCount:
-    return snapshot_one_profile(profiler).stacks
-
-
 def snapshot_pid_profile(profiler: ProfilerInterface, pid: int) -> ProfileData:
     return profiler.snapshot()[pid]
 
