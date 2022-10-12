@@ -309,7 +309,7 @@ class NodePerfMetadata(PerfMetadata):
             logger.debug(f"YYYYYY2 node relevant_for_process {is_node}")
             return is_node
         except MissingExePath:
-            logger.debug("YYYYYY2 node relevant_for_process MissingExePath")
+            logger.debug("YYYYYY3 node relevant_for_process MissingExePath")
             return False
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
