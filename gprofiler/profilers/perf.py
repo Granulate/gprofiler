@@ -288,11 +288,14 @@ class GolangPerfMetadata(PerfMetadata):
         logger.debug(f"XXXXXX1 golang relevant_for_process {process}")
         try:
             is_go = is_golang_process(process)
-            logger.debug(f"XXXXXX2 golang relevant_for_process {is_go}")
+            logger.debug(f"XXXXXX2 golang relevant_for_process {process} {is_go}")
             return is_go
         except MissingExePath:
-            logger.debug("XXXXXX3 golang relevant_for_process MissingExePath")
+            logger.debug(f"XXXXXX3 golang relevant_for_process MissingExePath {process}")
             return False
+        except Exception:
+            logger.debug(f"XXXXXX4 golang relevant_for_process {process}")
+        return False
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         metadata = {"golang_version": get_process_golang_version(process)}
@@ -306,11 +309,14 @@ class NodePerfMetadata(PerfMetadata):
         logger.debug(f"YYYYYY1 node relevant_for_process {process}")
         try:
             is_node = is_node_process(process)
-            logger.debug(f"YYYYYY2 node relevant_for_process {is_node}")
+            logger.debug(f"YYYYYY2 node relevant_for_process {process} {is_node}")
             return is_node
         except MissingExePath:
-            logger.debug("YYYYYY3 node relevant_for_process MissingExePath")
+            logger.debug(f"YYYYYY3 node relevant_for_process MissingExePath {process}")
             return False
+        except Exception:
+            logger.debug(f"YYYYYY4 golang relevant_for_process {process}")
+        return False
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         metadata = {"node_version": self.get_exe_version_cached(process)}
