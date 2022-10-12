@@ -6,7 +6,7 @@
 set -euo pipefail
 
 VERSION=apply-common-format-for-DSO-names
-GIT_REV="c1ef61b393cd83cf0763df9aff80ae5e2097bd44"
+GIT_REV="c666e7054fbfd817fb2b840faae1555ddea15f82"
 
 git clone --depth 1 -b "$VERSION" https://github.com/marcin-ol/async-profiler.git && cd async-profiler && git reset --hard "$GIT_REV"
 # shellcheck disable=SC1090  # we pass it either async_profiler_build_glibc.sh or async_profiler_build_musl.sh
