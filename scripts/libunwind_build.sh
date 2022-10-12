@@ -12,14 +12,14 @@ curl https://github.com/libunwind/libunwind/commit/831459ee961e7d673bbd83e40d082
 pushd libunwind-1.5.0
 patch -p1 < ../libunwind-container-support.patch
 
-if [ $(uname -m) = "aarch64" ]; then
+if [ "$(uname -m)" = "aarch64" ]; then
     # higher value for make -j kills the GH runner (build gets OOM)
     nproc=2
 else
-    nproc=
+    nproc=$(nproc)
 fi
 
-./configure --prefix=/usr --disable-tests --disable-documentation && make install -j $nproc
+./configure --prefix=/usr --disable-tests --disable-documentation && make install -j "$nproc"
 popd
 rm -r libunwind-1.5.0
 rm libunwind-1.5.0.tar.gz

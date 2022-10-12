@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 
 # copy the "gprofiler/resources" directory from the gprofiler container
 
-CONTAINER=$(docker container create $IMAGE)
+CONTAINER=$(docker container create "$IMAGE")
 set +e
 docker cp "$CONTAINER:/app/gprofiler/resources" "$SCRIPT_DIR/../gprofiler/"
 RET=$?

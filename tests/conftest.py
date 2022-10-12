@@ -2,14 +2,13 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import glob
 import os
 import stat
 import subprocess
 from contextlib import _GeneratorContextManager, contextmanager
-from functools import partial
+from functools import lru_cache, partial
 from pathlib import Path
-from typing import Any, Callable, Generator, Iterable, Iterator, List, Mapping, Optional, cast
+from typing import Any, Callable, Dict, Generator, Iterable, Iterator, List, Mapping, Optional, Tuple, cast
 
 import docker
 import pytest
@@ -18,7 +17,7 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 from psutil import Process
-from pytest import FixtureRequest, fixture
+from pytest import FixtureRequest, TempPathFactory, fixture
 
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.metadata.application_identifiers import get_java_app_id, get_python_app_id, set_enrichment_options
@@ -65,26 +64,43 @@ def in_container(request: FixtureRequest) -> bool:
 
 
 @fixture
-def java_args() -> List[str]:
-    return []
+def java_args() -> Tuple[str]:
+    return cast(Tuple[str], ())
+
+
+def make_path_world_accessible(path: Path) -> None:
+    """
+    Makes path and its subparts accessible by all.
+    """
+    chmod_path_parts(path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
 
 
 @fixture
-def java_command_line(tmp_path: Path, java_args: List[str]) -> List[str]:
-    class_path = tmp_path / "java"
-    class_path.mkdir()
-    # make all directories readable & executable by all.
+def tmp_path_world_accessible(tmp_path: Path) -> Path:
+    make_path_world_accessible(tmp_path)
+    return tmp_path
+
+
+@fixture(scope="session")
+def artifacts_dir(tmp_path_factory: TempPathFactory) -> Path:
+    return tmp_path_factory.mktemp("artifacts")
+
+
+@lru_cache(maxsize=None)
+def java_command_line(path: Path, java_args: Tuple[str]) -> List[str]:
+    class_path = path / "java"
+    class_path.mkdir(exist_ok=True)
     # Java fails with permissions errors: "Error: Could not find or load main class Fibonacci"
-    chmod_path_parts(class_path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
+    make_path_world_accessible(class_path)
     subprocess.run(["javac", CONTAINERS_DIRECTORY / "java/Fibonacci.java", "-d", class_path])
-    return ["java"] + java_args + ["-cp", str(class_path), "Fibonacci"]
+    return ["java"] + list(java_args) + ["-cp", str(class_path), "Fibonacci"]
 
 
-@fixture
-def dotnet_command_line(tmp_path: Path) -> List[str]:
-    class_path = tmp_path / "dotnet" / "Fibonacci"
+@lru_cache(maxsize=None)
+def dotnet_command_line(path: Path) -> List[str]:
+    class_path = path / "dotnet" / "Fibonacci"
     class_path.mkdir(parents=True)
-    chmod_path_parts(class_path, stat.S_IRGRP | stat.S_IROTH | stat.S_IXGRP | stat.S_IXOTH)
+    make_path_world_accessible(class_path)
     subprocess.run(["cp", str(CONTAINERS_DIRECTORY / "dotnet/Fibonacci.cs"), class_path])
     subprocess.run(["dotnet", "new", "console", "--force"], cwd=class_path)
     subprocess.run(["rm", "Program.cs"], cwd=class_path)
@@ -105,27 +121,32 @@ def dotnet_command_line(tmp_path: Path) -> List[str]:
 
 
 @fixture
-def command_line(runtime: str, java_command_line: List[str], dotnet_command_line: List[str]) -> List[str]:
-    # these do not have non-container application - so it will result in an error if the command
-    # line is used.
+def command_line(runtime: str, artifacts_dir: Path, java_args: Tuple[str]) -> List[str]:
     if runtime.startswith("native"):
+        # these do not have non-container application - so it will result in an error if the command
+        # line is used.
         return ["/bin/false"]
-
-    return {
-        "java": java_command_line,
+    elif runtime == "java":
+        return java_command_line(artifacts_dir, java_args)
+    elif runtime == "python":
         # note: here we run "python /path/to/lister.py" while in the container test we have
         # "CMD /path/to/lister.py", to test processes with non-python /proc/pid/comm
-        "python": ["python3", str(CONTAINERS_DIRECTORY / "python/lister.py")],
-        "php": ["php", str(CONTAINERS_DIRECTORY / "php/fibonacci.php")],
-        "ruby": ["ruby", str(CONTAINERS_DIRECTORY / "ruby/fibonacci.rb")],
-        "dotnet": dotnet_command_line,
-        "nodejs": [
+        return ["python3", str(CONTAINERS_DIRECTORY / "python/lister.py")]
+    elif runtime == "php":
+        return ["php", str(CONTAINERS_DIRECTORY / "php/fibonacci.php")]
+    elif runtime == "ruby":
+        return ["ruby", str(CONTAINERS_DIRECTORY / "ruby/fibonacci.rb")]
+    elif runtime == "dotnet":
+        return dotnet_command_line(artifacts_dir)
+    elif runtime == "nodejs":
+        return [
             "node",
             "--perf-prof",
             "--interpreted-frames-native-stack",
             str(CONTAINERS_DIRECTORY / "nodejs/fibonacci.js"),
-        ],
-    }[runtime]
+        ]
+    else:
+        raise NotImplementedError(runtime)
 
 
 @fixture
@@ -184,58 +205,101 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
     yield docker_client.images.get("gprofiler")
 
 
+def _build_image(
+    docker_client: DockerClient, runtime: str, dockerfile: str = "Dockerfile", **kwargs: Mapping[str, Any]
+) -> Image:
+    base_path = CONTAINERS_DIRECTORY / runtime
+    return docker_client.images.build(path=str(base_path), rm=True, dockerfile=str(base_path / dockerfile), **kwargs)[0]
+
+
+def image_name(runtime: str, image_tag: str) -> str:
+    return runtime + ("_" + image_tag if image_tag else "")
+
+
 @fixture(scope="session")
-def application_docker_images(docker_client: DockerClient) -> Mapping[str, Image]:
+def application_docker_image_configs() -> Mapping[str, Dict[str, Any]]:
+    runtime_image_listing: Dict[str, Dict[str, Dict[str, Any]]] = {
+        "dotnet": {
+            "": {},
+        },
+        "golang": {
+            "": {},
+        },
+        "java": {
+            "": {},
+            "j9": dict(buildargs={"JAVA_BASE_IMAGE": "adoptopenjdk/openjdk8-openj9"}),
+            "zing": dict(dockerfile="zing.Dockerfile"),
+            "musl": dict(dockerfile="musl.Dockerfile"),
+        },
+        "native": {
+            "fp": dict(dockerfile="fp.Dockerfile"),
+            "dwarf": dict(dockerfile="dwarf.Dockerfile"),
+            "change_comm": dict(dockerfile="change_comm.Dockerfile"),
+            "thread_comm": dict(dockerfile="thread_comm.Dockerfile"),
+        },
+        "nodejs": {
+            "": dict(buildargs={"NODE_RUNTIME_FLAGS": "--perf-prof --interpreted-frames-native-stack"}),
+            "without-flags": dict(buildargs={"NODE_RUNTIME_FLAGS": ""}),
+        },
+        "php": {
+            "": {},
+        },
+        "python": {
+            "": {},
+            "libpython": dict(dockerfile="libpython.Dockerfile"),
+            "2.7-glibc-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "2.7-slim"}),
+            "2.7-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "2.7-alpine"}),
+            "3.5-glibc-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.5-slim"}),
+            "3.5-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.5-alpine"}),
+            "3.6-glibc-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.6-slim"}),
+            "3.6-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.6-alpine"}),
+            "3.7-glibc-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.7-slim"}),
+            "3.7-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.7-alpine"}),
+            "3.8-glibc-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.8-slim"}),
+            "3.8-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.8-alpine"}),
+            "3.9-glibc-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.9-slim"}),
+            "3.9-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.9-alpine"}),
+            "3.10-glibc-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.10-slim"}),
+            "3.10-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.10-alpine"}),
+            "2.7-glibc-uwsgi": dict(
+                dockerfile="uwsgi.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "2.7"}
+            ),  # not slim - need gcc
+            "2.7-musl-uwsgi": dict(dockerfile="uwsgi.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "2.7-alpine"}),
+            "3.7-glibc-uwsgi": dict(
+                dockerfile="uwsgi.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.7"}
+            ),  # not slim - need gcc
+            "3.7-musl-uwsgi": dict(dockerfile="uwsgi.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.7-alpine"}),
+        },
+        "ruby": {"": {}},
+    }
+
     images = {}
-    for runtime in os.listdir(str(CONTAINERS_DIRECTORY)):
-        if runtime == "native":
-            for dockerfile in glob.glob(str(CONTAINERS_DIRECTORY / runtime / "*.Dockerfile")):
-                suffix = os.path.splitext(os.path.basename(dockerfile))[0]
-                images[f"{runtime}_{suffix}"], _ = docker_client.images.build(
-                    path=str(CONTAINERS_DIRECTORY / runtime), dockerfile=str(dockerfile), rm=True
-                )
-            continue
+    for runtime, tags_listing in runtime_image_listing.items():
+        for tag, kwargs in tags_listing.items():
+            name = image_name(runtime, tag)
+            assert name not in images
 
-        images[runtime], _ = docker_client.images.build(path=str(CONTAINERS_DIRECTORY / runtime), rm=True)
+            assert runtime not in kwargs
+            kwargs["runtime"] = runtime
 
-        # for java - add additional images
-        if runtime == "java":
-            images[runtime + "_j9"], _ = docker_client.images.build(
-                path=str(CONTAINERS_DIRECTORY / runtime),
-                rm=True,
-                buildargs={"JAVA_BASE_IMAGE": "adoptopenjdk/openjdk8-openj9"},
-            )
-
-            images[runtime + "_zing"], _ = docker_client.images.build(
-                path=str(CONTAINERS_DIRECTORY / runtime),
-                rm=True,
-                dockerfile=str(CONTAINERS_DIRECTORY / runtime / "zing.Dockerfile"),
-            )
-
-        # build musl image if exists
-        musl_dockerfile = CONTAINERS_DIRECTORY / runtime / "musl.Dockerfile"
-        if musl_dockerfile.exists():
-            images[runtime + "_musl"], _ = docker_client.images.build(
-                path=str(CONTAINERS_DIRECTORY / runtime), dockerfile=str(musl_dockerfile), rm=True
-            )
-
+            images[name] = kwargs
     return images
 
 
 @fixture
-def image_suffix() -> str:
-    # lets tests override this value and use a suffixed image, e.g _musl or _j9.
+def application_image_tag() -> str:
+    # lets tests override this value and use a "tagged" image, e.g "musl" or "j9".
     return ""
 
 
 @fixture
 def application_docker_image(
-    application_docker_images: Mapping[str, Image],
+    docker_client: DockerClient,
+    application_docker_image_configs: Mapping[str, Dict[str, Any]],
     runtime: str,
-    image_suffix: str,
+    application_image_tag: str,
 ) -> Iterable[Image]:
-    runtime = runtime + image_suffix
-    yield application_docker_images[runtime]
+    yield _build_image(docker_client, **application_docker_image_configs[image_name(runtime, application_image_tag)])
 
 
 @fixture
@@ -343,7 +407,11 @@ def application_pid(
 
     # Application might be run using "sh -c ...", we detect the case and return the "real" application pid
     process = Process(pid)
-    if process.cmdline()[0] == "sh" and process.cmdline()[1] == "-c" and len(process.children(recursive=False)) == 1:
+    if (
+        process.cmdline()[0].endswith("sh")
+        and process.cmdline()[1] == "-c"
+        and len(process.children(recursive=False)) == 1
+    ):
         pid = process.children(recursive=False)[0].pid
 
     return pid

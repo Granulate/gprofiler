@@ -12,9 +12,8 @@ jobs:
       with:
         submodules: true
 
-    # still fails, will be enabled later
-    # - name: Run shell linter
-    #   run: ./shell_lint.sh
+    - name: Run shell linter
+      run: ./shell_lint.sh
 
     - name: Run Dockerfile linters
       run: ./dockerfile_lint.sh

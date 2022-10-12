@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 #
 # Copyright (c) Granulate. All rights reserved.
@@ -11,7 +10,14 @@ set -euo pipefail
 # (staticx knows to pack the libraries used by the executable we're packing. it doesn't know
 # which executables are to be used by it)
 
-BINS=$(find gprofiler/resources -executable -type f)
+EXCLUDED_DIRECTORIES=('"gprofiler/resources/node/*"')
+FIND_BINS_CMD="find gprofiler/resources -executable -type f"
+
+for DIR in "${EXCLUDED_DIRECTORIES[@]}" ; do
+    FIND_BINS_CMD+=" -not -path $DIR"
+done
+
+BINS=$(eval "$FIND_BINS_CMD")
 
 libs=
 
@@ -23,7 +29,7 @@ for f in $BINS ; do
     fi
 
     set +e
-    ldd_output="$(ldd $f 2>&1)"
+    ldd_output="$(ldd "$f" 2>&1)"
     ret=$?
     set -e
 
