@@ -294,7 +294,7 @@ class GolangPerfMetadata(PerfMetadata):
             logger.debug(f"XXXXXX3 golang relevant_for_process MissingExePath {process}")
             return False
         except Exception:
-            logger.debug(f"XXXXXX4 golang relevant_for_process {process}")
+            logger.exception(f"XXXXXX4 golang relevant_for_process {process}")
         return False
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
@@ -315,7 +315,7 @@ class NodePerfMetadata(PerfMetadata):
             logger.debug(f"YYYYYY3 node relevant_for_process MissingExePath {process}")
             return False
         except Exception:
-            logger.debug(f"YYYYYY4 golang relevant_for_process {process}")
+            logger.exception(f"YYYYYY4 golang relevant_for_process {process}")
         return False
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
