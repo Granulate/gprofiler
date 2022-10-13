@@ -1,5 +1,6 @@
 import array
 import errno
+import ipaddress
 import os
 import platform
 import re
@@ -19,6 +20,7 @@ from granulate_utils.linux.ns import run_in_ns
 from gprofiler.log import get_logger_adapter
 from gprofiler.platform import is_linux, is_windows
 from gprofiler.utils import is_pyinstaller, run_process
+from tests.type_utils import assert_cast
 
 if is_linux():
     import fcntl
@@ -103,8 +105,6 @@ def get_mac_address() -> str:
     """
     Gets the MAC address of the first non-loopback interface.
     """
-    if is_windows():
-        return UNKNOWN_VALUE
 
     assert sys.maxsize > 2**32, "expected to run on 64-bit!"
     SIZE_OF_STUCT_ifreq = 40  # correct for 64-bit
@@ -150,8 +150,7 @@ def get_cpu_info() -> Tuple[str, str]:
     """
     try:
         if is_windows():
-            win_flags, model = platform.processor().split(",")
-            return model, win_flags
+            return UNKNOWN_VALUE, UNKNOWN_VALUE
 
         with open("/proc/cpuinfo") as f:
             model_names = []
@@ -205,21 +204,25 @@ class SystemInfo:
     spawn_uptime_ms: float
 
 
-def get_windows_network_details() -> Tuple[str, str]:
-    IPV4_PATTERN = r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
-    LOOPBACK = "127.0.0.1"
-    ADDR_KEY = "addr"
-    MAC_KEY = -1000
-    for iface in netifaces.interfaces():
-        mac_address = None
-        for key, addresses in netifaces.ifaddresses(iface).items():
-            for address in addresses:
-                if key == MAC_KEY:
-                    mac_address = address[ADDR_KEY]
-                    continue
-                if re.match(IPV4_PATTERN, address[ADDR_KEY]) is not None and address[ADDR_KEY] != LOOPBACK:
-                    return cast(Tuple[str, str], (mac_address, address[ADDR_KEY]))
-    return UNKNOWN_VALUE, UNKNOWN_VALUE
+if is_windows():
+
+    def get_windows_network_details() -> Tuple[str, str]:
+        LOOPBACK = "127.0.0.1"
+        ADDR_KEY = "addr"
+        MAC_KEY = -1000
+        for iface in netifaces.interfaces():
+            mac_address = None
+            for key, addresses in netifaces.ifaddresses(iface).items():
+                for address in addresses:
+                    if key == MAC_KEY:
+                        mac_address = address[ADDR_KEY]
+                        continue
+                    try:
+                        if ipaddress.IPv4Address(address[ADDR_KEY]) is not None and address[ADDR_KEY] != LOOPBACK:
+                            return (assert_cast(str, mac_address), assert_cast(str, address[ADDR_KEY]))
+                    except ipaddress.AddressValueError:
+                        pass
+        return UNKNOWN_VALUE, UNKNOWN_VALUE
 
 
 def get_static_system_info() -> SystemInfo:
