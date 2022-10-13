@@ -20,7 +20,6 @@ def search_proc_maps(process: Process, pattern: str) -> Optional[Match[str]]:
 
 def process_comm(process: Process) -> str:
     if is_windows():
-        # TODO: Check if process is running
         return process.name()
     else:
         status = read_proc_file(process, "status").decode()
