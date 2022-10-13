@@ -19,9 +19,9 @@ spec:
           - -cu
           - --token=$(GPROFILER_TOKEN)
           - --service-name=$(GPROFILER_SERVICE)
-          {{  range .Values.gprofiler.extraArguments }}
+          {{-  range .Values.gprofiler.extraArguments }}
           - {{ . }}
-          {{ end }}
+          {{- end }}
           env:
           - name: GPROFILER_TOKEN
             value: {{ .Values.gprofiler.token | quote }}
