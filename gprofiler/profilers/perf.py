@@ -10,7 +10,6 @@ from subprocess import Popen
 from threading import Event
 from typing import Any, Dict, List, Optional
 
-from granulate_utils.exceptions import MissingExePath
 from granulate_utils.golang import get_process_golang_version, is_golang_process
 from granulate_utils.linux.elf import is_statically_linked
 from granulate_utils.linux.process import is_musl, is_process_running
@@ -285,17 +284,7 @@ class PerfMetadata(ApplicationMetadata):
 
 class GolangPerfMetadata(PerfMetadata):
     def relevant_for_process(self, process: Process) -> bool:
-        logger.debug(f"XXXXXX1 golang relevant_for_process {process}")
-        try:
-            is_go = is_golang_process(process)
-            logger.debug(f"XXXXXX2 golang relevant_for_process {process} {is_go}")
-            return is_go
-        except MissingExePath:
-            logger.debug(f"XXXXXX3 golang relevant_for_process MissingExePath {process}")
-            return False
-        except Exception:
-            logger.debug(f"XXXXXX4 golang relevant_for_process {process}", exc_info=True)
-        return False
+        return is_golang_process(process)
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         metadata = {"golang_version": get_process_golang_version(process)}
@@ -306,17 +295,7 @@ class GolangPerfMetadata(PerfMetadata):
 
 class NodePerfMetadata(PerfMetadata):
     def relevant_for_process(self, process: Process) -> bool:
-        logger.debug(f"YYYYYY1 node relevant_for_process {process}")
-        try:
-            is_node = is_node_process(process)
-            logger.debug(f"YYYYYY2 node relevant_for_process {process} {is_node}")
-            return is_node
-        except MissingExePath:
-            logger.debug(f"YYYYYY3 node relevant_for_process MissingExePath {process}")
-            return False
-        except Exception:
-            logger.debug(f"YYYYYY4 golang relevant_for_process {process}", exc_info=True)
-        return False
+        return is_node_process(process)
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         metadata = {"node_version": self.get_exe_version_cached(process)}
