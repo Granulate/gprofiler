@@ -238,7 +238,8 @@ def application_docker_image_configs() -> Mapping[str, Dict[str, Any]]:
             "thread_comm": dict(dockerfile="thread_comm.Dockerfile"),
         },
         "nodejs": {
-            "": {},
+            "": dict(buildargs={"NODE_RUNTIME_FLAGS": "--perf-prof --interpreted-frames-native-stack"}),
+            "without-flags": dict(buildargs={"NODE_RUNTIME_FLAGS": ""}),
         },
         "php": {
             "": {},
@@ -406,7 +407,11 @@ def application_pid(
 
     # Application might be run using "sh -c ...", we detect the case and return the "real" application pid
     process = Process(pid)
-    if process.cmdline()[0] == "sh" and process.cmdline()[1] == "-c" and len(process.children(recursive=False)) == 1:
+    if (
+        process.cmdline()[0].endswith("sh")
+        and process.cmdline()[1] == "-c"
+        and len(process.children(recursive=False)) == 1
+    ):
         pid = process.children(recursive=False)[0].pid
 
     return pid

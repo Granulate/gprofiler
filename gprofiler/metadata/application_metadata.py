@@ -4,17 +4,15 @@
 #
 
 import functools
-from subprocess import CompletedProcess
 from threading import Event, Lock
 from typing import Any, Dict, Optional
 
-from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from granulate_utils.linux.process import is_process_running, read_process_execfn
 from psutil import NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.versions import get_exe_version
 from gprofiler.platform import is_windows
-from gprofiler.utils import run_process
 
 logger = get_logger_adapter(__name__)
 
@@ -39,21 +37,7 @@ class ApplicationMetadata:
                     del self._cache[process]
 
     def get_exe_version(self, process: Process, version_arg: str = "--version", try_stderr: bool = False) -> str:
-        """
-        Runs {process.exe()} --version in the appropriate namespace
-        """
-        exe_path = f"/proc/{get_process_nspid(process.pid)}/exe"
-
-        def _run_get_version() -> "CompletedProcess[bytes]":
-            return run_process([exe_path, version_arg], stop_event=self._stop_event, timeout=self._GET_VERSION_TIMEOUT)
-
-        cp = run_in_ns(["pid", "mnt"], _run_get_version, process.pid)
-        stdout = cp.stdout.decode().strip()
-        # return stderr if stdout is empty, some apps print their version to stderr.
-        if try_stderr and not stdout:
-            return cp.stderr.decode().strip()
-
-        return stdout
+        return get_exe_version(process, self._stop_event, self._GET_VERSION_TIMEOUT, version_arg, try_stderr)
 
     @functools.lru_cache(4096)
     def get_exe_version_cached(self, process: Process, version_arg: str = "--version", try_stderr: bool = False) -> str:

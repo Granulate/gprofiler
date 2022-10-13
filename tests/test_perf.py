@@ -25,6 +25,7 @@ def system_profiler(tmp_path: Path, perf_mode: str) -> SystemProfiler:
         perf_mode=perf_mode,
         perf_inject=False,
         perf_dwarf_stack_size=DEFAULT_PERF_DWARF_STACK_SIZE,
+        perf_node_attach=False,
     )
 
 

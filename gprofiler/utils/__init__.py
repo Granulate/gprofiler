@@ -294,12 +294,9 @@ def pgrep_exe(match: str) -> List[Process]:
         pattern = re.compile(match)
         procs = []
         for process in psutil.process_iter():
-            # Added to prevent AttributeError on processes that have pid == 0
-            if process.pid == 0:
-                continue
-            # End edit
             try:
-                if pattern.match(process_exe(process)):
+                # kernel threads should be child of process with pid 2
+                if process.pid != 2 and process.ppid() != 2 and pattern.match(process_exe(process)):
                     procs.append(process)
             except psutil.NoSuchProcess:  # process might have died meanwhile
                 continue
@@ -485,3 +482,13 @@ def is_pyinstaller() -> bool:
 
 def get_staticx_dir() -> Optional[str]:
     return os.getenv("STATICX_BUNDLE_DIR")
+
+
+def add_permission_dir(path: str, permission_for_file: int, permission_for_dir: int) -> None:
+    os.chmod(path, os.stat(path).st_mode | permission_for_dir)
+    for subpath in os.listdir(path):
+        absolute_subpath = os.path.join(path, subpath)
+        if os.path.isdir(absolute_subpath):
+            add_permission_dir(absolute_subpath, permission_for_file, permission_for_dir)
+        else:
+            os.chmod(absolute_subpath, os.stat(absolute_subpath).st_mode | permission_for_file)
