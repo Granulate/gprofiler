@@ -678,16 +678,11 @@ def test_dso_name_in_ap_profile(
         assert insert_dso_name == is_pattern_in_collapsed(r"jni_NewObject \(.+?/libjvm.so\)", collapsed)
 
 
-# test that occurrence of raw DSO path as a symbol is recognized as such by async profiler
+# test that missing symbol and only DSO name is recognized and handled correctly by async profiler
 @pytest.mark.parametrize("in_container", [True])
-@pytest.mark.parametrize(
-    "insert_dso_name, libc_pattern",
-    [
-        (False, r"(^|;)\(/.*/libc-.*\.so\)($|;)"),
-        (True, r"(^|;)\[unknown\] \(/.*/libc-.*\.so\)($|;)"),
-    ],
-)
-def test_handling_lone_libc_path_in_profile(
+@pytest.mark.parametrize("insert_dso_name", [False, True])
+@pytest.mark.parametrize("libc_pattern", [r"(^|;)\(/.*/libc-.*\.so\)($|;)"])
+def test_handling_missing_symbol_in_profile(
     tmp_path: Path,
     application_pid: int,
     insert_dso_name: bool,
