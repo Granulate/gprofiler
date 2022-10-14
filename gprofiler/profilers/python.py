@@ -13,7 +13,12 @@ from typing import Any, Dict, List, Match, Optional, cast
 
 from granulate_utils.linux.elf import get_elf_id
 from granulate_utils.linux.ns import get_process_nspid, run_in_ns
-from granulate_utils.linux.process import get_mapped_dso_elf_id, is_process_running, process_exe
+from granulate_utils.linux.process import (
+    get_mapped_dso_elf_id,
+    is_process_basename_matching,
+    is_process_running,
+    process_exe,
+)
 from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PROCESSES_REGEX
 from psutil import NoSuchProcess, Process
 
@@ -44,7 +49,7 @@ if not is_windows():
     from gprofiler.profilers.python_ebpf import PythonEbpfProfiler, PythonEbpfError
 
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
-from gprofiler.utils.process import is_process_basename_matching, process_comm, search_proc_maps
+from gprofiler.utils.process import process_comm, search_proc_maps
 
 logger = get_logger_adapter(__name__)
 
