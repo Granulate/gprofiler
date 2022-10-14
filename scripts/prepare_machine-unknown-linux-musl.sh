@@ -31,7 +31,7 @@ popd
 rm -r libunwind-1.5.0
 rm libunwind-1.5.0.tar.gz
 
-ZLIB_VERSION=1.2.12
+ZLIB_VERSION=1.2.13
 ZLIB_FILE="zlib-$ZLIB_VERSION.tar.xz"
 wget "https://zlib.net/$ZLIB_FILE"
 tar -xf "$ZLIB_FILE"
