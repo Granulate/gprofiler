@@ -194,6 +194,7 @@ COPY ./scripts/libunwind_build.sh .
 RUN if [ "$(uname -m)" = "aarch64" ]; then \
         exit 0; \
     fi && \
+    source scl_source enable devtoolset-8 && \
     ./libunwind_build.sh
 
 COPY ./scripts/pyperf_build.sh .
