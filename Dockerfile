@@ -21,6 +21,10 @@ ARG AP_BUILDER_ALPINE=@sha256:69704ef328d05a9f806b6b8502915e6a0a4faa4d72018dc423
 ARG BURN_BUILDER_GOLANG=@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d84d66ef25fa345f1
 # gprofiler - ubuntu 20.04
 ARG GPROFILER_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
+# node-package-builder-musl alpine
+ARG NODE_PACKAGE_BUILDER_MUSL=@sha256:69704ef328d05a9f806b6b8502915e6a0a4faa4d72018dc42343f511490daf8a
+# node-package-builder-glibc - ubuntu:20.04
+ARG NODE_PACKAGE_BUILDER_GLIBC=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
 
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
@@ -148,6 +152,22 @@ COPY scripts/async_profiler_build_shared.sh .
 COPY scripts/async_profiler_build_musl.sh .
 RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_musl.sh
 
+# node-package-builder-musl
+FROM alpine${NODE_PACKAGE_BUILDER_MUSL} AS node-package-builder-musl
+WORKDIR /tmp
+COPY scripts/node_builder_musl_env.sh .
+RUN ./node_builder_musl_env.sh
+COPY scripts/build_node_package.sh .
+RUN ./build_node_package.sh
+
+# node-package-builder-glibc
+FROM ubuntu${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
+WORKDIR /tmp
+COPY scripts/node_builder_glibc_env.sh .
+RUN ./node_builder_glibc_env.sh
+COPY scripts/build_node_package.sh .
+RUN ./build_node_package.sh
+
 # burn
 FROM golang${BURN_BUILDER_GOLANG} AS burn-builder
 WORKDIR /tmp
@@ -191,6 +211,8 @@ COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/async-profile
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
 COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
+COPY --from=node-package-builder-musl /tmp/module_build gprofiler/resources/node/module/musl
+COPY --from=node-package-builder-glibc /tmp/module_build gprofiler/resources/node/module/glibc
 
 COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
 

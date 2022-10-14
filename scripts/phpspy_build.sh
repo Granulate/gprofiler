@@ -21,7 +21,7 @@ pushd /tmp/binutils
 wget http://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.gz
 tar xzf binutils-$BINUTILS_VERSION.tar.gz
 cd binutils-$BINUTILS_VERSION
-./configure --disable-nls --prefix=$(pwd)/bin --disable-ld --disable-gdb
+./configure --disable-nls --prefix="$(pwd)"/bin --disable-ld --disable-gdb
 make configure-host
 make LDFLAGS="-all-static"
 make install

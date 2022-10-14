@@ -17,7 +17,8 @@ from gprofiler.merge import parse_one_collapsed
 from gprofiler.profilers.dotnet import DotnetProfiler
 from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.php import PHPSpyProfiler
-from gprofiler.profilers.python import PySpyProfiler, PythonEbpfProfiler
+from gprofiler.profilers.python import PySpyProfiler
+from gprofiler.profilers.python_ebpf import PythonEbpfProfiler
 from gprofiler.profilers.ruby import RbSpyProfiler
 from gprofiler.utils import wait_event
 from tests import PHPSPY_DURATION
@@ -27,7 +28,6 @@ from tests.utils import (
     assert_function_in_collapsed,
     make_java_profiler,
     run_gprofiler_in_container_for_one_session,
-    snapshot_one_collapsed,
     snapshot_pid_collapsed,
     start_gprofiler_in_container_for_one_session,
     wait_for_gprofiler_container,
@@ -36,18 +36,18 @@ from tests.utils import (
 
 @pytest.mark.parametrize("runtime", ["java"])
 def test_java_from_host(
-    tmp_path: Path,
+    tmp_path_world_accessible: Path,
     application_pid: int,
     assert_app_id: Callable,
     assert_collapsed: AssertInCollapsed,
 ) -> None:
     with make_java_profiler(
         frequency=99,
-        storage_dir=str(tmp_path),
+        storage_dir=str(tmp_path_world_accessible),
         java_async_profiler_mode="itimer",
     ) as profiler:
         _ = assert_app_id  # Required for mypy unused argument warning
-        process_collapsed = snapshot_one_collapsed(profiler)
+        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
 
 
@@ -91,7 +91,7 @@ def test_rbspy(
     gprofiler_docker_image: Image,
 ) -> None:
     with RbSpyProfiler(1000, 3, Event(), str(tmp_path), False, "rbspy") as profiler:
-        process_collapsed = snapshot_one_collapsed(profiler)
+        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
 
 
@@ -103,7 +103,7 @@ def test_dotnet_trace(
     gprofiler_docker_image: Image,
 ) -> None:
     with DotnetProfiler(1000, 3, Event(), str(tmp_path), False, "dotnet-trace") as profiler:
-        process_collapsed = snapshot_one_collapsed(profiler)
+        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
 
 
@@ -115,7 +115,15 @@ def test_nodejs(
     gprofiler_docker_image: Image,
 ) -> None:
     with SystemProfiler(
-        1000, 6, Event(), str(tmp_path), False, perf_mode="fp", perf_inject=True, perf_dwarf_stack_size=0
+        1000,
+        6,
+        Event(),
+        str(tmp_path),
+        False,
+        perf_mode="fp",
+        perf_inject=True,
+        perf_dwarf_stack_size=0,
+        perf_node_attach=False,
     ) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)

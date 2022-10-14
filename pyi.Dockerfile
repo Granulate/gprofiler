@@ -12,6 +12,8 @@ ARG BURN_BUILDER_GOLANG
 ARG GPROFILER_BUILDER
 ARG PYPERF_BUILDER_UBUNTU
 ARG DOTNET_BUILDER
+ARG NODE_PACKAGE_BUILDER_MUSL
+ARG NODE_PACKAGE_BUILDER_GLIBC
 
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
@@ -98,6 +100,22 @@ WORKDIR /tmp
 COPY scripts/burn_build.sh .
 RUN ./burn_build.sh
 
+# node-package-builder-musl
+FROM alpine${NODE_PACKAGE_BUILDER_MUSL} AS node-package-builder-musl
+WORKDIR /tmp
+COPY scripts/node_builder_musl_env.sh .
+RUN ./node_builder_musl_env.sh
+COPY scripts/build_node_package.sh .
+RUN ./build_node_package.sh
+
+# node-package-builder-glibc
+FROM ubuntu${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
+WORKDIR /tmp
+COPY scripts/node_builder_glibc_env.sh .
+RUN ./node_builder_glibc_env.sh
+COPY scripts/build_node_package.sh .
+RUN ./build_node_package.sh
+
 # bcc helpers
 # built on newer Ubuntu because they require new clang (newer than available in GPROFILER_BUILDER's CentOS 7)
 # these are only relevant for modern kernels, so there's no real reason to build them on CentOS 7 anyway.
@@ -173,9 +191,11 @@ RUN if [ "$(uname -m)" = "aarch64" ]; \
     yum clean all
 
 COPY ./scripts/libunwind_build.sh .
+# hadolint ignore=SC1091
 RUN if [ "$(uname -m)" = "aarch64" ]; then \
         exit 0; \
     fi && \
+    source scl_source enable devtoolset-8 && \
     ./libunwind_build.sh
 
 COPY ./scripts/pyperf_build.sh .
@@ -260,6 +280,8 @@ COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/async-profile
 COPY --from=async-profiler-centos-min-test-glibc /libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
 COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
+COPY --from=node-package-builder-musl /tmp/module_build gprofiler/resources/node/module/musl
+COPY --from=node-package-builder-glibc /tmp/module_build gprofiler/resources/node/module/glibc
 
 COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
 
@@ -295,12 +317,13 @@ COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # we use list_needed_libs.sh to list the dynamic dependencies of *all* of our resources,
 # and make staticx pack them as well.
 # using scl here to get the proper LD_LIBRARY_PATH set
-# hadolint ignore=SC2046
+# hadolint ignore=SC2046,SC2086
 RUN set -e; \
     if [ $(uname -m) != "aarch64" ]; then \
         source scl_source enable devtoolset-8 llvm-toolset-7 ; \
     fi && \
-    staticx $(./scripts/list_needed_libs.sh) dist/gprofiler dist/gprofiler
+    LIBS=$(./scripts/list_needed_libs.sh) && \
+    staticx $LIBS dist/gprofiler dist/gprofiler
 
 FROM scratch AS export-stage
 

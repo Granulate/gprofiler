@@ -15,23 +15,23 @@ set -euo pipefail
 # in any way, building it static solves all issues. and I find it better to use more recent versions of libraries
 # like libunwind/zlib.
 
-rustup target add $(uname -m)-unknown-linux-musl
+rustup target add "$(uname -m)"-unknown-linux-musl
 
 apk add --no-cache musl-dev make git  # git used by next scripts
 
 mkdir builds && cd builds
 
-wget https://github.com/libunwind/libunwind/releases/download/v1.5/libunwind-1.5.0.tar.gz
-tar -xf libunwind-1.5.0.tar.gz
-cd libunwind-1.5.0
-./configure --disable-minidebuginfo --enable-ptrace --disable-tests --disable-documentation || { cat config.log ; exit 1; }
+wget https://github.com/libunwind/libunwind/releases/download/v1.6.2/libunwind-1.6.2.tar.gz
+tar -xf libunwind-1.6.2.tar.gz
+cd libunwind-1.6.2
+./configure --disable-minidebuginfo --enable-ptrace --disable-tests --disable-documentation
 make
 make install
 cd ..
-rm -r libunwind-1.5.0
-rm libunwind-1.5.0.tar.gz
+rm -r libunwind-1.6.2
+rm libunwind-1.6.2.tar.gz
 
-ZLIB_VERSION=1.2.12
+ZLIB_VERSION=1.2.13
 ZLIB_FILE="zlib-$ZLIB_VERSION.tar.xz"
 wget "https://zlib.net/$ZLIB_FILE"
 tar -xf "$ZLIB_FILE"
@@ -40,7 +40,7 @@ cd "zlib-$ZLIB_VERSION"
 # the libunwind configure may install it in /usr/local/lib for all I care, but if we override /usr/local/lib/libz... with the musl ones,
 # it won't do any good...
 # --static - we don't need the shared build, we compile everything statically anyway.
-./configure --prefix=/usr/local/musl/$(uname -m)-unknown-linux-musl --static
+./configure --prefix=/usr/local/musl/"$(uname -m)"-unknown-linux-musl --static
 make
 make install
 cd ..
