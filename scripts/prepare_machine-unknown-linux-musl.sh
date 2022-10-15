@@ -3,7 +3,7 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-set -euo pipefail
+set -eu
 
 # prepares the environment for building py-spy:
 # 1. installs the rust target $(uname -m)-unknown-linux-musl - this can build static binaries
