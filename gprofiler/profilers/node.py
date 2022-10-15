@@ -145,7 +145,7 @@ def _change_dso_state(sock: WebSocket, module_path: str, action: str) -> None:
 
 
 def _validate_ns_node(sock: WebSocket, expected_ns_link_name: str) -> None:
-    command = 'const fs = process.mainModule.require("fs"); fs.readlinkSync("/proc/self/ns/pid")'
+    command = 'process.mainModule.require("fs").readlinkSync("/proc/self/ns/pid")'
     actual_ns_link_name = cast(str, _execute_js_command(sock, command))
     assert (
         actual_ns_link_name == expected_ns_link_name
