@@ -17,19 +17,9 @@ set -euo pipefail
 
 rustup target add "$(uname -m)"-unknown-linux-musl
 
-apk add --no-cache musl-dev make git  # git used by next scripts
+apk add --no-cache musl-dev make git curl  # git & curl used by next scripts
 
 mkdir builds && cd builds
-
-wget https://github.com/libunwind/libunwind/releases/download/v1.6.2/libunwind-1.6.2.tar.gz
-tar -xf libunwind-1.6.2.tar.gz
-cd libunwind-1.6.2
-./configure --disable-minidebuginfo --enable-ptrace --disable-tests --disable-documentation
-make
-make install
-cd ..
-rm -r libunwind-1.6.2
-rm libunwind-1.6.2.tar.gz
 
 ZLIB_VERSION=1.2.13
 ZLIB_FILE="zlib-$ZLIB_VERSION.tar.xz"
@@ -40,8 +30,7 @@ cd "zlib-$ZLIB_VERSION"
 # the libunwind configure may install it in /usr/local/lib for all I care, but if we override /usr/local/lib/libz... with the musl ones,
 # it won't do any good...
 # --static - we don't need the shared build, we compile everything statically anyway.
-./configure --prefix=/usr/local/musl/"$(uname -m)"-unknown-linux-musl --static
-make
+./configure --static
 make install
 cd ..
 rm -fr $ZLIB_FILE zlib-*

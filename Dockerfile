@@ -33,6 +33,9 @@ WORKDIR /tmp
 COPY scripts/prepare_machine-unknown-linux-musl.sh .
 RUN ./prepare_machine-unknown-linux-musl.sh
 
+COPY scripts/libunwind_build.sh .
+RUN ./libunwind_build.sh
+
 # pyspy
 FROM pyspy-rbspy-builder-common AS pyspy-builder
 WORKDIR /tmp
