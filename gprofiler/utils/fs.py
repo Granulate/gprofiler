@@ -9,7 +9,8 @@ import shutil
 from pathlib import Path
 from secrets import token_hex
 
-from gprofiler.utils import remove_path, run_process
+from gprofiler.utils import remove_path
+from gprofiler.utils.process import run_process
 
 
 def safe_copy(src: str, dst: str) -> None:

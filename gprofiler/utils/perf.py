@@ -5,7 +5,8 @@
 
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
-from gprofiler.utils import resource_path, run_process
+from gprofiler.utils import resource_path
+from gprofiler.utils.process import run_process
 
 logger = get_logger_adapter(__name__)
 

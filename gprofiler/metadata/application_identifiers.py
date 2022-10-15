@@ -16,7 +16,7 @@ from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.profilers.java import jattach_path
-from gprofiler.utils import run_process
+from gprofiler.utils.process import run_process
 
 _logger = get_logger_adapter(__name__)
 

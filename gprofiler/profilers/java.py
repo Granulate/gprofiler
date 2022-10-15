@@ -55,17 +55,15 @@ from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     GPROFILER_DIRECTORY_NAME,
     TEMPORARY_STORAGE_PATH,
-    pgrep_maps,
     remove_path,
     remove_prefix,
     resource_path,
-    run_process,
     touch_path,
     wait_event,
 )
 from gprofiler.utils.fs import is_rw_exec_dir, safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
-from gprofiler.utils.process import is_process_basename_matching, process_comm, search_proc_maps
+from gprofiler.utils.process import pgrep_maps, is_process_basename_matching, process_comm, search_proc_maps, run_process
 
 logger = get_logger_adapter(__name__)
 

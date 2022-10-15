@@ -22,14 +22,12 @@ from gprofiler.metadata import application_identifiers
 from gprofiler.profilers import python
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.utils import (
-    poll_process,
     random_prefix,
     resource_path,
-    run_process,
-    start_process,
     wait_event,
     wait_for_file_by_prefix,
 )
+from gprofiler.utils.process import start_process, poll_process, run_process
 
 logger = get_logger_adapter(__name__)
 

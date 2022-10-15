@@ -8,7 +8,7 @@ from threading import Event
 from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from psutil import Process
 
-from gprofiler.utils import run_process
+from gprofiler.utils.process import run_process
 
 
 def get_exe_version(

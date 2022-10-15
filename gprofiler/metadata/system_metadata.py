@@ -18,7 +18,8 @@ import psutil
 from granulate_utils.linux.ns import run_in_ns
 
 from gprofiler.log import get_logger_adapter
-from gprofiler.utils import is_pyinstaller, run_process
+from gprofiler.utils import is_pyinstaller
+from gprofiler.utils.process import run_process
 
 UNKNOWN_VALUE = "unknown"
 

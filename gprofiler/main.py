@@ -51,8 +51,8 @@ from gprofiler.utils import (
     is_root,
     reset_umask,
     resource_path,
-    run_process,
 )
+from gprofiler.utils.process import run_process
 from gprofiler.utils.proxy import get_https_proxy
 
 logger: logging.LoggerAdapter
