@@ -162,7 +162,7 @@ RUN yum install -y \
     python3 \
     flex \
     bison \
-    zlib-devel.x86_64 \
+    zlib-devel \
     xz-devel \
     ncurses-devel \
     elfutils-libelf-devel && \
