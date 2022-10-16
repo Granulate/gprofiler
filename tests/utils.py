@@ -25,7 +25,7 @@ from gprofiler.profilers.java import (
     JavaProfiler,
 )
 from gprofiler.profilers.profiler_base import ProfilerInterface
-from gprofiler.utils import remove_path, wait_event
+from gprofiler.utils.fs import remove_path, wait_event
 
 RUNTIME_PROFILERS = [
     ("java", "ap"),

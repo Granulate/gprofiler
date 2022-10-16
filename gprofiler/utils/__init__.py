@@ -16,7 +16,6 @@ import string
 import subprocess
 import sys
 import time
-from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
@@ -24,7 +23,6 @@ from tempfile import TemporaryDirectory
 from threading import Event
 from typing import Any, Callable, Iterator, List, Optional, Union, cast
 
-import importlib_resources
 import psutil
 from granulate_utils.exceptions import CouldNotAcquireMutex
 from granulate_utils.linux.mutex import try_acquire_mutex
@@ -47,17 +45,6 @@ GPROFILER_DIRECTORY_NAME = "gprofiler_tmp"
 TEMPORARY_STORAGE_PATH = f"/tmp/{GPROFILER_DIRECTORY_NAME}"
 
 gprofiler_mutex: Optional[socket.socket] = None
-
-
-@lru_cache(maxsize=None)
-def resource_path(relative_path: str = "") -> str:
-    *relative_directory, basename = relative_path.split("/")
-    package = ".".join(["gprofiler", "resources"] + relative_directory)
-    try:
-        with importlib_resources.path(package, basename) as path:
-            return str(path)
-    except ImportError as e:
-        raise Exception(f"Resource {relative_path!r} not found!") from e
 
 
 @lru_cache(maxsize=None)
@@ -114,67 +101,12 @@ def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool],
             raise TimeoutError()
 
 
-def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> Path:
-    glob_pattern = f"{prefix}*"
-    wait_event(timeout, stop_event, lambda: len(glob.glob(glob_pattern)) > 0)
-
-    output_files = glob.glob(glob_pattern)
-    # All the snapshot samples should be in one file
-    if len(output_files) != 1:
-        # this can happen if:
-        # * the profiler generating those files is erroneous
-        # * the profiler received many signals (and it generated files based on signals)
-        # * errors in gProfiler led to previous output fails remain not removed
-        # in any case, we remove all old files, and assume the last one (after sorting by timestamp)
-        # is the one we want.
-        logger.warning(
-            f"One output file expected, but found {len(output_files)}."
-            f" Removing all and using the last one. {output_files}"
-        )
-        # timestamp format guarantees alphabetical order == chronological order.
-        output_files.sort()
-        for f in output_files[:-1]:
-            os.unlink(f)
-        output_files = output_files[-1:]
-
-    return Path(output_files[0])
-
-
 def get_iso8601_format_time_from_epoch_time(time: float) -> str:
     return get_iso8601_format_time(datetime.datetime.utcfromtimestamp(time))
 
 
 def get_iso8601_format_time(time: datetime.datetime) -> str:
     return time.replace(microsecond=0).isoformat()
-
-
-def remove_prefix(s: str, prefix: str) -> str:
-    # like str.removeprefix of Python 3.9, but this also ensures the prefix exists.
-    assert s.startswith(prefix), f"{s} doesn't start with {prefix}"
-    return s[len(prefix) :]
-
-
-def touch_path(path: str, mode: int) -> None:
-    Path(path).touch()
-    # chmod() afterwards (can't use 'mode' in touch(), because it's affected by umask)
-    os.chmod(path, mode)
-
-
-def remove_path(path: Union[str, Path], missing_ok: bool = False) -> None:
-    # backporting missing_ok, available only from 3.8
-    try:
-        Path(path).unlink()
-    except FileNotFoundError:
-        if not missing_ok:
-            raise
-
-
-@contextmanager
-def removed_path(path: str) -> Iterator[None]:
-    try:
-        yield
-    finally:
-        remove_path(path, missing_ok=True)
 
 
 _INSTALLED_PROGRAMS_CACHE: List[str] = []
@@ -250,10 +182,6 @@ def limit_frequency(
         return limit
 
     return requested
-
-
-def random_prefix() -> str:
-    return "".join(random.choice(string.ascii_letters) for _ in range(16))
 
 
 PERF_EVENT_MLOCK_KB = "/proc/sys/kernel/perf_event_mlock_kb"

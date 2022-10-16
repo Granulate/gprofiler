@@ -13,6 +13,7 @@ from threading import Event
 
 from granulate_utils.linux.process import process_exe, read_proc_file
 from psutil import Process
+from gprofiler.utils import get_staticx_dir
 
 
 def search_proc_maps(process: Process, pattern: str) -> Optional[Match[str]]:

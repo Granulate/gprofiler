@@ -35,7 +35,7 @@ from gprofiler.profilers.java import (
     frequency_to_ap_interval,
     get_java_version,
 )
-from gprofiler.utils import remove_prefix
+from gprofiler.utils.fs import remove_prefix
 from tests.conftest import AssertInCollapsed
 from tests.type_utils import cast_away_optional
 from tests.utils import (

@@ -50,8 +50,8 @@ from gprofiler.utils import (
     grab_gprofiler_mutex,
     is_root,
     reset_umask,
-    resource_path,
 )
+from gprofiler.utils.fs import resource_path
 from gprofiler.utils.process import run_process
 from gprofiler.utils.proxy import get_https_proxy
 

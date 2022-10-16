@@ -55,13 +55,9 @@ from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     GPROFILER_DIRECTORY_NAME,
     TEMPORARY_STORAGE_PATH,
-    remove_path,
-    remove_prefix,
-    resource_path,
-    touch_path,
     wait_event,
 )
-from gprofiler.utils.fs import is_rw_exec_dir, safe_copy
+from gprofiler.utils.fs import is_rw_exec_dir, safe_copy, remove_prefix, touch_path, remove_path, resource_path
 from gprofiler.utils.perf import can_i_use_perf_events
 from gprofiler.utils.process import pgrep_maps, is_process_basename_matching, process_comm, search_proc_maps, run_process
 

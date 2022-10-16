@@ -21,13 +21,9 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.profilers import python
 from gprofiler.profilers.profiler_base import ProfilerBase
-from gprofiler.utils import (
-    random_prefix,
-    resource_path,
-    wait_event,
-    wait_for_file_by_prefix,
-)
+from gprofiler.utils import wait_event
 from gprofiler.utils.process import start_process, poll_process, run_process
+from gprofiler.utils.fs import wait_for_file_by_prefix, random_prefix, resource_path
 
 logger = get_logger_adapter(__name__)
 

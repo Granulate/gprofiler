@@ -19,8 +19,9 @@ from gprofiler.gprofiler_types import ProcessToProfileData, ProcessToStackSample
 from gprofiler.log import get_logger_adapter
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils import random_prefix, resource_path, wait_event
+from gprofiler.utils import wait_event
 from gprofiler.utils.process import start_process
+from gprofiler.utils.fs import random_prefix, resource_path
 
 logger = get_logger_adapter(__name__)
 # Currently tracing only php-fpm, TODO: support mod_php in apache.

@@ -18,9 +18,10 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
-from gprofiler.utils import  random_prefix, removed_path, resource_path
+from gprofiler.utils.fs import resource_path
 from gprofiler.utils.process import pgrep_maps, is_process_basename_matching, process_comm, run_process
 from gprofiler.utils.speedscope import load_speedscope_as_collapsed
+from gprofiler.utils.fs import removed_path, random_prefix
 
 logger = get_logger_adapter(__name__)
 

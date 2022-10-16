@@ -43,7 +43,7 @@ from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 if not is_windows():
     from gprofiler.profilers.python_ebpf import PythonEbpfProfiler, PythonEbpfError
 
-from gprofiler.utils import random_prefix, removed_path, resource_path
+from gprofiler.utils.fs import removed_path, remove_prefix, resource_path
 from gprofiler.utils.process import pgrep_maps, is_process_basename_matching, process_comm, search_proc_maps, run_process
 
 logger = get_logger_adapter(__name__)
