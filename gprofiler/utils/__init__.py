@@ -36,7 +36,7 @@ from gprofiler.platform import is_linux, is_windows
 
 if is_windows():
     import pythoncom
-    import wmi  # type: ignore
+    import wmi
 
 from gprofiler.exceptions import (
     CalledProcessError,

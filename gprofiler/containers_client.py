@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Set
 from granulate_utils.containers.client import ContainersClient
 from granulate_utils.exceptions import NoContainerRuntimesError
 from granulate_utils.linux.containers import get_process_container_id
-from psutil import NoSuchProcess
+from psutil import NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter
 
@@ -58,7 +58,7 @@ class ContainerNamesClient:
     def _safely_get_process_container_name(self, pid: int) -> Optional[str]:
         try:
             try:
-                container_id = get_process_container_id(pid)
+                container_id = get_process_container_id(Process(pid))
                 if container_id is None:
                     return None
             except NoSuchProcess:
