@@ -10,14 +10,14 @@ from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata import application_identifiers
+from gprofiler.metadata.base_application_identifier import _ApplicationIdentifier
 from gprofiler.profilers.java import jattach_path
 from gprofiler.utils import run_process
 
 _logger = get_logger_adapter(__name__)
 
 
-class _JavaJarApplicationIdentifier(application_identifiers._ApplicationIdentifier):
+class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
     def get_app_id(self, process: Process) -> Optional[str]:
         try:
             java_properties = run_process([jattach_path(), str(process.pid), "jcmd", "VM.command_line"]).stdout.decode()
@@ -45,7 +45,7 @@ class _JavaJarApplicationIdentifier(application_identifiers._ApplicationIdentifi
         return None
 
 
-class _JavaSparkApplicationIdentifier(application_identifiers._ApplicationIdentifier):
+class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
     _JAVA_SPARK_EXECUTOR_ARG = "org.apache.spark.executor"
     _SPARK_PROPS_FILE = os.path.join("__spark_conf__", "__spark_conf__.properties")
     _APP_NAME_NOT_FOUND = "app name not found"

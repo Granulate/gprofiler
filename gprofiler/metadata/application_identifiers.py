@@ -6,13 +6,13 @@ import configparser
 import functools
 import os.path
 import re
-from abc import ABCMeta, abstractmethod
 from typing import Dict, List, Optional, TextIO, Tuple
 
 from granulate_utils.linux.ns import resolve_host_path, resolve_proc_root_links
 from psutil import NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.base_application_identifier import _ApplicationIdentifier
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.platform import is_linux
 
@@ -94,14 +94,6 @@ def _append_file_to_proc_wd(process: Process, file_path: str) -> str:
     resolved = resolve_proc_root_links(proc_root, file_path)
     assert resolved.startswith(proc_root), resolved
     return resolved[len(proc_root) :]
-
-
-class _ApplicationIdentifier(metaclass=ABCMeta):
-    enrichment_options: Optional[EnrichmentOptions] = None
-
-    @abstractmethod
-    def get_app_id(self, process: Process) -> Optional[str]:
-        pass
 
 
 class _GunicornApplicationIdentifierBase(_ApplicationIdentifier):
