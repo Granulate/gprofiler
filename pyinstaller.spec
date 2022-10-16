@@ -1,13 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import sys
+
 block_cipher = None
 
+windows_modules = ["wmi", "pythoncom", "netifaces"] if sys.platform == "win32" else []
 
 a = Analysis(scripts=['pyi_build.py'],
              pathex=['/app'],
              binaries=[],
              datas=[('gprofiler/resources', 'gprofiler/resources')],
-             hiddenimports=[],
+             hiddenimports=windows_modules,
              hookspath=[],
              runtime_hooks=[],
              excludes=[],
