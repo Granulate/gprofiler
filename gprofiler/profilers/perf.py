@@ -2,22 +2,34 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+
 import os
 import signal
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
+from granulate_utils.golang import get_process_golang_version, is_golang_process
+from granulate_utils.linux.elf import is_statically_linked
+from granulate_utils.linux.process import is_musl, is_process_running
+from granulate_utils.node import is_node_process
+from psutil import NoSuchProcess, Process
+
+from gprofiler import merge
 from gprofiler.exceptions import StopEventSetException
+from gprofiler.gprofiler_types import AppMetadata, ProcessToProfileData, ProfileData
 from gprofiler.log import get_logger_adapter
-from gprofiler.merge import ProcessToStackSampleCounters, merge_global_perfs
+from gprofiler.metadata.application_metadata import ApplicationMetadata
+from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import run_process, start_process, wait_event, wait_for_file_by_prefix
 from gprofiler.utils.perf import perf_path
 
 logger = get_logger_adapter(__name__)
+
+DEFAULT_PERF_DWARF_STACK_SIZE = 8192
 
 
 # TODO: automatically disable this profiler if can_i_use_perf_events() returns False?
@@ -72,7 +84,7 @@ class PerfProcess:
         except TimeoutError:
             process.kill()
             assert process.stdout is not None and process.stderr is not None
-            logger.error(f"perf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
+            logger.critical(f"perf failed to start. stdout {process.stdout.read()!r} stderr {process.stderr.read()!r}")
             raise
         else:
             self._process = process
@@ -92,6 +104,13 @@ class PerfProcess:
     def wait_and_script(self) -> str:
         try:
             perf_data = wait_for_file_by_prefix(f"{self._output_path}.", self._dump_timeout_s, self._stop_event)
+        except Exception:
+            assert self._process is not None and self._process.stdout is not None and self._process.stderr is not None
+            logger.critical(
+                f"perf failed to dump output. stdout {self._process.stdout.read()!r}"
+                f" stderr {self._process.stderr.read()!r}"
+            )
+            raise
         finally:
             # always read its stderr
             # using read1() which performs just a single read() call and doesn't read until EOF
@@ -118,19 +137,19 @@ class PerfProcess:
 @register_profiler(
     "Perf",
     possible_modes=["fp", "dwarf", "smart", "disabled"],
-    default_mode="fp",
+    default_mode="smart",
     supported_archs=["x86_64", "aarch64"],
     profiler_mode_argument_help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge"
     " them by choosing the best result per process. If 'disabled' is chosen, do not invoke"
     " 'perf' at all. The output, in that case, is the concatenation of the results from all"
-    " of the runtime profilers.",
+    " of the runtime profilers. Defaults to 'smart'.",
     profiler_arguments=[
         ProfilerArgument(
             "--perf-dwarf-stack-size",
             help="The max stack size for the Dwarf perf, in bytes. Must be <=65528."
             " Relevant for --perf-mode dwarf|smart. Default: %(default)s",
             type=int,
-            default=8192,
+            default=DEFAULT_PERF_DWARF_STACK_SIZE,
             dest="perf_dwarf_stack_size",
         )
     ],
@@ -151,12 +170,17 @@ class SystemProfiler(ProfilerBase):
         duration: int,
         stop_event: Event,
         storage_dir: str,
+        profile_spawned_processes: bool,
         perf_mode: str,
         perf_dwarf_stack_size: int,
         perf_inject: bool,
+        perf_node_attach: bool,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir)
+        _ = profile_spawned_processes  # Required for mypy unused argument warning
         self._perfs: List[PerfProcess] = []
+        self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
+        self._node_processes: List[Process] = []
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
@@ -184,24 +208,97 @@ class SystemProfiler(ProfilerBase):
         else:
             self._perf_dwarf = None
 
+        self.perf_node_attach = perf_node_attach
         assert self._perf_fp is not None or self._perf_dwarf is not None
 
     def start(self) -> None:
+        # we have to also generate maps here,
+        # it might be too late for first round to generate it in snapshot()
+        if self.perf_node_attach:
+            self._node_processes = get_node_processes()
+            generate_map_for_node_processes(self._node_processes)
         for perf in self._perfs:
             perf.start()
 
     def stop(self) -> None:
+        if self.perf_node_attach:
+            self._node_processes = [process for process in self._node_processes if is_process_running(process)]
+            clean_up_node_maps(self._node_processes)
         for perf in reversed(self._perfs):
             perf.stop()
 
-    def snapshot(self) -> ProcessToStackSampleCounters:
+    def _get_metadata(self, pid: int) -> Optional[AppMetadata]:
+        if pid in (0, -1):  # funny values retrieved by perf
+            return None
+
+        try:
+            process = Process(pid)
+            for collector in self._metadata_collectors:
+                if collector.relevant_for_process(process):
+                    return collector.get_metadata(process)
+        except NoSuchProcess:
+            pass
+        return None
+
+    def snapshot(self) -> ProcessToProfileData:
+        if self.perf_node_attach:
+            self._node_processes = [process for process in self._node_processes if is_process_running(process)]
+            new_processes = [process for process in get_node_processes() if process not in self._node_processes]
+            generate_map_for_node_processes(new_processes)
+            self._node_processes.extend(new_processes)
+
         if self._stop_event.wait(self._duration):
             raise StopEventSetException
 
         for perf in self._perfs:
             perf.switch_output()
 
-        return merge_global_perfs(
-            self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
-            self._perf_dwarf.wait_and_script() if self._perf_dwarf is not None else None,
-        )
+        return {
+            # TODO generate appids for non runtime-profiler processes here
+            k: ProfileData(v, None, self._get_metadata(k))
+            for k, v in merge.merge_global_perfs(
+                self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
+                self._perf_dwarf.wait_and_script() if self._perf_dwarf is not None else None,
+            ).items()
+        }
+
+
+class PerfMetadata(ApplicationMetadata):
+    def relevant_for_process(self, process: Process) -> bool:
+        return False
+
+    def add_exe_metadata(self, process: Process, metadata: Dict[str, Any]) -> None:
+        try:
+            static = is_statically_linked(f"/proc/{process.pid}/exe")
+        except FileNotFoundError:
+            raise NoSuchProcess(process.pid)
+
+        exe_metadata: Dict[str, Any] = {"link": "static" if static else "dynamic"}
+        if not static:
+            exe_metadata["libc"] = "musl" if is_musl(process) else "glibc"
+        else:
+            exe_metadata["libc"] = None
+
+        metadata.update(exe_metadata)
+
+
+class GolangPerfMetadata(PerfMetadata):
+    def relevant_for_process(self, process: Process) -> bool:
+        return is_golang_process(process)
+
+    def make_application_metadata(self, process: Process) -> Dict[str, Any]:
+        metadata = {"golang_version": get_process_golang_version(process)}
+        self.add_exe_metadata(process, metadata)
+        metadata.update(super().make_application_metadata(process))
+        return metadata
+
+
+class NodePerfMetadata(PerfMetadata):
+    def relevant_for_process(self, process: Process) -> bool:
+        return is_node_process(process)
+
+    def make_application_metadata(self, process: Process) -> Dict[str, Any]:
+        metadata = {"node_version": self.get_exe_version_cached(process)}
+        self.add_exe_metadata(process, metadata)
+        metadata.update(super().make_application_metadata(process))
+        return metadata

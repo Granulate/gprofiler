@@ -14,8 +14,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, MutableMapping, Optional, Tup
 
 from requests import RequestException
 
-from gprofiler.exceptions import APIError
-from gprofiler.state import State, UninitializedStateException, get_state
+from gprofiler import __version__
+from gprofiler.exceptions import APIError, UninitializedStateException
+from gprofiler.state import State, get_state
 
 if TYPE_CHECKING:
     from gprofiler.client import APIClient
@@ -24,6 +25,7 @@ NO_SERVER_LOG_KEY = "no_server_log"
 NO_SERVER_EXTRA_KEY = "no_extra_to_server"
 RUN_ID_KEY = "run_id"
 CYCLE_ID_KEY = "cycle_id"
+GPROFILER_VERSION_KEY = "gprofiler_version"
 LOGGER_NAME_RE = re.compile(r"gprofiler(?:\..+)?")
 
 
@@ -43,21 +45,21 @@ class GProfilerLoggingAdapter(logging.LoggerAdapter):
         # may initialize before (at module import stage)
         self._state: Optional[State] = None
 
-    def _get_generic_extra(self) -> Dict[str, str]:
+    def _get_state_extra(self) -> Dict[str, str]:
         if self._state is None:
             try:
                 self._state = get_state()
             except UninitializedStateException:
                 return {}
 
-        generic_extra = {
+        state_extra = {
             RUN_ID_KEY: self._state.run_id,
         }
 
         if self._state.cycle_id:
-            generic_extra[CYCLE_ID_KEY] = self._state.cycle_id
+            state_extra[CYCLE_ID_KEY] = self._state.cycle_id
 
-        return generic_extra
+        return state_extra
 
     def process(self, msg: Any, kwargs: MutableMapping[str, Any]) -> Tuple[Any, MutableMapping[str, Any]]:
         extra_kwargs = {}
@@ -68,36 +70,13 @@ class GProfilerLoggingAdapter(logging.LoggerAdapter):
             else:
                 extra_kwargs[k] = v
 
-        extra_kwargs.update(self._get_generic_extra())
+        extra_kwargs.update(self._get_state_extra())
+        extra_kwargs.update({GPROFILER_VERSION_KEY: __version__})
 
         extra = logging_kwargs.get("extra", {})
         extra["gprofiler_adapter_extra"] = extra_kwargs
         logging_kwargs["extra"] = extra
         return msg, logging_kwargs
-
-    def debug(self, msg: Any, *args, no_server_log: bool = False, **kwargs) -> None:
-        super().debug(msg, *args, no_server_log=no_server_log, **kwargs)
-
-    def info(self, msg: Any, *args, no_server_log: bool = False, **kwargs) -> None:
-        super().info(msg, *args, no_server_log=no_server_log, **kwargs)
-
-    def warning(self, msg: Any, *args, no_server_log: bool = False, **kwargs) -> None:
-        super().warning(msg, *args, no_server_log=no_server_log, **kwargs)
-
-    def warn(self, msg: Any, *args, no_server_log: bool = False, **kwargs) -> None:
-        super().warn(msg, *args, no_server_log=no_server_log, **kwargs)
-
-    def error(self, msg: Any, *args, no_server_log: bool = False, **kwargs) -> None:
-        super().error(msg, *args, no_server_log=no_server_log, **kwargs)
-
-    def exception(self, msg: Any, *args, no_server_log: bool = False, **kwargs) -> None:
-        super().exception(msg, *args, no_server_log=no_server_log, **kwargs)
-
-    def critical(self, msg: Any, *args, no_server_log: bool = False, **kwargs) -> None:
-        super().critical(msg, *args, no_server_log=no_server_log, **kwargs)
-
-    def log(self, level: int, msg: Any, *args, no_server_log: bool = False, **kwargs) -> None:
-        super().log(level, msg, *args, no_server_log=no_server_log, **kwargs)
 
 
 class RemoteLogsHandler(logging.Handler):
@@ -120,7 +99,7 @@ class RemoteLogsHandler(logging.Handler):
         # The formatter is needed to format tracebacks
         self.setFormatter(logging.Formatter())
 
-    def init_api_client(self, api_client: "APIClient"):
+    def init_api_client(self, api_client: "APIClient") -> None:
         self._api_client = api_client
 
     def emit(self, record: LogRecord) -> None:
@@ -134,9 +113,16 @@ class RemoteLogsHandler(logging.Handler):
             self._truncated = True
             self._logs[: -self.MAX_BUFFERED_RECORDS] = []
 
-    def _make_dict_record(self, record: LogRecord):
+    def _make_dict_record(self, record: LogRecord) -> Dict[str, Any]:
         formatted_timestamp = datetime.datetime.utcfromtimestamp(record.created).isoformat()
         extra = record.gprofiler_adapter_extra  # type: ignore
+
+        run_id = extra.pop(RUN_ID_KEY, None)
+        if run_id is None:
+            self._logger.error("state.run_id is not defined! probably a bug!")
+            run_id = ""
+
+        cycle_id = extra.pop(CYCLE_ID_KEY, "")
 
         # We don't want to serialize a JSON inside JSON but either don't want to fail record because of extra
         # serialization, so we test if the extra can be serialized and have a fail-safe.
@@ -147,13 +133,6 @@ class RemoteLogsHandler(logging.Handler):
                 f"Can't serialize extra (extra={extra!r}), sending empty extra", bad_extra=repr(extra)
             )
             extra = {}
-
-        run_id = extra.pop(RUN_ID_KEY, None)
-        if run_id is None:
-            self._logger.error("state.run_id is not defined! probably a bug!")
-            run_id = ""
-
-        cycle_id = extra.pop(CYCLE_ID_KEY, "")
 
         assert self.formatter is not None
         if record.exc_info:
@@ -177,7 +156,7 @@ class RemoteLogsHandler(logging.Handler):
             CYCLE_ID_KEY: cycle_id,
         }
 
-    def try_send_log_to_server(self):
+    def try_send_log_to_server(self) -> None:
         assert self._api_client is not None, "APIClient is not initialized, can't send logs to server"
         # Snapshot the current num logs because logs list might be extended meanwhile.
         logs_count = len(self._logs)
@@ -197,7 +176,7 @@ class RemoteLogsHandler(logging.Handler):
 
 
 class ExtraFormatter(logging.Formatter):
-    FILTERED_EXTRA_KEYS = [CYCLE_ID_KEY, RUN_ID_KEY, NO_SERVER_LOG_KEY, NO_SERVER_EXTRA_KEY]
+    FILTERED_EXTRA_KEYS = [CYCLE_ID_KEY, RUN_ID_KEY, NO_SERVER_LOG_KEY, NO_SERVER_EXTRA_KEY, GPROFILER_VERSION_KEY]
 
     def format(self, record: LogRecord) -> str:
         formatted = super().format(record)

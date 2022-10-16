@@ -6,7 +6,7 @@ import datetime
 import gzip
 import json
 from io import BytesIO
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import IO, TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 import requests
 from requests import Session
@@ -29,18 +29,28 @@ DEFAULT_UPLOAD_TIMEOUT = 120
 class APIClient:
     BASE_PATH = "api"
 
-    def __init__(self, host: str, key: str, service: str, hostname: str, upload_timeout: int, version: str = "v1"):
+    def __init__(
+        self,
+        host: str,
+        key: str,
+        service: str,
+        curlify_requests: bool,
+        hostname: str,
+        upload_timeout: int,
+        version: str = "v1",
+    ):
         self._host: str = host
         self._upload_timeout = upload_timeout
         self._version: str = version
         self._key = key
         self._service = service
+        self._curlify = curlify_requests
         self._hostname = hostname
 
         self._init_session()
         logger.info(f"The connection to the server was successfully established (service {service!r})")
 
-    def _init_session(self):
+    def _init_session(self) -> None:
         self._session: Session = requests.Session()
         self._session.headers.update({"GPROFILER-API-KEY": self._key, "GPROFILER-SERVICE-NAME": self._service})
 
@@ -63,7 +73,7 @@ class APIClient:
         self,
         method: str,
         path: str,
-        data: Optional[Dict],
+        data: Any,
         files: Dict = None,
         timeout: float = DEFAULT_REQUEST_TIMEOUT,
         api_version: str = None,
@@ -82,7 +92,7 @@ class APIClient:
             buffer = BytesIO()
             with gzip.open(buffer, mode="wt", encoding="utf-8") as gzip_file:
                 try:
-                    json.dump(data, gzip_file, ensure_ascii=False)  # type: ignore
+                    json.dump(data, cast(IO[str], gzip_file), ensure_ascii=False)
                 except TypeError:
                     # This should only happen while in development, and is used to get a more indicative error.
                     bad_json = str(data)
@@ -93,6 +103,23 @@ class APIClient:
         opts["params"] = self._get_query_params() + [(k, v) for k, v in params.items()]
 
         resp = self._session.request(method, "{}/{}".format(self.get_base_url(api_version), path), **opts)
+        if self._curlify:
+            import curlify  # type: ignore  # import here as it's not always required.
+
+            if resp.request.body is not None:
+                # curlify attempts to decode bytes into utf-8. our content is gzipped so we undo the gzip here
+                # (it's fine to edit the object, as the request was already sent).
+                assert resp.request.headers["Content-Encoding"] == "gzip"  # make sure it's really gzip before we undo
+                assert isinstance(resp.request.body, bytes)
+                resp.request.body = gzip.decompress(resp.request.body)
+                del resp.request.headers["Content-Encoding"]
+            logger.debug(
+                "API request",
+                curl_command=curlify.to_curl(resp.request),
+                status_code=resp.status_code,
+                no_server_log=True,
+            )
+
         if 400 <= resp.status_code < 500:
             try:
                 response_data = resp.json()
@@ -101,24 +128,24 @@ class APIClient:
                 raise APIError(resp.text)
         else:
             resp.raise_for_status()
-        return resp.json()
+        return cast(dict, resp.json())
 
-    def get(self, path: str, data=None, **kwargs) -> Dict:
+    def get(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("GET", path, data, **kwargs)
 
-    def post(self, path: str, data=None, **kwargs) -> Dict:
+    def post(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("POST", path, data, **kwargs)
 
-    def put(self, path: str, data=None, **kwargs) -> Dict:
+    def put(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("PUT", path, data, **kwargs)
 
-    def patch(self, path: str, data=None, **kwargs) -> Dict:
+    def patch(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("PATCH", path, data, **kwargs)
 
-    def delete(self, path: str, data=None, **kwargs) -> Dict:
+    def delete(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("DELETE", path, data, **kwargs)
 
-    def get_health(self):
+    def get_health(self) -> Dict:
         return self.get("health_check")
 
     def submit_profile(

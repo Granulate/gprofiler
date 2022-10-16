@@ -6,27 +6,36 @@
 import os
 from threading import Thread
 
-import yaml  # type: ignore
+
+class Lister(object):
+    @classmethod
+    def lister(cls):
+        # type: () -> None
+        os.listdir("/")  # have some kernel stacks & Python stacks from a class method
 
 
-def lister():
-    os.listdir("/")  # have some kernel stacks
-
-
-def burner():
-    while True:  # have some Python stacks
-        pass
+class Burner(object):
+    def burner(self):
+        # type: () -> None
+        while True:  # have some Python stacks from an instance method
+            pass
 
 
 def parser():
+    # type: () -> None
+    try:
+        import yaml
+    except ImportError:
+        return  # not required in this test
     while True:
         # Have some package stacks.
         # Notice the name of the package name (PyYAML) is different from the name of the module (yaml)
-        yaml.parse("")
+        yaml.parse("")  # type: ignore
 
 
 if __name__ == "__main__":
-    Thread(target=burner).start()
+    Thread(target=Burner().burner).start()
     Thread(target=parser).start()
+    lister = Lister()
     while True:
-        lister()
+        lister.lister()

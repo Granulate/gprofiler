@@ -2,49 +2,66 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import errno
 import functools
 import json
 import os
 import re
-import shutil
+import secrets
 import signal
-from collections import Counter
 from enum import Enum
-from itertools import dropwhile
 from pathlib import Path
-from threading import Event
-from typing import List, Optional, Set
+from subprocess import CompletedProcess
+from threading import Event, Lock
+from types import TracebackType
+from typing import Any, Dict, List, Optional, Sequence, Set, Type, TypeVar
 
 import psutil
 from granulate_utils.java import (
     CONTAINER_INFO_REGEX,
+    DETECTED_JAVA_PROCESSES_REGEX,
     NATIVE_FRAMES_REGEX,
     SIGINFO_REGEX,
     VM_INFO_REGEX,
+    JvmVersion,
     is_java_fatal_signal,
     java_exit_code_to_signo,
     locate_hotspot_error_file,
+    parse_jvm_version,
 )
-from granulate_utils.linux import ns, proc_events
-from granulate_utils.linux.ns import get_proc_root_path, resolve_proc_root_links, run_in_ns
+from granulate_utils.linux import proc_events
+from granulate_utils.linux.kernel_messages import KernelMessage
+from granulate_utils.linux.ns import get_proc_root_path, get_process_nspid, resolve_proc_root_links, run_in_ns
 from granulate_utils.linux.oom import get_oom_entry
-from granulate_utils.linux.process import is_process_running, process_exe
+from granulate_utils.linux.process import (
+    get_mapped_dso_elf_id,
+    is_musl,
+    is_process_basename_matching,
+    is_process_running,
+    process_exe,
+)
 from granulate_utils.linux.signals import get_signal_entry
 from packaging.version import Version
 from psutil import Process
 
-from gprofiler.exceptions import CalledProcessError
-from gprofiler.gprofiler_types import ProcessToStackSampleCounters, StackToSampleCount
+from gprofiler import merge
+from gprofiler.exceptions import CalledProcessError, CalledProcessTimeoutError, NoRwExecDirectoryFoundError
+from gprofiler.gprofiler_types import (
+    ProcessToProfileData,
+    ProfileData,
+    StackToSampleCount,
+    integer_range,
+    positive_integer,
+)
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
-from gprofiler.merge import parse_one_collapsed
-from gprofiler.profilers.profiler_base import ProcessProfilerBase
+from gprofiler.metadata import application_identifiers
+from gprofiler.metadata.application_metadata import ApplicationMetadata
+from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
+    GPROFILER_DIRECTORY_NAME,
     TEMPORARY_STORAGE_PATH,
     pgrep_maps,
-    process_comm,
     remove_path,
     remove_prefix,
     resource_path,
@@ -52,14 +69,30 @@ from gprofiler.utils import (
     touch_path,
     wait_event,
 )
+from gprofiler.utils.fs import is_rw_exec_dir, safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
+from gprofiler.utils.process import process_comm, search_proc_maps
 
 logger = get_logger_adapter(__name__)
 
+libap_copy_lock = Lock()
 
-def frequency_to_ap_interval(frequency: int):
+# directories we check for rw,exec as candidates for libasyncProfiler.so placement.
+POSSIBLE_AP_DIRS = (
+    TEMPORARY_STORAGE_PATH,
+    f"/run/{GPROFILER_DIRECTORY_NAME}",
+    f"/opt/{GPROFILER_DIRECTORY_NAME}",
+)
+
+
+def frequency_to_ap_interval(frequency: int) -> int:
     # async-profiler accepts interval between samples (nanoseconds)
     return int((1 / frequency) * 1_000_000_000)
+
+
+@functools.lru_cache(maxsize=1024)
+def is_musl_cached(process: Process) -> bool:
+    return is_musl(process)
 
 
 JAVA_SAFEMODE_ALL = "all"  # magic value for *all* options from JavaSafemodeOptions
@@ -81,6 +114,7 @@ class JavaSafemodeOptions(str, Enum):
     # we saw the PID of a profiled process in the kernel logs
     PID_IN_KERNEL_MESSAGES = "pid-in-kernel-messages"
     # employ extended version checks before deciding to profile
+    # see _is_jvm_profiling_supported() docs for more information
     JAVA_EXTENDED_VERSION_CHECKS = "java-extended-version-checks"
     # refuse profiling if async-profiler is already loaded (and not by gProfiler)
     # in the target process
@@ -94,19 +128,21 @@ JAVA_SAFEMODE_DEFAULT_OPTIONS = [
     JavaSafemodeOptions.HSERR.value,
 ]
 
-JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 0  # all off
+JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 64  # StackRecovery.JAVA_STATE
 
 SUPPORTED_AP_MODES = ["cpu", "itimer"]
 
 
-class JattachException(CalledProcessError):
-    def __init__(self, returncode, cmd, stdout, stderr, target_pid: int, ap_log: str, is_loaded: bool):
+class JattachExceptionBase(CalledProcessError):
+    def __init__(
+        self, returncode: int, cmd: Any, stdout: Any, stderr: Any, target_pid: int, ap_log: str, is_loaded: bool
+    ):
         super().__init__(returncode, cmd, stdout, stderr)
         self._target_pid = target_pid
         self._ap_log = ap_log
         self.is_loaded = is_loaded
 
-    def __str__(self):
+    def __str__(self) -> str:
         ap_log = self._ap_log.strip()
         if not ap_log:
             ap_log = "(empty)"
@@ -115,6 +151,116 @@ class JattachException(CalledProcessError):
 
     def get_ap_log(self) -> str:
         return self._ap_log
+
+
+class JattachException(JattachExceptionBase):
+    pass
+
+
+# doesn't extend JattachException itself, we're not just a jattach error, we're
+# specifically the timeout one.
+class JattachTimeout(JattachExceptionBase):
+    def __init__(
+        self,
+        returncode: int,
+        cmd: Any,
+        stdout: Any,
+        stderr: Any,
+        target_pid: int,
+        ap_log: str,
+        is_loaded: bool,
+        timeout: int,
+    ):
+        super().__init__(returncode, cmd, stdout, stderr, target_pid, ap_log, is_loaded)
+        self._timeout = timeout
+
+    def __str__(self) -> str:
+        return super().__str__() + (
+            f"\njattach timed out (timeout was {self._timeout} seconds);"
+            " you can increase it with the --java-jattach-timeout parameter."
+        )
+
+
+class JattachSocketMissingException(JattachExceptionBase):
+    def __str__(self) -> str:
+        # the attach listener is initialized once, then it is marked as initialized:
+        # (https://github.com/openjdk/jdk/blob/3d07b3c7f01b60ff4dc38f62407c212b48883dbf/src/hotspot/share/services/attachListener.cpp#L388)
+        # and will not be initialized again:
+        # https://github.com/openjdk/jdk/blob/3d07b3c7f01b60ff4dc38f62407c212b48883dbf/src/hotspot/os/linux/attachListener_linux.cpp#L509
+        # since openjdk 2870c9d55efe, the attach socket will be recreated even when removed (and this exception
+        # won't happen).
+        return super().__str__() + (
+            "\nJVM attach socket is missing and jattach could not create it. It has most"
+            " likely been removed; the process has to be restarted for a new socket to be created."
+        )
+
+
+def is_java_basename(process: Process) -> bool:
+    return is_process_basename_matching(process, r"^java$")
+
+
+_JAVA_VERSION_TIMEOUT = 5
+
+_JAVA_VERSION_CACHE_MAX = 1024
+
+
+# process is hashable and the same process instance compares equal
+@functools.lru_cache(maxsize=_JAVA_VERSION_CACHE_MAX)
+def get_java_version(process: Process, stop_event: Event) -> str:
+    # make sure we're only called for "java" processes, otherwise running "-version" makes no sense.
+    # our callers should check for it.
+    assert is_java_basename(process), f"expected java, found {process!r}"
+
+    nspid = get_process_nspid(process.pid)
+
+    # this has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
+    # in that case, the libraries would have been replaced as well, and therefore we're actually checking
+    # the version of the now installed Java, and not the running one.
+    # but since this is used for the "JDK type" check, it's good enough - we don't expect that to change.
+    # this whole check, however, is growing to be too complex, and we should consider other approaches
+    # for it:
+    # 1. purely in async-profiler - before calling any APIs that might harm blacklisted JDKs, we can
+    #    check the JDK type in async-profiler itself.
+    # 2. assume JDK type by the path, e.g the "java" Docker image has
+    #    "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java" which means "OpenJDK". needs to be checked for
+    #    other JDK types.
+    java_path = f"/proc/{nspid}/exe"
+
+    def _run_java_version() -> "CompletedProcess[bytes]":
+        return run_process(
+            [
+                java_path,
+                "-version",
+            ],
+            stop_event=stop_event,
+            timeout=_JAVA_VERSION_TIMEOUT,
+        )
+
+    # doesn't work without changing PID NS as well (I'm getting ENOENT for libjli.so)
+    # Version is printed to stderr
+    return run_in_ns(["pid", "mnt"], _run_java_version, process.pid).stderr.decode().strip()
+
+
+def get_java_version_logged(process: Process, stop_event: Event) -> str:
+    java_version = get_java_version(process, stop_event)
+    logger.debug("java -version output", java_version_output=java_version, pid=process.pid)
+    return java_version
+
+
+class JavaMetadata(ApplicationMetadata):
+    def make_application_metadata(self, process: Process) -> Dict[str, Any]:
+        if is_java_basename(process):
+            version = get_java_version(process, self._stop_event)
+        else:
+            version = "not /java"
+        # libjvm elfid - we care only about libjvm, not about the java exe itself which is a just small program
+        # that loads other libs.
+        libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")
+
+        metadata = {"java_version": version, "libjvm_elfid": libjvm_elfid}
+
+        metadata.update(super().make_application_metadata(process))
+        return metadata
 
 
 @functools.lru_cache(maxsize=1)
@@ -132,6 +278,9 @@ def get_ap_version() -> str:
     return Path(resource_path("java/async-profiler-version")).read_text()
 
 
+T = TypeVar("T", bound="AsyncProfiledProcess")
+
+
 class AsyncProfiledProcess:
     """
     Represents a process profiled with async-profiler.
@@ -143,7 +292,9 @@ class AsyncProfiledProcess:
 
     # timeouts in seconds
     _FDTRANSFER_TIMEOUT = 10
-    _JATTACH_TIMEOUT = 10  # higher than jattach's timeout
+    _JATTACH_TIMEOUT = 30  # higher than jattach's timeout
+
+    _DEFAULT_MCACHE = 30  # arbitrarily chosen, not too high & not too low.
 
     def __init__(
         self,
@@ -154,6 +305,8 @@ class AsyncProfiledProcess:
         mode: str,
         ap_safemode: int,
         ap_args: str,
+        jattach_timeout: int = _JATTACH_TIMEOUT,
+        mcache: int = 0,
     ):
         self.process = process
         self._stop_event = stop_event
@@ -167,7 +320,7 @@ class AsyncProfiledProcess:
         self._process_root = get_proc_root_path(process)
         self._cmdline = process.cmdline()
         self._cwd = process.cwd()
-        self._nspid = ns.get_process_nspid(self.process.pid)
+        self._nspid = get_process_nspid(self.process.pid)
 
         # not using storage_dir for AP itself on purpose: this path should remain constant for the lifetime
         # of the target process, so AP is loaded exactly once (if we have multiple paths, AP can be loaded
@@ -176,12 +329,11 @@ class AsyncProfiledProcess:
         # because storage_dir changes between runs.
         # we embed the async-profiler version in the path, so future gprofiler versions which use another version
         # of AP case use it (will be loaded as a different DSO)
-        self._ap_dir = os.path.join(
-            TEMPORARY_STORAGE_PATH,
+        self._ap_dir_host = os.path.join(
+            self._find_rw_exec_dir(POSSIBLE_AP_DIRS),
             f"async-profiler-{get_ap_version()}",
             "musl" if self._is_musl() else "glibc",
         )
-        self._ap_dir_host = resolve_proc_root_links(self._process_root, self._ap_dir)
 
         self._libap_path_host = os.path.join(self._ap_dir_host, "libasyncProfiler.so")
         self._libap_path_process = remove_prefix(self._libap_path_host, self._process_root)
@@ -198,10 +350,25 @@ class AsyncProfiledProcess:
         self._buildids = buildids
         assert mode in ("cpu", "itimer"), f"unexpected mode: {mode}"
         self._mode = mode
+        self._fdtransfer_path = f"@async-profiler-{process.pid}-{secrets.token_hex(10)}" if mode == "cpu" else None
         self._ap_safemode = ap_safemode
         self._ap_args = ap_args
+        self._jattach_timeout = jattach_timeout
+        self._mcache = mcache
 
-    def __enter__(self):
+    def _find_rw_exec_dir(self, available_dirs: Sequence[str]) -> str:
+        """
+        Find a rw & executable directory (in the context of the process) where we can place libasyncProfiler.so
+        and the target process will be able to load it.
+        """
+        for d in available_dirs:
+            full_dir = resolve_proc_root_links(self._process_root, d)
+            if is_rw_exec_dir(full_dir):
+                return full_dir
+        else:
+            raise NoRwExecDirectoryFoundError(f"Could not find a rw & exec directory out of {available_dirs}!")
+
+    def __enter__(self: T) -> T:
         os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
         os.makedirs(self._storage_dir_host, 0o755, exist_ok=True)
 
@@ -212,12 +379,16 @@ class AsyncProfiledProcess:
         touch_path(self._output_path_host, self.OUTPUTS_MODE)
         self._recreate_log()
         # copy libasyncProfiler.so if needed
-        if not os.path.exists(self._libap_path_host):
-            self._copy_libap()
+        self._copy_libap()
 
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_ctb: Optional[TracebackType],
+    ) -> None:
         # ignore_errors because we are deleting paths via /proc/pid/root - and the pid
         # we're using might have gone down already.
         # remove them as best effort.
@@ -241,43 +412,28 @@ class AsyncProfiledProcess:
                 return realpath
         return None
 
-    @functools.lru_cache(maxsize=1)
     def _is_musl(self) -> bool:
         # Is target process musl-based?
-        return any("ld-musl" in m.path for m in self.process.memory_maps())
+        return is_musl_cached(self.process)
 
     def _copy_libap(self) -> None:
         # copy *is* racy with respect to other processes running in the same namespace, because they all use
-        # the same directory for libasyncProfiler.so, as we don't want to create too many copies of it that
-        # will waste disk space.
-        # my attempt here is to produce a race-free way of ensuring libasyncProfiler.so was fully copied
-        # to a *single* path, per namespace.
-        # newer kernels (>3.15 for ext4) have the renameat2 syscall, with RENAME_NOREPLACE, which lets you
-        # atomically move a file without replacing if the target already exists.
-        # this function operates similarly on directories. if you rename(dir_a, dir_b) then dir_b is replaced
-        # with dir_a iff it's empty. this gives us the same semantics.
-        # so, we create a temporary directory on the same filesystem (so move is atomic) in a race-free way
-        # by including the PID in its name; then we move it.
-        # TODO: if we ever move away from the multithreaded model, we can get rid of this complexity
-        # by ensuring a known order of execution.
-        ap_dir_host_tmp = f"{self._ap_dir_host}.{self.process.pid}"
-        os.makedirs(ap_dir_host_tmp)
-        libap_tmp = os.path.join(ap_dir_host_tmp, "libasyncProfiler.so")
-        shutil.copy(
-            resource_path(os.path.join("java", "musl" if self._is_musl() else "glibc", "libasyncProfiler.so")),
-            libap_tmp,
-        )
-        os.chmod(libap_tmp, 0o755)  # make it accessible for all; needed with PyInstaller, which extracts files as 0700
-        try:
-            os.rename(ap_dir_host_tmp, self._ap_dir_host)
-        except OSError as e:
-            if e.errno == errno.ENOTEMPTY:
-                # remove our copy
-                shutil.rmtree(ap_dir_host_tmp)
-                # it should have been created by somene else.
-                assert os.path.exists(self._libap_path_host)
-            else:
-                raise
+        # the same directory for libasyncProfiler.so.
+        # therefore, we need to synchronize copies from different threads that profile different processes.
+        if os.path.exists(self._libap_path_host):
+            # all good
+            return
+
+        with libap_copy_lock:
+            if not os.path.exists(self._libap_path_host):
+                # atomically copy it
+                libap_resource = resource_path(
+                    os.path.join("java", "musl" if self._is_musl() else "glibc", "libasyncProfiler.so")
+                )
+                os.chmod(
+                    libap_resource, 0o755
+                )  # make it accessible for all; needed with PyInstaller, which extracts files as 0700
+                safe_copy(libap_resource, self._libap_path_host)
 
     def _recreate_log(self) -> None:
         touch_path(self._log_path_host, self.OUTPUTS_MODE)
@@ -314,46 +470,57 @@ class AsyncProfiledProcess:
             f"start,event={self._mode}"
             f"{self._get_ap_output_args()},interval={interval},"
             f"log={self._log_path_process}{',buildids' if self._buildids else ''}"
-            f"{',fdtransfer' if self._mode == 'cpu' else ''}"
+            f"{f',fdtransfer={self._fdtransfer_path}' if self._mode == 'cpu' else ''}"
             f",safemode={self._ap_safemode},timeout={ap_timeout}{self._get_extra_ap_args()}"
         ]
 
     def _get_stop_cmd(self, with_output: bool) -> List[str]:
         return self._get_base_cmd() + [
-            f"stop,log={self._log_path_process}"
+            f"stop,log={self._log_path_process},mcache={self._mcache}"
             + (self._get_ap_output_args() if with_output else "")
             + self._get_extra_ap_args()
         ]
 
+    def _read_ap_log(self) -> str:
+        if not os.path.exists(self._log_path_host):
+            return "(log file doesn't exist)"
+
+        log = Path(self._log_path_host)
+        ap_log = log.read_text()
+        # clean immediately so we don't mix log messages from multiple invocations.
+        # this is also what AP's profiler.sh does.
+        log.unlink()
+        self._recreate_log()
+        return ap_log
+
     def _run_async_profiler(self, cmd: List[str]) -> None:
         try:
             # kill jattach with SIGTERM if it hangs. it will go down
-            run_process(cmd, stop_event=self._stop_event, timeout=self._JATTACH_TIMEOUT, kill_signal=signal.SIGTERM)
-        except CalledProcessError as e:  # catches timeouts as well
-            if os.path.exists(self._log_path_host):
-                log = Path(self._log_path_host)
-                ap_log = log.read_text()
-                # clean immediately so we don't mix log messages from multiple invocations.
-                # this is also what AP's profiler.sh does.
-                log.unlink()
-                self._recreate_log()
-            else:
-                ap_log = "(log file doesn't exist)"
-
+            run_process(cmd, stop_event=self._stop_event, timeout=self._jattach_timeout, kill_signal=signal.SIGTERM)
+        except CalledProcessError as e:  # catches CalledProcessTimeoutError as well
+            ap_log = self._read_ap_log()
             is_loaded = f" {self._libap_path_process}\n" in Path(f"/proc/{self.process.pid}/maps").read_text()
-            raise JattachException(
-                e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, is_loaded
-            ) from None
+
+            args = e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, is_loaded
+            if isinstance(e, CalledProcessTimeoutError):
+                raise JattachTimeout(*args, timeout=self._jattach_timeout) from None
+            elif e.stderr == b"Could not start attach mechanism: No such file or directory\n":
+                # this is true for jattach_hotspot
+                raise JattachSocketMissingException(*args) from None
+            else:
+                raise JattachException(*args) from None
+        else:
+            logger.debug("async-profiler log", jattach_cmd=cmd, ap_log=self._read_ap_log())
 
     def _run_fdtransfer(self) -> None:
         """
         Start fdtransfer; it will fork & exit once ready, so we can continue with jattach.
         """
+        assert self._fdtransfer_path is not None  # should be set if fdntransfer is invoked
         run_process(
-            [fdtransfer_path(), str(self.process.pid)],
+            [fdtransfer_path(), self._fdtransfer_path, str(self.process.pid)],
             stop_event=self._stop_event,
             timeout=self._FDTRANSFER_TIMEOUT,
-            communicate=False,
         )
 
     def start_async_profiler(self, interval: int, second_try: bool = False, ap_timeout: int = 0) -> bool:
@@ -391,72 +558,6 @@ class AsyncProfiledProcess:
             raise
 
 
-class JvmVersion:
-    def __init__(self, version: Version, build: int, name: str):
-        self.version = version
-        self.build = build
-        self.name = name
-
-    def __repr__(self):
-        return f"JvmVersion({self.version}, {self.build!r}, {self.name!r})"
-
-
-# Parse java version information from "java -version" output
-def parse_jvm_version(version_string: str) -> JvmVersion:
-    # Example java -version output:
-    #   openjdk version "1.8.0_265"
-    #   OpenJDK Runtime Environment (AdoptOpenJDK)(build 1.8.0_265-b01)
-    #   OpenJDK 64-Bit Server VM (AdoptOpenJDK)(build 25.265-b01, mixed mode)
-    # We are taking the version from the first line, and the build number and vm name from the last line
-
-    lines = version_string.splitlines()
-
-    # the version always starts with "openjdk version" or "java version". strip all lines
-    # before that.
-    lines = list(dropwhile(lambda l: not ("openjdk version" in l or "java version" in l), lines))
-
-    # version is always in quotes
-    _, version_str, _ = lines[0].split('"')
-    build_str = lines[2].split("(build ")[1]
-    assert "," in build_str, f"Didn't find comma in build information: {build_str!r}"
-    # Extra information we don't care about is placed after a comma
-    build_str = build_str[: build_str.find(",")]
-
-    if version_str.endswith("-internal") or version_str.endswith("-ea"):
-        # strip the "internal" or "early access" suffixes
-        version_str = version_str.rsplit("-")[0]
-
-    version_list = version_str.split(".")
-    if version_list[0] == "1":
-        # For java 8 and prior, versioning looks like
-        # 1.<major>.0_<minor>-b<build_number>
-        # For example 1.8.0_242-b12 means 8.242 with build number 12
-        assert len(version_list) == 3, f"Unexpected number of elements for old-style java version: {version_list!r}"
-        assert "_" in version_list[-1], f"Did not find expected underscore in old-style java version: {version_list!r}"
-        major = version_list[1]
-        minor = version_list[-1].split("_")[-1]
-        version = Version(f"{major}.{minor}")
-        assert (
-            build_str[-4:-2] == "-b"
-        ), f"Did not find expected build number prefix in old-style java version: {build_str!r}"
-        build = int(build_str[-2:])
-    else:
-        # Since java 9 versioning became more normal, and looks like
-        # <version>+<build_number>
-        # For example, 11.0.11+9
-        version = Version(version_str)
-        assert "+" in build_str, f"Did not find expected build number prefix in new-style java version: {build_str!r}"
-        # The goal of the regex here is to read the build number until a non-digit character is encountered,
-        # since additional information can be appended after it, such as the platform name
-        matched = re.match(r"\d+", build_str[build_str.find("+") + 1 :])
-        assert matched, f"Unexpected build number format in new-style java version: {build_str!r}"
-        build = int(matched[0])
-
-    # There is no real format here, just use the entire description string
-    vm_name = lines[2].split("(build")[0].strip()
-    return JvmVersion(version, build, vm_name)
-
-
 @register_profiler(
     "Java",
     possible_modes=["ap", "disabled"],
@@ -475,7 +576,8 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             "--java-no-version-check",
             dest="java_version_check",
             action="store_false",
-            help="Skip the JDK version check (that is done before invoking async-profiler)",
+            help="Skip the JDK version check (that is done before invoking async-profiler). See"
+            " _is_jvm_profiling_supported() docs for more information.",
         ),
         ProfilerArgument(
             "--java-async-profiler-mode",
@@ -488,9 +590,8 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
         ProfilerArgument(
             "--java-async-profiler-safemode",
             dest="java_async_profiler_safemode",
-            type=int,
             default=JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
-            choices=range(0, 128),
+            type=integer_range(0, 128),
             metavar="[0-127]",
             help="Controls the 'safemode' parameter passed to async-profiler. This is parameter denotes multiple"
             " bits that describe different stack recovery techniques which async-profiler uses (see StackRecovery"
@@ -512,16 +613,40 @@ def parse_jvm_version(version_string: str) -> JvmVersion:
             default=",".join(JAVA_SAFEMODE_DEFAULT_OPTIONS),
             help="Sets the Java profiler safemode options. Default is: %(default)s.",
         ),
+        ProfilerArgument(
+            "--java-jattach-timeout",
+            dest="java_jattach_timeout",
+            type=positive_integer,
+            default=AsyncProfiledProcess._JATTACH_TIMEOUT,
+            help="Timeout for jattach operations (start/stop AP, etc)",
+        ),
+        ProfilerArgument(
+            "--java-async-profiler-mcache",
+            dest="java_async_profiler_mcache",
+            # this is "unsigned char" in AP's code
+            type=integer_range(0, 256),
+            metavar="[0-255]",
+            default=AsyncProfiledProcess._DEFAULT_MCACHE,
+            help="async-profiler mcache option (defaults to %(default)s)",
+        ),
+        ProfilerArgument(
+            "--java-collect-spark-app-name-as-appid",
+            dest="java_collect_spark_app_name_as_appid",
+            action="store_true",
+            default=False,
+            help="In case of Spark application executor process - add the name of the Spark application to the appid.",
+        ),
     ],
 )
-class JavaProfiler(ProcessProfilerBase):
-    JDK_EXCLUSIONS = ["OpenJ9", "Zing"]
+class JavaProfiler(SpawningProcessProfilerBase):
+    JDK_EXCLUSIONS: List[str] = []  # currently empty
     # Major -> (min version, min build number of version)
     MINIMAL_SUPPORTED_VERSIONS = {
         7: (Version("7.76"), 4),
-        8: (Version("8.72"), 15),
+        8: (Version("8.25"), 17),
         11: (Version("11.0.2"), 7),
         12: (Version("12.0.1"), 12),
+        13: (Version("13.0.1"), 9),
         14: (Version("14"), 33),
         15: (Version("15.0.1"), 9),
         16: (Version("16"), 36),
@@ -532,7 +657,6 @@ class JavaProfiler(ProcessProfilerBase):
     # once the timeout triggers, AP remains stopped, so if it triggers before we tried to stop
     # AP ourselves, we'll be in messed up state. hence, we add 30s which is enough.
     _AP_EXTRA_TIMEOUT_S = 30
-    _JAVA_VERSION_TIMEOUT = 5
 
     def __init__(
         self,
@@ -540,16 +664,20 @@ class JavaProfiler(ProcessProfilerBase):
         duration: int,
         stop_event: Event,
         storage_dir: str,
+        profile_spawned_processes: bool,
         java_async_profiler_buildids: bool,
         java_version_check: bool,
         java_async_profiler_mode: str,
         java_async_profiler_safemode: int,
         java_async_profiler_args: str,
         java_safemode: str,
+        java_jattach_timeout: int,
+        java_async_profiler_mcache: int,
+        java_collect_spark_app_name_as_appid: bool,
         java_mode: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
-        super().__init__(frequency, duration, stop_event, storage_dir)
+        super().__init__(frequency, duration, stop_event, storage_dir, profile_spawned_processes)
 
         self._interval = frequency_to_ap_interval(frequency)
         self._buildids = java_async_profiler_buildids
@@ -560,15 +688,21 @@ class JavaProfiler(ProcessProfilerBase):
         self._init_ap_mode(java_async_profiler_mode)
         self._ap_safemode = java_async_profiler_safemode
         self._ap_args = java_async_profiler_args
+        self._jattach_timeout = java_jattach_timeout
+        self._ap_mcache = java_async_profiler_mcache
+        self._collect_spark_app_name = java_collect_spark_app_name_as_appid
         self._init_java_safemode(java_safemode)
         self._should_profile = True
         # if set, profiling is disabled due to this safemode reason.
         self._safemode_disable_reason: Optional[str] = None
+        self._want_to_profile_pids: Set[int] = set()
         self._profiled_pids: Set[int] = set()
         self._pids_to_remove: Set[int] = set()
+        self._pid_to_java_version: Dict[int, Optional[str]] = {}
         self._kernel_messages_provider = get_kernel_messages_provider()
-        self._enabled_proc_events = False
+        self._enabled_proc_events_java = False
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
+        self._metadata = JavaMetadata(self._stop_event)
 
     def _init_ap_mode(self, ap_mode: str) -> None:
         if ap_mode == "auto":
@@ -582,7 +716,9 @@ class JavaProfiler(ProcessProfilerBase):
         if java_safemode == JAVA_SAFEMODE_ALL:
             self._java_safemode = JAVA_SAFEMODE_ALL_OPTIONS
         else:
-            self._java_safemode = java_safemode.split(",") if java_safemode else []
+            # accept "" as empty, because sometimes people confuse and use --java-safemode="" in non-shell
+            # environment (e.g DaemonSet args) and thus the "" isn't eaten by the shell.
+            self._java_safemode = java_safemode.split(",") if (java_safemode and java_safemode != '""') else []
 
         assert all(
             o in JAVA_SAFEMODE_ALL_OPTIONS for o in self._java_safemode
@@ -597,28 +733,32 @@ class JavaProfiler(ProcessProfilerBase):
                 f" --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS}"
             )
 
-    def _disable_profiling(self, cause: str):
+    def _disable_profiling(self, cause: str) -> None:
         if self._safemode_disable_reason is None and cause in self._java_safemode:
             logger.warning("Java profiling has been disabled, will avoid profiling any new java processes", cause=cause)
             self._safemode_disable_reason = cause
 
-    def _profiling_skipped_stack(self, reason: str, comm: str) -> StackToSampleCount:
-        # return 1 sample, it will be scaled later in merge_profiles().
-        # if --perf-mode=none mode is used, it will not, but we don't have anything logical to
-        # do here in that case :/
-        return Counter({f"{comm};[Profiling skipped: {reason}]": 1})
+    def _profiling_skipped_profile(self, reason: str, comm: str) -> ProfileData:
+        return ProfileData(self._profiling_error_stack("skipped", reason, comm), None, None)
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
 
-    def _is_jvm_version_supported(self, java_version_cmd_output: str) -> bool:
-        try:
-            jvm_version = parse_jvm_version(java_version_cmd_output)
-            logger.info("Checking support for java version", jvm_version=jvm_version)
-        except Exception:
-            logger.exception("Failed to parse java -version output", java_version_cmd_output=java_version_cmd_output)
+    def _is_zing_vm_supported(self, jvm_version: JvmVersion) -> bool:
+        # name is e.g Zing 64-Bit Tiered VM Zing22.04.1.0+1
+        m = re.search(r"Zing(\d+)\.", jvm_version.name)
+        if m is None:
+            return False  # unknown
+
+        major = m.group(1)
+        if int(major) < 18:
             return False
 
+        # Zing > 18 is assumed to support AsyncGetCallTrace per
+        # https://github.com/jvm-profiling-tools/async-profiler/issues/153#issuecomment-452038960
+        return True
+
+    def _check_jvm_supported_extended(self, jvm_version: JvmVersion) -> bool:
         if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
             logger.warning("Unsupported JVM version", jvm_version=repr(jvm_version))
             return False
@@ -633,73 +773,55 @@ class JavaProfiler(ProcessProfilerBase):
 
         return True
 
-    def _get_java_version(self, process: Process) -> str:
-        nspid = ns.get_process_nspid(process.pid)
-
-        # this has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
-        # in that case, the libraries would have been replaced as well, and therefore we're actually checking
-        # the version of the now installed Java, and not the running one.
-        # but since this is used for the "JDK type" check, it's good enough - we don't expect that to change.
-        # this whole check, however, is growing to be too complex, and we should consider other approaches
-        # for it:
-        # 1. purely in async-profiler - before calling any APIs that might harm blacklisted JDKs, we can
-        #    check the JDK type in async-profiler itself.
-        # 2. assume JDK type by the path, e.g the "java" Docker image has
-        #    "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java" which means "OpenJDK". needs to be checked for
-        #    other JDK types.
-        java_path = f"/proc/{nspid}/exe"
-
-        java_version_cmd_output = None
-
-        def _run_java_version() -> None:
-            nonlocal java_version_cmd_output
-
-            java_version_cmd_output = run_process(
-                [
-                    java_path,
-                    "-version",
-                ],
-                stop_event=self._stop_event,
-                timeout=self._JAVA_VERSION_TIMEOUT,
-            )
-
-        # doesn't work without changing PID NS as well (I'm getting ENOENT for libjli.so)
-        run_in_ns(["pid", "mnt"], _run_java_version, process.pid)
-
-        if java_version_cmd_output is None:
-            raise Exception("Failed to get java version")
-
-        # Version is printed to stderr
-        return java_version_cmd_output.stderr.decode()
-
-    def _check_jvm_type_supported(self, process: Process, java_version_output: str) -> bool:
+    def _check_jvm_supported_simple(self, process: Process, java_version_output: str, jvm_version: JvmVersion) -> bool:
         if not self._is_jvm_type_supported(java_version_output):
             logger.warning("Unsupported JVM type", java_version_output=java_version_output)
             return False
 
+        # Zing checks
+        if jvm_version.name.startswith("Zing"):
+            if not self._is_zing_vm_supported(jvm_version):
+                logger.warning("Unsupported Zing VM version", jvm_version=repr(jvm_version))
+                return False
+
+        # HS checks
+        if jvm_version.name.startswith("OpenJDK"):
+            if not jvm_version.version.major > 6:
+                logger.warning("Unsupported HotSpot version", jvm_version=repr(jvm_version))
+                return False
+
         return True
 
-    def _is_jvm_profiling_supported(self, process: Process) -> bool:
-        exe = process_exe(process)
-        process_basename = os.path.basename(exe)
+    def _is_jvm_profiling_supported(self, process: Process, exe: str, java_version_output: Optional[str]) -> bool:
+        """
+        This is the core "version check" function.
+        We have 3 modes of operation:
+        1. No checks at all - java-extended-version-checks is NOT present in --java-safemode, *and*
+           --java-no-version-check is passed. In this mode we'll profile all JVMs.
+        2. Default - neither java-extended-version-checks nor --java-no-version-check are passed,
+           this mode is called "simple checks" and we run minimal checks - if profiled process is
+           basenamed "java", we get the JVM version and make sure that for Zing, we attempt profiling
+           only if Zing version is >18, and for HS, only if JDK>6. If process is not basenamed "java" we
+           just profile it.
+        3. Extended - java-extended-version-checks is passed, we only profile processes which are basenamed "java",
+           who pass the criteria enforced by the default mode ("simple checks") and additionally all checks
+           performed by _check_jvm_supported_extended().
+        """
         if JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS in self._java_safemode:
-            # TODO we can get the "java" binary by extracting the java home from the libjvm path,
-            # then check with that instead (if exe isn't java)
-            if process_basename != "java":
+            if java_version_output is None:  # we don't get the java version if the exe isn't "java"
                 logger.warning(
-                    "Non-java basenamed process, skipping... (disable "
-                    f" --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS} to profile it anyway)",
+                    "Non-java basenamed process (cannot get Java version), skipping... (disable "
+                    f"--java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS} to profile it anyway)",
                     pid=process.pid,
                     exe=exe,
                 )
                 return False
 
-            java_version_output = self._get_java_version(process)
-
-            if not self._check_jvm_type_supported(process, java_version_output):
+            jvm_version = parse_jvm_version(java_version_output)
+            if not self._check_jvm_supported_simple(process, java_version_output, jvm_version):
                 return False
 
-            if not self._is_jvm_version_supported(java_version_output):
+            if not self._check_jvm_supported_extended(jvm_version):
                 logger.warning(
                     "Process running unsupported Java version, skipping..."
                     f" (disable --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS}"
@@ -709,9 +831,9 @@ class JavaProfiler(ProcessProfilerBase):
                 )
                 return False
         else:
-            if self._simple_version_check and process_basename == "java":
-                java_version_output = self._get_java_version(process)
-                if not self._check_jvm_type_supported(process, java_version_output):
+            if self._simple_version_check and java_version_output is not None:
+                jvm_version = parse_jvm_version(java_version_output)
+                if not self._check_jvm_supported_simple(process, java_version_output, jvm_version):
                     return False
 
         return True
@@ -722,10 +844,14 @@ class JavaProfiler(ProcessProfilerBase):
             return False
 
         for mmap in process.memory_maps():
-            if "libasyncProfiler.so" in mmap.path and not mmap.path.startswith(TEMPORARY_STORAGE_PATH):
+            # checking only with GPROFILER_DIRECTORY_NAME and not TEMPORARY_STORAGE_PATH;
+            # the resolved path of TEMPORARY_STORAGE_PATH might be different from TEMPORARY_STORAGE_PATH itself,
+            # and in the mmap.path we're seeing the resolved path. it's a hassle to resolve it here - this
+            # check is good enough, possibly only too strict, not too loose.
+            if "libasyncProfiler.so" in mmap.path and f"/{GPROFILER_DIRECTORY_NAME}/" not in mmap.path:
                 logger.warning(
                     "Non-gProfiler async-profiler is already loaded to the target process."
-                    f" Disable --java-safemode={JavaSafemodeOptions.AP_LOADED_CHECK} to bypass this check.",
+                    f" (disable --java-safemode={JavaSafemodeOptions.AP_LOADED_CHECK} to bypass this check)",
                     pid=process.pid,
                     ap_path=mmap.path,
                 )
@@ -733,32 +859,62 @@ class JavaProfiler(ProcessProfilerBase):
 
         return False
 
-    def _profile_process(self, process: Process) -> Optional[StackToSampleCount]:
+    def _profile_process(self, process: Process, duration: int, spawned: bool) -> ProfileData:
         comm = process_comm(process)
+        exe = process_exe(process)
+        # TODO we can get the "java" binary by extracting the java home from the libjvm path,
+        # then check with that instead (if exe isn't java)
+        if is_java_basename(process):
+            java_version_output: Optional[str] = get_java_version_logged(process, self._stop_event)
+        else:
+            java_version_output = None
+
+        if self._enabled_proc_events_java:
+            self._want_to_profile_pids.add(process.pid)
+            # there's no reliable way to get the underlying cache of get_java_version, otherwise
+            # I'd just use it.
+            if len(self._pid_to_java_version) > _JAVA_VERSION_CACHE_MAX:
+                self._pid_to_java_version.clear()
+
+            # This Java version might be used in _proc_exit_callback
+            self._pid_to_java_version[process.pid] = java_version_output
 
         if self._safemode_disable_reason is not None:
-            return self._profiling_skipped_stack(f"disabled due to {self._safemode_disable_reason}", comm)
+            return self._profiling_skipped_profile(f"disabled due to {self._safemode_disable_reason}", comm)
 
-        if not self._is_jvm_profiling_supported(process):
-            return self._profiling_skipped_stack("profiling this JVM is not supported", comm)
+        if not self._is_jvm_profiling_supported(process, exe, java_version_output):
+            return self._profiling_skipped_profile("profiling this JVM is not supported", comm)
 
         if self._check_async_profiler_loaded(process):
-            return self._profiling_skipped_stack("async-profiler is already loaded", comm)
+            return self._profiling_skipped_profile("async-profiler is already loaded", comm)
 
         # track profiled PIDs only if proc_events are in use, otherwise there is no use in them.
         # TODO: it is possible to run in contexts where we're unable to use proc_events but are able to listen
         # on kernel messages. we can add another mechanism to track PIDs (such as, prune PIDs which have exited)
         # then use the kernel messages listener without proc_events.
-        if self._enabled_proc_events:
+        if self._enabled_proc_events_java:
             self._profiled_pids.add(process.pid)
 
-        logger.info(f"Profiling process {process.pid} with async-profiler")
-        with AsyncProfiledProcess(
-            process, self._storage_dir, self._stop_event, self._buildids, self._mode, self._ap_safemode, self._ap_args
-        ) as ap_proc:
-            return self._profile_ap_process(ap_proc, comm)
+        logger.info(f"Profiling{' spawned' if spawned else ''} process {process.pid} with async-profiler")
+        app_metadata = self._metadata.get_metadata(process)
+        appid = application_identifiers.get_java_app_id(process, self._collect_spark_app_name)
 
-    def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str) -> Optional[StackToSampleCount]:
+        with AsyncProfiledProcess(
+            process,
+            self._storage_dir,
+            self._stop_event,
+            self._buildids,
+            self._mode,
+            self._ap_safemode,
+            self._ap_args,
+            self._jattach_timeout,
+            self._ap_mcache,
+        ) as ap_proc:
+            stackcollapse = self._profile_ap_process(ap_proc, comm, duration)
+
+        return ProfileData(stackcollapse, appid, app_metadata)
+
+    def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str, duration: int) -> StackToSampleCount:
         started = ap_proc.start_async_profiler(self._interval, ap_timeout=self._ap_timeout)
         if not started:
             logger.info(f"Found async-profiler already started on {ap_proc.process.pid}, trying to stop it...")
@@ -775,7 +931,7 @@ class JavaProfiler(ProcessProfilerBase):
                 )
 
         try:
-            wait_event(self._duration, self._stop_event, lambda: not is_process_running(ap_proc.process), interval=1)
+            wait_event(duration, self._stop_event, lambda: not is_process_running(ap_proc.process), interval=1)
         except TimeoutError:
             # Process still running. We will stop the profiler in finally block.
             pass
@@ -791,12 +947,12 @@ class JavaProfiler(ProcessProfilerBase):
         output = ap_proc.read_output()
         if output is None:
             logger.warning(f"Profiled process {ap_proc.process.pid} exited before reading the output")
-            return None
+            return self._profiling_error_stack("error", "process exited before reading the output", comm)
         else:
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
-            return parse_one_collapsed(output, comm)
+            return merge.parse_one_collapsed(output, comm)
 
-    def _check_hotspot_error(self, ap_proc):
+    def _check_hotspot_error(self, ap_proc: AsyncProfiledProcess) -> None:
         pid = ap_proc.process.pid
         error_file = ap_proc.locate_hotspot_error_file()
         if not error_file:
@@ -827,40 +983,62 @@ class JavaProfiler(ProcessProfilerBase):
             logger.debug("Java profiling has been disabled, skipping profiling of all java processes")
             # continue - _profile_process will return an appropriate error for each process selected for
             # profiling.
-        return pgrep_maps(r"^.+/libjvm\.so$")
+        return pgrep_maps(DETECTED_JAVA_PROCESSES_REGEX)
+
+    def _should_profile_process(self, process: Process) -> bool:
+        return search_proc_maps(process, DETECTED_JAVA_PROCESSES_REGEX) is not None
 
     def start(self) -> None:
         super().start()
         try:
             proc_events.register_exit_callback(self._proc_exit_callback)
         except Exception:
-            logger.warning("Failed to enable proc_events listener for exited Java processes", exc_info=True)
+            logger.warning(
+                "Failed to enable proc_events listener for exited Java processes"
+                " (this does not prevent Java profiling)",
+                exc_info=True,
+            )
         else:
-            self._enabled_proc_events = True
+            self._enabled_proc_events_java = True
 
     def stop(self) -> None:
-        if self._enabled_proc_events:
+        if self._enabled_proc_events_java:
             proc_events.unregister_exit_callback(self._proc_exit_callback)
-            self._enabled_proc_events = False
+            self._enabled_proc_events_java = False
         super().stop()
 
-    def _proc_exit_callback(self, tid: int, pid: int, exit_code: int):
+    def _proc_exit_callback(self, tid: int, pid: int, exit_code: int) -> None:
         # Notice that we only check the exit code of the main thread here.
         # It's assumed that an error in any of the Java threads will be reflected in the exit code of the main thread.
-        if tid in self._profiled_pids:
+        if tid in self._want_to_profile_pids:
             self._pids_to_remove.add(tid)
+            java_version_output = self._pid_to_java_version.get(tid)
 
             signo = java_exit_code_to_signo(exit_code)
             if signo is None:
                 # not a signal, do not report
                 return
 
-            logger.warning("async-profiled Java process exited with signal", pid=tid, signal=signo)
+            if tid in self._profiled_pids:
+                logger.warning(
+                    "async-profiled Java process exited with signal",
+                    pid=tid,
+                    signal=signo,
+                    java_version_output=java_version_output,
+                )
 
-            if is_java_fatal_signal(signo):
-                self._disable_profiling(JavaSafemodeOptions.PROFILED_SIGNALED)
+                if is_java_fatal_signal(signo):
+                    self._disable_profiling(JavaSafemodeOptions.PROFILED_SIGNALED)
+            else:
+                # this is a process that we wanted to profile, but didn't profile due to safemode / any other reason.
+                logger.debug(
+                    "Non-profiled Java process exited with signal",
+                    pid=tid,
+                    signal=signo,
+                    java_version_output=java_version_output,
+                )
 
-    def _handle_kernel_messages(self, messages):
+    def _handle_kernel_messages(self, messages: List[KernelMessage]) -> None:
         for message in messages:
             _, _, text = message
             oom_entry = get_oom_entry(text)
@@ -887,7 +1065,7 @@ class JavaProfiler(ProcessProfilerBase):
                 logger.warning("Profiled PID shows in kernel message line", line=text)
                 self._disable_profiling(JavaSafemodeOptions.PID_IN_KERNEL_MESSAGES)
 
-    def _handle_new_kernel_messages(self):
+    def _handle_new_kernel_messages(self) -> None:
         try:
             messages = list(self._kernel_messages_provider.iter_new_messages())
         except Exception:
@@ -895,10 +1073,13 @@ class JavaProfiler(ProcessProfilerBase):
         else:
             self._handle_kernel_messages(messages)
 
-    def snapshot(self) -> ProcessToStackSampleCounters:
+    def snapshot(self) -> ProcessToProfileData:
         try:
             return super().snapshot()
         finally:
             self._handle_new_kernel_messages()
             self._profiled_pids -= self._pids_to_remove
+            self._want_to_profile_pids -= self._pids_to_remove
+            for pid in self._pids_to_remove:
+                self._pid_to_java_version.pop(pid, None)
             self._pids_to_remove.clear()

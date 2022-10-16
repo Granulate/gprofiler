@@ -11,13 +11,16 @@ import sys
 import time
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, cast
 
-import distro  # type: ignore
+import distro
 import psutil
+from granulate_utils.linux.ns import run_in_ns
 
 from gprofiler.log import get_logger_adapter
-from gprofiler.utils import is_pyinstaller, run_in_ns, run_process
+from gprofiler.utils import is_pyinstaller, run_process
+
+UNKNOWN_VALUE = "unknown"
 
 logger = get_logger_adapter(__name__)
 hostname: Optional[str] = None
@@ -44,19 +47,19 @@ def get_libc_version() -> Tuple[str, str]:
     except FileNotFoundError:
         ldd_version = b"ldd not found"
     # catches GLIBC & EGLIBC
-    m = re.search(br"GLIBC (.*?)\)", ldd_version)
+    m = re.search(rb"GLIBC (.*?)\)", ldd_version)
     if m is not None:
         return "glibc", decode_libc_version(m.group(1))
     # catches GNU libc
-    m = re.search(br"\(GNU libc\) (.*?)\n", ldd_version)
+    m = re.search(rb"\(GNU libc\) (.*?)\n", ldd_version)
     if m is not None:
         return "glibc", decode_libc_version(m.group(1))
     # musl
-    m = re.search(br"musl libc.*?\nVersion (.*?)\n", ldd_version, re.M)
+    m = re.search(rb"musl libc.*?\nVersion (.*?)\n", ldd_version, re.M)
     if m is not None:
         return "musl", decode_libc_version(m.group(1))
 
-    return "unknown", decode_libc_version(ldd_version)
+    return UNKNOWN_VALUE, decode_libc_version(ldd_version)
 
 
 def is_container() -> bool:
@@ -75,7 +78,7 @@ def get_run_mode() -> str:
 
 
 def get_deployment_type(run_mode: str) -> str:
-    return RUN_MODE_TO_DEPLOYMENT_TYPE.get(run_mode, "unknown")
+    return RUN_MODE_TO_DEPLOYMENT_TYPE.get(run_mode, UNKNOWN_VALUE)
 
 
 def get_local_ip() -> str:
@@ -84,9 +87,9 @@ def get_local_ip() -> str:
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         s.connect(("8.8.8.8", 53))
-        return s.getsockname()[0]
+        return cast(str, s.getsockname()[0])
     except socket.error:
-        return "unknown"
+        return UNKNOWN_VALUE
     finally:
         s.close()
 
@@ -96,7 +99,7 @@ def get_mac_address() -> str:
     Gets the MAC address of the first non-loopback interface.
     """
 
-    assert sys.maxsize > 2 ** 32, "expected to run on 64-bit!"
+    assert sys.maxsize > 2**32, "expected to run on 64-bit!"
     SIZE_OF_STUCT_ifreq = 40  # correct for 64-bit
 
     IFNAMSIZ = 16
@@ -124,12 +127,45 @@ def get_mac_address() -> str:
 
         # okay, not loopback, get its MAC address.
         res = fcntl.ioctl(s.fileno(), 0x8927, iface)  # SIOCGIFHWADDR
-        address = struct.unpack(f"{IFNAMSIZ}sH{MAC_BYTES_LEN}s", res[: IFNAMSIZ + SIZE_OF_SHORT + MAC_BYTES_LEN])[2]
-        mac = struct.unpack(f"{MAC_BYTES_LEN}B", address)
+        address_bytes = struct.unpack(f"{IFNAMSIZ}sH{MAC_BYTES_LEN}s", res[: IFNAMSIZ + SIZE_OF_SHORT + MAC_BYTES_LEN])[
+            2
+        ]
+        mac = struct.unpack(f"{MAC_BYTES_LEN}B", address_bytes)
         address = ":".join(["%02X" % i for i in mac])
         return address
 
-    return "unknown"
+    return UNKNOWN_VALUE
+
+
+def get_cpu_info() -> Tuple[str, str]:
+    """
+    Parse /proc/cpuinfo to get model name & flags.
+    """
+    try:
+        with open("/proc/cpuinfo") as f:
+            model_names = []
+            flags = []
+            for line in f:
+                m = re.match(r"^((?:model name)|(?:flags)|(?:Features))[ \t]*: (.*)$", line)
+                if m is not None:
+                    field, value = m.groups()
+                    if field == "model name":
+                        model_names.append(value)
+                    else:
+                        # flags in x86_64, Features in aarch64
+                        assert field in ("flags", "Features"), f"unexpected field: {field!r}"
+                        flags.append(value)
+
+        if len(set(model_names)) > 1:
+            logger.warning(f"CPU model names differ between cores, reporting only the first: {model_names}")
+
+        if len(set(flags)) > 1:
+            logger.warning(f"CPU flags differ between cores, reporting only the first: {model_names}")
+
+        return model_names[0] if len(model_names) else UNKNOWN_VALUE, flags[0] if len(flags) else UNKNOWN_VALUE
+    except Exception:
+        logger.exception("Failed to get CPU model name & flags, reporting unknown")
+        return UNKNOWN_VALUE, UNKNOWN_VALUE
 
 
 @dataclass
@@ -141,8 +177,11 @@ class SystemInfo:
     kernel_version: str
     system_name: str
     processors: int
+    cpu_model_name: str
+    cpu_flags: str
     memory_capacity_mb: int
     hostname: str
+    system: str
     os_name: str
     os_release: str
     os_codename: str
@@ -170,6 +209,7 @@ def get_static_system_info() -> SystemInfo:
     cpu_count = os.cpu_count() or 0
     run_mode = get_run_mode()
     deployment_type = get_deployment_type(run_mode)
+    cpu_model_name, cpu_flags = get_cpu_info()
     return SystemInfo(
         python_version=sys.version,
         run_mode=run_mode,
@@ -178,8 +218,12 @@ def get_static_system_info() -> SystemInfo:
         kernel_version=uname.version,
         system_name=uname.system,
         processors=cpu_count,
-        memory_capacity_mb=round(psutil.virtual_memory().total / 1024 / 1024),
+        cpu_model_name=cpu_model_name,
+        cpu_flags=cpu_flags,
+        memory_capacity_mb=round(psutil.virtual_memory().total / 1024 / 1024),  # type: ignore # virtual_memory doesn't
+        # have a return type is types-psutil
         hostname=hostname,
+        system=platform.system(),
         os_name=os_name,
         os_release=os_release,
         os_codename=os_codename,
@@ -198,19 +242,19 @@ def get_hostname() -> str:
     return hostname
 
 
-def _initialize_system_info():
+def _initialize_system_info() -> Any:
     # initialized first
     global hostname
-    hostname = "<unknown>"
-    distribution = ("unknown", "unknown", "unknown")
-    libc_version = ("unknown", "unknown")
-    mac_address = "unknown"
-    local_ip = "unknown"
+    hostname = f"<{UNKNOWN_VALUE}>"  # < > are added to further distinct it from a legit hostname
+    distribution = (UNKNOWN_VALUE, UNKNOWN_VALUE, UNKNOWN_VALUE)
+    libc_version = (UNKNOWN_VALUE, UNKNOWN_VALUE)
+    mac_address = UNKNOWN_VALUE
+    local_ip = UNKNOWN_VALUE
 
     # move to host mount NS for distro & ldd.
     # now, distro will read the files on host.
     # also move to host UTS NS for the hostname.
-    def get_infos():
+    def get_infos() -> Any:
         nonlocal distribution, libc_version, mac_address, local_ip
         global hostname
 

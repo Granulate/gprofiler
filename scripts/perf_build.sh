@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # downloading the zip because the git is very large (this is also very large, but still smaller)
-curl -SL https://codeload.github.com/Granulate/linux/zip/40a7823cf90a7e69ce8af88d224dfdd7e371de2d -o linux.zip
+curl -SL https://codeload.github.com/Granulate/linux/zip/37e33e68d0a02f31f46e089d4a33d9877ed79768 -o linux.zip
 unzip -qq linux.zip
 rm linux.zip
 cd linux-*/
@@ -15,7 +15,7 @@ cd linux-*/
 # be built "PIC", and in the default installation, they are not.
 # we don't use those plugins (and we don't even deploy them) so this patch disables their build.
 # (I couldn't find any way to do it with a build config to "make -C tools/perf" sadly)
-if [ $(uname -m) = "aarch64" ]; then
+if [ "$(uname -m)" = "aarch64" ]; then
     patch -p1 <<'EOF'
 diff --git a/tools/lib/traceevent/plugins/Makefile b/tools/lib/traceevent/plugins/Makefile
 --- a/tools/lib/traceevent/plugins/Makefile

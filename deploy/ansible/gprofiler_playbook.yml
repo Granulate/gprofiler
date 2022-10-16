@@ -1,0 +1,33 @@
+#
+# Copyright (c) Granulate. All rights reserved.
+# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+#
+---
+- name: Install gProfiler
+  hosts: all
+  vars:
+    gprofiler_path: /tmp/gprofiler
+    # can be overriden to add extra arguments to gProfiler's execution, such as --no-perf.
+    gprofiler_args: ""
+  tasks:
+    - name: Check mandatory variables
+      assert:
+        that:
+          - gprofiler_path is defined
+          - gprofiler_token is defined
+          - gprofiler_service is defined
+          - gprofiler_args is defined
+    - name: Get remote machine architecture
+      shell: uname -m
+      register: machine
+    - name: Download latest gProfiler
+      ansible.builtin.get_url:
+        url: https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler_{{machine.stdout}}
+        dest: "{{gprofiler_path}}"
+        mode: '0755'
+        owner: root
+        group: root
+      become: true
+    - name: Run gProfiler
+      shell: TMPDIR=$(dirname {{gprofiler_path}}) setsid {{gprofiler_path}} -cu --token="{{gprofiler_token | mandatory}}" --service-name="{{gprofiler_service | mandatory}}" {{gprofiler_args}} > /dev/null 2>&1 &
+      become: true

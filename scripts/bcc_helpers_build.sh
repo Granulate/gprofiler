@@ -14,8 +14,10 @@ LIBBPF_MAKE_FLAGS="BPFTOOL=/bpftool CLANG=clang-10 LLVM_STRIP=$LLVM_STRIP CFLAGS
 
 cd / && git clone -b aarch64 --depth=1 --recurse-submodules https://github.com/Jongy/bpf_get_fs_offset.git
 cd /bpf_get_fs_offset && git reset --hard 094e93f979308d46dffb8d4ea88823f68d53ba85
+# shellcheck disable=SC2086
 cd /bpf_get_fs_offset && make $LIBBPF_MAKE_FLAGS
 
 cd / && git clone -b aarch64 --depth=1 --recurse-submodules https://github.com/Jongy/bpf_get_stack_offset.git
 cd /bpf_get_stack_offset && git reset --hard d8b77ce6da674c38ad0bb856686fde1e63ad0814
+# shellcheck disable=SC2086
 cd /bpf_get_stack_offset && make $LIBBPF_MAKE_FLAGS

@@ -145,3 +145,7 @@ cython_debug/
 # Resources
 gprofiler/resources/*
 !gprofiler/resources/flamegraph
+
+# IDEs
+.idea
+.vscode

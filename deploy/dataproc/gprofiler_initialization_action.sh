@@ -21,5 +21,5 @@ fi
 
 wget --no-verbose https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler_$(uname -m) -O gprofiler
 sudo chmod +x gprofiler
-sudo sh -c "setsid ./gprofiler -cu --token '$GPROFILER_TOKEN' --service-name '$GPROFILER_SERVICE' $OUTPUT_REDIRECTION &"
+sudo sh -c "setsid ./gprofiler -cu --token='$GPROFILER_TOKEN' --service-name='$GPROFILER_SERVICE' $OUTPUT_REDIRECTION &"
 echo "gProfiler installed successfully."
