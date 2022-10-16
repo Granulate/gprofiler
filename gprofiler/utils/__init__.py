@@ -35,7 +35,7 @@ from psutil import Process
 from gprofiler.platform import is_linux, is_windows
 
 if is_windows():
-    import pythoncom  # type: ignore
+    import pythoncom
     import wmi  # type: ignore
 
 from gprofiler.exceptions import (
@@ -281,8 +281,10 @@ def run_process(
     return result
 
 
-def pgrep_exe(match: str) -> List[Process]:
-    if is_windows():
+if is_windows():
+
+    def pgrep_exe(match: str) -> List[Process]:
+        """psutil doesn't return all running python processes on Windows"""
         pythoncom.CoInitialize()
         w = wmi.WMI()
         return [
@@ -290,7 +292,10 @@ def pgrep_exe(match: str) -> List[Process]:
             for p in w.Win32_Process()
             if match in p.Name.lower() and p.ProcessId != os.getpid()
         ]
-    else:
+
+else:
+
+    def pgrep_exe(match: str) -> List[Process]:
         pattern = re.compile(match)
         procs = []
         for process in psutil.process_iter():

@@ -25,7 +25,7 @@ from tests.type_utils import assert_cast
 if is_linux():
     import fcntl
 else:
-    import netifaces  # type: ignore
+    import netifaces
 
 UNKNOWN_VALUE = "unknown"
 
