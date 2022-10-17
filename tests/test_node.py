@@ -67,3 +67,24 @@ def test_nodejs_attach_maps_from_container(
     )
     collapsed = parse_one_collapsed(collapsed_text)
     assert_collapsed(collapsed)
+
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("application_image_tag", ["18-alpine", "16-alpine", "14-alpine", "18-slim", "16-slim", "14-slim"])
+@pytest.mark.parametrize("profiler_type", ["attach-maps"])
+@pytest.mark.parametrize("runtime", ["nodejs"])
+def test_nodejs_matrix(
+    docker_client: DockerClient,
+    application_pid: int,
+    assert_collapsed: AssertInCollapsed,
+    gprofiler_docker_image: Image,
+    output_directory: Path,
+    output_collapsed: Path,
+    runtime_specific_args: List[str],
+    profiler_flags: List[str],
+    ) -> None:
+    _ = application_pid
+    collapsed_text = run_gprofiler_in_container_for_one_session(
+        docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags
+    )
+    collapsed = parse_one_collapsed(collapsed_text)
+    assert_collapsed(collapsed)

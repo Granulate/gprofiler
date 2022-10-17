@@ -240,6 +240,12 @@ def application_docker_image_configs() -> Mapping[str, Dict[str, Any]]:
         "nodejs": {
             "": dict(buildargs={"NODE_RUNTIME_FLAGS": "--perf-prof --interpreted-frames-native-stack"}),
             "without-flags": dict(buildargs={"NODE_RUNTIME_FLAGS": ""}),
+            "18-alpine": dict(dockerfile="matrix.Dockerfile", buildargs={"NODE_IMAGE_TAG": "18-alpine"}),
+            "16-alpine": dict(dockerfile="matrix.Dockerfile", buildargs={"NODE_IMAGE_TAG": "16-alpine"}),
+            "14-alpine": dict(dockerfile="matrix.Dockerfile", buildargs={"NODE_IMAGE_TAG": "14-alpine"}),
+            "18-slim": dict(dockerfile="matrix.Dockerfile", buildargs={"NODE_IMAGE_TAG": "18-slim"}),
+            "16-slim": dict(dockerfile="matrix.Dockerfile", buildargs={"NODE_IMAGE_TAG": "16-slim"}),
+            "14-slim": dict(dockerfile="matrix.Dockerfile", buildargs={"NODE_IMAGE_TAG": "14-slim"}),
         },
         "php": {
             "": {},
