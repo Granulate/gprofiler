@@ -6,8 +6,9 @@
         {
             "name": "granulate-gprofiler",
             "image": "index.docker.io/granulate/gprofiler:latest",
-            "memory": "1000",
-            "cpu": "500",
+            "memory": "1024",
+            "memoryReservation": "256",
+            "cpu": "128",
             "essential": true,
             "command": [
                 "-cu",
@@ -18,8 +19,6 @@
             "privileged": true
         }
     ],
-    "cpu": "500",
-    "memory": "1000",
     "networkMode": null,
     "pidMode": "host",
     "ipcMode": "host",
