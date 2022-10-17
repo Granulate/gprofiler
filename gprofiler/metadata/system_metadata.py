@@ -20,7 +20,6 @@ from granulate_utils.linux.ns import run_in_ns
 from gprofiler.log import get_logger_adapter
 from gprofiler.platform import is_linux, is_windows
 from gprofiler.utils import is_pyinstaller, run_process
-from tests.type_utils import assert_cast
 
 if is_linux():
     import fcntl
@@ -219,7 +218,9 @@ if is_windows():
                         continue
                     try:
                         if ipaddress.IPv4Address(address[ADDR_KEY]) is not None and address[ADDR_KEY] != LOOPBACK:
-                            return (assert_cast(str, mac_address), assert_cast(str, address[ADDR_KEY]))
+                            assert isinstance(mac_address, str)
+                            assert isinstance(address[ADDR_KEY], str)
+                            return (mac_address, address[ADDR_KEY])
                     except ipaddress.AddressValueError:
                         pass
         return UNKNOWN_VALUE, UNKNOWN_VALUE
