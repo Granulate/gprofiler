@@ -278,6 +278,22 @@ class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
 
 
 class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
+    def _add_from_args(self, args_line: str) -> List[str]:
+        # we don't split the line by spaces (to get individual arguments) because the JVM spits them unquoted
+        # so we can't really differentiate between arguments containing spaces and individual arguments.
+        # instead we'll just search the entire line, to allow a single expression to match on arguments
+        # like "--my-arg=5" as one argument, and "--my-arg", "5" as two arguments.
+        args = []
+        for flag_filter in (
+            self.enrichment_options.application_identifier_java_args_filters
+            if self.enrichment_options is not None
+            else []
+        ):
+            m = re.search(flag_filter, args_line)
+            if m is not None:
+                args.append(m.group())
+        return args
+
     def get_app_id(self, process: Process) -> Optional[str]:
         try:
             java_properties = run_process([jattach_path(), str(process.pid), "jcmd", "VM.command_line"]).stdout.decode()
@@ -285,18 +301,15 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
             java_args = []
             for line in java_properties.splitlines():
                 if line.startswith("jvm_args:"):
-                    if (
-                        self.enrichment_options is not None
-                        and self.enrichment_options.application_identifier_args_filters
-                    ):
-                        for arg in line[line.find(":") + 1 :].strip().split(" "):
-                            if any(
-                                re.search(flag_filter, arg)
-                                for flag_filter in self.enrichment_options.application_identifier_args_filters
-                            ):
-                                java_args.append(arg)
+                    # jvm_args contains all arguments passed to the JVM
+                    java_args.extend(self._add_from_args(line[len("jvm_args:") :].strip()))
+
                 if line.startswith("java_command:"):
-                    java_command = line[line.find(":") + 1 :].strip().split(" ", 1)[0]
+                    java_command_line = line[len("java_command:") :].strip()
+                    java_command = java_command_line.split(" ", 1)[0]
+                    # java_command contains all arguments passed to the Java application.
+                    java_args.extend(self._add_from_args(java_command_line))
+
             if java_command:
                 return f"java: {java_command}{' (' + ' '.join(java_args) + ')' if java_args else ''}"
         except CalledProcessError as e:

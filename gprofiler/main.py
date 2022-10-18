@@ -557,12 +557,14 @@ def parse_cmd_args() -> configargparse.Namespace:
         help="Disable identification of applications by heuristics",
     )
 
+    # this is specific for java, but placed here because it's used in this file and not
+    # in JavaProfiler
     parser.add_argument(
-        "--app-id-args-filter",
+        "--java-app-id-args-filter",
         action="append",
         default=list(),
         dest="app_id_args_filters",
-        help="A regex based filter for adding relevant arguments to the app id",
+        help="A regex based filter for adding relevant arguments to the Java app id",
     )
 
     parser.add_argument(
@@ -819,7 +821,7 @@ def main() -> None:
             profile_api_version=args.profile_api_version,
             container_names=args.container_names,
             application_identifiers=args.identify_applications,
-            application_identifier_args_filters=args.app_id_args_filters,
+            application_identifier_java_args_filters=args.app_id_args_filters,
             application_metadata=args.application_metadata,
         )
 

@@ -515,7 +515,7 @@ def _set_enrichment_options() -> None:
             profile_api_version=None,
             container_names=True,
             application_identifiers=True,
-            application_identifier_args_filters=[],
+            application_identifier_java_args_filters=[],
             application_metadata=True,
         )
     )
