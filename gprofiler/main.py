@@ -31,7 +31,7 @@ from gprofiler.databricks_client import DatabricksClient
 from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
-from gprofiler.merge import concatenate_profiles, merge_profiles
+from gprofiler.merge import concatenate_profiles, concatenate_profiles2, merge_profiles
 from gprofiler.metadata.application_identifiers import set_enrichment_options
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
@@ -283,6 +283,7 @@ class GProfiler:
                 exc_info=True,
             )
             raise
+        # this this this
         metadata = (
             get_current_metadata(cast(Metadata, self._static_metadata))
             if self._collect_metadata
@@ -311,7 +312,7 @@ class GProfiler:
 
         if self._output_dir:
             self._generate_output_files(merged_result, local_start_time, local_end_time)
-
+        # this this this
         if self._client:
             try:
                 response_dict = self._client.submit_profile(
@@ -380,6 +381,54 @@ class GProfiler:
                 if self._controller_process is not None and not is_process_running(self._controller_process):
                     logger.info(f"Controller process {self._controller_process.pid} has exited; gProfiler stopping...")
                     break
+
+
+def send_collapsed_file_only(args, client, enrichment_options):
+    spawn_time = time.time()
+    local_start_time = datetime.datetime.utcnow()
+    monotonic_start_time = time.monotonic()
+    gpid = ""
+    if args.collect_metadata:
+        static_metadata = get_static_metadata(spawn_time=spawn_time, run_args=args.__dict__)
+    metadata = (
+        get_current_metadata(cast(Metadata, static_metadata))
+        if args.collect_metadata
+        else {"hostname": get_hostname()}
+    )
+    if args.collect_metrics:
+        metrics = SystemMetricsMonitor(Event()).get_metrics()
+    else:
+        metrics = NoopSystemMetricsMonitor().get_metrics()
+
+    # container names man, remember them
+    merged_result, total_samples = concatenate_profiles2(
+        args.upload_collapsed_file,
+        None,
+        enrichment_options,
+        metadata,
+        metrics,
+    )
+    local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
+    try:
+        response_dict = client.submit_profile(
+            local_start_time,
+            local_end_time,
+            merged_result,
+            total_samples,
+            args.profile_api_version,
+            spawn_time,
+            metrics,
+            gpid,
+        )
+        gpid = response_dict.get("gpid", "")
+    except Timeout:
+        logger.error("Upload of profile to server timed out.")
+    except APIError as e:
+        logger.error(f"Error occurred sending profile to server: {e}")
+    except RequestException:
+        logger.exception("Error occurred sending profile to server")
+    else:
+        logger.info("Successfully uploaded profiling data to the server")
 
 
 def parse_cmd_args() -> configargparse.Namespace:
@@ -455,13 +504,19 @@ def parse_cmd_args() -> configargparse.Namespace:
         help="Log CPU & memory usage of gProfiler on each profiling iteration."
         " Currently works only if gProfiler runs as a container",
     )
-
     parser.add_argument(
         "-u",
         "--upload-results",
         action="store_true",
         default=False,
         help="Whether to upload the profiling results to the server",
+    )
+    parser.add_argument(
+        "--upload-collapsed-file",
+        action="store",
+        type=str,
+        default="",
+        help="Do not run profiling, just upload a pre-prepared collapsed file",
     )
     parser.add_argument("--server-host", default=GRANULATE_SERVER_HOST, help="Server host (default: %(default)s)")
     parser.add_argument(
@@ -796,7 +851,7 @@ def main() -> None:
                     get_hostname(),
                     **client_kwargs,
                 )
-                if args.upload_results
+                if args.upload_results or args.upload_collapsed_file != ""
                 else None
             )
         except APIError as e:
@@ -824,29 +879,32 @@ def main() -> None:
         )
 
         set_enrichment_options(enrichment_options)
-
-        gprofiler = GProfiler(
-            args.output_dir,
-            args.flamegraph,
-            args.rotating_output,
-            client,
-            args.collect_metrics,
-            args.collect_metadata,
-            enrichment_options,
-            state,
-            usage_logger,
-            args.__dict__,
-            args.duration,
-            args.profile_api_version,
-            args.profile_spawned_processes,
-            remote_logs_handler,
-            controller_process,
-        )
-        logger.info("gProfiler initialized and ready to start profiling")
-        if args.continuous:
-            gprofiler.run_continuous()
+        if args.upload_collapsed_file == "":
+            gprofiler = GProfiler(
+                args.output_dir,
+                args.flamegraph,
+                args.rotating_output,
+                client,
+                args.collect_metrics,
+                args.collect_metadata,
+                enrichment_options,
+                state,
+                usage_logger,
+                args.__dict__,
+                args.duration,
+                args.profile_api_version,
+                args.profile_spawned_processes,
+                remote_logs_handler,
+                controller_process,
+            )
+            logger.info("gProfiler initialized and ready to start profiling")
+            if args.continuous:
+                gprofiler.run_continuous()
+            else:
+                gprofiler.run_single()
         else:
-            gprofiler.run_single()
+            send_collapsed_file_only(args, client, enrichment_options)
+            logger.info("Job done boii")
 
     except KeyboardInterrupt:
         pass

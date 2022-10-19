@@ -332,6 +332,46 @@ def _enrich_and_finalize_stack(
     return f"{enrich_data.application_prefix}{enrich_data.container_prefix}{stack} {count}"
 
 
+def concatenate_profiles2(
+    collapsed_file_path: str,
+    container_names_client: Optional[ContainerNamesClient],
+    enrichment_options: EnrichmentOptions,
+    metadata: Metadata,
+    metrics: Metrics,
+) -> Tuple[str, int]:
+    """
+    Concatenate all stacks from all stack mappings in process_profiles.
+    Add "profile metadata" and metrics as the first line of the resulting collapsed file.
+    """
+    total_samples = 0
+    lines = []
+    # the metadata list always contains a "null" entry with index 0 - that's the index used for all
+    # processes for which we didn't collect any metadata.
+    application_metadata: List[Optional[Dict]] = [None]
+    with open(collapsed_file_path) as file:
+        for line in file:
+            total_samples += int(line.split(" ")[-1])
+            lines.append(line.rstrip())
+    # for pid, profile in process_profiles.items():
+    #     enrich_data = _enrich_pid_stacks(pid, profile, enrichment_options, container_names_client, application_metadata)
+    #     for stack, count in profile.stacks.items():
+    #         total_samples += count
+    #         lines.append(_enrich_and_finalize_stack(stack, count, enrichment_options, enrich_data))
+
+    lines.insert(
+        0,
+        _make_profile_metadata(
+            container_names_client,
+            enrichment_options.container_names,
+            metadata,
+            metrics,
+            application_metadata,
+            enrichment_options.application_metadata,
+        ),
+    )
+    return "\n".join(lines), total_samples
+
+
 def concatenate_profiles(
     process_profiles: ProcessToProfileData,
     container_names_client: Optional[ContainerNamesClient],
@@ -354,7 +394,7 @@ def concatenate_profiles(
         for stack, count in profile.stacks.items():
             total_samples += count
             lines.append(_enrich_and_finalize_stack(stack, count, enrichment_options, enrich_data))
-
+    logger.info(lines[0])
     lines.insert(
         0,
         _make_profile_metadata(
