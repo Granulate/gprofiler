@@ -69,7 +69,25 @@ def test_nodejs_attach_maps_from_container(
     assert_collapsed(collapsed)
 
 @pytest.mark.parametrize("in_container", [True])
-@pytest.mark.parametrize("application_image_tag", ["18-alpine", "16-alpine", "14-alpine", "18-slim", "16-slim", "14-slim"])
+@pytest.mark.parametrize(
+    "application_image_tag", 
+    [
+        "10-alpine",
+        "10-slim",
+        "11-alpine",
+        "11-slim",
+        "12-alpine",
+        "12-slim",
+        "13-alpine",
+        "13-slim",
+        "14-alpine",
+        "14-slim",
+        "15-alpine",
+        "15-slim",
+        "16-alpine",
+        "16-slim",
+    ],
+)
 @pytest.mark.parametrize("profiler_type", ["attach-maps"])
 @pytest.mark.parametrize("runtime", ["nodejs"])
 def test_nodejs_matrix(
