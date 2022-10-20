@@ -81,19 +81,19 @@ def test_twoprocesses_nodejs_attach_maps(
     profiler_flags: List[str],
     application_factory: Callable[[], _GeneratorContextManager],
 ) -> None:
-    with SystemProfiler(
-        1000,
-        6,
-        Event(),
-        str(tmp_path),
-        False,
-        perf_mode="fp",
-        perf_inject=False,
-        perf_dwarf_stack_size=0,
-        perf_node_attach=True,
-    ) as profiler:
-        with application_factory() as pid1:
-            with application_factory() as pid2:
+    with application_factory() as pid1:
+        with application_factory() as pid2:
+            with SystemProfiler(
+                1000,
+                6,
+                Event(),
+                str(tmp_path),
+                False,
+                perf_mode="fp",
+                perf_inject=False,
+                perf_dwarf_stack_size=0,
+                perf_node_attach=True,
+            ) as profiler:
                 process1_collapsed = snapshot_pid_collapsed(profiler, pid1)
                 assert_collapsed(process1_collapsed)
                 process2_collapsed = snapshot_pid_collapsed(profiler, pid2)
