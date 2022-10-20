@@ -350,7 +350,10 @@ def concatenate_from_external_file(
     application_metadata: List[Optional[Dict]] = [None]
     with open(collapsed_file_path) as file:
         for line in file:
-            total_samples += int(line.split(" ")[-1])
+            try:
+                total_samples += int(line.split(" ")[-1])
+            except:
+                logger.error("Collapsed profile line in a wrong format, cannot extract samples number")
             lines.append(line.rstrip())
 
     lines.insert(

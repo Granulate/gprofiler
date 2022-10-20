@@ -423,7 +423,7 @@ def send_collapsed_file_only(args, client, enrichment_options):
     except RequestException:
         logger.exception("Error occurred sending profile to server")
     else:
-        logger.info(f"Successfully uploaded profiling data from the {args.upload_collapsed_file} to the server")
+        logger.info(f"Successfully uploaded profiling data from the {os.path.basename(args.upload_collapsed_file)} to the server")
 
 
 def parse_cmd_args() -> configargparse.Namespace:
