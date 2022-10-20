@@ -352,7 +352,7 @@ def concatenate_from_external_file(
         for line in file:
             try:
                 total_samples += int(line.split(" ")[-1])
-            except:
+            except ValueError:
                 logger.error("Collapsed profile line in a wrong format, cannot extract samples number")
             lines.append(line.rstrip())
 

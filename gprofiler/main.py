@@ -31,7 +31,7 @@ from gprofiler.databricks_client import DatabricksClient
 from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
-from gprofiler.merge import concatenate_profiles, concatenate_from_external_file, merge_profiles
+from gprofiler.merge import concatenate_from_external_file, concatenate_profiles, merge_profiles
 from gprofiler.metadata.application_identifiers import set_enrichment_options
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
@@ -390,9 +390,7 @@ def send_collapsed_file_only(args, client, enrichment_options):
     if args.collect_metadata:
         static_metadata = get_static_metadata(spawn_time=spawn_time, run_args=args.__dict__)
     metadata = (
-        get_current_metadata(cast(Metadata, static_metadata))
-        if args.collect_metadata
-        else {"hostname": get_hostname()}
+        get_current_metadata(cast(Metadata, static_metadata)) if args.collect_metadata else {"hostname": get_hostname()}
     )
     metrics = NoopSystemMetricsMonitor().get_metrics()
     # TODO:container names man, remember them
@@ -423,7 +421,10 @@ def send_collapsed_file_only(args, client, enrichment_options):
     except RequestException:
         logger.exception("Error occurred sending profile to server")
     else:
-        logger.info(f"Successfully uploaded profiling data from the {os.path.basename(args.upload_collapsed_file)} to the server")
+        logger.info(
+            f"Successfully uploaded profiling data from the "
+            f"{os.path.basename(args.upload_collapsed_file)} to the server"
+        )
 
 
 def parse_cmd_args() -> configargparse.Namespace:
