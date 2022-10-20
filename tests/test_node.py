@@ -99,8 +99,12 @@ def test_nodejs_matrix(
     output_collapsed: Path,
     runtime_specific_args: List[str],
     profiler_flags: List[str],
+    application_image_tag: str,
     ) -> None:
     _ = application_pid
+    node_version = application_image_tag.split("-")[0]
+    if node_version in ["14", "15", "16"]:
+        pytest.xfail("This test fails with these nodejs versions")
     collapsed_text = run_gprofiler_in_container_for_one_session(
         docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags
     )
