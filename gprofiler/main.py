@@ -283,7 +283,6 @@ class GProfiler:
                 exc_info=True,
             )
             raise
-        # this this this
         metadata = (
             get_current_metadata(cast(Metadata, self._static_metadata))
             if self._collect_metadata
@@ -312,7 +311,7 @@ class GProfiler:
 
         if self._output_dir:
             self._generate_output_files(merged_result, local_start_time, local_end_time)
-        # this this this
+
         if self._client:
             try:
                 response_dict = self._client.submit_profile(
@@ -424,7 +423,7 @@ def send_collapsed_file_only(args, client, enrichment_options):
     except RequestException:
         logger.exception("Error occurred sending profile to server")
     else:
-        logger.info("Successfully uploaded profiling data from the {} to the server", args.args.upload_collapsed_file)
+        logger.info(f"Successfully uploaded profiling data from the {args.upload_collapsed_file} to the server")
 
 
 def parse_cmd_args() -> configargparse.Namespace:
@@ -500,6 +499,7 @@ def parse_cmd_args() -> configargparse.Namespace:
         help="Log CPU & memory usage of gProfiler on each profiling iteration."
         " Currently works only if gProfiler runs as a container",
     )
+
     parser.add_argument(
         "-u",
         "--upload-results",

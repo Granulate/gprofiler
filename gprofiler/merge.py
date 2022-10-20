@@ -389,7 +389,7 @@ def concatenate_profiles(
         for stack, count in profile.stacks.items():
             total_samples += count
             lines.append(_enrich_and_finalize_stack(stack, count, enrichment_options, enrich_data))
-    logger.info(lines[0])
+
     lines.insert(
         0,
         _make_profile_metadata(
