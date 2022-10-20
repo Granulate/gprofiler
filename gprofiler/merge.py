@@ -332,7 +332,7 @@ def _enrich_and_finalize_stack(
     return f"{enrich_data.application_prefix}{enrich_data.container_prefix}{stack} {count}"
 
 
-def concatenate_profiles2(
+def concatenate_from_external_file(
     collapsed_file_path: str,
     container_names_client: Optional[ContainerNamesClient],
     enrichment_options: EnrichmentOptions,
@@ -352,11 +352,6 @@ def concatenate_profiles2(
         for line in file:
             total_samples += int(line.split(" ")[-1])
             lines.append(line.rstrip())
-    # for pid, profile in process_profiles.items():
-    #     enrich_data = _enrich_pid_stacks(pid, profile, enrichment_options, container_names_client, application_metadata)
-    #     for stack, count in profile.stacks.items():
-    #         total_samples += count
-    #         lines.append(_enrich_and_finalize_stack(stack, count, enrichment_options, enrich_data))
 
     lines.insert(
         0,

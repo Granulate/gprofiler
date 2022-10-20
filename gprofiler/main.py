@@ -31,7 +31,7 @@ from gprofiler.databricks_client import DatabricksClient
 from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
-from gprofiler.merge import concatenate_profiles, concatenate_profiles2, merge_profiles
+from gprofiler.merge import concatenate_profiles, concatenate_from_external_file, merge_profiles
 from gprofiler.metadata.application_identifiers import set_enrichment_options
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
@@ -395,13 +395,9 @@ def send_collapsed_file_only(args, client, enrichment_options):
         if args.collect_metadata
         else {"hostname": get_hostname()}
     )
-    if args.collect_metrics:
-        metrics = SystemMetricsMonitor(Event()).get_metrics()
-    else:
-        metrics = NoopSystemMetricsMonitor().get_metrics()
-
-    # container names man, remember them
-    merged_result, total_samples = concatenate_profiles2(
+    metrics = NoopSystemMetricsMonitor().get_metrics()
+    # TODO:container names man, remember them
+    merged_result, total_samples = concatenate_from_external_file(
         args.upload_collapsed_file,
         None,
         enrichment_options,
@@ -428,7 +424,7 @@ def send_collapsed_file_only(args, client, enrichment_options):
     except RequestException:
         logger.exception("Error occurred sending profile to server")
     else:
-        logger.info("Successfully uploaded profiling data to the server")
+        logger.info("Successfully uploaded profiling data from the {} to the server", args.args.upload_collapsed_file)
 
 
 def parse_cmd_args() -> configargparse.Namespace:
@@ -904,7 +900,6 @@ def main() -> None:
                 gprofiler.run_single()
         else:
             send_collapsed_file_only(args, client, enrichment_options)
-            logger.info("Job done boii")
 
     except KeyboardInterrupt:
         pass
