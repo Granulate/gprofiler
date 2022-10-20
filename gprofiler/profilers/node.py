@@ -142,14 +142,16 @@ def _change_dso_state(sock: WebSocket, module_path: str, action: str) -> None:
         },
     }
     _send_socket_request(sock, cdp_request)
-    # Close debugger
+
+
+def _close_debugger(sock: WebSocket) -> None:
     cdp_request = {
-        "id": 1,
-        "method": "Runtime.evaluate",
-        "params": {
-            "expression": 'process._debugEnd()',
-            "replMode": True,
-        },
+    "id": 1,
+    "method": "Runtime.evaluate",
+    "params": {
+        "expression": 'process._debugEnd()',
+        "replMode": True,
+    },
     }
     sock.send(json.dumps(cdp_request))
     sock.recv()
@@ -193,12 +195,14 @@ def _copy_module_into_process_ns(process: psutil.Process, musl: bool, version: s
 def _generate_perf_map(module_path: str, nspid: int, ns_link_name: str) -> None:
     sock = create_debugger_socket(nspid, ns_link_name)
     _change_dso_state(sock, module_path, "start")
+    _close_debugger(sock)
 
 
 def _clean_up(module_path: str, nspid: int, ns_link_name: str) -> None:
     sock = create_debugger_socket(nspid, ns_link_name)
     try:
         _change_dso_state(sock, module_path, "stop")
+        _close_debugger(sock)
     finally:
         os.remove(os.path.join("/tmp", f"perf-{nspid}.map"))
 
