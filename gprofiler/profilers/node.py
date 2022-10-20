@@ -146,12 +146,12 @@ def _change_dso_state(sock: WebSocket, module_path: str, action: str) -> None:
 
 def _close_debugger(sock: WebSocket) -> None:
     cdp_request = {
-    "id": 1,
-    "method": "Runtime.evaluate",
-    "params": {
-        "expression": 'process._debugEnd()',
-        "replMode": True,
-    },
+        "id": 1,
+        "method": "Runtime.evaluate",
+        "params": {
+            "expression": 'process._debugEnd()',
+            "replMode": True,
+        },
     }
     sock.send(json.dumps(cdp_request))
     sock.recv()
