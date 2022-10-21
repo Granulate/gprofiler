@@ -114,6 +114,7 @@ Aggregations are only available when uploading to the Granulate Performance Stud
 ### Uploading profiling data from another source
 gProfiler can be used to upload external .col file to Granulate Performance Studio by using `--upload-collapsed-file <path-to-.col>` flag.
 In case of gProfiler run volume mapping flag must be added. Example: `docker run --name granulate-gprofiler -v <path-to.col>:/home/outputdir/ --pid=host --userns=host --privileged  gprofiler:latest --token=<token> --service-name="<service>" --upload-collapsed-file /home/outputdir/<name>.col`
+It is also possible to add custom start and end time (int the form of UTC timestamps) to the metadata, so that it will be properly categorized in the Granulate Performance Studio (i.e. `# {"start_time": "2022-10-21 13:51:29.640637","end_time": "2022-10-21 13:54:29.640637", ...`)
 
 # Run as...
 

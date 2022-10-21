@@ -395,8 +395,8 @@ def send_collapsed_file_only(args, client, enrichment_options):
     )
     local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
     if start_time is not None and end_time is not None:
-        local_start_time = start_time
-        local_end_time = end_time
+        local_start_time = datetime.datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S.%f")
+        local_end_time = datetime.datetime.strptime(end_time, "%Y-%m-%d %H:%M:%S.%f")
     try:
         response_dict = client.submit_profile(
             local_start_time,
@@ -657,8 +657,8 @@ def parse_cmd_args() -> configargparse.Namespace:
         if not args.service_name and not args.databricks_job_name_as_service_name:
             parser.error("Must provide --service-name when --upload-results is passed")
 
-    if not args.upload_results and not args.output_dir:
-        parser.error("Must pass at least one output method (--upload-results / --output-dir)")
+    if not args.upload_results and not args.output_dir and not args.upload_collapsed_file:
+        parser.error("Must pass at least one output method (--upload-results / --output-dir / --upload-collapsed-file)")
 
     if args.perf_dwarf_stack_size > 65528:
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
