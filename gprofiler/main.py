@@ -387,21 +387,16 @@ def send_collapsed_file_only(args, client, enrichment_options):
     local_start_time = datetime.datetime.utcnow()
     monotonic_start_time = time.monotonic()
     gpid = ""
-    if args.collect_metadata:
-        static_metadata = get_static_metadata(spawn_time=spawn_time, run_args=args.__dict__)
-    metadata = (
-        get_current_metadata(cast(Metadata, static_metadata)) if args.collect_metadata else {"hostname": get_hostname()}
-    )
     metrics = NoopSystemMetricsMonitor().get_metrics()
-    # TODO:container names man, remember them
-    merged_result, total_samples = concatenate_from_external_file(
+    # TODO:container names, application metadata, remember them
+    start_time, end_time, merged_result, total_samples = concatenate_from_external_file(
         args.upload_collapsed_file,
         None,
-        enrichment_options,
-        metadata,
-        metrics,
     )
     local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
+    if start_time is not None and end_time is not None:
+        local_start_time = start_time
+        local_end_time = end_time
     try:
         response_dict = client.submit_profile(
             local_start_time,
@@ -512,7 +507,7 @@ def parse_cmd_args() -> configargparse.Namespace:
         "--upload-collapsed-file",
         action="store",
         type=str,
-        default="",
+        default=None,
         help="Do not run profiling, just upload a pre-prepared collapsed file",
     )
     parser.add_argument("--server-host", default=GRANULATE_SERVER_HOST, help="Server host (default: %(default)s)")
@@ -848,7 +843,7 @@ def main() -> None:
                     get_hostname(),
                     **client_kwargs,
                 )
-                if args.upload_results or args.upload_collapsed_file != ""
+                if args.upload_results or args.upload_collapsed_file is not None
                 else None
             )
         except APIError as e:
@@ -876,7 +871,7 @@ def main() -> None:
         )
 
         set_enrichment_options(enrichment_options)
-        if args.upload_collapsed_file == "":
+        if args.upload_collapsed_file is None:
             gprofiler = GProfiler(
                 args.output_dir,
                 args.flamegraph,

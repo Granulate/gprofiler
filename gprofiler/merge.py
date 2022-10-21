@@ -335,39 +335,32 @@ def _enrich_and_finalize_stack(
 def concatenate_from_external_file(
     collapsed_file_path: str,
     container_names_client: Optional[ContainerNamesClient],
-    enrichment_options: EnrichmentOptions,
-    metadata: Metadata,
-    metrics: Metrics,
-) -> Tuple[str, int]:
+) -> Tuple[str, str, str, int]:
     """
     Concatenate all stacks from all stack mappings in process_profiles.
     Add "profile metadata" and metrics as the first line of the resulting collapsed file.
     """
     total_samples = 0
     lines = []
-    # the metadata list always contains a "null" entry with index 0 - that's the index used for all
-    # processes for which we didn't collect any metadata.
-    application_metadata: List[Optional[Dict]] = [None]
+    start_time = None
+    end_time = None
+    # TODO: container names and application metadata
     with open(collapsed_file_path) as file:
-        for line in file:
-            try:
-                total_samples += int(line.split(" ")[-1])
-            except ValueError:
-                logger.error("Collapsed profile line in a wrong format, cannot extract samples number")
-            lines.append(line.rstrip())
-
-    lines.insert(
-        0,
-        _make_profile_metadata(
-            container_names_client,
-            enrichment_options.container_names,
-            metadata,
-            metrics,
-            application_metadata,
-            enrichment_options.application_metadata,
-        ),
-    )
-    return "\n".join(lines), total_samples
+        for index, line in enumerate(file):
+            if index == 0:
+                data = json.loads(line[2:])
+                try:
+                    start_time = data["start_time"]
+                    end_time = data["end_time"]
+                except KeyError:
+                    pass
+            else:
+                try:
+                    total_samples += int(line.split(" ")[-1])
+                except ValueError:
+                    logger.error("Collapsed profile line in a wrong format, cannot extract samples number")
+                lines.append(line.rstrip())
+    return start_time, end_time, "\n".join(lines), total_samples
 
 
 def concatenate_profiles(

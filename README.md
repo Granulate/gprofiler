@@ -113,7 +113,7 @@ Aggregations are only available when uploading to the Granulate Performance Stud
 
 ### Uploading profiling data from another source
 gProfiler can be used to upload external .col file to Granulate Performance Studio by using `--upload-collapsed-file <path-to-.col>` flag.
-In case of gProfiler run volume mapping flag must be added. Example: `docker run --name granulate-gprofiler -v <path-to.col>:/home/outputdir/ --pid=host --userns=host --privileged  gprofiler:latest --token=<token> --service-name="<service>" --upload-collapsed-file /home/outputdir/<name>.col -u`
+In case of gProfiler run volume mapping flag must be added. Example: `docker run --name granulate-gprofiler -v <path-to.col>:/home/outputdir/ --pid=host --userns=host --privileged  gprofiler:latest --token=<token> --service-name="<service>" --upload-collapsed-file /home/outputdir/<name>.col`
 
 # Run as...
 
