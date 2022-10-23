@@ -300,7 +300,6 @@ else:
         procs = []
         for process in psutil.process_iter():
             try:
-                # kernel threads should be child of process with pid 2
                 if not is_kernel_thread(process) and pattern.match(process_exe(process)):
                     procs.append(process)
             except psutil.NoSuchProcess:  # process might have died meanwhile
