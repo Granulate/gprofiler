@@ -29,7 +29,7 @@ import psutil
 from granulate_utils.exceptions import CouldNotAcquireMutex
 from granulate_utils.linux.mutex import try_acquire_mutex
 from granulate_utils.linux.ns import run_in_ns
-from granulate_utils.linux.process import process_exe
+from granulate_utils.linux.process import is_kernel_thread, process_exe
 from psutil import Process
 
 from gprofiler.platform import is_linux, is_windows
@@ -301,7 +301,7 @@ else:
         for process in psutil.process_iter():
             try:
                 # kernel threads should be child of process with pid 2
-                if process.pid != 2 and process.ppid() != 2 and pattern.match(process_exe(process)):
+                if (not is_kernel_thread(process)) and pattern.match(process_exe(process)):
                     procs.append(process)
             except psutil.NoSuchProcess:  # process might have died meanwhile
                 continue
