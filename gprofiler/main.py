@@ -15,7 +15,7 @@ import traceback
 from pathlib import Path
 from threading import Event
 from types import FrameType, TracebackType
-from typing import Iterable, Optional, Type, cast
+from typing import Dict, Iterable, Optional, Type, cast
 
 import configargparse
 from granulate_utils.linux.ns import is_running_in_init_pid
@@ -40,7 +40,7 @@ from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.state import State, init_state
-from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
+from gprofiler.system_metrics import Metrics, NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
 from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLoggerInterface
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
@@ -313,26 +313,17 @@ class GProfiler:
             self._generate_output_files(merged_result, local_start_time, local_end_time)
 
         if self._client:
-            try:
-                response_dict = self._client.submit_profile(
-                    local_start_time,
-                    local_end_time,
-                    merged_result,
-                    total_samples,
-                    self._profile_api_version,
-                    self._spawn_time,
-                    metrics,
-                    self._gpid,
-                )
-                self._gpid = response_dict.get("gpid", "")
-            except Timeout:
-                logger.error("Upload of profile to server timed out.")
-            except APIError as e:
-                logger.error(f"Error occurred sending profile to server: {e}")
-            except RequestException:
-                logger.exception("Error occurred sending profile to server")
-            else:
-                logger.info("Successfully uploaded profiling data to the server")
+            _submit_profile_logged(
+                self._client,
+                local_start_time,
+                local_end_time,
+                merged_result,
+                total_samples,
+                self._profile_api_version,
+                self._spawn_time,
+                metrics,
+                self._gpid,
+            )
 
     def _send_remote_logs(self) -> None:
         """
@@ -382,28 +373,24 @@ class GProfiler:
                     break
 
 
-def send_collapsed_file_only(args, client, enrichment_options):
-    spawn_time = time.time()
-    local_start_time = datetime.datetime.utcnow()
-    monotonic_start_time = time.monotonic()
-    gpid = ""
-    metrics = NoopSystemMetricsMonitor().get_metrics()
-    # TODO:container names, application metadata, remember them
-    start_time, end_time, merged_result, total_samples = concatenate_from_external_file(
-        args.upload_collapsed_file,
-        None,
-    )
-    local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
-    if start_time is not None and end_time is not None:
-        local_start_time = datetime.datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S.%f")
-        local_end_time = datetime.datetime.strptime(end_time, "%Y-%m-%d %H:%M:%S.%f")
+def _submit_profile_logged(
+    client: APIClient,
+    start_time: datetime.datetime,
+    end_time: datetime.datetime,
+    profile: str,
+    total_samples: int,
+    profile_api_version: Optional[str],
+    spawn_time: float,
+    metrics: "Metrics",
+    gpid: str,
+) -> Dict:
     try:
         response_dict = client.submit_profile(
-            local_start_time,
-            local_end_time,
-            merged_result,
+            start_time,
+            end_time,
+            profile,
             total_samples,
-            args.profile_api_version,
+            profile_api_version,
             spawn_time,
             metrics,
             gpid,
@@ -416,10 +403,42 @@ def send_collapsed_file_only(args, client, enrichment_options):
     except RequestException:
         logger.exception("Error occurred sending profile to server")
     else:
-        logger.info(
-            f"Successfully uploaded profiling data from the "
-            f"{os.path.basename(args.upload_collapsed_file)} to the server"
-        )
+        logger.info("Successfully uploaded profiling data to the server")
+
+
+def send_collapsed_file_only(args, client, enrichment_options):
+    spawn_time = time.time()
+    gpid = ""
+    metrics = NoopSystemMetricsMonitor().get_metrics()
+    if args.collect_metadata:
+        _static_metadata = get_static_metadata(spawn_time=spawn_time, run_args=args.__dict__)
+    metadata = (
+        get_current_metadata(cast(Metadata, _static_metadata))
+        if args.collect_metadata
+        else {"hostname": get_hostname()}
+    )
+    # TODO:container names, application metadata
+    local_start_time, local_end_time, merged_result, total_samples = concatenate_from_external_file(
+        args.upload_collapsed_file,
+        metadata,
+    )
+
+    if local_start_time is None and local_end_time is None:
+        assert (
+            local_start_time is None and local_end_time is None
+        ), "both start_time and end_time should be set, or none of them"
+        local_start_time = local_end_time = datetime.datetime.utcnow()
+    _submit_profile_logged(
+        client,
+        local_start_time,
+        local_end_time,
+        merged_result,
+        total_samples,
+        args.profile_api_version,
+        spawn_time,
+        metrics,
+        gpid,
+    )
 
 
 def parse_cmd_args() -> configargparse.Namespace:

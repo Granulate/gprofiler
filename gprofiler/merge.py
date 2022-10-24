@@ -2,6 +2,7 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import datetime
 import json
 import math
 import random
@@ -332,9 +333,20 @@ def _enrich_and_finalize_stack(
     return f"{enrich_data.application_prefix}{enrich_data.container_prefix}{stack} {count}"
 
 
+def _merge_metadata(primary, secondary):
+    for key, value in primary.items():
+        # in case value is a dict itself
+        if isinstance(value, dict):
+            node = secondary.setdefault(key, {})
+            _merge_metadata(value, node)
+        else:
+            secondary[key] = value
+    return secondary
+
+
 def concatenate_from_external_file(
     collapsed_file_path: str,
-    container_names_client: Optional[ContainerNamesClient],
+    obtained_metadata: Metadata,
 ) -> Tuple[str, str, str, int]:
     """
     Concatenate all stacks from all stack mappings in process_profiles.
@@ -344,21 +356,18 @@ def concatenate_from_external_file(
     lines = []
     start_time = None
     end_time = None
+
     # TODO: container names and application metadata
     with open(collapsed_file_path) as file:
-        for index, line in enumerate(file):
+        for index, line in file:
             if index == 0:
-                data = json.loads(line[2:])
+                read_metadata = json.loads(line[2:])
+                metadata = _merge_metadata(read_metadata, obtained_metadata)
                 try:
-                    start_time = data["start_time"]
-                    end_time = data["end_time"]
+                    start_time = datetime.datetime.strptime(metadata["start_time"], "%Y-%m-%dT%H:%M:%S.%f")
+                    end_time = datetime.datetime.strptime(metadata["end_time"], "%Y-%m-%dT%H:%M:%S.%f")
                 except KeyError:
                     pass
-            else:
-                try:
-                    total_samples += int(line.split(" ")[-1])
-                except ValueError:
-                    logger.error("Collapsed profile line in a wrong format, cannot extract samples number")
             lines.append(line.rstrip())
 
     return start_time, end_time, "\n".join(lines), total_samples
