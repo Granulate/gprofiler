@@ -68,45 +68,50 @@ def test_nodejs_attach_maps_from_container(
     collapsed = parse_one_collapsed(collapsed_text)
     assert_collapsed(collapsed)
 
+
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize(
-    "application_image_tag", 
+    "application_image_tag",
     [
-        "10-alpine",
-        "10-slim",
-        "11-alpine",
-        "11-slim",
-        "12-alpine",
-        "12-slim",
-        "13-alpine",
-        "13-slim",
-        "14-alpine",
-        "14-slim",
-        "15-alpine",
-        "15-slim",
-        "16-alpine",
-        "16-slim",
+        "10-glibc",
+        "10-musl",
+        "11-glibc",
+        "11-musl",
+        "12-glibc",
+        "12-musl",
+        "13-glibc",
+        "13-musl",
+        "14-glibc",
+        "14-musl",
+        "15-glibc",
+        "15-musl",
+        "16-glibc",
+        "16-musl",
     ],
 )
 @pytest.mark.parametrize("profiler_type", ["attach-maps"])
 @pytest.mark.parametrize("runtime", ["nodejs"])
 def test_nodejs_matrix(
-    docker_client: DockerClient,
+    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
-    gprofiler_docker_image: Image,
-    output_directory: Path,
-    output_collapsed: Path,
     runtime_specific_args: List[str],
     profiler_flags: List[str],
     application_image_tag: str,
-    ) -> None:
-    _ = application_pid
+) -> None:
     node_version = application_image_tag.split("-")[0]
     if node_version in ["14", "15", "16"]:
-        pytest.xfail("This test fails with these nodejs versions")
-    collapsed_text = run_gprofiler_in_container_for_one_session(
-        docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags
-    )
-    collapsed = parse_one_collapsed(collapsed_text)
-    assert_collapsed(collapsed)
+        pytest.xfail("This test fails with these nodejs versions, see https://github.com/Granulate/gprofiler/issues/550")
+    with SystemProfiler(
+        1000,
+        6,
+        Event(),
+        str(tmp_path),
+        False,
+        perf_mode="fp",
+        perf_inject=False,
+        perf_dwarf_stack_size=0,
+        perf_node_attach=True,
+    ) as profiler:
+        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
+        assert_collapsed(process_collapsed)
