@@ -36,6 +36,7 @@ from gprofiler.metadata.application_identifiers import set_enrichment_options
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
+from gprofiler.platform import is_linux, is_windows
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
@@ -163,6 +164,8 @@ class GProfiler:
     def _update_last_output(self, last_output_name: str, output_path: str) -> None:
         last_output = os.path.join(self._output_dir, last_output_name)
         prev_output = Path(last_output).resolve()
+        if is_windows() and os.path.exists(last_output):
+            os.remove(last_output)
         atomically_symlink(os.path.basename(output_path), last_output)
         # delete if rotating & there was a link target before.
         if self._rotating_output and os.path.basename(prev_output) != last_output_name:
@@ -666,7 +669,7 @@ def verify_preconditions(args: configargparse.Namespace) -> None:
         sys.exit(1)
 
     try:
-        if not grab_gprofiler_mutex():
+        if is_linux() and not grab_gprofiler_mutex():
             sys.exit(0)
     except Exception:
         traceback.print_exc()
