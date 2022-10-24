@@ -124,11 +124,11 @@ def _execute_js_command(sock: WebSocket, command: str) -> Any:
     try:
         message = json.loads(message)
     except json.JSONDecodeError:
-        raise NodeDebuggerUnexpectedResponse(message)
+        raise NodeDebuggerUnexpectedResponse(message) from None
     try:
         return message["result"]["result"]["value"]
     except KeyError:
-        raise NodeDebuggerUnexpectedResponse(message)
+        raise NodeDebuggerUnexpectedResponse(message) from None
 
 
 def _change_dso_state(sock: WebSocket, module_path: str, action: str) -> None:
