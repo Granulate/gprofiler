@@ -412,10 +412,8 @@ def test_java_async_profiler_buildids(
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         # path buildid+0xoffset_[bid]
         # we check for libc because it has undefined symbols in all profiles :shrug:
-        libc_relative_path = remove_prefix(libc, f'/proc/{application_pid}/root/')
-        assert_function_in_collapsed(
-            f"({libc_relative_path}) {buildid}+0x", process_collapsed
-        )
+        libc_relative_path = remove_prefix(libc, f"/proc/{application_pid}/root/")
+        assert_function_in_collapsed(f"({libc_relative_path}) {buildid}+0x", process_collapsed)
         assert_function_in_collapsed("_[bid]", process_collapsed)
 
 

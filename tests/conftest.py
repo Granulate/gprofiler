@@ -238,10 +238,18 @@ def application_docker_image_configs() -> Mapping[str, Dict[str, Any]]:
             "thread_comm": dict(dockerfile="thread_comm.Dockerfile"),
         },
         "nodejs": {
-            "": dict(buildargs={"NODE_RUNTIME_FLAGS": "--perf-prof --interpreted-frames-native-stack",
-                                "NODE_IMAGE_TAG": "node@sha256:59531d2835edd5161c8f9512f9e095b1836f7a1fcb0ab73e005ec46047384911"}),
-            "without-flags": dict(buildargs={"NODE_RUNTIME_FLAGS": "",
-                                             "NODE_IMAGE_TAG": "node@sha256:59531d2835edd5161c8f9512f9e095b1836f7a1fcb0ab73e005ec46047384911"}),
+            "": dict(
+                buildargs={
+                    "NODE_RUNTIME_FLAGS": "--perf-prof --interpreted-frames-native-stack",
+                    "NODE_IMAGE_TAG": "node@sha256:59531d2835edd5161c8f9512f9e095b1836f7a1fcb0ab73e005ec46047384911",
+                }
+            ),
+            "without-flags": dict(
+                buildargs={
+                    "NODE_RUNTIME_FLAGS": "",
+                    "NODE_IMAGE_TAG": "node@sha256:59531d2835edd5161c8f9512f9e095b1836f7a1fcb0ab73e005ec46047384911",
+                }
+            ),
             "10-glibc": dict(buildargs={"NODE_IMAGE_TAG": "10-slim"}),
             "10-musl": dict(buildargs={"NODE_IMAGE_TAG": "10.24.1-alpine"}),
             "11-glibc": dict(buildargs={"NODE_IMAGE_TAG": "11-slim"}),
