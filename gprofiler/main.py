@@ -18,6 +18,9 @@ from types import FrameType, TracebackType
 from typing import Iterable, Optional, Type, cast
 
 import configargparse
+from granulate_utils.exceptions import AlreadyInCgroup, UnsupportedCGroupV2
+from granulate_utils.linux.cgroups.cpu_cgroup import CpuCgroup
+from granulate_utils.linux.cgroups.memory_cgroup import MemoryCgroup
 from granulate_utils.linux.ns import is_running_in_init_pid
 from granulate_utils.linux.process import is_process_running
 from granulate_utils.metadata import Metadata
@@ -602,6 +605,30 @@ def parse_cmd_args() -> configargparse.Namespace:
         " beginning of a session.",
     )
 
+    parser.add_argument(
+        "--limit-memory",
+        default=(1 << 30),  # 1Gi, same as in the k8s DaemonSet
+        dest="memory_limit",
+        type=int,
+        help="Limit on the memory used by gProfiler."
+    )
+
+    parser.add_argument(
+        "--limit-cpu",
+        default=0.5,  # 500m, same as in the k8s DaemonSet
+        dest="cpu_limit",
+        type=float,
+        help="Limit on the cpu used by gProfiler."
+    )
+
+    parser.add_argument(
+        "--no-cgroups",
+        action="store_true",
+        dest="disable_cgroups",
+        default=False,
+        help="Disable the cgroups changes.",
+    )
+
     args = parser.parse_args()
 
     args.perf_inject = args.nodejs_mode == "perf"
@@ -723,6 +750,35 @@ def init_pid_file(pid_file: str) -> None:
     Path(pid_file).write_text(str(os.getpid()))
 
 
+def set_limits(cpu: float, memory: int) -> None:
+    cgroups = {}
+    logger.debug("Check if cgroup version is supported.")
+    try:
+        cgroups["cpu"] = CpuCgroup()
+        cgroups["memory"] = MemoryCgroup()
+    except UnsupportedCGroupV2:
+        logger.error("cgroup v2 is not supported by gProfiler, cpu and memory limits wouldn't be set.")
+        return
+
+    logger.debug("Prepare gProfiler cpu cgroup.")
+    try:
+        cgroups["cpu"].move_to_cgroup("gprofiler", os.getpid())
+    except AlreadyInCgroup:
+        logger.warning("gProfiler have already a cpu group.")
+
+    logger.debug("Set cpu limit in the cgroup.")
+    cgroups["cpu"].set_cpu_limit_cores(cpu)
+
+    logger.debug("Prepare gProfiler memory cgroup.")
+    try:
+        cgroups["memory"].move_to_cgroup("gprofiler", os.getpid())
+    except AlreadyInCgroup:
+        logger.warning("gProfiler have already a memory group.")
+
+    logger.debug("Set memory limit in the cgroup.")
+    cgroups["memory"].set_limit_in_bytes(memory)
+
+
 def main() -> None:
     args = parse_cmd_args()
     verify_preconditions(args)
@@ -737,6 +793,14 @@ def main() -> None:
         args.log_rotate_backup_count,
         remote_logs_handler,
     )
+
+    # check if there is no kill switch for managing cgroups
+    if not args.disable_cgroups:
+        logger.info(f"Trying to set resource limits, cpu='{args.cpu_limit}' and memory='{args.memory_limit}'.")
+        try:
+            set_limits(args.cpu_limit, args.memory_limit)
+        except Exception:
+            logger.exception("Failed to set resource limits, continuing anyway")
 
     setup_signals()
     reset_umask()
