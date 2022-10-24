@@ -9,7 +9,7 @@ import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional
 
 from granulate_utils.metadata import Metadata
 
@@ -338,12 +338,11 @@ def concatenate_profiles(
     enrichment_options: EnrichmentOptions,
     metadata: Metadata,
     metrics: Metrics,
-) -> Tuple[str, int]:
+) -> str:
     """
     Concatenate all stacks from all stack mappings in process_profiles.
     Add "profile metadata" and metrics as the first line of the resulting collapsed file.
     """
-    total_samples = 0
     lines = []
     # the metadata list always contains a "null" entry with index 0 - that's the index used for all
     # processes for which we didn't collect any metadata.
@@ -352,7 +351,6 @@ def concatenate_profiles(
     for pid, profile in process_profiles.items():
         enrich_data = _enrich_pid_stacks(pid, profile, enrichment_options, container_names_client, application_metadata)
         for stack, count in profile.stacks.items():
-            total_samples += count
             lines.append(_enrich_and_finalize_stack(stack, count, enrichment_options, enrich_data))
 
     lines.insert(
@@ -366,7 +364,7 @@ def concatenate_profiles(
             enrichment_options.application_metadata,
         ),
     )
-    return "\n".join(lines), total_samples
+    return "\n".join(lines)
 
 
 def merge_profiles(
@@ -376,7 +374,7 @@ def merge_profiles(
     enrichment_options: EnrichmentOptions,
     metadata: Metadata,
     metrics: Metrics,
-) -> Tuple[str, int]:
+) -> str:
     # merge process profiles into the global perf results.
     for pid, profile in process_profiles.items():
         if len(profile.stacks) == 0:
