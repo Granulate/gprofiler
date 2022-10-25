@@ -359,7 +359,7 @@ def concatenate_from_external_file(
 
     # TODO: container names and application metadata
     with open(collapsed_file_path) as file:
-        for index, line in file:
+        for index, line in enumerate(file):
             if index == 0:
                 read_metadata = json.loads(line[2:])
                 metadata = _merge_metadata(read_metadata, obtained_metadata)

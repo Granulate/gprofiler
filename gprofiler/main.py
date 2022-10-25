@@ -406,7 +406,7 @@ def _submit_profile_logged(
         logger.info("Successfully uploaded profiling data to the server")
 
 
-def send_collapsed_file_only(args, client, enrichment_options):
+def send_collapsed_file_only(args, client):
     spawn_time = time.time()
     gpid = ""
     metrics = NoopSystemMetricsMonitor().get_metrics()
@@ -419,7 +419,7 @@ def send_collapsed_file_only(args, client, enrichment_options):
     )
     # TODO:container names, application metadata
     local_start_time, local_end_time, merged_result, total_samples = concatenate_from_external_file(
-        args.upload_collapsed_file,
+        args.file_path,
         metadata,
     )
 
@@ -522,25 +522,34 @@ def parse_cmd_args() -> configargparse.Namespace:
         default=False,
         help="Whether to upload the profiling results to the server",
     )
-    parser.add_argument(
-        "--upload-collapsed-file",
+
+    subparsers = parser.add_subparsers(dest="subcommands")
+    upload_file = subparsers.add_parser("upload-file")
+    upload_file.add_argument(
+        "--file-path",
         action="store",
         type=str,
         default=None,
-        help="Do not run profiling, just upload a pre-prepared collapsed file",
+        help="Path for the collapsed file to be",
     )
-    parser.add_argument("--server-host", default=GRANULATE_SERVER_HOST, help="Server host (default: %(default)s)")
-    parser.add_argument(
-        "--server-upload-timeout",
-        type=positive_integer,
-        default=DEFAULT_UPLOAD_TIMEOUT,
-        help="Timeout for upload requests to the server in seconds (default: %(default)s)",
-    )
-    parser.add_argument("--token", dest="server_token", help="Server token")
-    parser.add_argument("--service-name", help="Service name")
-    parser.add_argument(
-        "--curlify-requests", help="Log cURL commands for HTTP requests (used for debugging)", action="store_true"
-    )
+    for subparser in [parser, upload_file]:
+        connectivity = subparser.add_argument_group("connectivity")
+        connectivity.add_argument(
+            "--server-host", default=GRANULATE_SERVER_HOST, help="Server host (default: %(default)s)"
+        )
+        connectivity.add_argument(
+            "--server-upload-timeout",
+            type=positive_integer,
+            default=DEFAULT_UPLOAD_TIMEOUT,
+            help="Timeout for upload requests to the server in seconds (default: %(default)s)",
+        )
+        connectivity.add_argument("--token", dest="server_token", help="Server token")
+        connectivity.add_argument("--service-name", help="Service name")
+        connectivity.add_argument(
+            "--curlify-requests", help="Log cURL commands for HTTP requests (used for debugging)", action="store_true"
+        )
+
+    upload_file.set_defaults(func=send_collapsed_file_only)
 
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
@@ -670,14 +679,14 @@ def parse_cmd_args() -> configargparse.Namespace:
     args.perf_inject = args.nodejs_mode == "perf"
     args.perf_node_attach = args.nodejs_mode == "attach-maps"
 
-    if args.upload_results:
+    if args.upload_results or args.file_path:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
         if not args.service_name and not args.databricks_job_name_as_service_name:
             parser.error("Must provide --service-name when --upload-results is passed")
 
-    if not args.upload_results and not args.output_dir and not args.upload_collapsed_file:
-        parser.error("Must pass at least one output method (--upload-results / --output-dir / --upload-collapsed-file)")
+    if not args.upload_results and not args.output_dir and args.subcommands is None:
+        parser.error("Must pass at least one output method (--upload-results / --output-dir)")
 
     if args.perf_dwarf_stack_size > 65528:
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
@@ -862,7 +871,7 @@ def main() -> None:
                     get_hostname(),
                     **client_kwargs,
                 )
-                if args.upload_results or args.upload_collapsed_file is not None
+                if args.upload_results or args.subcommands == "upload-file"
                 else None
             )
         except APIError as e:
@@ -881,6 +890,11 @@ def main() -> None:
         if client is not None and remote_logs_handler is not None:
             remote_logs_handler.init_api_client(client)
 
+        if hasattr(args, "func"):
+            if args.subcommands == "upload-file":
+                args.func(args, client)
+                return
+
         enrichment_options = EnrichmentOptions(
             profile_api_version=args.profile_api_version,
             container_names=args.container_names,
@@ -890,31 +904,28 @@ def main() -> None:
         )
 
         set_enrichment_options(enrichment_options)
-        if args.upload_collapsed_file is None:
-            gprofiler = GProfiler(
-                args.output_dir,
-                args.flamegraph,
-                args.rotating_output,
-                client,
-                args.collect_metrics,
-                args.collect_metadata,
-                enrichment_options,
-                state,
-                usage_logger,
-                args.__dict__,
-                args.duration,
-                args.profile_api_version,
-                args.profile_spawned_processes,
-                remote_logs_handler,
-                controller_process,
-            )
-            logger.info("gProfiler initialized and ready to start profiling")
-            if args.continuous:
-                gprofiler.run_continuous()
-            else:
-                gprofiler.run_single()
+        gprofiler = GProfiler(
+            args.output_dir,
+            args.flamegraph,
+            args.rotating_output,
+            client,
+            args.collect_metrics,
+            args.collect_metadata,
+            enrichment_options,
+            state,
+            usage_logger,
+            args.__dict__,
+            args.duration,
+            args.profile_api_version,
+            args.profile_spawned_processes,
+            remote_logs_handler,
+            controller_process,
+        )
+        logger.info("gProfiler initialized and ready to start profiling")
+        if args.continuous:
+            gprofiler.run_continuous()
         else:
-            send_collapsed_file_only(args, client, enrichment_options)
+            gprofiler.run_single()
 
     except KeyboardInterrupt:
         pass
