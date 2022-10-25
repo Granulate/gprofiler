@@ -94,7 +94,6 @@ def test_twoprocesses_nodejs_attach_maps(
                 perf_dwarf_stack_size=0,
                 perf_node_attach=True,
             ) as profiler:
-                process1_collapsed = snapshot_pid_collapsed(profiler, pid1)
-                assert_collapsed(process1_collapsed)
-                process2_collapsed = snapshot_pid_collapsed(profiler, pid2)
-                assert_collapsed(process2_collapsed)
+                results = profiler.snapshot()
+                assert_collapsed(results[pid1].stacks)
+                assert_collapsed(results[pid2].stacks)
