@@ -97,3 +97,50 @@ def test_twoprocesses_nodejs_attach_maps(
                 results = profiler.snapshot()
                 assert_collapsed(results[pid1].stacks)
                 assert_collapsed(results[pid2].stacks)
+
+
+@pytest.mark.parametrize(
+    "application_image_tag",
+    [
+        "10-glibc",
+        "10-musl",
+        "11-glibc",
+        "11-musl",
+        "12-glibc",
+        "12-musl",
+        "13-glibc",
+        "13-musl",
+        "14-glibc",
+        "14-musl",
+        "15-glibc",
+        "15-musl",
+        "16-glibc",
+        "16-musl",
+    ],
+)
+@pytest.mark.parametrize("profiler_type", ["attach-maps"])
+@pytest.mark.parametrize("runtime", ["nodejs"])
+def test_nodejs_matrix(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed: AssertInCollapsed,
+    runtime_specific_args: List[str],
+    profiler_flags: List[str],
+    application_image_tag: str,
+) -> None:
+    node_version, libc = application_image_tag.split("-")
+    if node_version in ["14", "15", "16"] or (node_version == "12" and libc == "musl"):
+        pytest.xfail("This test fails with these nodejs versions, see https://github.com/Granulate/gprofiler/issues/550")
+    with SystemProfiler(
+        1000,
+        6,
+        Event(),
+        str(tmp_path),
+        False,
+        perf_mode="fp",
+        perf_inject=False,
+        perf_dwarf_stack_size=0,
+        perf_node_attach=True,
+    ) as profiler:
+        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
+        assert_collapsed(process_collapsed)
