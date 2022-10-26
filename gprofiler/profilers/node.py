@@ -10,6 +10,7 @@ import stat
 from functools import lru_cache
 from pathlib import Path
 from threading import Event
+from time import sleep
 from typing import Any, Dict, List, cast
 
 import psutil
@@ -61,6 +62,7 @@ def _get_dest_inside_container(musl: bool, node_version: str) -> str:
 def _start_debugger(pid: int) -> None:
     # for windows: in shell node -e "process._debugProcess(PID)"
     os.kill(pid, signal.SIGUSR1)
+    sleep(2)
 
 
 @retry(NodeDebuggerUrlNotFound, 5, 1)
