@@ -64,6 +64,7 @@ def _start_debugger(pid: int) -> None:
 
 
 @retry(NodeDebuggerUrlNotFound, 5, 1)
+@retry(requests.exceptions.ConnectionError, 5, 1)
 def _get_debugger_url() -> str:
     # when killing process with SIGUSR1 it will open new debugger session on port 9229,
     # so it will always the same. When another debugger is opened in same NS it will not open new one.
@@ -159,7 +160,7 @@ def _validate_pid(expected_pid: int, sock: WebSocket) -> None:
 
 def create_debugger_socket(nspid: int, ns_link_name: str) -> WebSocket:
     debugger_url = _get_debugger_url()
-    sock = create_connection(debugger_url)
+    sock = create_connection(url=debugger_url, timeout=15.0)
     sock.settimeout(10)
     _validate_ns_node(sock, ns_link_name)
     _validate_pid(nspid, sock)
