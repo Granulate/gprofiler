@@ -157,6 +157,11 @@ def is_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) 
     return any((function_name in record) for record in collapsed.keys())
 
 
+def is_pattern_in_collapsed(pattern: str, collapsed: StackToSampleCount) -> bool:
+    regex = re.compile(pattern, re.IGNORECASE)
+    return any(regex.search(record) is not None for record in collapsed.keys())
+
+
 def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) -> None:
     print(f"collapsed: {collapsed}")
     assert is_function_in_collapsed(function_name, collapsed), f"function {function_name!r} missing in collapsed data!"
@@ -174,6 +179,7 @@ def make_java_profiler(
     frequency: int = 11,
     duration: int = 1,
     stop_event: Event = Event(),
+    insert_dso_name: bool = False,
     storage_dir: str = None,
     profile_spawned_processes: bool = False,
     java_version_check: bool = True,
@@ -192,6 +198,7 @@ def make_java_profiler(
         duration=duration,
         stop_event=stop_event,
         storage_dir=storage_dir,
+        insert_dso_name=insert_dso_name,
         profile_spawned_processes=profile_spawned_processes,
         java_version_check=java_version_check,
         java_async_profiler_mode=java_async_profiler_mode,

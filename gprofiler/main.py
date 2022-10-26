@@ -412,6 +412,12 @@ def parse_cmd_args() -> configargparse.Namespace:
         default=DEFAULT_PROFILING_DURATION,
         help="Profiler duration per session in seconds (default: %(default)s)",
     )
+    parser.add_argument(
+        "--insert-dso-name",
+        action="store_true",
+        default=False,
+        help="Include DSO name along function in call stack frames when available",
+    )
     parser.add_argument("-o", "--output-dir", type=str, help="Path to output directory")
     parser.add_argument(
         "--flamegraph", dest="flamegraph", action="store_true", help="Generate local flamegraphs when -o is given"

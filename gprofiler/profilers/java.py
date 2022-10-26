@@ -301,6 +301,7 @@ class AsyncProfiledProcess:
         self,
         process: Process,
         storage_dir: str,
+        insert_dso_name: bool,
         stop_event: Event,
         mode: str,
         ap_safemode: int,
@@ -310,6 +311,7 @@ class AsyncProfiledProcess:
     ):
         self.process = process
         self._stop_event = stop_event
+        self._insert_dso_name = insert_dso_name
         # access the process' root via its topmost parent/ancestor which uses the same mount namespace.
         # this allows us to access the files after the process exits:
         # * for processes that run in host mount NS - their ancestor is always available (it's going to be PID 1)
@@ -470,14 +472,15 @@ class AsyncProfiledProcess:
             f"{self._get_ap_output_args()},interval={interval},"
             f"log={self._log_path_process}"
             f"{f',fdtransfer={self._fdtransfer_path}' if self._mode == 'cpu' else ''}"
-            f",safemode={self._ap_safemode},timeout={ap_timeout}{self._get_extra_ap_args()}"
+            f",safemode={self._ap_safemode},timeout={ap_timeout}"
+            f"{',lib' if self._insert_dso_name else ''}{self._get_extra_ap_args()}"
         ]
 
     def _get_stop_cmd(self, with_output: bool) -> List[str]:
         return self._get_base_cmd() + [
             f"stop,log={self._log_path_process},mcache={self._mcache}"
-            + (self._get_ap_output_args() if with_output else "")
-            + self._get_extra_ap_args()
+            f"{self._get_ap_output_args() if with_output else ''}"
+            f"{',lib' if self._insert_dso_name else ''}{self._get_extra_ap_args()}"
         ]
 
     def _read_ap_log(self) -> str:
@@ -655,6 +658,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         duration: int,
         stop_event: Event,
         storage_dir: str,
+        insert_dso_name: bool,
         profile_spawned_processes: bool,
         java_version_check: bool,
         java_async_profiler_mode: str,
@@ -667,7 +671,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_mode: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
-        super().__init__(frequency, duration, stop_event, storage_dir, profile_spawned_processes)
+        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes)
 
         self._interval = frequency_to_ap_interval(frequency)
         # simple version check, and
@@ -692,6 +696,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._enabled_proc_events_java = False
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
         self._metadata = JavaMetadata(self._stop_event)
+        self._insert_dso_name = insert_dso_name
 
     def _init_ap_mode(self, ap_mode: str) -> None:
         if ap_mode == "auto":
@@ -899,6 +904,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         with AsyncProfiledProcess(
             process,
             self._storage_dir,
+            self._insert_dso_name,
             self._stop_event,
             self._mode,
             self._ap_safemode,
