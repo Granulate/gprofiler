@@ -294,7 +294,7 @@ class GProfiler:
         metrics = self._system_metrics_monitor.get_metrics()
         if NoopProfiler.is_noop_profiler(self.system_profiler):
             assert system_result == {}, system_result  # should be empty!
-            merged_result, total_samples = concatenate_profiles(
+            merged_result = concatenate_profiles(
                 process_profiles,
                 self._container_names_client,
                 self._enrichment_options,
@@ -303,7 +303,7 @@ class GProfiler:
             )
 
         else:
-            merged_result, total_samples = merge_profiles(
+            merged_result = merge_profiles(
                 system_result,
                 process_profiles,
                 self._container_names_client,
@@ -321,7 +321,6 @@ class GProfiler:
                     local_start_time,
                     local_end_time,
                     merged_result,
-                    total_samples,
                     self._profile_api_version,
                     self._spawn_time,
                     metrics,
