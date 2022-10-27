@@ -170,16 +170,18 @@ class SystemProfiler(ProfilerBase):
         duration: int,
         stop_event: Event,
         storage_dir: str,
+        insert_dso_name: bool,
         profile_spawned_processes: bool,
         perf_mode: str,
         perf_dwarf_stack_size: int,
         perf_inject: bool,
         perf_node_attach: bool,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir)
+        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name)
         _ = profile_spawned_processes  # Required for mypy unused argument warning
         self._perfs: List[PerfProcess] = []
         self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
+        self._insert_dso_name = insert_dso_name
         self._node_processes: List[Process] = []
 
         if perf_mode in ("fp", "smart"):
@@ -259,6 +261,7 @@ class SystemProfiler(ProfilerBase):
             for k, v in merge.merge_global_perfs(
                 self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
                 self._perf_dwarf.wait_and_script() if self._perf_dwarf is not None else None,
+                self._insert_dso_name,
             ).items()
         }
 

@@ -71,7 +71,9 @@ class ProfilerBase(ProfilerInterface):
     MAX_FREQUENCY: Optional[int] = None
     MIN_DURATION: Optional[int] = None
 
-    def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str):
+    def __init__(
+        self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str, insert_dso_name: bool
+    ):
         self._frequency = limit_frequency(self.MAX_FREQUENCY, frequency, self.__class__.__name__, logger)
         if self.MIN_DURATION is not None and duration < self.MIN_DURATION:
             raise ValueError(
@@ -192,9 +194,10 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
+        insert_dso_name: bool,
         profile_spawned_processes: bool,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir)
+        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name)
         self._profile_spawned_processes = profile_spawned_processes
         self._submit_lock = Lock()
         self._threads: Optional[ThreadPoolExecutor] = None

@@ -35,7 +35,7 @@ SAMPLE_REGEX = re.compile(
 # ffffffff81082227 mmput+0x57 ([kernel.kallsyms])
 # 0 [unknown] ([unknown])
 # 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
-FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \((.*)\)$")
+FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \(\[?(.*?)\]?\)$")
 
 
 def parse_one_collapsed(collapsed: str, add_comm: Optional[str] = None) -> StackToSampleCount:
@@ -94,7 +94,7 @@ def parse_many_collapsed(text: str) -> ProcessToStackSampleCounters:
     return results
 
 
-def _collapse_stack(comm: str, stack: str) -> str:
+def _collapse_stack(comm: str, stack: str, insert_dso_name: bool = False) -> str:
     """
     Collapse a single stack from "perf".
     """
@@ -104,18 +104,22 @@ def _collapse_stack(comm: str, stack: str) -> str:
         assert m is not None, f"bad line: {line}"
         sym, dso = m.groups()
         sym = sym.split("+")[0]  # strip the offset part.
-        if sym == "[unknown]" and dso != "[unknown]":
-            sym = f"[{dso}]"
+        if sym == "[unknown]" and dso != "unknown":
+            sym = f"({dso})"
         # append kernel annotation
         elif "kernel" in dso or "vmlinux" in dso:
             sym += "_[k]"
+        elif insert_dso_name:
+            sym += f" ({dso})"
         funcs.append(sym)
     return ";".join(funcs)
 
 
-def merge_global_perfs(raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str]) -> ProcessToStackSampleCounters:
-    fp_perf = _parse_perf_script(raw_fp_perf)
-    dwarf_perf = _parse_perf_script(raw_dwarf_perf)
+def merge_global_perfs(
+    raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str], insert_dso_name: bool = False
+) -> ProcessToStackSampleCounters:
+    fp_perf = _parse_perf_script(raw_fp_perf, insert_dso_name)
+    dwarf_perf = _parse_perf_script(raw_dwarf_perf, insert_dso_name)
 
     if raw_fp_perf is None:
         return dwarf_perf
@@ -203,7 +207,7 @@ def get_average_frame_count(samples: Iterable[str]) -> float:
     return sum(frame_count_per_samples) / len(frame_count_per_samples)
 
 
-def _parse_perf_script(script: Optional[str]) -> ProcessToStackSampleCounters:
+def _parse_perf_script(script: Optional[str], insert_dso_name: bool = False) -> ProcessToStackSampleCounters:
     pid_to_collapsed_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
 
     if script is None:
@@ -224,7 +228,7 @@ def _parse_perf_script(script: Optional[str]) -> ProcessToStackSampleCounters:
             comm = sample_dict["comm"]
             stack = sample_dict["stack"]
             if stack is not None:
-                pid_to_collapsed_stacks_counters[pid][_collapse_stack(comm, stack)] += 1
+                pid_to_collapsed_stacks_counters[pid][_collapse_stack(comm, stack, insert_dso_name)] += 1
         except Exception:
             logger.exception(f"Error processing sample: {sample}")
     return pid_to_collapsed_stacks_counters

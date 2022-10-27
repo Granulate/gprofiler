@@ -11,16 +11,31 @@ import pytest
 from docker.models.containers import Container
 
 from gprofiler.profilers.perf import DEFAULT_PERF_DWARF_STACK_SIZE, SystemProfiler
-from tests.utils import assert_function_in_collapsed, is_function_in_collapsed, snapshot_pid_collapsed
+from tests.utils import (
+    assert_function_in_collapsed,
+    is_function_in_collapsed,
+    snapshot_pid_collapsed,
+    snapshot_pid_profile,
+)
 
 
 @pytest.fixture
-def system_profiler(tmp_path: Path, perf_mode: str) -> SystemProfiler:
+def insert_dso_name() -> bool:
+    return False
+
+
+@pytest.fixture
+def system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) -> SystemProfiler:
+    return make_system_profiler(tmp_path, perf_mode, insert_dso_name)
+
+
+def make_system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) -> SystemProfiler:
     return SystemProfiler(
         99,
         1,
         Event(),
         str(tmp_path),
+        insert_dso_name,
         False,
         perf_mode=perf_mode,
         perf_inject=False,
@@ -152,3 +167,18 @@ def test_perf_thread_comm_is_process_comm(
         #   pative 1925947 [010] 987095.272656: PERF_RECORD_COMM: pative:1925904/1925947
         # we take the exec comm for all threads so we remain with the first, "native".
         _assert_comm_in_profile(profiler, application_pid, True)
+
+
+@pytest.mark.parametrize("runtime", ["native_thread_comm"])
+@pytest.mark.parametrize("perf_mode", ["fp"])
+@pytest.mark.parametrize("insert_dso_name", [False, True])
+@pytest.mark.parametrize("in_container", [True])
+def test_dso_name_in_perf_profile(
+    system_profiler: SystemProfiler,
+    application_pid: int,
+    insert_dso_name: bool,
+) -> None:
+    with system_profiler as profiler:
+        collapsed = snapshot_pid_profile(profiler, application_pid).stacks
+        assert is_function_in_collapsed("recursive", collapsed)
+        assert insert_dso_name == is_function_in_collapsed("recursive (/native)", collapsed)
