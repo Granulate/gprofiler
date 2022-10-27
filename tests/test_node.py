@@ -101,6 +101,7 @@ def test_twoprocesses_nodejs_attach_maps(
                 assert_collapsed(results[pid2].stacks)
 
 
+@pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize(
     "application_image_tag",
     [
