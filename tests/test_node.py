@@ -90,6 +90,7 @@ def test_twoprocesses_nodejs_attach_maps(
                 Event(),
                 str(tmp_path),
                 False,
+                False,
                 perf_mode="fp",
                 perf_inject=False,
                 perf_dwarf_stack_size=0,
