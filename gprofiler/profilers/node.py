@@ -145,6 +145,19 @@ def _change_dso_state(sock: WebSocket, module_path: str, action: str) -> None:
     _send_socket_request(sock, cdp_request)
 
 
+def _close_debugger(sock: WebSocket) -> None:
+    cdp_request = {
+        "id": 1,
+        "method": "Runtime.evaluate",
+        "params": {
+            "expression": 'process._debugEnd()',
+            "replMode": True,
+        },
+    }
+    sock.send(json.dumps(cdp_request))
+    sock.recv()
+
+
 def _validate_ns_node(sock: WebSocket, expected_ns_link_name: str) -> None:
     command = 'process.mainModule.require("fs").readlinkSync("/proc/self/ns/pid")'
     actual_ns_link_name = cast(str, _execute_js_command(sock, command))
@@ -183,12 +196,14 @@ def _copy_module_into_process_ns(process: psutil.Process, musl: bool, version: s
 def _generate_perf_map(module_path: str, nspid: int, ns_link_name: str) -> None:
     sock = create_debugger_socket(nspid, ns_link_name)
     _change_dso_state(sock, module_path, "start")
+    _close_debugger(sock)
 
 
 def _clean_up(module_path: str, nspid: int, ns_link_name: str) -> None:
     sock = create_debugger_socket(nspid, ns_link_name)
     try:
         _change_dso_state(sock, module_path, "stop")
+        _close_debugger(sock)
     finally:
         os.remove(os.path.join("/tmp", f"perf-{nspid}.map"))
 
@@ -228,6 +243,7 @@ def clean_up_node_maps(processes: List[psutil.Process]) -> None:
             nspid = get_process_nspid(process.pid)
             ns_link_name = os.readlink(f"/proc/{process.pid}/ns/pid")
             dest = _get_dest_inside_container(is_musl(process), node_major_version)
+            _start_debugger(process.pid)
             run_in_ns(
                 ["pid", "mnt", "net"],
                 lambda: _clean_up(dest, nspid, ns_link_name),

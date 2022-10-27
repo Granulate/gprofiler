@@ -10,4 +10,4 @@ ADD fibonacci.js /app
 
 ENV NODE_RUNTIME_FLAGS ${NODE_RUNTIME_FLAGS}
 
-CMD node $NODE_RUNTIME_FLAGS /app/fibonacci.js
+CMD exec node $NODE_RUNTIME_FLAGS /app/fibonacci.js
