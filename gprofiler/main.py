@@ -904,6 +904,7 @@ def main() -> None:
         )
 
         set_enrichment_options(enrichment_options)
+
         gprofiler = GProfiler(
             args.output_dir,
             args.flamegraph,
