@@ -117,7 +117,6 @@ def _execute_js_command(sock: WebSocket, command: str) -> Any:
         "method": "Runtime.evaluate",
         "params": {
             "expression": command,
-            "replMode": True,
         },
     }
     sock.send(json.dumps(cdp_request))
@@ -156,6 +155,7 @@ def _close_debugger(sock: WebSocket) -> None:
     }
     sock.send(json.dumps(cdp_request))
     sock.recv()
+    sock.close()
 
 
 def _validate_ns_node(sock: WebSocket, expected_ns_link_name: str) -> None:
