@@ -11,7 +11,7 @@ fi
 black_extra_args=""
 isort_extra_args=""
 if [[ "$1" = "--ci" ]]; then
-    check_arg="--check"
+    black_extra_args="--check"
     isort_extra_args="--check-only"
 fi
 
