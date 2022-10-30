@@ -150,7 +150,7 @@ def _close_debugger(sock: WebSocket) -> None:
         "id": 1,
         "method": "Runtime.evaluate",
         "params": {
-            "expression": 'process._debugEnd()',
+            "expression": "process._debugEnd()",
             "replMode": True,
         },
     }
