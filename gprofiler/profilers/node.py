@@ -35,7 +35,7 @@ class NodeDebuggerUnexpectedResponse(Exception):
     pass
 
 
-class NodeDebuggerReferenceError(Exception):
+class NodeDebuggerProcessUndefined(Exception):
     pass
 
 
@@ -98,7 +98,7 @@ def _get_debugger_url() -> str:
     return cast(str, response_json[0]["webSocketDebuggerUrl"])
 
 
-@retry(NodeDebuggerReferenceError, 5, 0.5)
+@retry(NodeDebuggerProcessUndefined, 5, 0.5)
 def _send_socket_request(sock: WebSocket, cdp_request: Dict) -> None:
     sock.send(json.dumps(cdp_request))
     message = sock.recv()
@@ -106,29 +106,30 @@ def _send_socket_request(sock: WebSocket, cdp_request: Dict) -> None:
         message = json.loads(message)
     except json.JSONDecodeError:
         raise NodeDebuggerUnexpectedResponse(message)
-
     if (
         "result" not in message.keys()
         or "result" not in message["result"].keys()
         or "type" not in message["result"]["result"].keys()
         or message["result"]["result"]["type"] != "boolean"
     ):
-        try:
-            if "ReferenceError" in message["result"]["result"]["description"]:
-                raise NodeDebuggerReferenceError(message) from None
-            else:
-                raise NodeDebuggerUnexpectedResponse(message) from None
-        except KeyError:
-            raise NodeDebuggerUnexpectedResponse(message) from None
+        if (
+            "result" not in message.keys()
+            or "result" not in message["result"].keys()
+            or "value" not in message["result"]["result"].keys()
+            or "process undefined" in message["result"]["result"]["value"]
+        ):
+            raise NodeDebuggerProcessUndefined(message)
+        else:
+            raise NodeDebuggerUnexpectedResponse(message)
 
 
-@retry(NodeDebuggerReferenceError, 5, 0.5)
+@retry(NodeDebuggerProcessUndefined, 5, 0.5)
 def _execute_js_command(sock: WebSocket, command: str) -> Any:
     cdp_request = {
         "id": 1,
         "method": "Runtime.evaluate",
         "params": {
-            "expression": command,
+            "expression": f"process === undefined ? 'process undefined' : {command}",
         },
     }
     sock.send(json.dumps(cdp_request))
@@ -138,44 +139,54 @@ def _execute_js_command(sock: WebSocket, command: str) -> Any:
     except json.JSONDecodeError:
         raise NodeDebuggerUnexpectedResponse(message) from None
     try:
-        return message["result"]["result"]["value"]
+        if isinstance(message["result"]["result"]["value"], str) and "process undefined" in message["result"]["result"]["value"]:
+            raise NodeDebuggerProcessUndefined(message)
+        else:
+            return message["result"]["result"]["value"]
     except KeyError:
-        try:
-            if "ReferenceError" in message["result"]["result"]["description"]:
-                raise NodeDebuggerReferenceError(message) from None
-            else:
-                raise NodeDebuggerUnexpectedResponse(message) from None
-        except KeyError:
-            raise NodeDebuggerUnexpectedResponse(message) from None
+        raise NodeDebuggerUnexpectedResponse(message) from None
 
 
 def _change_dso_state(sock: WebSocket, module_path: str, action: str) -> None:
     assert action in ("start", "stop"), "_change_dso_state supports only start and stop actions"
+    command = f'process.mainModule === undefined ? "process undefined" : process.mainModule.require("{os.path.join(module_path, "linux-perf.js")}").{action}()'
     cdp_request = {
         "id": 1,
         "method": "Runtime.evaluate",
         "params": {
-            "expression": f'process.mainModule.require("{os.path.join(module_path, "linux-perf.js")}").{action}()',
+            "expression": f'process === undefined ? "process undefined" : {command}',
         },
     }
     _send_socket_request(sock, cdp_request)
 
 
+@retry(NodeDebuggerProcessUndefined, 5, 0.5)
 def _close_debugger(sock: WebSocket) -> None:
     cdp_request = {
         "id": 1,
         "method": "Runtime.evaluate",
         "params": {
-            "expression": "process._debugEnd()",
+            "expression": "process === undefined ? 'process undefined' : process._debugEnd()",
         },
     }
     sock.send(json.dumps(cdp_request))
-    sock.recv()
-    sock.close()
+    message = sock.recv()
+    if len(message) == 0:
+        # This means everything is ok
+        sock.close()
+    else:
+        try:
+            if "process undefined" in message["result"]["result"]["value"]:
+                raise NodeDebuggerProcessUndefined(message)
+            else:
+                raise NodeDebuggerUnexpectedResponse(message)
+        except KeyError:
+            raise NodeDebuggerUnexpectedResponse(message)
 
 
 def _validate_ns_node(sock: WebSocket, expected_ns_link_name: str) -> None:
     command = 'process.mainModule.require("fs").readlinkSync("/proc/self/ns/pid")'
+    command = f'process.mainModule === undefined ? "process undefined" : {command}'
     actual_ns_link_name = cast(str, _execute_js_command(sock, command))
     assert (
         actual_ns_link_name == expected_ns_link_name
