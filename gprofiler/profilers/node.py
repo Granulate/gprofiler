@@ -35,6 +35,10 @@ class NodeDebuggerUnexpectedResponse(Exception):
     pass
 
 
+class NodeDebuggerReferenceError(Exception):
+    pass
+
+
 def _get_node_major_version(process: psutil.Process) -> str:
     node_version = get_exe_version(process, Event(), 3)
     # i. e. v16.3.2 -> 16
@@ -94,6 +98,7 @@ def _get_debugger_url() -> str:
     return cast(str, response_json[0]["webSocketDebuggerUrl"])
 
 
+@retry(NodeDebuggerReferenceError, 5, 0.5)
 def _send_socket_request(sock: WebSocket, cdp_request: Dict) -> None:
     sock.send(json.dumps(cdp_request))
     message = sock.recv()
@@ -108,9 +113,16 @@ def _send_socket_request(sock: WebSocket, cdp_request: Dict) -> None:
         or "type" not in message["result"]["result"].keys()
         or message["result"]["result"]["type"] != "boolean"
     ):
-        raise NodeDebuggerUnexpectedResponse(message)
+        try:
+            if "ReferenceError" in message["result"]["result"]["description"]:
+                raise NodeDebuggerReferenceError(message) from None
+            else:
+                raise NodeDebuggerUnexpectedResponse(message) from None
+        except KeyError:
+            raise NodeDebuggerUnexpectedResponse(message) from None
 
 
+@retry(NodeDebuggerReferenceError, 5, 0.5)
 def _execute_js_command(sock: WebSocket, command: str) -> Any:
     cdp_request = {
         "id": 1,
@@ -128,7 +140,13 @@ def _execute_js_command(sock: WebSocket, command: str) -> Any:
     try:
         return message["result"]["result"]["value"]
     except KeyError:
-        raise NodeDebuggerUnexpectedResponse(message) from None
+        try:
+            if "ReferenceError" in message["result"]["result"]["description"]:
+                raise NodeDebuggerReferenceError(message) from None
+            else:
+                raise NodeDebuggerUnexpectedResponse(message) from None
+        except KeyError:
+            raise NodeDebuggerUnexpectedResponse(message) from None
 
 
 def _change_dso_state(sock: WebSocket, module_path: str, action: str) -> None:
@@ -138,7 +156,6 @@ def _change_dso_state(sock: WebSocket, module_path: str, action: str) -> None:
         "method": "Runtime.evaluate",
         "params": {
             "expression": f'process.mainModule.require("{os.path.join(module_path, "linux-perf.js")}").{action}()',
-            "replMode": True,
         },
     }
     _send_socket_request(sock, cdp_request)
@@ -150,7 +167,6 @@ def _close_debugger(sock: WebSocket) -> None:
         "method": "Runtime.evaluate",
         "params": {
             "expression": 'process._debugEnd()',
-            "replMode": True,
         },
     }
     sock.send(json.dumps(cdp_request))
