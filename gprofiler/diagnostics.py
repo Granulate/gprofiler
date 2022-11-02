@@ -14,6 +14,7 @@ from granulate_utils.linux.process import is_kernel_thread, process_exe
 from psutil import NoSuchProcess, Process, process_iter
 
 from gprofiler.log import get_logger_adapter
+from gprofiler.utils import run_process
 from gprofiler.utils.process import process_comm
 
 logger = get_logger_adapter(__name__)
@@ -83,7 +84,9 @@ def _log_processes() -> None:
 
 def _log_dmesg() -> None:
     try:
-        output = subprocess.run(["dmesg", "-T"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout.decode()
+        output = run_process(
+            "dmesg -T | tail -n 100", shell=True, check=False, suppress_log=True, stderr=subprocess.STDOUT
+        ).stdout.decode()
     except Exception as e:
         output = str(e)
 
