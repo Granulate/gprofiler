@@ -28,6 +28,7 @@ from gprofiler import __version__
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.databricks_client import DatabricksClient
+from gprofiler.diagnostics import set_diagnostics
 from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
@@ -607,6 +608,12 @@ def parse_cmd_args() -> configargparse.Namespace:
         " beginning of a session.",
     )
 
+    parser.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help="Log extra verbose information, making the debugging of gProfiler easier",
+    )
+
     args = parser.parse_args()
 
     args.perf_inject = args.nodejs_mode == "perf"
@@ -832,6 +839,7 @@ def main() -> None:
         )
 
         set_enrichment_options(enrichment_options)
+        set_diagnostics(args.diagnostics)
 
         gprofiler = GProfiler(
             args.output_dir,

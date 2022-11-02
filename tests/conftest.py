@@ -19,6 +19,7 @@ from docker.models.images import Image
 from psutil import Process
 from pytest import FixtureRequest, TempPathFactory, fixture
 
+from gprofiler.diagnostics import set_diagnostics
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.metadata.application_identifiers import get_java_app_id, get_python_app_id, set_enrichment_options
 from gprofiler.metadata.enrichment import EnrichmentOptions
@@ -543,6 +544,7 @@ def _set_enrichment_options() -> None:
             application_metadata=True,
         )
     )
+    set_diagnostics(False)
 
 
 def pytest_addoption(parser: Any) -> None:
