@@ -39,6 +39,13 @@ class NodeDebuggerProcessUndefined(Exception):
     pass
 
 
+class ExpectedResult():
+    STRING = 1
+    INTEGER = 2
+    BOOLEAN = 3
+    NONE = 4
+
+
 def _get_node_major_version(process: psutil.Process) -> str:
     node_version = get_exe_version(process, Event(), 3)
     # i. e. v16.3.2 -> 16
@@ -99,37 +106,17 @@ def _get_debugger_url() -> str:
 
 
 @retry(NodeDebuggerProcessUndefined, 5, 0.5)
-def _send_socket_request(sock: WebSocket, cdp_request: Dict) -> None:
-    sock.send(json.dumps(cdp_request))
-    message = sock.recv()
-    try:
-        message = json.loads(message)
-    except json.JSONDecodeError:
-        raise NodeDebuggerUnexpectedResponse(message)
-    if (
-        "result" not in message.keys()
-        or "result" not in message["result"].keys()
-        or "type" not in message["result"]["result"].keys()
-        or message["result"]["result"]["type"] != "boolean"
-    ):
-        if (
-            "result" not in message.keys()
-            or "result" not in message["result"].keys()
-            or "value" not in message["result"]["result"].keys()
-            or "process undefined" in message["result"]["result"]["value"]
-        ):
-            raise NodeDebuggerProcessUndefined(message)
-        else:
-            raise NodeDebuggerUnexpectedResponse(message)
-
-
-@retry(NodeDebuggerProcessUndefined, 5, 0.5)
-def _execute_js_command(sock: WebSocket, command: str) -> Any:
+def _evaluate_js_command(sock: WebSocket, command: str, expected_result: int) -> Any:
+    # Check if process or process.mainModule in command, and if it is, check if it is defined in js context
+    if "process.mainModule" in command:
+        command = f'typeof(process.mainModule) === "undefined" ? "process undefined" : {command}'
+    if "process" in command:
+        command = f'typeof(process) === "undefined" ? "process undefined" : {command}'
     cdp_request = {
         "id": 1,
         "method": "Runtime.evaluate",
         "params": {
-            "expression": f"typeof(process) === 'undefined' ? 'process undefined' : {command}",
+            "expression": command,
         },
     }
     sock.send(json.dumps(cdp_request))
@@ -137,67 +124,61 @@ def _execute_js_command(sock: WebSocket, command: str) -> Any:
     try:
         message = json.loads(message)
     except json.JSONDecodeError:
-        raise NodeDebuggerUnexpectedResponse(message) from None
+        if expected_result == ExpectedResult.NONE:
+            return message
+        else:
+            raise NodeDebuggerUnexpectedResponse(message) from None
     try:
         if (
             isinstance(message["result"]["result"]["value"], str)
             and message["result"]["result"]["value"] == "process undefined"
         ):
             raise NodeDebuggerProcessUndefined(message)
-        else:
-            return message["result"]["result"]["value"]
     except KeyError:
         raise NodeDebuggerUnexpectedResponse(message) from None
+    if (
+        "result" not in message.keys()
+        or "result" not in message["result"].keys()
+        or "type" not in message["result"]["result"].keys()
+    ):
+        raise NodeDebuggerUnexpectedResponse(message) from None
+    if expected_result == ExpectedResult.BOOLEAN:
+        if message["result"]["result"]["type"] != "boolean":
+            raise NodeDebuggerUnexpectedResponse(message) from None
+        else:
+            return message
+    elif expected_result == ExpectedResult.INTEGER:
+        if message["result"]["result"]["type"] != "number":
+            raise NodeDebuggerUnexpectedResponse(message) from None
+    elif expected_result == ExpectedResult.STRING:
+        if message["result"]["result"]["type"] != "string":
+            raise NodeDebuggerUnexpectedResponse(message) from None
+    return message["result"]["result"]["value"]
 
 
 def _change_dso_state(sock: WebSocket, module_path: str, action: str) -> None:
     assert action in ("start", "stop"), "_change_dso_state supports only start and stop actions"
-    command = f'typeof(process.mainModule) === "undefined" ? "process undefined" : process.mainModule.require("{os.path.join(module_path, "linux-perf.js")}").{action}()'
-    cdp_request = {
-        "id": 1,
-        "method": "Runtime.evaluate",
-        "params": {
-            "expression": f'typeof(process) === "undefined" ? "process undefined" : {command}',
-        },
-    }
-    _send_socket_request(sock, cdp_request)
+    command = f'process.mainModule.require("{os.path.join(module_path, "linux-perf.js")}").{action}()'
+    _evaluate_js_command(sock, command, ExpectedResult.BOOLEAN)
 
 
 @retry(NodeDebuggerProcessUndefined, 5, 0.5)
 def _close_debugger(sock: WebSocket) -> None:
-    cdp_request = {
-        "id": 1,
-        "method": "Runtime.evaluate",
-        "params": {
-            "expression": "typeof(process) === 'undefined' ? 'process undefined' : process._debugEnd()",
-        },
-    }
-    sock.send(json.dumps(cdp_request))
-    message = sock.recv()
-    if len(message) == 0:
-        # This means everything is ok
-        sock.close()
-    else:
-        try:
-            if message["result"]["result"]["value"] == "process undefined":
-                raise NodeDebuggerProcessUndefined(message)
-            else:
-                raise NodeDebuggerUnexpectedResponse(message)
-        except KeyError:
-            raise NodeDebuggerUnexpectedResponse(message)
+    command = "process._debugEnd()"
+    _evaluate_js_command(sock, command, ExpectedResult.NONE)
+    sock.close()
 
 
 def _validate_ns_node(sock: WebSocket, expected_ns_link_name: str) -> None:
     command = 'process.mainModule.require("fs").readlinkSync("/proc/self/ns/pid")'
-    command = f'process.mainModule === undefined ? "process undefined" : {command}'
-    actual_ns_link_name = cast(str, _execute_js_command(sock, command))
+    actual_ns_link_name = cast(str, _evaluate_js_command(sock, command, ExpectedResult.STRING))
     assert (
         actual_ns_link_name == expected_ns_link_name
     ), f"Wrong namespace, expected {expected_ns_link_name}, got {actual_ns_link_name}"
 
 
 def _validate_pid(expected_pid: int, sock: WebSocket) -> None:
-    actual_pid = cast(int, _execute_js_command(sock, "process.pid"))
+    actual_pid = cast(int, _evaluate_js_command(sock, "process.pid", ExpectedResult.INTEGER))
     assert expected_pid == actual_pid, f"Wrong pid, expected {expected_pid}, actual {actual_pid}"
 
 
