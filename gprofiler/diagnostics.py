@@ -4,6 +4,7 @@
 #
 import subprocess
 import time
+from datetime import datetime
 from io import StringIO
 from typing import Optional
 
@@ -53,6 +54,7 @@ def _process_info(p: Process) -> str:
     return (
         f"pid={p.pid} ppid={p.ppid()} comm={process_comm(p)!r} exe={exe!r} uids={p.uids()} gids={p.gids()}"
         f" num_threads={p.num_threads()} cpu_percent={p.cpu_percent()!r} memory_info={p.memory_info()}"
+        f" local_start_time={datetime.fromtimestamp(p.create_time()).isoformat()!r}"
         f" cmdline={' '.join(p.cmdline())!r}\n"
     )
 
