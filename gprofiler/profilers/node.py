@@ -129,7 +129,7 @@ def _execute_js_command(sock: WebSocket, command: str) -> Any:
         "id": 1,
         "method": "Runtime.evaluate",
         "params": {
-            "expression": f"process === undefined ? 'process undefined' : {command}",
+            "expression": f"typeof(process) === 'undefined' ? 'process undefined' : {command}",
         },
     }
     sock.send(json.dumps(cdp_request))
@@ -139,7 +139,10 @@ def _execute_js_command(sock: WebSocket, command: str) -> Any:
     except json.JSONDecodeError:
         raise NodeDebuggerUnexpectedResponse(message) from None
     try:
-        if isinstance(message["result"]["result"]["value"], str) and "process undefined" in message["result"]["result"]["value"]:
+        if (
+            isinstance(message["result"]["result"]["value"], str)
+            and message["result"]["result"]["value"] == "process undefined"
+        ):
             raise NodeDebuggerProcessUndefined(message)
         else:
             return message["result"]["result"]["value"]
@@ -149,12 +152,12 @@ def _execute_js_command(sock: WebSocket, command: str) -> Any:
 
 def _change_dso_state(sock: WebSocket, module_path: str, action: str) -> None:
     assert action in ("start", "stop"), "_change_dso_state supports only start and stop actions"
-    command = f'process.mainModule === undefined ? "process undefined" : process.mainModule.require("{os.path.join(module_path, "linux-perf.js")}").{action}()'
+    command = f'typeof(process.mainModule) === "undefined" ? "process undefined" : process.mainModule.require("{os.path.join(module_path, "linux-perf.js")}").{action}()'
     cdp_request = {
         "id": 1,
         "method": "Runtime.evaluate",
         "params": {
-            "expression": f'process === undefined ? "process undefined" : {command}',
+            "expression": f'typeof(process) === "undefined" ? "process undefined" : {command}',
         },
     }
     _send_socket_request(sock, cdp_request)
@@ -166,7 +169,7 @@ def _close_debugger(sock: WebSocket) -> None:
         "id": 1,
         "method": "Runtime.evaluate",
         "params": {
-            "expression": "process === undefined ? 'process undefined' : process._debugEnd()",
+            "expression": "typeof(process) === 'undefined' ? 'process undefined' : process._debugEnd()",
         },
     }
     sock.send(json.dumps(cdp_request))
@@ -176,7 +179,7 @@ def _close_debugger(sock: WebSocket) -> None:
         sock.close()
     else:
         try:
-            if "process undefined" in message["result"]["result"]["value"]:
+            if message["result"]["result"]["value"] == "process undefined":
                 raise NodeDebuggerProcessUndefined(message)
             else:
                 raise NodeDebuggerUnexpectedResponse(message)
