@@ -39,7 +39,7 @@ class NodeDebuggerProcessUndefined(Exception):
     pass
 
 
-class ExpectedResult():
+class ExpectedResult:
     STRING = 1
     INTEGER = 2
     BOOLEAN = 3
