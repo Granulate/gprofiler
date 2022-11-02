@@ -10,7 +10,7 @@ import stat
 from functools import lru_cache
 from pathlib import Path
 from threading import Event
-from typing import Any, Dict, List, cast
+from typing import Any, List, cast
 
 import psutil
 import requests
