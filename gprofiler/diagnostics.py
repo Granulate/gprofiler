@@ -40,7 +40,7 @@ def _log_containers() -> None:
     except NoContainerRuntimesError:
         logger.debug("No container runtimes found")
     else:
-        logger.debug("Running containers", containers=cc.list_containers())
+        logger.debug("Running containers", containers=cc.list_containers(), no_extra_to_server=True)
 
 
 def _process_info(p: Process) -> str:
@@ -79,7 +79,7 @@ def _log_processes() -> None:
             continue
         except Exception as e:
             buf.write(f"pid={p.pid} exception={str(e)}")
-    logger.debug("Running processes", processes=buf.getvalue())
+    logger.debug("Running processes", processes=buf.getvalue(), no_extra_to_server=True)
 
 
 def _log_dmesg() -> None:
@@ -90,7 +90,7 @@ def _log_dmesg() -> None:
     except Exception as e:
         output = str(e)
 
-    logger.debug("Kernel log", dmesg=output)
+    logger.debug("Kernel log", dmesg=output, no_extra_to_server=True)
 
 
 def log_diagnostics() -> None:
