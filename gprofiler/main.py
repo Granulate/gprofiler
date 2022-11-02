@@ -28,7 +28,7 @@ from gprofiler import __version__
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.databricks_client import DatabricksClient
-from gprofiler.diagnostics import set_diagnostics
+from gprofiler.diagnostics import log_diagnostics, set_diagnostics
 from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
@@ -336,6 +336,7 @@ class GProfiler:
                 logger.exception("Error occurred sending profile to server")
             else:
                 logger.info("Successfully uploaded profiling data to the server")
+        log_diagnostics()
 
     def _send_remote_logs(self) -> None:
         """
