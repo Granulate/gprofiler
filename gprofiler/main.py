@@ -380,7 +380,6 @@ def _submit_profile_logged(
     start_time: datetime.datetime,
     end_time: datetime.datetime,
     profile: str,
-    total_samples: int,
     profile_api_version: Optional[str],
     spawn_time: float,
     metrics: "Metrics",
