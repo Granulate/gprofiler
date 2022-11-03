@@ -29,6 +29,13 @@ gProfiler can produce output in two ways:
 
   `--no-flamegraph` can be given to avoid generation of the `profile_<timestamp>.html` file - only the collapsed stack samples file will be created.
 
+  The collapsed file (`.col`) is a [collapsed/folded stacks file](https://github.com/brendangregg/FlameGraph#2-fold-stacks).
+  The file begins with a "comment line", starting with `#`, which contains a JSON of metadata about the profile. Following lines are *stacks* - they consist of *frames* separated by `;`, with the ending of each line being a space followed by a number - how many *samples* were collected with this stack.
+  The first frame of each stack is an index in the application metadata array (which is part of the aforementioned JSON), for the process recorded in this sample.
+  The second frame is the container name that the process recorded in this sample runs in; if the process is not running in a container, this frame will be empty.
+  The third frame is the process name - essentially the process `comm` in Linux.
+  All following frames are the output of the profiler which emitted the sample (usually - function names).
+
 * Send the results to the Granulate Performance Studio for viewing online with
   filtering, insights, and more.
 

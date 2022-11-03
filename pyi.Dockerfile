@@ -191,9 +191,11 @@ RUN if [ "$(uname -m)" = "aarch64" ]; \
     yum clean all
 
 COPY ./scripts/libunwind_build.sh .
+# hadolint ignore=SC1091
 RUN if [ "$(uname -m)" = "aarch64" ]; then \
         exit 0; \
     fi && \
+    source scl_source enable devtoolset-8 && \
     ./libunwind_build.sh
 
 COPY ./scripts/pyperf_build.sh .
@@ -289,11 +291,12 @@ COPY gprofiler gprofiler
 # see https://pyinstaller.readthedocs.io/en/stable/when-things-go-wrong.html
 # from a quick look I didn't see how to tell PyInstaller to exit with an error on this, hence
 # this check in the shell.
-COPY pyi_build.py pyinstaller.spec ./
+COPY pyi_build.py pyinstaller.spec scripts/check_pyinstaller.sh ./
+
 RUN pyinstaller pyinstaller.spec \
     && echo \
     && test -f build/pyinstaller/warn-pyinstaller.txt \
-    && if grep 'gprofiler\.' build/pyinstaller/warn-pyinstaller.txt ; then echo 'PyInstaller failed to pack gProfiler code! See lines above. Make sure to check for SyntaxError as this is often the reason.'; exit 1; fi;
+    && ./check_pyinstaller.sh
 
 # for aarch64 - build a patched version of staticx 0.13.6. we remove calls to getpwnam and getgrnam, for these end up doing dlopen()s which
 # crash the staticx bootloader. we don't need them anyway (all files in our staticx tar are uid 0 and we don't need the names translation)

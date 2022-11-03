@@ -22,7 +22,6 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 from granulate_utils.java import parse_jvm_version
-from granulate_utils.linux.elf import get_elf_buildid
 from granulate_utils.linux.ns import get_process_nspid
 from granulate_utils.linux.process import is_musl
 from packaging.version import Version
@@ -35,7 +34,6 @@ from gprofiler.profilers.java import (
     frequency_to_ap_interval,
     get_java_version,
 )
-from gprofiler.utils import remove_prefix
 from tests.conftest import AssertInCollapsed
 from tests.type_utils import cast_away_optional
 from tests.utils import (
@@ -99,7 +97,6 @@ def test_async_profiler_already_running(
             process=process,
             storage_dir=profiler._storage_dir,
             stop_event=profiler._stop_event,
-            buildids=False,
             mode=profiler._mode,
             ap_safemode=0,
             ap_args="",
@@ -111,7 +108,6 @@ def test_async_profiler_already_running(
             process=process,
             storage_dir=profiler._storage_dir,
             stop_event=profiler._stop_event,
-            buildids=False,
             mode="itimer",
             ap_safemode=0,
             ap_args="",
@@ -331,7 +327,6 @@ def test_async_profiler_stops_after_given_timeout(
         process=process,
         storage_dir=str(tmp_path_world_accessible),
         stop_event=Event(),
-        buildids=False,
         mode="itimer",
         ap_safemode=0,
         ap_args="",
@@ -388,29 +383,6 @@ def test_java_deleted_libjvm(
     with make_java_profiler(storage_dir=str(tmp_path), duration=3) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
-
-
-# test only in a container so that we don't mess with the environment.
-@pytest.mark.parametrize("in_container", [True])
-def test_java_async_profiler_buildids(
-    tmp_path: Path, application_pid: int, assert_collapsed: AssertInCollapsed
-) -> None:
-    """
-    Tests that async-profiler's buildid feature works.
-    """
-    libc = get_lib_path(application_pid, "/libc-")
-    buildid = get_elf_buildid(libc)
-
-    with make_java_profiler(
-        storage_dir=str(tmp_path), duration=3, frequency=99, java_async_profiler_buildids=True
-    ) as profiler:
-        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
-        # path buildid+0xoffset_[bid]
-        # we check for libc because it has undefined symbols in all profiles :shrug:
-        assert_function_in_collapsed(
-            f"{remove_prefix(libc, f'/proc/{application_pid}/root/')} {buildid}+0x", process_collapsed
-        )
-        assert_function_in_collapsed("_[bid]", process_collapsed)
 
 
 @pytest.mark.parametrize(

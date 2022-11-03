@@ -6,17 +6,21 @@ import configparser
 import functools
 import os.path
 import re
-from abc import ABCMeta, abstractmethod
 from typing import Dict, List, Optional, TextIO, Tuple
 
 from granulate_utils.linux.ns import resolve_host_path, resolve_proc_root_links
 from psutil import NoSuchProcess, Process
 
-from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.base_application_identifier import _ApplicationIdentifier
 from gprofiler.metadata.enrichment import EnrichmentOptions
-from gprofiler.profilers.java import jattach_path
-from gprofiler.utils import run_process
+from gprofiler.platform import is_linux
+
+if is_linux():
+    from gprofiler.metadata.application_identifiers_java import (
+        _JavaJarApplicationIdentifier,
+        _JavaSparkApplicationIdentifier,
+    )
 
 _logger = get_logger_adapter(__name__)
 
@@ -90,14 +94,6 @@ def _append_file_to_proc_wd(process: Process, file_path: str) -> str:
     resolved = resolve_proc_root_links(proc_root, file_path)
     assert resolved.startswith(proc_root), resolved
     return resolved[len(proc_root) :]
-
-
-class _ApplicationIdentifier(metaclass=ABCMeta):
-    enrichment_options: Optional[EnrichmentOptions] = None
-
-    @abstractmethod
-    def get_app_id(self, process: Process) -> Optional[str]:
-        pass
 
 
 class _GunicornApplicationIdentifierBase(_ApplicationIdentifier):
@@ -277,64 +273,6 @@ class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
         return None
 
 
-class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
-    def get_app_id(self, process: Process) -> Optional[str]:
-        try:
-            java_properties = run_process([jattach_path(), str(process.pid), "jcmd", "VM.command_line"]).stdout.decode()
-            java_command = None
-            java_args = []
-            for line in java_properties.splitlines():
-                if line.startswith("jvm_args:"):
-                    if (
-                        self.enrichment_options is not None
-                        and self.enrichment_options.application_identifier_args_filters
-                    ):
-                        for arg in line[line.find(":") + 1 :].strip().split(" "):
-                            if any(
-                                re.search(flag_filter, arg)
-                                for flag_filter in self.enrichment_options.application_identifier_args_filters
-                            ):
-                                java_args.append(arg)
-                if line.startswith("java_command:"):
-                    java_command = line[line.find(":") + 1 :].strip().split(" ", 1)[0]
-            if java_command:
-                return f"java: {java_command}{' (' + ' '.join(java_args) + ')' if java_args else ''}"
-        except CalledProcessError as e:
-            _logger.warning(f"Couldn't get Java properties for process {process.pid}: {e.stderr}")
-
-        return None
-
-
-class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
-    _JAVA_SPARK_EXECUTOR_ARG = "org.apache.spark.executor"
-    _SPARK_PROPS_FILE = os.path.join("__spark_conf__", "__spark_conf__.properties")
-    _APP_NAME_NOT_FOUND = "app name not found"
-    _APP_NAME_KEY = "spark.app.name"
-
-    @staticmethod
-    def _is_java_spark_executor(process: Process) -> bool:
-        args = process.cmdline()
-        return any(_JavaSparkApplicationIdentifier._JAVA_SPARK_EXECUTOR_ARG in arg for arg in args)
-
-    def get_app_id(self, process: Process) -> Optional[str]:
-        if not self._is_java_spark_executor(process):
-            return None
-        props_path = os.path.join(process.cwd(), self._SPARK_PROPS_FILE)
-        if not os.path.exists(props_path):
-            _logger.warning(
-                f"Spark props file doesn't exist: {props_path}. Proces args: {process.cmdline()}, pid: {process.pid}"
-            )
-            return self._APP_NAME_NOT_FOUND
-        with open(props_path) as f:
-            props_text = f.read()
-        props = dict(
-            [line.split("#", 1)[0].split("=", 1) for line in props_text.splitlines() if not line.startswith("#")]
-        )
-        if self._APP_NAME_KEY in props:
-            return f"spark: {props[self._APP_NAME_KEY]}"
-        return self._APP_NAME_NOT_FOUND
-
-
 # Please note that the order matter, because the FIRST matching identifier will be used.
 # so when adding new identifiers pay attention to the order, unless aggregate_all is used.
 _IDENTIFIERS_MAP: Dict[str, List[_ApplicationIdentifier]] = {
@@ -346,12 +284,11 @@ _IDENTIFIERS_MAP: Dict[str, List[_ApplicationIdentifier]] = {
         _PySparkApplicationIdentifier(),
         _PythonModuleApplicationIdentifier(),
     ],
-    "java": [
-        _JavaJarApplicationIdentifier(),
-    ],
 }
 
-_IDENTIFIERS_MAP["java_spark"] = _IDENTIFIERS_MAP["java"] + [_JavaSparkApplicationIdentifier()]
+if is_linux():
+    _IDENTIFIERS_MAP["java"] = [_JavaJarApplicationIdentifier()]
+    _IDENTIFIERS_MAP["java_spark"] = _IDENTIFIERS_MAP["java"] + [_JavaSparkApplicationIdentifier()]
 
 
 def set_enrichment_options(enrichment_options: EnrichmentOptions) -> None:

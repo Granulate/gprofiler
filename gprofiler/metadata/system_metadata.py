@@ -1,6 +1,6 @@
 import array
 import errno
-import fcntl
+import ipaddress
 import os
 import platform
 import re
@@ -18,7 +18,13 @@ import psutil
 from granulate_utils.linux.ns import run_in_ns
 
 from gprofiler.log import get_logger_adapter
+from gprofiler.platform import is_linux, is_windows
 from gprofiler.utils import is_pyinstaller, run_process
+
+if is_linux():
+    import fcntl
+else:
+    import netifaces
 
 UNKNOWN_VALUE = "unknown"
 
@@ -142,6 +148,9 @@ def get_cpu_info() -> Tuple[str, str]:
     Parse /proc/cpuinfo to get model name & flags.
     """
     try:
+        if is_windows():
+            return UNKNOWN_VALUE, UNKNOWN_VALUE
+
         with open("/proc/cpuinfo") as f:
             model_names = []
             flags = []
@@ -194,15 +203,45 @@ class SystemInfo:
     spawn_uptime_ms: float
 
 
+if is_windows():
+
+    def get_windows_network_details() -> Tuple[str, str]:
+        LOOPBACK = "127.0.0.1"
+        ADDR_KEY = "addr"
+        MAC_KEY = -1000
+        for iface in netifaces.interfaces():
+            mac_address = None
+            for key, addresses in netifaces.ifaddresses(iface).items():
+                for address in addresses:
+                    if key == MAC_KEY:
+                        mac_address = address[ADDR_KEY]
+                        continue
+                    try:
+                        if ipaddress.IPv4Address(address[ADDR_KEY]) is not None and address[ADDR_KEY] != LOOPBACK:
+                            assert isinstance(mac_address, str)
+                            assert isinstance(address[ADDR_KEY], str)
+                            return (mac_address, address[ADDR_KEY])
+                    except ipaddress.AddressValueError:
+                        pass
+        return UNKNOWN_VALUE, UNKNOWN_VALUE
+
+
 def get_static_system_info() -> SystemInfo:
-    hostname, distribution, libc_tuple, mac_address, local_ip = _initialize_system_info()
-    clock = getattr(time, "CLOCK_BOOTTIME", time.CLOCK_MONOTONIC)
-    try:
-        spawn_uptime_ms = time.clock_gettime(clock)
-    except OSError as error:
-        if error.errno != errno.EINVAL:
-            raise
-        spawn_uptime_ms = time.clock_gettime(time.CLOCK_MONOTONIC)
+    if is_windows():
+        hostname = platform.node()
+        distribution = platform.system(), platform.release(), platform.version()
+        libc_tuple = platform.libc_ver()
+        mac_address, local_ip = get_windows_network_details()
+        spawn_uptime_ms = time.monotonic() * 1000
+    else:
+        hostname, distribution, libc_tuple, mac_address, local_ip = _initialize_system_info()
+        clock = getattr(time, "CLOCK_BOOTTIME", time.CLOCK_MONOTONIC)
+        try:
+            spawn_uptime_ms = time.clock_gettime(clock)
+        except OSError as error:
+            if error.errno != errno.EINVAL:
+                raise
+            spawn_uptime_ms = time.clock_gettime(time.CLOCK_MONOTONIC)
     libc_type, libc_version = libc_tuple
     os_name, os_release, os_codename = distribution
     uname = platform.uname()
