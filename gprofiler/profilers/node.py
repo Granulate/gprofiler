@@ -162,7 +162,6 @@ def _change_dso_state(sock: WebSocket, module_path: str, action: str) -> None:
     _evaluate_js_command(sock, command, ExpectedResult.BOOLEAN)
 
 
-@retry(NodeDebuggerProcessUndefined, 5, 0.5)
 def _close_debugger(sock: WebSocket) -> None:
     command = "process._debugEnd()"
     _evaluate_js_command(sock, command, ExpectedResult.NONE)
