@@ -7,6 +7,7 @@ import os
 import shutil
 import signal
 import stat
+from enum import Enum
 from functools import lru_cache
 from pathlib import Path
 from threading import Event
@@ -39,11 +40,11 @@ class NodeDebuggerProcessUndefined(Exception):
     pass
 
 
-class ExpectedResult:
-    STRING = 1
-    INTEGER = 2
-    BOOLEAN = 3
-    NONE = 4
+class ResultType(str, Enum):
+    STRING = "string"
+    INTEGER = "integer"
+    BOOLEAN = "boolean"
+    NONE = "none"
 
 
 def _get_node_major_version(process: psutil.Process) -> str:
@@ -106,7 +107,7 @@ def _get_debugger_url() -> str:
 
 
 @retry(NodeDebuggerProcessUndefined, 5, 0.5)
-def _evaluate_js_command(sock: WebSocket, command: str, expected_result: int) -> Any:
+def _evaluate_js_command(sock: WebSocket, command: str, expected_result: str) -> Any:
     # Check if process or process.mainModule in command, and if it is, check if it is defined in js context
     if "process.mainModule" in command:
         command = f'typeof(process.mainModule) === "undefined" ? "process undefined" : {command}'
@@ -124,7 +125,7 @@ def _evaluate_js_command(sock: WebSocket, command: str, expected_result: int) ->
     try:
         message = json.loads(message)
     except json.JSONDecodeError:
-        if expected_result == ExpectedResult.NONE:
+        if expected_result == ResultType.NONE:
             return message
         else:
             raise NodeDebuggerUnexpectedResponse(message) from None
@@ -142,15 +143,13 @@ def _evaluate_js_command(sock: WebSocket, command: str, expected_result: int) ->
         or "type" not in message["result"]["result"].keys()
     ):
         raise NodeDebuggerUnexpectedResponse(message) from None
-    if expected_result == ExpectedResult.BOOLEAN:
+    if expected_result == ResultType.BOOLEAN:
         if message["result"]["result"]["type"] != "boolean":
             raise NodeDebuggerUnexpectedResponse(message) from None
-        else:
-            return message
-    elif expected_result == ExpectedResult.INTEGER:
+    elif expected_result == ResultType.INTEGER:
         if message["result"]["result"]["type"] != "number":
             raise NodeDebuggerUnexpectedResponse(message) from None
-    elif expected_result == ExpectedResult.STRING:
+    elif expected_result == ResultType.STRING:
         if message["result"]["result"]["type"] != "string":
             raise NodeDebuggerUnexpectedResponse(message) from None
     return message["result"]["result"]["value"]
@@ -159,25 +158,25 @@ def _evaluate_js_command(sock: WebSocket, command: str, expected_result: int) ->
 def _change_dso_state(sock: WebSocket, module_path: str, action: str) -> None:
     assert action in ("start", "stop"), "_change_dso_state supports only start and stop actions"
     command = f'process.mainModule.require("{os.path.join(module_path, "linux-perf.js")}").{action}()'
-    _evaluate_js_command(sock, command, ExpectedResult.BOOLEAN)
+    _evaluate_js_command(sock, command, ResultType.BOOLEAN)
 
 
 def _close_debugger(sock: WebSocket) -> None:
     command = "process._debugEnd()"
-    _evaluate_js_command(sock, command, ExpectedResult.NONE)
+    _evaluate_js_command(sock, command, ResultType.NONE)
     sock.close()
 
 
 def _validate_ns_node(sock: WebSocket, expected_ns_link_name: str) -> None:
     command = 'process.mainModule.require("fs").readlinkSync("/proc/self/ns/pid")'
-    actual_ns_link_name = cast(str, _evaluate_js_command(sock, command, ExpectedResult.STRING))
+    actual_ns_link_name = cast(str, _evaluate_js_command(sock, command, ResultType.STRING))
     assert (
         actual_ns_link_name == expected_ns_link_name
     ), f"Wrong namespace, expected {expected_ns_link_name}, got {actual_ns_link_name}"
 
 
 def _validate_pid(expected_pid: int, sock: WebSocket) -> None:
-    actual_pid = cast(int, _evaluate_js_command(sock, "process.pid", ExpectedResult.INTEGER))
+    actual_pid = cast(int, _evaluate_js_command(sock, "process.pid", ResultType.INTEGER))
     assert expected_pid == actual_pid, f"Wrong pid, expected {expected_pid}, actual {actual_pid}"
 
 
