@@ -15,7 +15,7 @@ import traceback
 from pathlib import Path
 from threading import Event
 from types import FrameType, TracebackType
-from typing import Dict, Iterable, Optional, Type, cast
+from typing import Iterable, Optional, Type, cast
 
 import configargparse
 from granulate_utils.linux.ns import is_running_in_init_pid
@@ -407,24 +407,21 @@ def _submit_profile_logged(
         return response_dict.get("gpid", "")
 
 
-def send_collapsed_file_only(args, client):
+def send_collapsed_file_only(args: configargparse.Namespace, client: APIClient):
     spawn_time = time.time()
     gpid = ""
     metrics = NoopSystemMetricsMonitor().get_metrics()
     if args.collect_metadata:
-        _static_metadata = get_static_metadata(spawn_time=spawn_time, run_args=args.__dict__)
-    metadata = (
-        get_current_metadata(cast(Metadata, _static_metadata))
-        if args.collect_metadata
-        else {"hostname": get_hostname()}
-    )
+        metadata = get_current_metadata(get_static_metadata(spawn_time=spawn_time, run_args=args.__dict__))
+    else:
+        metadata = {"hostname": get_hostname()}
     # TODO:container names, application metadata
-    local_start_time, local_end_time, merged_result, total_samples = concatenate_from_external_file(
+    local_start_time, local_end_time, merged_result = concatenate_from_external_file(
         args.file_path,
         metadata,
     )
 
-    if local_start_time is None and local_end_time is None:
+    if local_start_time is None or local_end_time is None:
         assert (
             local_start_time is None and local_end_time is None
         ), "both start_time and end_time should be set, or none of them"
@@ -527,10 +524,8 @@ def parse_cmd_args() -> configargparse.Namespace:
     upload_file = subparsers.add_parser("upload-file")
     upload_file.add_argument(
         "--file-path",
-        action="store",
         type=str,
-        default=None,
-        help="Path for the collapsed file to be",
+        help="Path for the collapsed file to be uploaded",
     )
     for subparser in [parser, upload_file]:
         connectivity = subparser.add_argument_group("connectivity")
@@ -679,7 +674,10 @@ def parse_cmd_args() -> configargparse.Namespace:
     args.perf_inject = args.nodejs_mode == "perf"
     args.perf_node_attach = args.nodejs_mode == "attach-maps"
 
-    if args.upload_results or args.file_path:
+    if args.subcommand == "upload-file":
+        args.upload_results = True
+
+    if args.upload_results:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
         if not args.service_name and not args.databricks_job_name_as_service_name:
@@ -871,7 +869,7 @@ def main() -> None:
                     get_hostname(),
                     **client_kwargs,
                 )
-                if args.upload_results or args.subcommands == "upload-file"
+                if args.upload_results
                 else None
             )
         except APIError as e:
@@ -891,9 +889,9 @@ def main() -> None:
             remote_logs_handler.init_api_client(client)
 
         if hasattr(args, "func"):
-            if args.subcommands == "upload-file":
-                args.func(args, client)
-                return
+            assert args.subcommands == "upload-file"
+            args.func(args, client)
+            return
 
         enrichment_options = EnrichmentOptions(
             profile_api_version=args.profile_api_version,

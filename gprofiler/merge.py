@@ -2,7 +2,6 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import datetime
 import json
 import math
 import random
@@ -10,7 +9,7 @@ import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from granulate_utils.metadata import Metadata
 
@@ -24,6 +23,7 @@ from gprofiler.gprofiler_types import (
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.system_metrics import Metrics
+from gprofiler.utils import merge_dicts, parse_iso8601_timestamp
 
 logger = get_logger_adapter(__name__)
 
@@ -333,26 +333,15 @@ def _enrich_and_finalize_stack(
     return f"{enrich_data.application_prefix}{enrich_data.container_prefix}{stack} {count}"
 
 
-def _merge_metadata(primary, secondary):
-    for key, value in primary.items():
-        # in case value is a dict itself
-        if isinstance(value, dict):
-            node = secondary.setdefault(key, {})
-            _merge_metadata(value, node)
-        else:
-            secondary[key] = value
-    return secondary
-
-
 def concatenate_from_external_file(
     collapsed_file_path: str,
     obtained_metadata: Metadata,
-) -> Tuple[str, str, str, int]:
+) -> Tuple[str, str, str]:
     """
     Concatenate all stacks from all stack mappings in process_profiles.
     Add "profile metadata" and metrics as the first line of the resulting collapsed file.
     """
-    total_samples = 0
+
     lines = []
     start_time = None
     end_time = None
@@ -361,16 +350,18 @@ def concatenate_from_external_file(
     with open(collapsed_file_path) as file:
         for index, line in enumerate(file):
             if index == 0:
-                read_metadata = json.loads(line[2:])
-                metadata = _merge_metadata(read_metadata, obtained_metadata)
+                read_metadata = json.loads(line[1:])
+                metadata = merge_dicts(read_metadata, obtained_metadata)
                 try:
-                    start_time = datetime.datetime.strptime(metadata["start_time"], "%Y-%m-%dT%H:%M:%S.%f")
-                    end_time = datetime.datetime.strptime(metadata["end_time"], "%Y-%m-%dT%H:%M:%S.%f")
+                    start_time = parse_iso8601_timestamp(metadata["start_time"])
+                    end_time = parse_iso8601_timestamp(metadata["end_time"])
                 except KeyError:
                     pass
-            lines.append(line.rstrip())
+                lines.append("# " + json.dumps(metadata))
+            else:
+                lines.append(line.rstrip())
 
-    return start_time, end_time, "\n".join(lines), total_samples
+    return start_time, end_time, "\n".join(lines)
 
 
 def concatenate_profiles(
