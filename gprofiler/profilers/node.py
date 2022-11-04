@@ -107,7 +107,7 @@ def _get_debugger_url() -> str:
 
 
 @retry(NodeDebuggerProcessUndefined, 5, 0.5)
-def _evaluate_js_command(sock: WebSocket, command: str, expected_result: str) -> Any:
+def _evaluate_js_command(sock: WebSocket, command: str, expected_result: ResultType) -> Any:
     # Check if process or process.mainModule in command, and if it is, check if it is defined in js context
     if "process.mainModule" in command:
         command = f'typeof(process.mainModule) === "undefined" ? "process undefined" : {command}'
