@@ -411,7 +411,9 @@ def send_collapsed_file_only(args: configargparse.Namespace, client: APIClient):
     gpid = ""
     metrics = NoopSystemMetricsMonitor().get_metrics()
     if args.collect_metadata:
-        metadata = get_current_metadata(get_static_metadata(spawn_time=spawn_time, run_args=args.__dict__))
+        metadata = get_current_metadata(
+            cast(Metadata, get_static_metadata(spawn_time=spawn_time, run_args=args.__dict__))
+        )
     else:
         metadata = {"hostname": get_hostname()}
     # TODO:container names, application metadata
@@ -519,7 +521,7 @@ def parse_cmd_args() -> configargparse.Namespace:
         help="Whether to upload the profiling results to the server",
     )
 
-    subparsers = parser.add_subparsers(dest="subcommands")
+    subparsers = parser.add_subparsers(dest="subcommand")
     upload_file = subparsers.add_parser("upload-file")
     upload_file.add_argument(
         "--file-path",
@@ -682,7 +684,7 @@ def parse_cmd_args() -> configargparse.Namespace:
         if not args.service_name and not args.databricks_job_name_as_service_name:
             parser.error("Must provide --service-name when --upload-results is passed")
 
-    if not args.upload_results and not args.output_dir and args.subcommands is None:
+    if not args.upload_results and not args.output_dir:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
 
     if args.perf_dwarf_stack_size > 65528:
@@ -888,7 +890,7 @@ def main() -> None:
             remote_logs_handler.init_api_client(client)
 
         if hasattr(args, "func"):
-            assert args.subcommands == "upload-file"
+            assert args.subcommand == "upload-file"
             args.func(args, client)
             return
 

@@ -357,6 +357,10 @@ def concatenate_from_external_file(
                     end_time = parse_iso8601_timestamp(metadata["end_time"])
                 except KeyError:
                     pass
+                try:
+                    metadata["run_arguments"]["func"] = str(metadata["run_arguments"]["func"])
+                except KeyError:
+                    pass
                 lines.append("# " + json.dumps(metadata))
             else:
                 lines.append(line.rstrip())
