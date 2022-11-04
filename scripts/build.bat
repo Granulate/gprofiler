@@ -52,7 +52,7 @@ IF EXIST .\py-spy\py-spy.exe (
 ) ELSE (
 	ECHO Building py-spy executable...
 	CALL .\scripts\build-pyspy.bat
-	IF %ERRORLEVEL% NEQ 0 (
+	IF ERRORLEVEL 1 (
 		ECHO Building py-spy failed. See Errors above.
 		EXIT /B 1 
 	)
