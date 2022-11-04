@@ -42,7 +42,7 @@ class NodeDebuggerProcessUndefined(Exception):
 
 class ResultType(str, Enum):
     STRING = "string"
-    INTEGER = "integer"
+    NUMBER = "number"
     BOOLEAN = "boolean"
     NONE = "none"
 
@@ -125,7 +125,7 @@ def _evaluate_js_command(sock: WebSocket, command: str, expected_result: str) ->
     try:
         message = json.loads(message)
     except json.JSONDecodeError:
-        if expected_result == ResultType.NONE:
+        if expected_result == ResultType.NONE and len(message) == 0:
             return message
         else:
             raise NodeDebuggerUnexpectedResponse(message) from None
@@ -142,16 +142,16 @@ def _evaluate_js_command(sock: WebSocket, command: str, expected_result: str) ->
         or "result" not in message["result"].keys()
         or "type" not in message["result"]["result"].keys()
     ):
-        raise NodeDebuggerUnexpectedResponse(message) from None
+        raise NodeDebuggerUnexpectedResponse(message)
     if expected_result == ResultType.BOOLEAN:
-        if message["result"]["result"]["type"] != "boolean":
-            raise NodeDebuggerUnexpectedResponse(message) from None
-    elif expected_result == ResultType.INTEGER:
-        if message["result"]["result"]["type"] != "number":
-            raise NodeDebuggerUnexpectedResponse(message) from None
+        if expected_result.value != message["result"]["result"]["type"]:
+            raise NodeDebuggerUnexpectedResponse(message)
+    elif expected_result == ResultType.NUMBER:
+        if expected_result.value != message["result"]["result"]["type"]:
+            raise NodeDebuggerUnexpectedResponse(message)
     elif expected_result == ResultType.STRING:
-        if message["result"]["result"]["type"] != "string":
-            raise NodeDebuggerUnexpectedResponse(message) from None
+        if expected_result.value != message["result"]["result"]["type"]:
+            raise NodeDebuggerUnexpectedResponse(message)
     return message["result"]["result"]["value"]
 
 
@@ -176,7 +176,7 @@ def _validate_ns_node(sock: WebSocket, expected_ns_link_name: str) -> None:
 
 
 def _validate_pid(expected_pid: int, sock: WebSocket) -> None:
-    actual_pid = cast(int, _evaluate_js_command(sock, "process.pid", ResultType.INTEGER))
+    actual_pid = cast(int, _evaluate_js_command(sock, "process.pid", ResultType.NUMBER))
     assert expected_pid == actual_pid, f"Wrong pid, expected {expected_pid}, actual {actual_pid}"
 
 
