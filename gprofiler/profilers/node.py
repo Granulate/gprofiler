@@ -186,6 +186,7 @@ def create_debugger_socket(nspid: int, ns_link_name: str) -> WebSocket:
     sock.settimeout(10)
     _validate_ns_node(sock, ns_link_name)
     _validate_pid(nspid, sock)
+    logger.info(f"Created debugger socket for pid: {nspid} (nodejs)")
     return sock
 
 
@@ -205,6 +206,7 @@ def _copy_module_into_process_ns(process: psutil.Process, musl: bool, version: s
 def _generate_perf_map(module_path: str, nspid: int, ns_link_name: str) -> None:
     sock = create_debugger_socket(nspid, ns_link_name)
     _change_dso_state(sock, module_path, "start")
+    logger.info(f"Changed DSO state to start for pid: {nspid} (nodejs)")
     _close_debugger(sock)
 
 
@@ -212,6 +214,7 @@ def _clean_up(module_path: str, nspid: int, ns_link_name: str) -> None:
     sock = create_debugger_socket(nspid, ns_link_name)
     try:
         _change_dso_state(sock, module_path, "stop")
+        logger.info(f"Changed DSO state to stop for pid: {nspid} (nodejs)")
         _close_debugger(sock)
     finally:
         os.remove(os.path.join("/tmp", f"perf-{nspid}.map"))
