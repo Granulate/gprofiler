@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, List, Tuple, Union
 from gprofiler.exceptions import NoProfilersEnabledError
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_arch
+from gprofiler.platform import is_windows
 from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.profiler_base import NoopProfiler
 from gprofiler.profilers.registry import get_profilers_registry
@@ -30,8 +31,8 @@ def get_profilers(
         if profiler_mode in ("none", "disabled"):
             continue
 
-        if arch not in profiler_config.supported_archs:
-            logger.warning(f"Disabling {profiler_name} because it doesn't support this architecture ({arch})")
+        if arch not in (profiler_config.supported_windows_archs if is_windows() else profiler_config.supported_archs):
+            logger.warning(f"Disabling {profiler_name} because it doesn't support this architechture ({arch})")
             continue
 
         profiler_kwargs = profiler_init_kwargs.copy()

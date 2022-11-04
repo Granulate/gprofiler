@@ -183,8 +183,9 @@ class GProfiler:
     ) -> None:
         start_ts = get_iso8601_format_time(local_start_time)
         end_ts = get_iso8601_format_time(local_end_time)
-        base_filename = os.path.join(self._output_dir, "profile_{}".format(end_ts))
-
+        base_filename = os.path.join(
+            self._output_dir, "profile_{}".format(end_ts.replace(":", "-" if is_windows() else ":"))
+        )
         collapsed_path = base_filename + ".col"
         Path(collapsed_path).write_text(collapsed_data, encoding="utf-8")
         stripped_collapsed_data = self._strip_extra_data(collapsed_data)

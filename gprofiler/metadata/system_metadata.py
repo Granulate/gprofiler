@@ -104,6 +104,9 @@ def get_mac_address() -> str:
     """
     Gets the MAC address of the first non-loopback interface.
     """
+    if is_windows():
+        mac_address, _ = get_windows_network_details()
+        return mac_address
 
     assert sys.maxsize > 2**32, "expected to run on 64-bit!"
     SIZE_OF_STUCT_ifreq = 40  # correct for 64-bit
