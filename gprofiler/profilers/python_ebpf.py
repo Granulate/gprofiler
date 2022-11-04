@@ -73,6 +73,7 @@ class PythonEbpfProfiler(ProfilerBase):
         self.user_stacks_pages = user_stacks_pages
         self._kernel_offsets: Dict[str, int] = {}
         self._metadata = python.PythonMetadata(self._stop_event)
+        self._insert_dso_name = insert_dso_name
 
     @classmethod
     def _pyperf_error(cls, process: Popen) -> NoReturn:
@@ -178,6 +179,8 @@ class PythonEbpfProfiler(ProfilerBase):
             str(self._SYMBOLS_MAP_SIZE),
             # Duration is irrelevant here, we want to run continuously.
         ] + self._offset_args()
+        if self._insert_dso_name:
+            cmd.extend(["--do-insert-dso-name"])
 
         if self.user_stacks_pages is not None:
             cmd.extend(["--user-stacks-pages", str(self.user_stacks_pages)])
