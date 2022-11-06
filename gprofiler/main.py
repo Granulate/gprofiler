@@ -533,6 +533,7 @@ def parse_cmd_args() -> configargparse.Namespace:
         "--file-path",
         type=str,
         help="Path for the collapsed file to be uploaded",
+        required=True,
     )
     for subparser in [parser, upload_file]:
         connectivity = subparser.add_argument_group("connectivity")
@@ -802,7 +803,8 @@ def init_pid_file(pid_file: str) -> None:
 
 def main() -> None:
     args = parse_cmd_args()
-    verify_preconditions(args)
+    if args.subcommand is None:
+        verify_preconditions(args)
     state = init_state()
 
     remote_logs_handler = RemoteLogsHandler() if _should_send_logs(args) else None

@@ -354,6 +354,7 @@ def concatenate_from_external_file(
     with open(collapsed_file_path) as file:
         for index, line in enumerate(file):
             if index == 0:
+                assert line.startswith("#")
                 read_metadata = json.loads(line[1:])
                 metadata = merge_dicts(read_metadata, obtained_metadata)
                 try:
@@ -362,7 +363,7 @@ def concatenate_from_external_file(
                 except KeyError:
                     pass
                 try:
-                    metadata["run_arguments"]["func"] = str(metadata["run_arguments"]["func"])
+                    del metadata["run_arguments"]["func"]
                 except KeyError:
                     pass
                 lines.append("# " + json.dumps(metadata))
