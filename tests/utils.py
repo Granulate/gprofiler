@@ -36,6 +36,8 @@ RUNTIME_PROFILERS = [
     ("nodejs", "perf"),
 ]
 
+CPU_PROFILING = "cpu"
+
 
 def start_container(
     docker_client: DockerClient,
@@ -191,6 +193,7 @@ def make_java_profiler(
     java_async_profiler_mcache: int = AsyncProfiledProcess._DEFAULT_MCACHE,
     java_collect_spark_app_name_as_appid: bool = False,
     java_mode: str = "ap",
+    profiling_mode: str = CPU_PROFILING,
 ) -> JavaProfiler:
     assert storage_dir is not None
     return JavaProfiler(
@@ -209,6 +212,7 @@ def make_java_profiler(
         java_async_profiler_mcache=java_async_profiler_mcache,
         java_collect_spark_app_name_as_appid=java_collect_spark_app_name_as_appid,
         java_mode=java_mode,
+        profiling_mode=profiling_mode,
     )
 
 
