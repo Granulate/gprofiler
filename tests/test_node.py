@@ -101,7 +101,9 @@ def test_nodejs_matrix(
 ) -> None:
     node_version, libc = application_image_tag.split("-")
     if node_version in ["14", "15", "16"] or (node_version == "12" and libc == "musl"):
-        pytest.xfail("This test fails with these nodejs versions, see https://github.com/Granulate/gprofiler/issues/550")
+        pytest.xfail(
+            "This test fails with these nodejs versions, see https://github.com/Granulate/gprofiler/issues/550"
+        )
     with SystemProfiler(
         1000,
         6,
