@@ -357,7 +357,7 @@ def get_iso8601_format_time(time: datetime.datetime) -> str:
     return time.replace(microsecond=0).isoformat()
 
 
-def parse_iso8601_timestamp(time: str):
+def parse_iso8601_timestamp(time: str) -> datetime.datetime:
     return datetime.datetime.fromisoformat(time)
 
 
@@ -502,7 +502,7 @@ def add_permission_dir(path: str, permission_for_file: int, permission_for_dir: 
             os.chmod(absolute_subpath, os.stat(absolute_subpath).st_mode | permission_for_file)
 
 
-def merge_dicts(source: Dict[str, Any], dest: Dict[str, Any]):
+def merge_dicts(source: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any]:
     for key, value in source.items():
         # in case value is a dict itself
         if isinstance(value, dict):

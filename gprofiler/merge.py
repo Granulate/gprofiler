@@ -9,7 +9,7 @@ import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from granulate_utils.metadata import Metadata
 
@@ -340,7 +340,7 @@ def _enrich_and_finalize_stack(
 def concatenate_from_external_file(
     collapsed_file_path: str,
     obtained_metadata: Metadata,
-) -> Tuple[str, str, str]:
+) -> Tuple[Optional[Any], Optional[Any], str]:
     """
     Concatenate all stacks from all stack mappings in process_profiles.
     Add "profile metadata" and metrics as the first line of the resulting collapsed file.

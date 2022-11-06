@@ -403,10 +403,10 @@ def _submit_profile_logged(
         logger.exception("Error occurred sending profile to server")
     else:
         logger.info("Successfully uploaded profiling data to the server")
-        return response_dict.get("gpid", "")
+    return response_dict.get("gpid", "")
 
 
-def send_collapsed_file_only(args: configargparse.Namespace, client: APIClient):
+def send_collapsed_file_only(args: configargparse.Namespace, client: APIClient) -> None:
     spawn_time = time.time()
     gpid = ""
     metrics = NoopSystemMetricsMonitor().get_metrics()
