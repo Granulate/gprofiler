@@ -17,7 +17,8 @@ logger = get_logger_adapter(__name__)
 COMMON_PROFILER_ARGUMENT_NAMES = ["frequency", "duration", "insert_dso_name", "duration", "profiling_mode"]
 
 
-def get_profilers(user_args: "UserArgs", **profiler_init_kwargs: Any
+def get_profilers(
+    user_args: "UserArgs", **profiler_init_kwargs: Any
 ) -> Tuple[Union["SystemProfiler", "NoopProfiler"], List["ProcessProfilerBase"]]:
     arch = get_arch()
     profilers_registry = get_profilers_registry()

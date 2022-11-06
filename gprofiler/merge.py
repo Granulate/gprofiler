@@ -412,5 +412,6 @@ def merge_profiles(
         # swap them: use the samples from the runtime profiler.
         perf_pid_to_profiles[pid] = profile
 
-    return concatenate_profiles(perf_pid_to_profiles, container_names_client, enrichment_options, metadata, metrics,
-                                profiling_mode)
+    return concatenate_profiles(
+        perf_pid_to_profiles, container_names_client, enrichment_options, metadata, metrics, profiling_mode
+    )

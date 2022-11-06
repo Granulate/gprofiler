@@ -143,7 +143,7 @@ class GProfiler:
             self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
-        self._profiling_mode = user_args.get("profiling_mode")
+        self._profiling_mode = cast(str, user_args["profiling_mode"])
 
     @property
     def all_profilers(self) -> Iterable[ProfilerInterface]:
@@ -439,7 +439,7 @@ def parse_cmd_args() -> configargparse.Namespace:
         choices=["cpu", "allocation"],
         default="cpu",
         help="Select gProfiler's profiling mode, default is %(default)s, currently allocation mode is available "
-             "and will profile and collect only JVM based processes",
+        "and will profile and collect only JVM based processes",
     )
 
     parser.add_argument(

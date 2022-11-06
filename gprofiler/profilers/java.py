@@ -676,11 +676,11 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_async_profiler_mcache: int,
         java_collect_spark_app_name_as_appid: bool,
         java_mode: str,
-
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes,
-                         profiling_mode)
+        super().__init__(
+            frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes, profiling_mode
+        )
 
         self._interval = frequency_to_ap_interval(frequency)
         # simple version check, and

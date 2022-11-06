@@ -175,8 +175,9 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         *,
         add_versions: bool,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes,
-                         profiling_mode)
+        super().__init__(
+            frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes, profiling_mode
+        )
         self.add_versions = add_versions
         self._metadata = PythonMetadata(self._stop_event)
 
