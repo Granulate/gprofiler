@@ -7,10 +7,11 @@ import os
 import shutil
 import signal
 import stat
+from enum import Enum
 from functools import lru_cache
 from pathlib import Path
 from threading import Event
-from typing import Any, Dict, List, cast
+from typing import Any, List, cast
 
 import psutil
 import requests
@@ -33,6 +34,17 @@ class NodeDebuggerUrlNotFound(Exception):
 
 class NodeDebuggerUnexpectedResponse(Exception):
     pass
+
+
+class NodeDebuggerProcessUndefined(Exception):
+    pass
+
+
+class ResultType(str, Enum):
+    STRING = "string"
+    NUMBER = "number"
+    BOOLEAN = "boolean"
+    NONE = "none"
 
 
 def _get_node_major_version(process: psutil.Process) -> str:
@@ -64,6 +76,7 @@ def _start_debugger(pid: int) -> None:
 
 
 @retry(NodeDebuggerUrlNotFound, 5, 1)
+@retry(requests.exceptions.ConnectionError, 5, 1)
 def _get_debugger_url() -> str:
     # when killing process with SIGUSR1 it will open new debugger session on port 9229,
     # so it will always the same. When another debugger is opened in same NS it will not open new one.
@@ -93,30 +106,18 @@ def _get_debugger_url() -> str:
     return cast(str, response_json[0]["webSocketDebuggerUrl"])
 
 
-def _send_socket_request(sock: WebSocket, cdp_request: Dict) -> None:
-    sock.send(json.dumps(cdp_request))
-    message = sock.recv()
-    try:
-        message = json.loads(message)
-    except json.JSONDecodeError:
-        raise NodeDebuggerUnexpectedResponse(message)
-
-    if (
-        "result" not in message.keys()
-        or "result" not in message["result"].keys()
-        or "type" not in message["result"]["result"].keys()
-        or message["result"]["result"]["type"] != "boolean"
-    ):
-        raise NodeDebuggerUnexpectedResponse(message)
-
-
-def _execute_js_command(sock: WebSocket, command: str) -> Any:
+@retry(NodeDebuggerProcessUndefined, 5, 0.5)
+def _evaluate_js_command(sock: WebSocket, command: str, expected_result: ResultType) -> Any:
+    # Check if process or process.mainModule in command, and if it is, check if it is defined in js context
+    if "process.mainModule" in command:
+        command = f'typeof(process.mainModule) === "undefined" ? "process undefined" : {command}'
+    if "process" in command:
+        command = f'typeof(process) === "undefined" ? "process undefined" : {command}'
     cdp_request = {
         "id": 1,
         "method": "Runtime.evaluate",
         "params": {
             "expression": command,
-            "replMode": True,
         },
     }
     sock.send(json.dumps(cdp_request))
@@ -124,42 +125,64 @@ def _execute_js_command(sock: WebSocket, command: str) -> Any:
     try:
         message = json.loads(message)
     except json.JSONDecodeError:
-        raise NodeDebuggerUnexpectedResponse(message) from None
+        if expected_result == ResultType.NONE and len(message) == 0:
+            return message
+        else:
+            raise NodeDebuggerUnexpectedResponse(message) from None
     try:
-        return message["result"]["result"]["value"]
+        if (
+            isinstance(message["result"]["result"]["value"], str)
+            and message["result"]["result"]["value"] == "process undefined"
+        ):
+            raise NodeDebuggerProcessUndefined(message)
     except KeyError:
         raise NodeDebuggerUnexpectedResponse(message) from None
+    if (
+        "result" not in message.keys()
+        or "result" not in message["result"].keys()
+        or "type" not in message["result"]["result"].keys()
+    ):
+        raise NodeDebuggerUnexpectedResponse(message)
+    if expected_result == ResultType.BOOLEAN:
+        if expected_result.value != message["result"]["result"]["type"]:
+            raise NodeDebuggerUnexpectedResponse(message)
+    elif expected_result == ResultType.NUMBER:
+        if expected_result.value != message["result"]["result"]["type"]:
+            raise NodeDebuggerUnexpectedResponse(message)
+    elif expected_result == ResultType.STRING:
+        if expected_result.value != message["result"]["result"]["type"]:
+            raise NodeDebuggerUnexpectedResponse(message)
+    return message["result"]["result"]["value"]
 
 
 def _change_dso_state(sock: WebSocket, module_path: str, action: str) -> None:
     assert action in ("start", "stop"), "_change_dso_state supports only start and stop actions"
-    cdp_request = {
-        "id": 1,
-        "method": "Runtime.evaluate",
-        "params": {
-            "expression": f'process.mainModule.require("{os.path.join(module_path, "linux-perf.js")}").{action}()',
-            "replMode": True,
-        },
-    }
-    _send_socket_request(sock, cdp_request)
+    command = f'process.mainModule.require("{os.path.join(module_path, "linux-perf.js")}").{action}()'
+    _evaluate_js_command(sock, command, ResultType.BOOLEAN)
+
+
+def _close_debugger(sock: WebSocket) -> None:
+    command = "process._debugEnd()"
+    _evaluate_js_command(sock, command, ResultType.NONE)
+    sock.close()
 
 
 def _validate_ns_node(sock: WebSocket, expected_ns_link_name: str) -> None:
     command = 'process.mainModule.require("fs").readlinkSync("/proc/self/ns/pid")'
-    actual_ns_link_name = cast(str, _execute_js_command(sock, command))
+    actual_ns_link_name = cast(str, _evaluate_js_command(sock, command, ResultType.STRING))
     assert (
         actual_ns_link_name == expected_ns_link_name
     ), f"Wrong namespace, expected {expected_ns_link_name}, got {actual_ns_link_name}"
 
 
 def _validate_pid(expected_pid: int, sock: WebSocket) -> None:
-    actual_pid = cast(int, _execute_js_command(sock, "process.pid"))
+    actual_pid = cast(int, _evaluate_js_command(sock, "process.pid", ResultType.NUMBER))
     assert expected_pid == actual_pid, f"Wrong pid, expected {expected_pid}, actual {actual_pid}"
 
 
 def create_debugger_socket(nspid: int, ns_link_name: str) -> WebSocket:
     debugger_url = _get_debugger_url()
-    sock = create_connection(debugger_url)
+    sock = create_connection(url=debugger_url, timeout=15.0)
     sock.settimeout(10)
     _validate_ns_node(sock, ns_link_name)
     _validate_pid(nspid, sock)
@@ -182,12 +205,14 @@ def _copy_module_into_process_ns(process: psutil.Process, musl: bool, version: s
 def _generate_perf_map(module_path: str, nspid: int, ns_link_name: str) -> None:
     sock = create_debugger_socket(nspid, ns_link_name)
     _change_dso_state(sock, module_path, "start")
+    _close_debugger(sock)
 
 
 def _clean_up(module_path: str, nspid: int, ns_link_name: str) -> None:
     sock = create_debugger_socket(nspid, ns_link_name)
     try:
         _change_dso_state(sock, module_path, "stop")
+        _close_debugger(sock)
     finally:
         os.remove(os.path.join("/tmp", f"perf-{nspid}.map"))
 
@@ -227,6 +252,7 @@ def clean_up_node_maps(processes: List[psutil.Process]) -> None:
             nspid = get_process_nspid(process.pid)
             ns_link_name = os.readlink(f"/proc/{process.pid}/ns/pid")
             dest = _get_dest_inside_container(is_musl(process), node_major_version)
+            _start_debugger(process.pid)
             run_in_ns(
                 ["pid", "mnt", "net"],
                 lambda: _clean_up(dest, nspid, ns_link_name),

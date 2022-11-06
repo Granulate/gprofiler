@@ -1,9 +1,10 @@
 #
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+from contextlib import _GeneratorContextManager
 from pathlib import Path
 from threading import Event
-from typing import List
+from typing import Callable, List
 
 import pytest
 from docker import DockerClient
@@ -33,6 +34,7 @@ def test_nodejs_attach_maps(
         6,
         Event(),
         str(tmp_path),
+        False,
         False,
         perf_mode="fp",
         perf_inject=False,
@@ -70,6 +72,36 @@ def test_nodejs_attach_maps_from_container(
 
 
 @pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("profiler_type", ["attach-maps"])
+@pytest.mark.parametrize("runtime", ["nodejs"])
+@pytest.mark.parametrize("application_image_tag", ["without-flags"])
+def test_twoprocesses_nodejs_attach_maps(
+    tmp_path: Path,
+    assert_collapsed: AssertInCollapsed,
+    profiler_type: str,
+    profiler_flags: List[str],
+    application_factory: Callable[[], _GeneratorContextManager],
+) -> None:
+    with application_factory() as pid1:
+        with application_factory() as pid2:
+            with SystemProfiler(
+                1000,
+                6,
+                Event(),
+                str(tmp_path),
+                False,
+                False,
+                perf_mode="fp",
+                perf_inject=False,
+                perf_dwarf_stack_size=0,
+                perf_node_attach=True,
+            ) as profiler:
+                results = profiler.snapshot()
+                assert_collapsed(results[pid1].stacks)
+                assert_collapsed(results[pid2].stacks)
+
+
+@pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize(
     "application_image_tag",
     [
@@ -99,16 +131,20 @@ def test_nodejs_matrix(
     profiler_flags: List[str],
     application_image_tag: str,
 ) -> None:
+<<<<<<< HEAD
     node_version, libc = application_image_tag.split("-")
     if node_version in ["14", "15", "16"] or (node_version == "12" and libc == "musl"):
         pytest.xfail(
             "This test fails with these nodejs versions, see https://github.com/Granulate/gprofiler/issues/550"
         )
+=======
+>>>>>>> origin/master
     with SystemProfiler(
         1000,
         6,
         Event(),
         str(tmp_path),
+        False,
         False,
         perf_mode="fp",
         perf_inject=False,

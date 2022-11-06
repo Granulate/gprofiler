@@ -169,11 +169,12 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
+        insert_dso_name: bool,
         profile_spawned_processes: bool,
         *,
         add_versions: bool,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, profile_spawned_processes)
+        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes)
         self.add_versions = add_versions
         self._metadata = PythonMetadata(self._stop_event)
 
@@ -319,6 +320,7 @@ class PythonProfiler(ProfilerInterface):
         duration: int,
         stop_event: Event,
         storage_dir: str,
+        insert_dso_name: bool,
         profile_spawned_processes: bool,
         python_mode: str,
         python_add_versions: bool,
@@ -340,6 +342,7 @@ class PythonProfiler(ProfilerInterface):
                 duration,
                 stop_event,
                 storage_dir,
+                insert_dso_name,
                 profile_spawned_processes,
                 python_add_versions,
                 python_pyperf_user_stacks_pages,
@@ -353,6 +356,7 @@ class PythonProfiler(ProfilerInterface):
                 duration,
                 stop_event,
                 storage_dir,
+                insert_dso_name,
                 profile_spawned_processes,
                 add_versions=python_add_versions,
             )
@@ -367,6 +371,7 @@ class PythonProfiler(ProfilerInterface):
             duration: int,
             stop_event: Event,
             storage_dir: str,
+            insert_dso_name: bool,
             profile_spawned_processes: bool,
             add_versions: bool,
             user_stacks_pages: Optional[int],
@@ -377,6 +382,7 @@ class PythonProfiler(ProfilerInterface):
                     duration,
                     stop_event,
                     storage_dir,
+                    insert_dso_name,
                     profile_spawned_processes,
                     add_versions=add_versions,
                     user_stacks_pages=user_stacks_pages,
