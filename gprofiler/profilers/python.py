@@ -170,11 +170,13 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         stop_event: Optional[Event],
         storage_dir: str,
         insert_dso_name: bool,
+        profiling_mode: str,
         profile_spawned_processes: bool,
         *,
         add_versions: bool,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes)
+        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes,
+                         profiling_mode)
         self.add_versions = add_versions
         self._metadata = PythonMetadata(self._stop_event)
 
@@ -307,6 +309,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             "user frames. Pass 0 to disable user native stacks altogether.",
         ),
     ],
+    supported_profiling_modes=["cpu"],
 )
 class PythonProfiler(ProfilerInterface):
     """
@@ -321,6 +324,7 @@ class PythonProfiler(ProfilerInterface):
         stop_event: Event,
         storage_dir: str,
         insert_dso_name: bool,
+        profiling_mode: str,
         profile_spawned_processes: bool,
         python_mode: str,
         python_add_versions: bool,
@@ -346,6 +350,7 @@ class PythonProfiler(ProfilerInterface):
                 profile_spawned_processes,
                 python_add_versions,
                 python_pyperf_user_stacks_pages,
+                profiling_mode,
             )
         else:
             self._ebpf_profiler = None
@@ -357,6 +362,7 @@ class PythonProfiler(ProfilerInterface):
                 stop_event,
                 storage_dir,
                 insert_dso_name,
+                profiling_mode,
                 profile_spawned_processes,
                 add_versions=python_add_versions,
             )
@@ -375,6 +381,7 @@ class PythonProfiler(ProfilerInterface):
             profile_spawned_processes: bool,
             add_versions: bool,
             user_stacks_pages: Optional[int],
+            profiling_mode: str,
         ) -> Optional[PythonEbpfProfiler]:
             try:
                 profiler = PythonEbpfProfiler(
@@ -384,6 +391,7 @@ class PythonProfiler(ProfilerInterface):
                     storage_dir,
                     insert_dso_name,
                     profile_spawned_processes,
+                    profiling_mode,
                     add_versions=add_versions,
                     user_stacks_pages=user_stacks_pages,
                 )

@@ -143,6 +143,7 @@ class GProfiler:
             self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
+        self._profiling_mode = user_args.get("profiling_mode")
 
     @property
     def all_profilers(self) -> Iterable[ProfilerInterface]:
@@ -300,6 +301,7 @@ class GProfiler:
                 self._enrichment_options,
                 metadata,
                 metrics,
+                self._profiling_mode,  # For now just send the same profiling mode from the args.
             )
 
         else:
@@ -310,6 +312,7 @@ class GProfiler:
                 self._enrichment_options,
                 metadata,
                 metrics,
+                self._profiling_mode,
             )
 
         if self._output_dir:
@@ -429,6 +432,15 @@ def parse_cmd_args() -> configargparse.Namespace:
         help="Do not generate local flamegraphs when -o is given (only collapsed stacks files)",
     )
     parser.set_defaults(flamegraph=True)
+
+    parser.add_argument(
+        "--mode",
+        dest="profiling_mode",
+        choices=["cpu", "allocation"],
+        default="cpu",
+        help="Select gProfiler's profiling mode, default is %(default)s, currently allocation mode is available "
+             "and will profile and collect only JVM based processes",
+    )
 
     parser.add_argument(
         "--rotating-output", action="store_true", default=False, help="Keep only the last profile result"

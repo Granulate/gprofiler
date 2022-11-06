@@ -58,6 +58,7 @@ class RubyMetadata(ApplicationMetadata):
     possible_modes=["rbspy", "disabled"],
     supported_archs=["x86_64", "aarch64"],
     default_mode="rbspy",
+    supported_profiling_modes=["cpu"],
 )
 class RbSpyProfiler(SpawningProcessProfilerBase):
     RESOURCE_PATH = "ruby/rbspy"
@@ -72,10 +73,12 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
         stop_event: Optional[Event],
         storage_dir: str,
         insert_dso_name: bool,
+        profiling_mode: str,
         profile_spawned_processes: bool,
         ruby_mode: str,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes)
+        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes,
+                         profiling_mode)
         assert ruby_mode == "rbspy", "Ruby profiler should not be initialized, wrong ruby_mode value given"
         self._metadata = RubyMetadata(self._stop_event)
 
