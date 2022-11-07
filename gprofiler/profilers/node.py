@@ -207,12 +207,12 @@ def _copy_module_into_process_ns(process: psutil.Process, musl: bool, version: s
 
 
 def _generate_perf_map(module_path: str, nspid: int, ns_link_name: str, pid: int) -> None:
-    with create_debugger_socket(nspid, ns_link_name) as sock:
+    with create_debugger_socket(nspid, ns_link_name, pid) as sock:
         _change_dso_state(sock, module_path, "start", pid)
 
 
 def _clean_up(module_path: str, nspid: int, ns_link_name: str, pid: int) -> None:
-    with create_debugger_socket(nspid, ns_link_name) as sock:
+    with create_debugger_socket(nspid, ns_link_name, pid) as sock:
         try:
             _change_dso_state(sock, module_path, "stop", pid)
         finally:
