@@ -410,13 +410,12 @@ def send_collapsed_file_only(args: configargparse.Namespace, client: APIClient) 
     spawn_time = time.time()
     gpid = ""
     metrics = NoopSystemMetricsMonitor().get_metrics()
+    static_metadata: Optional[Metadata] = None
     if args.collect_metadata:
-        metadata = get_current_metadata(
-            cast(Metadata, get_static_metadata(spawn_time=spawn_time, run_args=args.__dict__))  # type: ignore
-        )
-    else:
-        metadata = {"hostname": get_hostname()}
-    # TODO:container names, application metadata
+        static_metadata = get_static_metadata(spawn_time=spawn_time, run_args=args.__dict__)
+    metadata = (
+        get_current_metadata(cast(Metadata, static_metadata)) if args.collect_metadata else {"hostname": get_hostname()}
+    )
     local_start_time, local_end_time, merged_result = concatenate_from_external_file(
         args.file_path,
         metadata,
