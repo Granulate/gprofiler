@@ -98,6 +98,7 @@ class GProfiler:
         user_args: UserArgs,
         duration: int,
         profile_api_version: str,
+        profiling_mode: str,
         profile_spawned_processes: bool = True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         controller_process: Optional[Process] = None,
@@ -119,6 +120,7 @@ class GProfiler:
         self._gpid = ""
         self._controller_process = controller_process
         self._duration = duration
+        self._profiling_mode = profiling_mode
         if collect_metadata:
             self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
@@ -143,7 +145,6 @@ class GProfiler:
             self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
-        self._profiling_mode = cast(str, user_args["profiling_mode"])
 
     @property
     def all_profilers(self) -> Iterable[ProfilerInterface]:
@@ -301,7 +302,6 @@ class GProfiler:
                 self._enrichment_options,
                 metadata,
                 metrics,
-                self._profiling_mode,  # For now just send the same profiling mode from the args.
             )
 
         else:
@@ -312,7 +312,6 @@ class GProfiler:
                 self._enrichment_options,
                 metadata,
                 metrics,
-                self._profiling_mode,
             )
 
         if self._output_dir:
@@ -438,8 +437,8 @@ def parse_cmd_args() -> configargparse.Namespace:
         dest="profiling_mode",
         choices=["cpu", "allocation"],
         default="cpu",
-        help="Select gProfiler's profiling mode, default is %(default)s, currently allocation mode is available "
-        "and will profile and collect only JVM based processes",
+        help="Select gProfiler's profiling mode, default is %(default)s, available options are "
+        "%(choices)s; allocation will profile only Java processes",
     )
 
     parser.add_argument(
@@ -858,6 +857,7 @@ def main() -> None:
             args.__dict__,
             args.duration,
             args.profile_api_version,
+            args.profiling_mode,
             args.profile_spawned_processes,
             remote_logs_handler,
             controller_process,

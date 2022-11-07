@@ -241,7 +241,6 @@ def _make_profile_metadata(
     metrics: Metrics,
     application_metadata: Optional[List[Optional[Dict]]],
     application_metadata_enabled: bool,
-    profiling_mode: str,
 ) -> str:
     if container_names_client is not None and add_container_names:
         container_names = container_names_client.container_names
@@ -258,7 +257,7 @@ def _make_profile_metadata(
         "metrics": metrics.__dict__,
         "application_metadata": application_metadata,
         "application_metadata_enabled": application_metadata_enabled,
-        "profiling_mode": profiling_mode,
+        "profiling_mode": metadata["profiling_mode"],
     }
     return "# " + json.dumps(profile_metadata)
 
@@ -347,7 +346,6 @@ def concatenate_profiles(
     enrichment_options: EnrichmentOptions,
     metadata: Metadata,
     metrics: Metrics,
-    profiling_mode: str = DEFAULT_PROFILING_MODE,
 ) -> str:
     """
     Concatenate all stacks from all stack mappings in process_profiles.
@@ -372,7 +370,6 @@ def concatenate_profiles(
             metrics,
             application_metadata,
             enrichment_options.application_metadata,
-            profiling_mode,
         ),
     )
     return "\n".join(lines)
@@ -385,7 +382,6 @@ def merge_profiles(
     enrichment_options: EnrichmentOptions,
     metadata: Metadata,
     metrics: Metrics,
-    profiling_mode: str = DEFAULT_PROFILING_MODE,
 ) -> str:
     # merge process profiles into the global perf results.
     for pid, profile in process_profiles.items():
@@ -412,6 +408,4 @@ def merge_profiles(
         # swap them: use the samples from the runtime profiler.
         perf_pid_to_profiles[pid] = profile
 
-    return concatenate_profiles(
-        perf_pid_to_profiles, container_names_client, enrichment_options, metadata, metrics, profiling_mode
-    )
+    return concatenate_profiles(perf_pid_to_profiles, container_names_client, enrichment_options, metadata, metrics)

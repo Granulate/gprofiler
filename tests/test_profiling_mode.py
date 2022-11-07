@@ -39,9 +39,11 @@ def test_sanity(
 
 
 @pytest.mark.parametrize(
-    "runtime, profiler_type, in_container",
+    "runtime, profiler_type, in_container, expected_frame",
     [
-        ("java", "ap", True),
+        # Async-Profiler produces `java.lang.String[]` style frames only in allocation mode, (method signature doesn't
+        # appear in this format)
+        ("java", "ap", True, "java.lang.String[]"),
     ],
 )
 def test_allocation_being_profiled(
@@ -54,6 +56,7 @@ def test_allocation_being_profiled(
     runtime: str,
     runtime_specific_args: List[str],
     in_container: bool,
+    expected_frame: str,
 ) -> None:
     run_gprofiler_in_container_for_one_session(
         docker_client,
@@ -64,7 +67,7 @@ def test_allocation_being_profiled(
         profiler_flags + ["--mode=allocation"],
     )
 
-    collapsed_text = Path(output_directory / "last_profile.col").read_text()
+    collapsed_text = Path(output_collapsed).read_text()
     print(collapsed_text)
     # check the metadata
     lines = collapsed_text.splitlines()
@@ -73,4 +76,4 @@ def test_allocation_being_profiled(
     assert metadata["profiling_mode"] == "allocation"
 
     collapsed = parse_one_collapsed(collapsed_text)
-    assert_function_in_collapsed("java.lang.String[]", collapsed)
+    assert_function_in_collapsed(expected_frame, collapsed)
