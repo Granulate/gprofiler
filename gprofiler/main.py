@@ -58,11 +58,11 @@ from gprofiler.utils.proxy import get_https_proxy
 
 logger: logging.LoggerAdapter
 
-DEFAULT_LOG_FILE = "/var/log/gprofiler/gprofiler.log"
+DEFAULT_LOG_FILE = "/var/log/gprofiler/gprofiler.log" if is_linux() else "./gprofiler.log"
 DEFAULT_LOG_MAX_SIZE = 1024 * 1024 * 5
 DEFAULT_LOG_BACKUP_COUNT = 1
 
-DEFAULT_PID_FILE = "/var/run/gprofiler.pid"
+DEFAULT_PID_FILE = "/var/run/gprofiler.pid" if is_linux() else "./gprofiler.pid"
 
 DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 11
@@ -610,8 +610,8 @@ def parse_cmd_args() -> configargparse.Namespace:
 
     args = parser.parse_args()
 
-    args.perf_inject = args.nodejs_mode == "perf"
-    args.perf_node_attach = args.nodejs_mode == "attach-maps"
+    args.perf_inject = args.nodejs_mode == "perf" and is_linux()
+    args.perf_node_attach = args.nodejs_mode == "attach-maps" and is_linux()
 
     if args.upload_results:
         if not args.server_token:
@@ -622,13 +622,13 @@ def parse_cmd_args() -> configargparse.Namespace:
     if not args.upload_results and not args.output_dir:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
 
-    if args.perf_dwarf_stack_size > 65528:
+    if args.perf_dwarf_stack_size > 65528 and is_linux():
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
 
-    if args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
+    if args.perf_mode in ("dwarf", "smart") and args.frequency > 100 and is_linux():
         parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode 'smart' or 'dwarf'")
 
-    if args.nodejs_mode in ("perf", "attach-maps") and args.perf_mode not in ("fp", "smart"):
+    if args.nodejs_mode in ("perf", "attach-maps") and args.perf_mode not in ("fp", "smart") and is_linux():
         parser.error("--nodejs-mode perf or attach-maps requires --perf-mode 'fp' or 'smart'")
 
     return args
@@ -665,7 +665,7 @@ def verify_preconditions(args: configargparse.Namespace) -> None:
         print("Must run gprofiler as root, please re-run.", file=sys.stderr)
         sys.exit(1)
 
-    if args.pid_ns_check and not is_running_in_init_pid():
+    if is_linux() and args.pid_ns_check and not is_running_in_init_pid():
         print(
             "Please run me in the init PID namespace! In Docker, make sure you pass '--pid=host'."
             " In Kubernetes, add 'hostPID: true' in the Pod spec.\n"
@@ -749,10 +749,11 @@ def main() -> None:
     # assume we run in the root cgroup (when containerized, that's our view)
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
 
-    try:
-        init_pid_file(args.pid_file)
-    except Exception:
-        logger.exception(f"Failed to write pid to '{args.pid_file}', continuing anyway")
+    if is_linux():
+        try:
+            init_pid_file(args.pid_file)
+        except Exception:
+            logger.exception(f"Failed to write pid to '{args.pid_file}', continuing anyway")
 
     if args.databricks_job_name_as_service_name:
         # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
@@ -836,7 +837,7 @@ def main() -> None:
 
         gprofiler = GProfiler(
             args.output_dir,
-            args.flamegraph,
+            args.flamegraph if is_linux() else False,
             args.rotating_output,
             client,
             args.collect_metrics,

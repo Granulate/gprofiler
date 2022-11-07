@@ -1,7 +1,14 @@
 @echo off
-ECHO Y | RMDIR /S py-spy
 
-git clone --depth 1 -b v0.3.10g1 https://github.com/Granulate/py-spy.git && git -C py-spy reset --hard 480deec8b5dde3cd331d1a793106981c1796d172
+IF EXIST py-spy (
+	ECHO Y | RMDIR /S py-spy
+)
+
+for /f "usebackq tokens=*" %%a in (`type tag.txt`) do SET TAG=%%a
+
+for /f "usebackq tokens=*" %%a in (`type commit.txt`) do SET COMMIT=%%a
+
+git clone --depth 1 -b %TAG% https://github.com/Granulate/py-spy.git && git -C py-spy reset --hard %COMMIT%
 
 IF NOT EXIST .\dep\vs_BuildTools.exe (
 	ECHO Downloading Visual Studio Build Tools...
@@ -14,12 +21,14 @@ CALL .\dep\vs_BuildTools.exe --add Microsoft.VisualStudio.Workload.VCTools --add
 SET LINK_LOC="C:\Program Files (x86)\Microsoft Visual Studio\*link.exe"
 SET SDK_LOC="C:\Program Files (x86)\*advapi32.lib"
 
+SET ERRORLEVEL=
 DIR %LINK_LOC% /S
 IF ERRORLEVEL 1 (
 	ECHO Unable to find link.exe. Exiting...
         EXIT /B 1
 )
 
+SET ERRORLEVEL=
 DIR %SDK_LOC% /S
 IF ERRORLEVEL 1 (
 	ECHO Unable to find advapi32.lib. Exiting...
@@ -28,6 +37,7 @@ IF ERRORLEVEL 1 (
 
 ECHO "Done installing Windows Build Tools."
 
+SET ERRORLEVEL=
 WHERE cargo
 IF ERRORLEVEL 1 (
 	ECHO cargo wasn't found. Attempting to install...
@@ -42,6 +52,7 @@ CD py-spy
 rustup default stable
 rustup target add x86_64-pc-windows-gnu
 
+SET ERRORLEVEL=
 WHERE cargo
 IF ERRORLEVEL 1 (
        ECHO py-spy build failed.
@@ -49,6 +60,8 @@ IF ERRORLEVEL 1 (
 )
 cargo install cross
 cargo build --release
+
+SET ERRORLEVEL=
 DIR target\release\py-spy.exe
 IF ERRORLEVEL 1 (
 	ECHO py-spy build failed.

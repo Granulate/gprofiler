@@ -231,7 +231,8 @@ if is_windows():
 
 def get_static_system_info() -> SystemInfo:
     if is_windows():
-        hostname = platform.node()
+        global hostname
+        hostname = socket.gethostname()
         distribution = platform.system(), platform.release(), platform.version()
         libc_tuple = platform.libc_ver()
         mac_address, local_ip = get_windows_network_details()
@@ -252,6 +253,7 @@ def get_static_system_info() -> SystemInfo:
     run_mode = get_run_mode()
     deployment_type = get_deployment_type(run_mode)
     cpu_model_name, cpu_flags = get_cpu_info()
+    assert isinstance(hostname, str)
     return SystemInfo(
         python_version=sys.version,
         run_mode=run_mode,
