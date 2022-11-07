@@ -7,6 +7,7 @@ import os
 import shutil
 import signal
 import stat
+from contextlib import contextmanager
 from enum import Enum
 from functools import lru_cache
 from pathlib import Path
@@ -143,15 +144,8 @@ def _evaluate_js_command(sock: WebSocket, command: str, expected_result: ResultT
         or "type" not in message["result"]["result"].keys()
     ):
         raise NodeDebuggerUnexpectedResponse(message)
-    if expected_result == ResultType.BOOLEAN:
-        if expected_result.value != message["result"]["result"]["type"]:
-            raise NodeDebuggerUnexpectedResponse(message)
-    elif expected_result == ResultType.NUMBER:
-        if expected_result.value != message["result"]["result"]["type"]:
-            raise NodeDebuggerUnexpectedResponse(message)
-    elif expected_result == ResultType.STRING:
-        if expected_result.value != message["result"]["result"]["type"]:
-            raise NodeDebuggerUnexpectedResponse(message)
+    if expected_result.value != message["result"]["result"]["type"]:
+        raise NodeDebuggerUnexpectedResponse(message)
     return message["result"]["result"]["value"]
 
 
@@ -163,9 +157,11 @@ def _change_dso_state(sock: WebSocket, module_path: str, action: str, pid: int) 
 
 
 def _close_debugger(sock: WebSocket) -> None:
-    command = "process._debugEnd()"
-    _evaluate_js_command(sock, command, ResultType.NONE)
-    sock.close()
+    try:
+        command = "process._debugEnd()"
+        _evaluate_js_command(sock, command, ResultType.NONE)
+    finally:
+        sock.close()
 
 
 def _validate_ns_node(sock: WebSocket, expected_ns_link_name: str) -> None:
@@ -181,14 +177,20 @@ def _validate_pid(expected_pid: int, sock: WebSocket) -> None:
     assert expected_pid == actual_pid, f"Wrong pid, expected {expected_pid}, actual {actual_pid}"
 
 
+@contextmanager
 def create_debugger_socket(nspid: int, ns_link_name: str, pid: int) -> WebSocket:
-    debugger_url = _get_debugger_url()
-    sock = create_connection(url=debugger_url, timeout=15.0)
-    sock.settimeout(10)
-    _validate_ns_node(sock, ns_link_name)
-    _validate_pid(nspid, sock)
-    logger.debug("Created debugger socket", nspid=nspid, pid=pid)
-    return sock
+    sock = None
+    try:
+        debugger_url = _get_debugger_url()
+        sock = create_connection(url=debugger_url, timeout=15.0)
+        sock.settimeout(10)
+        _validate_ns_node(sock, ns_link_name)
+        _validate_pid(nspid, sock)
+        logger.debug("Created debugger socket", nspid=nspid, pid=pid)
+        yield sock
+    finally:
+        if sock:
+            _close_debugger(sock)
 
 
 def _copy_module_into_process_ns(process: psutil.Process, musl: bool, version: str) -> str:
@@ -205,18 +207,16 @@ def _copy_module_into_process_ns(process: psutil.Process, musl: bool, version: s
 
 
 def _generate_perf_map(module_path: str, nspid: int, ns_link_name: str, pid: int) -> None:
-    sock = create_debugger_socket(nspid, ns_link_name, pid)
-    _change_dso_state(sock, module_path, "start", pid)
-    _close_debugger(sock)
+    with create_debugger_socket(nspid, ns_link_name, pid) as sock:
+        _change_dso_state(sock, module_path, "start", pid)
 
 
 def _clean_up(module_path: str, nspid: int, ns_link_name: str, pid: int) -> None:
-    sock = create_debugger_socket(nspid, ns_link_name, pid)
-    try:
-        _change_dso_state(sock, module_path, "stop", pid)
-        _close_debugger(sock)
-    finally:
-        os.remove(os.path.join("/tmp", f"perf-{nspid}.map"))
+    with create_debugger_socket(nspid, ns_link_name, pid) as sock:
+        try:
+            _change_dso_state(sock, module_path, "stop", pid)
+        finally:
+            os.remove(os.path.join("/tmp", f"perf-{nspid}.map"))
 
 
 def get_node_processes() -> List[psutil.Process]:
