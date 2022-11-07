@@ -357,8 +357,8 @@ def get_iso8601_format_time(time: datetime.datetime) -> str:
     return time.replace(microsecond=0).isoformat()
 
 
-def parse_iso8601_timestamp(time: str) -> datetime.datetime:
-    return datetime.datetime.fromisoformat(time)
+def parse_iso8601_timestamp(time: str) -> Any:
+    return datetime.datetime.strptime(time, "%Y-%m-%dT%H:%M:%S.%f")
 
 
 def remove_prefix(s: str, prefix: str) -> str:

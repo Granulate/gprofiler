@@ -412,7 +412,7 @@ def send_collapsed_file_only(args: configargparse.Namespace, client: APIClient) 
     metrics = NoopSystemMetricsMonitor().get_metrics()
     if args.collect_metadata:
         metadata = get_current_metadata(
-            cast(Metadata, get_static_metadata(spawn_time=spawn_time, run_args=args.__dict__))
+            cast(Metadata, get_static_metadata(spawn_time=spawn_time, run_args=args.__dict__))  # type: ignore
         )
     else:
         metadata = {"hostname": get_hostname()}
