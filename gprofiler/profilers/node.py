@@ -177,9 +177,8 @@ def _validate_pid(expected_pid: int, sock: WebSocket) -> None:
     assert expected_pid == actual_pid, f"Wrong pid, expected {expected_pid}, actual {actual_pid}"
 
 
-<<<<<<< HEAD
 @contextmanager
-def create_debugger_socket(nspid: int, ns_link_name: str) -> WebSocket:
+def create_debugger_socket(nspid: int, ns_link_name: str, pid: int) -> WebSocket:
     sock = None
     try:
         debugger_url = _get_debugger_url()
@@ -187,20 +186,11 @@ def create_debugger_socket(nspid: int, ns_link_name: str) -> WebSocket:
         sock.settimeout(10)
         _validate_ns_node(sock, ns_link_name)
         _validate_pid(nspid, sock)
+        logger.debug("Created debugger socket", nspid=nspid, pid=pid)
         yield sock
     finally:
         if sock:
             _close_debugger(sock)
-=======
-def create_debugger_socket(nspid: int, ns_link_name: str, pid: int) -> WebSocket:
-    debugger_url = _get_debugger_url()
-    sock = create_connection(url=debugger_url, timeout=15.0)
-    sock.settimeout(10)
-    _validate_ns_node(sock, ns_link_name)
-    _validate_pid(nspid, sock)
-    logger.debug("Created debugger socket", nspid=nspid, pid=pid)
-    return sock
->>>>>>> origin/master
 
 
 def _copy_module_into_process_ns(process: psutil.Process, musl: bool, version: str) -> str:
@@ -216,33 +206,17 @@ def _copy_module_into_process_ns(process: psutil.Process, musl: bool, version: s
     return dest_inside_container
 
 
-<<<<<<< HEAD
-def _generate_perf_map(module_path: str, nspid: int, ns_link_name: str) -> None:
-    with create_debugger_socket(nspid, ns_link_name) as sock:
-        _change_dso_state(sock, module_path, "start")
-
-
-def _clean_up(module_path: str, nspid: int, ns_link_name: str) -> None:
-    with create_debugger_socket(nspid, ns_link_name) as sock:
-        try:
-            _change_dso_state(sock, module_path, "stop")
-        finally:
-            os.remove(os.path.join("/tmp", f"perf-{nspid}.map"))
-=======
 def _generate_perf_map(module_path: str, nspid: int, ns_link_name: str, pid: int) -> None:
-    sock = create_debugger_socket(nspid, ns_link_name, pid)
-    _change_dso_state(sock, module_path, "start", pid)
-    _close_debugger(sock)
+    with create_debugger_socket(nspid, ns_link_name) as sock:
+        _change_dso_state(sock, module_path, "start", pid)
 
 
 def _clean_up(module_path: str, nspid: int, ns_link_name: str, pid: int) -> None:
-    sock = create_debugger_socket(nspid, ns_link_name, pid)
-    try:
-        _change_dso_state(sock, module_path, "stop", pid)
-        _close_debugger(sock)
-    finally:
-        os.remove(os.path.join("/tmp", f"perf-{nspid}.map"))
->>>>>>> origin/master
+    with create_debugger_socket(nspid, ns_link_name) as sock:
+        try:
+            _change_dso_state(sock, module_path, "stop", pid)
+        finally:
+            os.remove(os.path.join("/tmp", f"perf-{nspid}.map"))
 
 
 def get_node_processes() -> List[psutil.Process]:
