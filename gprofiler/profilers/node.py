@@ -187,7 +187,7 @@ def create_debugger_socket(nspid: int, ns_link_name: str, pid: int) -> WebSocket
     sock.settimeout(10)
     _validate_ns_node(sock, ns_link_name)
     _validate_pid(nspid, sock)
-    logger.debug(f"Created debugger socket", nspid=nspid, pid=pid)
+    logger.debug("Created debugger socket", nspid=nspid, pid=pid)
     return sock
 
 
