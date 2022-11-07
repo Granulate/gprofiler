@@ -156,9 +156,11 @@ def _change_dso_state(sock: WebSocket, module_path: str, action: str) -> None:
 
 
 def _close_debugger(sock: WebSocket) -> None:
-    command = "process._debugEnd()"
-    _evaluate_js_command(sock, command, ResultType.NONE)
-    sock.close()
+    try:
+        command = "process._debugEnd()"
+        _evaluate_js_command(sock, command, ResultType.NONE)
+    finally:
+        sock.close()
 
 
 def _validate_ns_node(sock: WebSocket, expected_ns_link_name: str) -> None:
@@ -176,6 +178,7 @@ def _validate_pid(expected_pid: int, sock: WebSocket) -> None:
 
 @contextmanager
 def create_debugger_socket(nspid: int, ns_link_name: str) -> WebSocket:
+    sock = None
     try:
         debugger_url = _get_debugger_url()
         sock = create_connection(url=debugger_url, timeout=15.0)
@@ -184,7 +187,8 @@ def create_debugger_socket(nspid: int, ns_link_name: str) -> WebSocket:
         _validate_pid(nspid, sock)
         yield sock
     finally:
-        _close_debugger(sock)
+        if sock:
+            _close_debugger(sock)
 
 
 def _copy_module_into_process_ns(process: psutil.Process, musl: bool, version: str) -> str:
