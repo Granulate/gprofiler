@@ -415,7 +415,7 @@ def grab_gprofiler_mutex() -> bool:
     GPROFILER_LOCK = "\x00gprofiler_lock"
 
     try:
-        run_in_ns(["net"], lambda: try_acquire_mutex(GPROFILER_LOCK), passthrough_exception=True)
+        run_in_ns(["net"], lambda: try_acquire_mutex(GPROFILER_LOCK))
     except CouldNotAcquireMutex:
         print(
             "Could not acquire gProfiler's lock. Is it already running?"
