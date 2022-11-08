@@ -238,7 +238,6 @@ def generate_map_for_node_processes(processes: List[psutil.Process]) -> None:
                 ["pid", "mnt", "net"],
                 lambda: _generate_perf_map(dest, nspid, ns_link_name, process.pid),
                 process.pid,
-                passthrough_exception=True,
             )
         except Exception as e:
             logger.warning(f"Could not create debug symbols for pid {process.pid}. Reason: {e}", exc_info=True)
@@ -259,7 +258,6 @@ def clean_up_node_maps(processes: List[psutil.Process]) -> None:
                 ["pid", "mnt", "net"],
                 lambda: _clean_up(dest, nspid, ns_link_name, process.pid),
                 process.pid,
-                passthrough_exception=True,
             )
         except Exception as e:
             logger.warning(f"Could not clean up debug symbols for pid {process.pid}. Reason: {e}", exc_info=True)
