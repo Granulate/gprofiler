@@ -403,7 +403,8 @@ def _submit_profile_logged(
         logger.exception("Error occurred sending profile to server")
     else:
         logger.info("Successfully uploaded profiling data to the server")
-    return response_dict.get("gpid", "")
+        return response_dict.get("gpid", "")
+    return ""
 
 
 def send_collapsed_file_only(args: configargparse.Namespace, client: APIClient) -> None:
@@ -802,7 +803,7 @@ def init_pid_file(pid_file: str) -> None:
 
 def main() -> None:
     args = parse_cmd_args()
-    if args.subcommand is None:
+    if args.subcommand != "upload-file":
         verify_preconditions(args)
     state = init_state()
 
