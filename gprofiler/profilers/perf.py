@@ -183,6 +183,7 @@ class SystemProfiler(ProfilerBase):
         self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
         self._insert_dso_name = insert_dso_name
         self._node_processes: List[Process] = []
+        self._node_processes_attached: List[Process] = []
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
@@ -218,14 +219,14 @@ class SystemProfiler(ProfilerBase):
         # it might be too late for first round to generate it in snapshot()
         if self.perf_node_attach:
             self._node_processes = get_node_processes()
-            generate_map_for_node_processes(self._node_processes)
+            self._node_processes_attached.extend(generate_map_for_node_processes(self._node_processes))
         for perf in self._perfs:
             perf.start()
 
     def stop(self) -> None:
         if self.perf_node_attach:
             self._node_processes = [process for process in self._node_processes if is_process_running(process)]
-            clean_up_node_maps(self._node_processes)
+            clean_up_node_maps(self._node_processes_attached)
         for perf in reversed(self._perfs):
             perf.stop()
 
@@ -246,7 +247,7 @@ class SystemProfiler(ProfilerBase):
         if self.perf_node_attach:
             self._node_processes = [process for process in self._node_processes if is_process_running(process)]
             new_processes = [process for process in get_node_processes() if process not in self._node_processes]
-            generate_map_for_node_processes(new_processes)
+            self._node_processes_attached.extend(generate_map_for_node_processes(self._node_processes))
             self._node_processes.extend(new_processes)
 
         if self._stop_event.wait(self._duration):
