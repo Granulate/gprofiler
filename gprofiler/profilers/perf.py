@@ -183,7 +183,7 @@ class SystemProfiler(ProfilerBase):
         self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
         self._insert_dso_name = insert_dso_name
         self._node_processes: List[Process] = []
-        self.pids_without_perf_maps = []
+        self.pids_without_perf_maps: List[int] = []
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
