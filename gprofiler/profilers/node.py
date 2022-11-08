@@ -226,7 +226,7 @@ def get_node_processes() -> List[psutil.Process]:
 def generate_map_for_node_processes(processes: List[psutil.Process]) -> List[int]:
     """Iterates over all NodeJS processes, starts debugger for it, finds debugger URL,
     copies node-linux-perf module into process' namespace, loads module and starts it."""
-    pids_without_perf_map = []
+    pids_with_perf_map = []
     for process in processes:
         try:
             musl = is_musl(process)
@@ -241,17 +241,17 @@ def generate_map_for_node_processes(processes: List[psutil.Process]) -> List[int
                 process.pid,
                 passthrough_exception=True,
             )
+            pids_with_perf_map.append(process.pid)
         except Exception as e:
             logger.warning(f"Could not create debug symbols for pid {process.pid}. Reason: {e}", exc_info=True)
-            pids_without_perf_map.append(process.pid)
-    return pids_without_perf_map
+    return pids_with_perf_map
 
 
-def clean_up_node_maps(processes: List[psutil.Process], pids_without_perf_maps: List[int]) -> None:
+def clean_up_node_maps(processes: List[psutil.Process], pids_with_perf_maps: List[int]) -> None:
     """Stops generating perf maps for each NodeJS process and cleans up generated maps"""
     for process in processes:
         try:
-            if not is_process_running(process) or process.pid in pids_without_perf_maps:
+            if not is_process_running(process) or process.pid not in pids_with_perf_maps:
                 continue
             node_major_version = _get_node_major_version(process)
             nspid = get_process_nspid(process.pid)
