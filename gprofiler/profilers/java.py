@@ -681,7 +681,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         super().__init__(
             frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes, profiling_mode
         )
-        # Alloc interval is passed in frequency in allocation profiling
+        # Alloc interval is passed in frequency in allocation profiling (in bytes, as async-profiler expects)
         self._interval = frequency_to_ap_interval(frequency) if profiling_mode == "cpu" else frequency
         # simple version check, and
         self._simple_version_check = java_version_check
