@@ -467,9 +467,9 @@ class AsyncProfiledProcess:
         return f",file={self._output_path_process},{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS}"
 
     def _get_interval_arg(self, interval: int) -> str:
-        if self._mode != "alloc":
-            return f",interval={interval}"
-        return ""
+        if self._mode == "alloc":
+            return f",alloc={interval}"
+        return f",interval={interval}"
 
     def _get_start_cmd(self, interval: int, ap_timeout: int) -> List[str]:
         return self._get_base_cmd() + [
@@ -681,8 +681,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
         super().__init__(
             frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes, profiling_mode
         )
-
-        self._interval = frequency_to_ap_interval(frequency)
+        # Alloc interval is passed in frequency in allocation profiling
+        self._interval = frequency_to_ap_interval(frequency) if profiling_mode == "cpu" else frequency
         # simple version check, and
         self._simple_version_check = java_version_check
         if not self._simple_version_check:

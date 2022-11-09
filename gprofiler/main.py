@@ -18,6 +18,7 @@ from types import FrameType, TracebackType
 from typing import Iterable, Optional, Type, cast
 
 import configargparse
+import humanfriendly
 from granulate_utils.linux.ns import is_running_in_init_pid
 from granulate_utils.linux.process import is_process_running
 from granulate_utils.metadata import Metadata
@@ -66,6 +67,7 @@ DEFAULT_PID_FILE = "/var/run/gprofiler.pid"
 
 DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 11
+DEFAULT_ALLOC_INTERVAL = "2mb"
 
 # 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
 SIGINT_RATELIMIT = 0.5
@@ -403,8 +405,8 @@ def parse_cmd_args() -> configargparse.Namespace:
         "--profiling-frequency",
         type=positive_integer,
         dest="frequency",
-        default=DEFAULT_SAMPLING_FREQUENCY,
-        help="Profiler frequency in Hz (default: %(default)s)",
+        help=f"Profiler frequency in Hz (default: {DEFAULT_SAMPLING_FREQUENCY}), to be used only in CPU profiling "
+        f"(--mode=cpu, also the default mode)",
     )
     parser.add_argument(
         "-d",
@@ -439,6 +441,14 @@ def parse_cmd_args() -> configargparse.Namespace:
         default="cpu",
         help="Select gProfiler's profiling mode, default is %(default)s, available options are "
         "%(choices)s; allocation will profile only Java processes",
+    )
+    parser.add_argument(
+        "--alloc-interval",
+        dest="alloc_interval",
+        type=str,
+        help="Profiling interval to be used in allocation profiling, size in bytes (human friendly sizes supported,"
+        "for example: '100kb'), to be used only in allocation profiling mode (--mode=allocation), "
+        f"default: {DEFAULT_ALLOC_INTERVAL}",
     )
 
     parser.add_argument(
@@ -623,6 +633,18 @@ def parse_cmd_args() -> configargparse.Namespace:
     args.perf_inject = args.nodejs_mode == "perf"
     args.perf_node_attach = args.nodejs_mode == "attach-maps"
 
+    if args.profiling_mode == "cpu":
+        if args.alloc_interval:
+            parser.error("--alloc-interval is only allowed in allocation profiling (--mode=alloc)")
+        if not args.frequency:
+            args.frequency = DEFAULT_SAMPLING_FREQUENCY
+    elif args.profiling_mode == "allocation":
+        if args.frequency:
+            parser.error("-f|--frequency is only allowed in allocation profiling (--mode=alloc)")
+        if not args.alloc_interval:
+            args.alloc_interval = DEFAULT_ALLOC_INTERVAL
+        args.frequency = humanfriendly.parse_size(args.alloc_interval, binary=True)
+
     if args.upload_results:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
@@ -635,7 +657,7 @@ def parse_cmd_args() -> configargparse.Namespace:
     if args.perf_dwarf_stack_size > 65528:
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
 
-    if args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
+    if args.profiling_mode == "cpu" and args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
         parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode 'smart' or 'dwarf'")
 
     if args.nodejs_mode in ("perf", "attach-maps") and args.perf_mode not in ("fp", "smart"):

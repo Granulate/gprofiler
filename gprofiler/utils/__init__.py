@@ -449,8 +449,15 @@ def reset_umask() -> None:
 
 
 def limit_frequency(
-    limit: Optional[int], requested: int, msg_header: str, runtime_logger: logging.LoggerAdapter
+    limit: Optional[int],
+    requested: int,
+    msg_header: str,
+    runtime_logger: logging.LoggerAdapter,
+    profiling_mode: str = "cpu",
 ) -> int:
+    if profiling_mode != "cpu":
+        return requested
+
     if limit is not None and requested > limit:
         runtime_logger.warning(
             f"{msg_header}: Requested frequency ({requested}) is higher than the limit {limit}, "
