@@ -1,7 +1,7 @@
 pytest==7.0.1
 flake8==5.0.4
 black==22.8.0
-mypy==0.990
+mypy==0.971
 isort==5.10.1
 types-requests==0.1.9
 types-dataclasses==0.1.5
