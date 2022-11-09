@@ -247,7 +247,7 @@ class SystemProfiler(ProfilerBase):
         if self.perf_node_attach:
             self._node_processes = [process for process in self._node_processes if is_process_running(process)]
             new_processes = [process for process in get_node_processes() if process not in self._node_processes]
-            self._node_processes_attached.extend(generate_map_for_node_processes(self._node_processes))
+            self._node_processes_attached.extend(generate_map_for_node_processes(new_processes))
             self._node_processes.extend(new_processes)
 
         if self._stop_event.wait(self._duration):
