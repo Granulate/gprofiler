@@ -9,7 +9,7 @@ import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from granulate_utils.metadata import Metadata
 
@@ -23,6 +23,7 @@ from gprofiler.gprofiler_types import (
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.system_metrics import Metrics
+from gprofiler.utils import merge_dicts, parse_iso8601_timestamp
 
 logger = get_logger_adapter(__name__)
 
@@ -335,6 +336,42 @@ def _enrich_and_finalize_stack(
             stack = f"{stack};{enrich_data.appid}"
 
     return f"{enrich_data.application_prefix}{enrich_data.container_prefix}{stack} {count}"
+
+
+def concatenate_from_external_file(
+    collapsed_file_path: str,
+    obtained_metadata: Metadata,
+) -> Tuple[Optional[Any], Optional[Any], str]:
+    """
+    Concatenate all stacks from all stack mappings in process_profiles.
+    Add "profile metadata" and metrics as the first line of the resulting collapsed file.
+    """
+
+    lines = []
+    start_time = None
+    end_time = None
+
+    # TODO: container names and application metadata
+    with open(collapsed_file_path) as file:
+        for index, line in enumerate(file):
+            if index == 0:
+                assert line.startswith("#")
+                read_metadata = json.loads(line[1:])
+                metadata = merge_dicts(read_metadata, obtained_metadata)
+                try:
+                    start_time = parse_iso8601_timestamp(metadata["start_time"])
+                    end_time = parse_iso8601_timestamp(metadata["end_time"])
+                except KeyError:
+                    pass
+                try:
+                    del metadata["run_arguments"]["func"]
+                except KeyError:
+                    pass
+                lines.append("# " + json.dumps(metadata))
+            else:
+                lines.append(line.rstrip())
+
+    return start_time, end_time, "\n".join(lines)
 
 
 DEFAULT_PROFILING_MODE = "cpu"
