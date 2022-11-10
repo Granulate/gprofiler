@@ -9,7 +9,7 @@ from unittest.mock import Mock
 from psutil import Process
 from pytest import MonkeyPatch
 
-from gprofiler.metadata.application_identifiers import _UwsgiApplicationIdentifier, get_python_app_id
+from gprofiler.metadata.application_identifiers import _UwsgiApplicationIdentifier, get_node_app_id, get_python_app_id
 
 PROCESS_CWD = "/my/dir"
 
@@ -186,3 +186,9 @@ def test_python() -> None:
         process_with_cmdline(["python2.7", "/path/to/mod.py"])
     )
     assert f"python: mod.py ({PROCESS_CWD}/mod.py)" == get_python_app_id(process_with_cmdline(["python2.7", "mod.py"]))
+
+
+def test_node() -> None:
+    assert "node: myapp.js" == get_node_app_id(process_with_cmdline(["node", "myapp.js"]))
+    assert "node: myapp/myapp.js" == get_node_app_id(process_with_cmdline(["node", "myapp/myapp.js"]))
+    assert "node: myapp.js" == get_node_app_id(process_with_cmdline(["node", "myapp.js", "-r", "mock"]))

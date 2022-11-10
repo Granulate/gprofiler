@@ -25,6 +25,7 @@ if is_linux():
 _logger = get_logger_adapter(__name__)
 
 _PYTHON_BIN_RE = re.compile(r"^python([23](\.\d{1,2})?)?$")
+_NODE_BIN_RE = re.compile(r"^node$|^nodejs$")
 
 
 # Python does string interning so just initializing str() as a sentinel is not enough.
@@ -50,6 +51,10 @@ def _is_python_m_proc(process: Process) -> bool:
 
 def _is_python_bin(bin_name: str) -> bool:
     return _PYTHON_BIN_RE.match(os.path.basename(bin_name)) is not None
+
+
+def _is_node_bin(bin_name: str) -> bool:
+    return _NODE_BIN_RE.match(os.path.basename(bin_name)) is not None
 
 
 def _get_cli_arg_by_name(
@@ -273,6 +278,17 @@ class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
         return None
 
 
+class _NodeModuleApplicationIdentifier(_ApplicationIdentifier):
+    def get_app_id(self, process: Process) -> Optional[str]:
+        if not _is_node_bin(_get_cli_arg_by_index(process.cmdline(), 0)):
+            return None
+
+        arg_1 = _get_cli_arg_by_index(process.cmdline(), 1)
+        if arg_1.endswith(".js"):
+            return f"node: {arg_1}"
+        return None
+
+
 # Please note that the order matter, because the FIRST matching identifier will be used.
 # so when adding new identifiers pay attention to the order, unless aggregate_all is used.
 _IDENTIFIERS_MAP: Dict[str, List[_ApplicationIdentifier]] = {
@@ -287,6 +303,7 @@ _IDENTIFIERS_MAP: Dict[str, List[_ApplicationIdentifier]] = {
 }
 
 if is_linux():
+    _IDENTIFIERS_MAP["node"] = [_NodeModuleApplicationIdentifier()]
     _IDENTIFIERS_MAP["java"] = [_JavaJarApplicationIdentifier()]
     _IDENTIFIERS_MAP["java_spark"] = _IDENTIFIERS_MAP["java"] + [_JavaSparkApplicationIdentifier()]
 
@@ -334,3 +351,7 @@ def get_python_app_id(process: Process) -> Optional[str]:
 
 def get_java_app_id(process: Process, should_collect_spark_app_name: bool = False) -> Optional[str]:
     return get_app_id(process, "java_spark" if should_collect_spark_app_name else "java", aggregate_all=True)
+
+
+def get_node_app_id(process: Process) -> Optional[str]:
+    return get_app_id(process, "node")

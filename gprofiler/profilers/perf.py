@@ -20,6 +20,7 @@ from gprofiler import merge
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import AppMetadata, ProcessToProfileData, ProfileData
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
@@ -243,6 +244,16 @@ class SystemProfiler(ProfilerBase):
             pass
         return None
 
+    def _get_appid(self, pid: int) -> Optional[str]:
+        if pid in (0, -1):
+            return None
+        try:
+            process = Process(pid)
+            return application_identifiers.get_node_app_id(process)
+        except NoSuchProcess:
+            pass
+        return None
+
     def snapshot(self) -> ProcessToProfileData:
         if self.perf_node_attach:
             self._node_processes = [process for process in self._node_processes if is_process_running(process)]
@@ -257,8 +268,7 @@ class SystemProfiler(ProfilerBase):
             perf.switch_output()
 
         return {
-            # TODO generate appids for non runtime-profiler processes here
-            k: ProfileData(v, None, self._get_metadata(k))
+            k: ProfileData(v, self._get_appid(k), self._get_metadata(k))
             for k, v in merge.merge_global_perfs(
                 self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
                 self._perf_dwarf.wait_and_script() if self._perf_dwarf is not None else None,
