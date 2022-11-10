@@ -18,7 +18,7 @@ from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
 from gprofiler.exceptions import StopEventSetException
-from gprofiler.gprofiler_types import AppMetadata, ProcessToProfileData, ProfileData
+from gprofiler.gprofiler_types import AppMetadata, ProcessToProfileData, ProfileData, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
@@ -268,13 +268,21 @@ class SystemProfiler(ProfilerBase):
             perf.switch_output()
 
         return {
-            k: ProfileData(v, self._get_appid(k), self._get_metadata(k))
+            k: self._generate_profile_data(v, k)
             for k, v in merge.merge_global_perfs(
                 self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
                 self._perf_dwarf.wait_and_script() if self._perf_dwarf is not None else None,
                 self._insert_dso_name,
             ).items()
         }
+
+    def _generate_profile_data(self, stacks: StackToSampleCount, pid: int) -> ProfileData:
+        metadata = self._get_metadata(pid)
+        if type(metadata) is dict and "node_version" in metadata.keys():
+            appid = self._get_appid(pid)
+        else:
+            appid = None
+        return ProfileData(stacks, appid, metadata)
 
 
 class PerfMetadata(ApplicationMetadata):

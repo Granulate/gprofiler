@@ -25,7 +25,6 @@ if is_linux():
 _logger = get_logger_adapter(__name__)
 
 _PYTHON_BIN_RE = re.compile(r"^python([23](\.\d{1,2})?)?$")
-_NODE_BIN_RE = re.compile(r"^node$|^nodejs$")
 
 
 # Python does string interning so just initializing str() as a sentinel is not enough.
@@ -51,10 +50,6 @@ def _is_python_m_proc(process: Process) -> bool:
 
 def _is_python_bin(bin_name: str) -> bool:
     return _PYTHON_BIN_RE.match(os.path.basename(bin_name)) is not None
-
-
-def _is_node_bin(bin_name: str) -> bool:
-    return _NODE_BIN_RE.match(os.path.basename(bin_name)) is not None
 
 
 def _get_cli_arg_by_name(
@@ -280,12 +275,16 @@ class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
 
 class _NodeModuleApplicationIdentifier(_ApplicationIdentifier):
     def get_app_id(self, process: Process) -> Optional[str]:
-        if not _is_node_bin(_get_cli_arg_by_index(process.cmdline(), 0)):
-            return None
-
-        arg_1 = _get_cli_arg_by_index(process.cmdline(), 1)
-        if arg_1.endswith(".js"):
-            return f"node: {arg_1}"
+        skip = False
+        for arg in process.cmdline()[1:]:
+            if skip:
+                skip = False
+                continue
+            if arg in ["--require", "-r"]:
+                skip = True
+                continue
+            if arg.endswith(".js"):
+                return f"nodejs: {arg}"
         return None
 
 
@@ -302,8 +301,9 @@ _IDENTIFIERS_MAP: Dict[str, List[_ApplicationIdentifier]] = {
     ],
 }
 
+_IDENTIFIERS_MAP["node"] = [_NodeModuleApplicationIdentifier()]
+
 if is_linux():
-    _IDENTIFIERS_MAP["node"] = [_NodeModuleApplicationIdentifier()]
     _IDENTIFIERS_MAP["java"] = [_JavaJarApplicationIdentifier()]
     _IDENTIFIERS_MAP["java_spark"] = _IDENTIFIERS_MAP["java"] + [_JavaSparkApplicationIdentifier()]
 
