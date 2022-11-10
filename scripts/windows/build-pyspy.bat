@@ -4,9 +4,11 @@ IF EXIST py-spy (
 	ECHO Y | RMDIR /S py-spy
 )
 
-for /f "usebackq tokens=*" %%a in (`type tag.txt`) do SET TAG=%%a
+for /f "usebackq tokens=*" %%a in (`type .\scripts\pyspy_tag.txt`) do SET TAG=%%a
 
-for /f "usebackq tokens=*" %%a in (`type commit.txt`) do SET COMMIT=%%a
+for /f "usebackq tokens=*" %%a in (`type .\scripts\pyspy_commit.txt`) do SET COMMIT=%%a
+
+ECHO "py-spy tag: %TAG% py-spy commit: %COMMIT%"
 
 git clone --depth 1 -b %TAG% https://github.com/Granulate/py-spy.git && git -C py-spy reset --hard %COMMIT%
 

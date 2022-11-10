@@ -62,7 +62,7 @@ DEFAULT_LOG_FILE = "/var/log/gprofiler/gprofiler.log" if is_linux() else "./gpro
 DEFAULT_LOG_MAX_SIZE = 1024 * 1024 * 5
 DEFAULT_LOG_BACKUP_COUNT = 1
 
-DEFAULT_PID_FILE = "/var/run/gprofiler.pid" if is_linux() else "./gprofiler.pid"
+DEFAULT_PID_FILE = "/var/run/gprofiler.pid"
 
 DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 11
@@ -610,8 +610,8 @@ def parse_cmd_args() -> configargparse.Namespace:
 
     args = parser.parse_args()
 
-    args.perf_inject = args.nodejs_mode == "perf" and is_linux()
-    args.perf_node_attach = args.nodejs_mode == "attach-maps" and is_linux()
+    args.perf_inject = args.nodejs_mode == "perf"
+    args.perf_node_attach = args.nodejs_mode == "attach-maps"
 
     if args.upload_results:
         if not args.server_token:
@@ -622,13 +622,13 @@ def parse_cmd_args() -> configargparse.Namespace:
     if not args.upload_results and not args.output_dir:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
 
-    if args.perf_dwarf_stack_size > 65528 and is_linux():
+    if args.perf_dwarf_stack_size > 65528:
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
 
-    if args.perf_mode in ("dwarf", "smart") and args.frequency > 100 and is_linux():
+    if args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
         parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode 'smart' or 'dwarf'")
 
-    if args.nodejs_mode in ("perf", "attach-maps") and args.perf_mode not in ("fp", "smart") and is_linux():
+    if args.nodejs_mode in ("perf", "attach-maps") and args.perf_mode not in ("fp", "smart"):
         parser.error("--nodejs-mode perf or attach-maps requires --perf-mode 'fp' or 'smart'")
 
     return args
@@ -731,6 +731,9 @@ def init_pid_file(pid_file: str) -> None:
 
 def main() -> None:
     args = parse_cmd_args()
+    if is_windows():
+        args.flamegraph = False
+        args.perf_mode = "disabled"
     verify_preconditions(args)
     state = init_state()
 
@@ -837,7 +840,7 @@ def main() -> None:
 
         gprofiler = GProfiler(
             args.output_dir,
-            args.flamegraph if is_linux() else False,
+            args.flamegraph,
             args.rotating_output,
             client,
             args.collect_metrics,
