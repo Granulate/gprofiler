@@ -837,7 +837,7 @@ def main() -> None:
         # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
         args.service_name = "databricks"
         databricks_client = DatabricksClient()
-            args.service_name = f"databricks-{databricks_client.job_name}"
+        args.service_name = f"databricks-{databricks_client.job_name}"
 
     try:
         logger.info(f"Running gProfiler (version {__version__}), commandline: {' '.join(sys.argv[1:])!r}")
