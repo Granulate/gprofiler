@@ -282,7 +282,6 @@ def get_hostname() -> str:
 
 
 def _initialize_system_info_windows() -> Any:
-
     global hostname
     hostname = f"<{UNKNOWN_VALUE}>"
     distribution = (UNKNOWN_VALUE, UNKNOWN_VALUE, UNKNOWN_VALUE)
