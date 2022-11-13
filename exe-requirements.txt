@@ -2,7 +2,7 @@
 pyinstaller==4.0; platform.machine == "x86_64"
 # aarch64 requires a later version due to the use of a newer centos version.
 # see https://github.com/pyinstaller/pyinstaller/issues/5540
-pyinstaller==4.10; platform.machine == "aarch64"
+pyinstaller==4.10; platform.machine == "aarch64" or sys.platform == "win32"
 # for aarch64 we build a slightly patched version
 # I tried upgrading to 0.13.6 but it crashes when the botoloader is run as non-root :/
 # I got this error in gdb:

@@ -26,6 +26,8 @@ RUN ./prepare_machine-unknown-linux-musl.sh
 FROM pyspy-rbspy-builder-common AS pyspy-builder
 WORKDIR /tmp
 COPY scripts/pyspy_build.sh .
+COPY scripts/pyspy_commit.txt .
+COPY scripts/pyspy_tag.txt .
 RUN ./pyspy_build.sh
 RUN mv "/tmp/py-spy/target/$(uname -m)-unknown-linux-musl/release/py-spy" /tmp/py-spy/py-spy
 
