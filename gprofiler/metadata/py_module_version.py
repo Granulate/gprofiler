@@ -219,8 +219,8 @@ def _populate_packages_versions(packages_versions: Dict[str, Optional[Tuple[str,
     # This function resolves symlinks and makes paths absolute for comparison purposes which isn't required
     # for our usage.
     if hasattr(pkg_resources, "_normalize_cached"):
-        original__normalize_cache = pkg_resources._normalize_cached
-        pkg_resources._normalize_cached = lambda path: path
+        original__normalize_cache = pkg_resources._normalize_cached  # type: ignore
+        pkg_resources._normalize_cached = lambda path: path  # type: ignore
     else:
         global _warned_no__normalized_cached
         if not _warned_no__normalized_cached:
@@ -250,7 +250,7 @@ def _populate_packages_versions(packages_versions: Dict[str, Optional[Tuple[str,
                 packages_versions[module_path] = package_info
     finally:
         # Don't forget to restore the original implementation in case someone else uses this function
-        pkg_resources._normalize_cached = original__normalize_cache
+        pkg_resources._normalize_cached = original__normalize_cache  # type: ignore
 
 
 _exceptions_logged = 0
