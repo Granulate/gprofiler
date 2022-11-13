@@ -569,7 +569,12 @@ def test_java_jattach_async_profiler_log_output(
 
 
 @pytest.mark.parametrize(
-    "change_argv0", [pytest.param(True, id="argv0 is java"), pytest.param(False, id="argv0 is not java")]
+    "change_argv0,java_path",
+    [
+        pytest.param(True, "java", id="argv0 is 'java'"),
+        pytest.param(True, "/usr/bin/java", id="argv0 is '/usr/bin/java'"),
+        pytest.param(False, "", id="argv0 is not java"),
+    ],
 )
 def test_java_different_basename(
     tmp_path: Path,
@@ -578,6 +583,7 @@ def test_java_different_basename(
     assert_collapsed: AssertInCollapsed,
     caplog: LogCaptureFixture,
     change_argv0: bool,
+    java_path: Optional[str],
 ) -> None:
     """
     Tests that we can profile a Java app that runs with non-java "comm", by reading the argv0 instead.
@@ -589,6 +595,7 @@ def test_java_different_basename(
         duration=1,
         java_safemode=JAVA_SAFEMODE_ALL,  # explicitly enable, for basename checks
     ) as profiler:
+        prefix_exec_func = f"exec -a {java_path} " if change_argv0 else ""
         with _application_docker_container(
             docker_client,
             application_docker_image,
@@ -597,7 +604,7 @@ def test_java_different_basename(
             application_docker_command=[
                 "bash",
                 "-c",
-                f"{'exec -a java ' if change_argv0 else ''}{java_notjava_basename} -jar Fibonacci.jar",
+                f"{prefix_exec_func}{java_notjava_basename} -jar Fibonacci.jar",
             ],
         ) as container:
             application_pid = container.attrs["State"]["Pid"]
