@@ -28,7 +28,7 @@ BURN_BUILDER_GOLANG=@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d84d6
 GPROFILER_BUILDER=@sha256:4b66b1a8da1cba90313da11b518852baf120f6bba794d6ece2abde4d54cebb1a
 
 mkdir -p build/x86_64
-docker build -f pyi.Dockerfile --output type=local,dest=build/x86_64/ \
+DOCKER_BUILDKIT=1 docker build -f pyi.Dockerfile --output type=local,dest=build/x86_64/ \
     --build-arg RUST_BUILDER_VERSION=$RUST_BUILDER_VERSION \
     --build-arg PYPERF_BUILDER_UBUNTU=$UBUNTU_VERSION \
     --build-arg PERF_BUILDER_UBUNTU=$UBUNTU_VERSION_1604 \
