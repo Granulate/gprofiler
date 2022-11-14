@@ -3,7 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 import pytest
 from docker import DockerClient
@@ -11,7 +11,7 @@ from docker.errors import ContainerError
 from docker.models.containers import Container
 from docker.models.images import Image
 
-from tests.utils import start_gprofiler_in_container_for_one_session, wait_for_container
+from tests.utils import start_gprofiler_in_container_for_one_session, wait_for_container, wait_for_log
 
 
 def start_gprofiler(
@@ -20,14 +20,16 @@ def start_gprofiler(
     privileged: bool = True,
     user: int = 0,
     pid_mode: Optional[str] = "host",
+    extra_profiler_args: Optional[List[str]] = None,
 ) -> Container:
+    extra_profiler_args = extra_profiler_args or []
     return start_gprofiler_in_container_for_one_session(
         docker_client,
         gprofiler_docker_image,
         Path("/tmp"),
         Path("/tmp/collapsed"),
         [],
-        ["-d", "1"],
+        ["-d", "1"] + extra_profiler_args,
         privileged=privileged,
         user=user,
         pid_mode=pid_mode,
@@ -41,7 +43,9 @@ def test_mutex_taken_twice(
     """
     Mutex can only be taken once. Second gProfiler executed should fail with the mutex already taken error.
     """
-    gprofiler1 = start_gprofiler(docker_client, gprofiler_docker_image)
+    # Run the first one continuously
+    gprofiler1 = start_gprofiler(docker_client, gprofiler_docker_image, extra_profiler_args=["-c"])
+    wait_for_log(gprofiler1, "Running gProfiler", 0)
     gprofiler2 = start_gprofiler(docker_client, gprofiler_docker_image)
 
     # exits without an error
@@ -49,7 +53,7 @@ def test_mutex_taken_twice(
         "Could not acquire gProfiler's lock. Is it already running?"
         " Try 'sudo netstat -xp | grep gprofiler' to see which process holds the lock.\n"
     )
-
+    gprofiler1.stop()
     wait_for_container(gprofiler1)  # without an error as well
 
 
