@@ -180,7 +180,7 @@ class PythonEbpfProfiler(ProfilerBase):
             # Duration is irrelevant here, we want to run continuously.
         ] + self._offset_args()
         if self._insert_dso_name:
-            cmd.extend(["--do-insert-dso-name"])
+            cmd.extend(["--insert-dso-name"])
 
         if self.user_stacks_pages is not None:
             cmd.extend(["--user-stacks-pages", str(self.user_stacks_pages)])
