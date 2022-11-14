@@ -487,7 +487,7 @@ def assert_app_id(application_pid: int, runtime: str, in_container: bool) -> Gen
     desired_name_and_getter = {
         "java": (get_java_app_id, "java: Fibonacci.jar"),
         "python": (get_python_app_id, "python: lister.py (/app/lister.py)"),
-        "node": (get_node_app_id, "nodejs: fibonacci.js"),
+        "node": (get_node_app_id, "nodejs: fibonacci.js (/app/fibonacci.js"),
     }
     # We test the application name only after test has finished because the test may wait until the application is
     # running and application name might change.

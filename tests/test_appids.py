@@ -196,6 +196,9 @@ def test_node_appid() -> None:
     assert f"nodejs: myapp.js ({PROCESS_CWD}/myapp.js)" == get_node_app_id(
         process_with_cmdline(["node", "myapp.js", "-r", "mock"])
     )
+    assert f"nodejs: /path/to/myapp.js (/path/to/myapp.js)" == get_node_app_id(
+        process_with_cmdline(["node", "/path/to/myapp.js"])
+    )
     assert f"nodejs: myapp.js ({PROCESS_CWD}/myapp.js)" == get_node_app_id(
         process_with_cmdline(["node", "--myflag", "myapp.js"])
     )

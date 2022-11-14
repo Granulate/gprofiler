@@ -280,7 +280,7 @@ class _NodeModuleApplicationIdentifier(_ApplicationIdentifier):
             if skip_next:
                 skip_next = False
                 continue
-            if "=" in arg:
+            if arg.startswith("--require="):
                 continue
             if arg in ["--require", "-r"]:
                 skip_next = True
