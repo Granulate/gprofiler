@@ -59,7 +59,7 @@ from gprofiler.utils.proxy import get_https_proxy
 
 logger: logging.LoggerAdapter
 
-DEFAULT_LOG_FILE = "/var/log/gprofiler/gprofiler.log"
+DEFAULT_LOG_FILE = "/var/log/gprofiler/gprofiler.log" if is_linux() else "./gprofiler.log"
 DEFAULT_LOG_MAX_SIZE = 1024 * 1024 * 5
 DEFAULT_LOG_BACKUP_COUNT = 1
 
@@ -187,8 +187,9 @@ class GProfiler:
     ) -> None:
         start_ts = get_iso8601_format_time(local_start_time)
         end_ts = get_iso8601_format_time(local_end_time)
-        base_filename = os.path.join(self._output_dir, "profile_{}".format(end_ts))
-
+        base_filename = os.path.join(
+            self._output_dir, "profile_{}".format(end_ts.replace(":", "-" if is_windows() else ":"))
+        )
         collapsed_path = base_filename + ".col"
         Path(collapsed_path).write_text(collapsed_data, encoding="utf-8")
         stripped_collapsed_data = self._strip_extra_data(collapsed_data)
@@ -836,6 +837,10 @@ def init_pid_file(pid_file: str) -> None:
 
 def main() -> None:
     args = parse_cmd_args()
+    if is_windows():
+        args.flamegraph = False
+        args.perf_mode = "disabled"
+        args.pid_ns_check = False
     if args.subcommand != "upload-file":
         verify_preconditions(args)
     state = init_state()
@@ -855,10 +860,11 @@ def main() -> None:
     # assume we run in the root cgroup (when containerized, that's our view)
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
 
-    try:
-        init_pid_file(args.pid_file)
-    except Exception:
-        logger.exception(f"Failed to write pid to '{args.pid_file}', continuing anyway")
+    if is_linux():
+        try:
+            init_pid_file(args.pid_file)
+        except Exception:
+            logger.exception(f"Failed to write pid to '{args.pid_file}', continuing anyway")
 
     if args.databricks_job_name_as_service_name:
         # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
