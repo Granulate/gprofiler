@@ -3,7 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
 
 import pytest
 from docker import DockerClient
