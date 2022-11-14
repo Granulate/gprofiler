@@ -118,6 +118,11 @@ gProfiler can be run in a continuous mode, profiling periodically, using the `--
 Note that when using `--continuous` with `--output-dir`, a new file will be created during *each* sampling interval.
 Aggregations are only available when uploading to the Granulate Performance Studio.
 
+### Uploading profiling data from another source
+gProfiler can be used to upload external .col file to Granulate Performance Studio by using `upload-file` subcommand.
+In case of gProfiler run volume mapping flag must be added. Example for docker usage: `docker run --name granulate-gprofiler -v <path-to-.col>:<path-to-.col> --pid=host --userns=host --privileged  gprofiler:latest upload-file  --token=<token> --service-name="<service>" --file-path <path-to-.col>`
+It is also possible to add custom start and end time (in the form of UTC ISO 8601 format time in Python timestamps) to the metadata, so that it will be properly categorized in the Granulate Performance Studio (i.e. `# {"start_time": "2022-10-21T13:51:29.640637","end_time": "2022-10-21T13:54:29.640637", ...`)
+
 # Run as...
 
 This section lists the various execution modes for gProfiler (as a container, as an executable, etc...).

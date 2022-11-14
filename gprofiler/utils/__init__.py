@@ -22,7 +22,7 @@ from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Any, Callable, Iterator, List, Optional, Tuple, Union, cast
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union, cast
 
 import importlib_resources
 import psutil
@@ -357,6 +357,11 @@ def get_iso8601_format_time(time: datetime.datetime) -> str:
     return time.replace(microsecond=0).isoformat()
 
 
+# can be replaced by fromisoformat(), but it is unavailable in python 3.6
+def parse_iso8601_timestamp(time: str) -> Any:
+    return datetime.datetime.strptime(time, "%Y-%m-%dT%H:%M:%S.%f")
+
+
 def remove_prefix(s: str, prefix: str) -> str:
     # like str.removeprefix of Python 3.9, but this also ensures the prefix exists.
     assert s.startswith(prefix), f"{s} doesn't start with {prefix}"
@@ -410,7 +415,7 @@ def grab_gprofiler_mutex() -> bool:
     GPROFILER_LOCK = "\x00gprofiler_lock"
 
     try:
-        run_in_ns(["net"], lambda: try_acquire_mutex(GPROFILER_LOCK), passthrough_exception=True)
+        run_in_ns(["net"], lambda: try_acquire_mutex(GPROFILER_LOCK))
     except CouldNotAcquireMutex:
         print(
             "Could not acquire gProfiler's lock. Is it already running?"
@@ -496,3 +501,14 @@ def add_permission_dir(path: str, permission_for_file: int, permission_for_dir: 
             add_permission_dir(absolute_subpath, permission_for_file, permission_for_dir)
         else:
             os.chmod(absolute_subpath, os.stat(absolute_subpath).st_mode | permission_for_file)
+
+
+def merge_dicts(source: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any]:
+    for key, value in source.items():
+        # in case value is a dict itself
+        if isinstance(value, dict):
+            node = dest.setdefault(key, {})
+            merge_dicts(value, node)
+        else:
+            dest[key] = value
+    return dest

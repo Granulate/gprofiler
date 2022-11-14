@@ -21,7 +21,12 @@ from pytest import FixtureRequest, TempPathFactory, fixture
 
 from gprofiler.diagnostics import set_diagnostics
 from gprofiler.gprofiler_types import StackToSampleCount
-from gprofiler.metadata.application_identifiers import get_java_app_id, get_python_app_id, set_enrichment_options
+from gprofiler.metadata.application_identifiers import (
+    get_java_app_id,
+    get_node_app_id,
+    get_python_app_id,
+    set_enrichment_options,
+)
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
 from tests.utils import (
@@ -483,6 +488,7 @@ def assert_app_id(application_pid: int, runtime: str, in_container: bool) -> Gen
     desired_name_and_getter = {
         "java": (get_java_app_id, "java: Fibonacci.jar"),
         "python": (get_python_app_id, "python: lister.py (/app/lister.py)"),
+        "node": (get_node_app_id, "nodejs: fibonacci.js (/app/fibonacci.js"),
     }
     # We test the application name only after test has finished because the test may wait until the application is
     # running and application name might change.

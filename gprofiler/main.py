@@ -32,7 +32,7 @@ from gprofiler.diagnostics import log_diagnostics, set_diagnostics
 from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
-from gprofiler.merge import concatenate_profiles, merge_profiles
+from gprofiler.merge import concatenate_from_external_file, concatenate_profiles, merge_profiles
 from gprofiler.metadata.application_identifiers import set_enrichment_options
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
@@ -42,7 +42,7 @@ from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.state import State, init_state
-from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
+from gprofiler.system_metrics import Metrics, NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
 from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLoggerInterface
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
@@ -59,7 +59,7 @@ from gprofiler.utils.proxy import get_https_proxy
 
 logger: logging.LoggerAdapter
 
-DEFAULT_LOG_FILE = "/var/log/gprofiler/gprofiler.log"
+DEFAULT_LOG_FILE = "/var/log/gprofiler/gprofiler.log" if is_linux() else "./gprofiler.log"
 DEFAULT_LOG_MAX_SIZE = 1024 * 1024 * 5
 DEFAULT_LOG_BACKUP_COUNT = 1
 
@@ -184,8 +184,9 @@ class GProfiler:
     ) -> None:
         start_ts = get_iso8601_format_time(local_start_time)
         end_ts = get_iso8601_format_time(local_end_time)
-        base_filename = os.path.join(self._output_dir, "profile_{}".format(end_ts))
-
+        base_filename = os.path.join(
+            self._output_dir, "profile_{}".format(end_ts.replace(":", "-" if is_windows() else ":"))
+        )
         collapsed_path = base_filename + ".col"
         Path(collapsed_path).write_text(collapsed_data, encoding="utf-8")
         stripped_collapsed_data = self._strip_extra_data(collapsed_data)
@@ -317,25 +318,17 @@ class GProfiler:
             self._generate_output_files(merged_result, local_start_time, local_end_time)
 
         if self._client:
-            try:
-                response_dict = self._client.submit_profile(
-                    local_start_time,
-                    local_end_time,
-                    merged_result,
-                    self._profile_api_version,
-                    self._spawn_time,
-                    metrics,
-                    self._gpid,
-                )
-                self._gpid = response_dict.get("gpid", "")
-            except Timeout:
-                logger.error("Upload of profile to server timed out.")
-            except APIError as e:
-                logger.error(f"Error occurred sending profile to server: {e}")
-            except RequestException:
-                logger.exception("Error occurred sending profile to server")
-            else:
-                logger.info("Successfully uploaded profiling data to the server")
+            self._gpid = _submit_profile_logged(
+                self._client,
+                local_start_time,
+                local_end_time,
+                merged_result,
+                self._profile_api_version,
+                self._spawn_time,
+                metrics,
+                self._gpid,
+            )
+
         log_diagnostics()
 
     def _send_remote_logs(self) -> None:
@@ -384,6 +377,70 @@ class GProfiler:
                 if self._controller_process is not None and not is_process_running(self._controller_process):
                     logger.info(f"Controller process {self._controller_process.pid} has exited; gProfiler stopping...")
                     break
+
+
+def _submit_profile_logged(
+    client: APIClient,
+    start_time: datetime.datetime,
+    end_time: datetime.datetime,
+    profile: str,
+    profile_api_version: Optional[str],
+    spawn_time: float,
+    metrics: "Metrics",
+    gpid: str,
+) -> str:
+    try:
+        response_dict = client.submit_profile(
+            start_time,
+            end_time,
+            profile,
+            profile_api_version,
+            spawn_time,
+            metrics,
+            gpid,
+        )
+    except Timeout:
+        logger.error("Upload of profile to server timed out.")
+    except APIError as e:
+        logger.error(f"Error occurred sending profile to server: {e}")
+    except RequestException:
+        logger.exception("Error occurred sending profile to server")
+    else:
+        logger.info("Successfully uploaded profiling data to the server")
+        return response_dict.get("gpid", "")
+    return ""
+
+
+def send_collapsed_file_only(args: configargparse.Namespace, client: APIClient) -> None:
+    spawn_time = time.time()
+    gpid = ""
+    metrics = NoopSystemMetricsMonitor().get_metrics()
+    static_metadata: Optional[Metadata] = None
+    if args.collect_metadata:
+        static_metadata = get_static_metadata(spawn_time=spawn_time, run_args=args.__dict__)
+    metadata = (
+        get_current_metadata(cast(Metadata, static_metadata)) if args.collect_metadata else {"hostname": get_hostname()}
+    )
+    local_start_time, local_end_time, merged_result = concatenate_from_external_file(
+        args.file_path,
+        metadata,
+    )
+
+    if local_start_time is None or local_end_time is None:
+        assert (
+            local_start_time is None and local_end_time is None
+        ), "both start_time and end_time should be set, or none of them"
+        local_start_time = local_end_time = datetime.datetime.utcnow()
+    _submit_profile_logged(
+        client,
+        local_start_time,
+        local_end_time,
+        merged_result,
+        args.profile_api_version,
+        spawn_time,
+        metrics,
+        gpid,
+    )
 
 
 def parse_cmd_args() -> configargparse.Namespace:
@@ -473,18 +530,33 @@ def parse_cmd_args() -> configargparse.Namespace:
         default=False,
         help="Whether to upload the profiling results to the server",
     )
-    parser.add_argument("--server-host", default=GRANULATE_SERVER_HOST, help="Server host (default: %(default)s)")
-    parser.add_argument(
-        "--server-upload-timeout",
-        type=positive_integer,
-        default=DEFAULT_UPLOAD_TIMEOUT,
-        help="Timeout for upload requests to the server in seconds (default: %(default)s)",
+
+    subparsers = parser.add_subparsers(dest="subcommand")
+    upload_file = subparsers.add_parser("upload-file")
+    upload_file.add_argument(
+        "--file-path",
+        type=str,
+        help="Path for the collapsed file to be uploaded",
+        required=True,
     )
-    parser.add_argument("--token", dest="server_token", help="Server token")
-    parser.add_argument("--service-name", help="Service name")
-    parser.add_argument(
-        "--curlify-requests", help="Log cURL commands for HTTP requests (used for debugging)", action="store_true"
-    )
+    for subparser in [parser, upload_file]:
+        connectivity = subparser.add_argument_group("connectivity")
+        connectivity.add_argument(
+            "--server-host", default=GRANULATE_SERVER_HOST, help="Server host (default: %(default)s)"
+        )
+        connectivity.add_argument(
+            "--server-upload-timeout",
+            type=positive_integer,
+            default=DEFAULT_UPLOAD_TIMEOUT,
+            help="Timeout for upload requests to the server in seconds (default: %(default)s)",
+        )
+        connectivity.add_argument("--token", dest="server_token", help="Server token")
+        connectivity.add_argument("--service-name", help="Service name")
+        connectivity.add_argument(
+            "--curlify-requests", help="Log cURL commands for HTTP requests (used for debugging)", action="store_true"
+        )
+
+    upload_file.set_defaults(func=send_collapsed_file_only)
 
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
@@ -620,6 +692,9 @@ def parse_cmd_args() -> configargparse.Namespace:
     args.perf_inject = args.nodejs_mode == "perf"
     args.perf_node_attach = args.nodejs_mode == "attach-maps"
 
+    if args.subcommand == "upload-file":
+        args.upload_results = True
+
     if args.upload_results:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
@@ -738,7 +813,12 @@ def init_pid_file(pid_file: str) -> None:
 
 def main() -> None:
     args = parse_cmd_args()
-    verify_preconditions(args)
+    if is_windows():
+        args.flamegraph = False
+        args.perf_mode = "disabled"
+        args.pid_ns_check = False
+    if args.subcommand != "upload-file":
+        verify_preconditions(args)
     state = init_state()
 
     remote_logs_handler = RemoteLogsHandler() if _should_send_logs(args) else None
@@ -756,10 +836,11 @@ def main() -> None:
     # assume we run in the root cgroup (when containerized, that's our view)
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
 
-    try:
-        init_pid_file(args.pid_file)
-    except Exception:
-        logger.exception(f"Failed to write pid to '{args.pid_file}', continuing anyway")
+    if is_linux():
+        try:
+            init_pid_file(args.pid_file)
+        except Exception:
+            logger.exception(f"Failed to write pid to '{args.pid_file}', continuing anyway")
 
     if args.databricks_job_name_as_service_name:
         # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
@@ -830,6 +911,11 @@ def main() -> None:
 
         if client is not None and remote_logs_handler is not None:
             remote_logs_handler.init_api_client(client)
+
+        if hasattr(args, "func"):
+            assert args.subcommand == "upload-file"
+            args.func(args, client)
+            return
 
         enrichment_options = EnrichmentOptions(
             profile_api_version=args.profile_api_version,
