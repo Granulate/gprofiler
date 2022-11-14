@@ -189,10 +189,19 @@ def test_python() -> None:
 
 
 def test_node_appid() -> None:
-    assert "nodejs: myapp.js" == get_node_app_id(process_with_cmdline(["node", "myapp.js"]))
-    assert "nodejs: myapp/myapp.js" == get_node_app_id(process_with_cmdline(["node", "myapp/myapp.js"]))
-    assert "nodejs: myapp.js" == get_node_app_id(process_with_cmdline(["node", "myapp.js", "-r", "mock"]))
-    assert "nodejs: myapp.js" == get_node_app_id(process_with_cmdline(["node", "--myflag", "myapp.js"]))
-    assert "nodejs: myapp.js" == get_node_app_id(
+    assert f"nodejs: myapp.js ({PROCESS_CWD}/myapp.js)" == get_node_app_id(process_with_cmdline(["node", "myapp.js"]))
+    assert f"nodejs: myapp/myapp.js ({PROCESS_CWD}/myapp/myapp.js)" == get_node_app_id(
+        process_with_cmdline(["node", "myapp/myapp.js"])
+    )
+    assert f"nodejs: myapp.js ({PROCESS_CWD}/myapp.js)" == get_node_app_id(
+        process_with_cmdline(["node", "myapp.js", "-r", "mock"])
+    )
+    assert f"nodejs: myapp.js ({PROCESS_CWD}/myapp.js)" == get_node_app_id(
+        process_with_cmdline(["node", "--myflag", "myapp.js"])
+    )
+    assert f"nodejs: myapp.js ({PROCESS_CWD}/myapp.js)" == get_node_app_id(
         process_with_cmdline(["node", "-r", "myrequire.js", "--myflag", "myapp.js"])
+    )
+    assert f"nodejs: myapp.js ({PROCESS_CWD}/myapp.js)" == get_node_app_id(
+        process_with_cmdline(["node", "--require=myrequire.js", "myapp.js"])
     )

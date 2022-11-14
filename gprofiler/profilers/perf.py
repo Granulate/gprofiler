@@ -245,8 +245,6 @@ class SystemProfiler(ProfilerBase):
         return None
 
     def _get_appid(self, pid: int) -> Optional[str]:
-        if pid in (0, -1):
-            return None
         try:
             process = Process(pid)
             return application_identifiers.get_node_app_id(process)
@@ -278,7 +276,7 @@ class SystemProfiler(ProfilerBase):
 
     def _generate_profile_data(self, stacks: StackToSampleCount, pid: int) -> ProfileData:
         metadata = self._get_metadata(pid)
-        if type(metadata) is dict and "node_version" in metadata.keys():
+        if metadata is not None and "node_version" in metadata:
             appid = self._get_appid(pid)
         else:
             appid = None

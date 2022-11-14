@@ -275,16 +275,18 @@ class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
 
 class _NodeModuleApplicationIdentifier(_ApplicationIdentifier):
     def get_app_id(self, process: Process) -> Optional[str]:
-        skip = False
+        skip_next = False
         for arg in process.cmdline()[1:]:
-            if skip:
-                skip = False
+            if skip_next:
+                skip_next = False
+                continue
+            if "=" in arg:
                 continue
             if arg in ["--require", "-r"]:
-                skip = True
+                skip_next = True
                 continue
             if arg.endswith(".js"):
-                return f"nodejs: {arg}"
+                return f"nodejs: {arg} ({_append_file_to_proc_wd(process, arg)})"
         return None
 
 
