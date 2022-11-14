@@ -25,10 +25,10 @@ BURN_BUILDER_GOLANG=@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d84d6
 # bcc & gprofiler - centos:7
 # CentOS 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
 # this will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
-GPROFILER_BUILDER=@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e
+GPROFILER_BUILDER=@sha256:4b66b1a8da1cba90313da11b518852baf120f6bba794d6ece2abde4d54cebb1a
 
 mkdir -p build/x86_64
-DOCKER_BUILDKIT=1 docker build -f pyi.Dockerfile --output type=local,dest=build/x86_64/ \
+docker build -f pyi.Dockerfile --output type=local,dest=build/x86_64/ \
     --build-arg RUST_BUILDER_VERSION=$RUST_BUILDER_VERSION \
     --build-arg PYPERF_BUILDER_UBUNTU=$UBUNTU_VERSION \
     --build-arg PERF_BUILDER_UBUNTU=$UBUNTU_VERSION_1604 \

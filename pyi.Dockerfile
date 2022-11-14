@@ -144,6 +144,7 @@ RUN ./bcc_helpers_build.sh
 # bcc & gprofiler
 FROM centos${GPROFILER_BUILDER} AS build-stage
 WORKDIR /bcc
+USER root
 
 # fix repo links for CentOS 8, and enable powertools (required to download glibc-static)
 RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
@@ -164,12 +165,13 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then exit 0; fi; yum install -y \
     curl \
     cmake \
     patch \
-    python3 \
     flex \
     bison \
     zlib-devel.x86_64 \
     xz-devel \
     ncurses-devel \
+    epel-release centos-release-scl \
+    rh-python38-python-devel \
     elfutils-libelf-devel && \
     yum clean all
 
@@ -213,10 +215,7 @@ WORKDIR /app
 RUN yum clean all && yum --setopt=skip_missing_names_on_install=False install -y \
         epel-release \
         gcc \
-        python3 \
         curl \
-        python3-pip \
-        python3-devel \
         libicu
 
 # needed for aarch64 (for staticx)
