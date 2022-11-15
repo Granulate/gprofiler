@@ -202,7 +202,7 @@ def _copy_module_into_process_ns(process: psutil.Process, musl: bool, version: s
         return dest_inside_container
     src = resource_path(os.path.join("node", "module", libc, _get_dso_git_rev(), version))
     shutil.copytree(src, dest)
-    add_permission_dir(dest, stat.S_IROTH, stat.S_IXOTH | stat.S_IROTH)
+    add_permission_dir(dest, stat.S_IROTH | stat.S_IRGRP, stat.S_IXOTH | stat.S_IROTH | stat.S_IRGRP | stat.S_IXGRP)
     return dest_inside_container
 
 
