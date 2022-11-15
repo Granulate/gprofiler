@@ -297,10 +297,9 @@ class _RubyModuleApplicationIdentifier(_ApplicationIdentifier):
             if skip_next:
                 skip_next = False
                 continue
-            if re.compile(r"-r.+").match(arg):
-                continue
-            if arg == "-r":
-                skip_next = True
+            if arg.startswith("-r"):
+                if len(arg) <= 2:
+                    skip_next = True
                 continue
             if arg.endswith(".rb"):
                 return f"ruby: {arg} ({_append_file_to_proc_wd(process, arg)})"
