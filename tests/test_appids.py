@@ -224,5 +224,5 @@ def test_ruby_appid() -> None:
         process_with_cmdline(["ruby", "--myflag", "myapp.rb"])
     )
     assert f"ruby: myapp.rb ({PROCESS_CWD}/myapp.rb)" == get_ruby_app_id(
-        process_with_cmdline(["node", "-r", "myrequire.rb", "--myflag", "myapp.rb"])
+        process_with_cmdline(["ruby", "-r", "myrequire.rb", "--myflag", "myapp.rb"])
     )
