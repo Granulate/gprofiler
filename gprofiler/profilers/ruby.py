@@ -18,6 +18,7 @@ from gprofiler import merge
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import ProfileData
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
@@ -107,7 +108,7 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
         )
         comm = process_comm(process)
         app_metadata = self._metadata.get_metadata(process)
-        appid = None  # TODO: implement appids for Ruby
+        appid = application_identifiers.get_ruby_app_id(process)
 
         local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):
