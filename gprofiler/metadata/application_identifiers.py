@@ -297,6 +297,8 @@ class _RubyModuleApplicationIdentifier(_ApplicationIdentifier):
             if skip_next:
                 skip_next = False
                 continue
+            if re.compile(r"-r.+").match(arg):
+                continue
             if arg == "-r":
                 skip_next = True
                 continue
