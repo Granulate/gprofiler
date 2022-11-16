@@ -503,8 +503,8 @@ def parse_cmd_args() -> configargparse.Namespace:
         dest="alloc_interval",
         type=str,
         help="Profiling interval to be used in allocation profiling, size in bytes (human friendly sizes supported,"
-        "for example: '100kb'), to be used only in allocation profiling mode (--mode=allocation), "
-        f"default: {DEFAULT_ALLOC_INTERVAL}",
+        " for example: '100kb'), to be used only in allocation profiling mode (--mode=allocation),"
+        f" default: {DEFAULT_ALLOC_INTERVAL}",
     )
 
     parser.add_argument(
