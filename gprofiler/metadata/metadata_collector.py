@@ -1,4 +1,5 @@
 import datetime
+from typing import cast
 
 from granulate_utils.metadata import Metadata
 from granulate_utils.metadata.cloud import get_static_cloud_instance_metadata
@@ -33,4 +34,8 @@ def get_current_metadata(static_metadata: Metadata) -> Metadata:
     current_time = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
     dynamic_metadata = static_metadata
     dynamic_metadata.update({"current_time": current_time})
+    # For now, just use the profiling mode provided in the args.
+    profiling_mode = cast(UserArgs, static_metadata["run_arguments"])["profiling_mode"]
+    assert profiling_mode is not None
+    dynamic_metadata.update({"profiling_mode": profiling_mode})
     return dynamic_metadata

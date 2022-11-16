@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 logger = get_logger_adapter(__name__)
-COMMON_PROFILER_ARGUMENT_NAMES = ["frequency", "duration", "insert_dso_name"]
+COMMON_PROFILER_ARGUMENT_NAMES = ["frequency", "duration", "insert_dso_name", "profiling_mode"]
 
 
 def get_profilers(
@@ -33,6 +33,11 @@ def get_profilers(
 
         if arch not in (profiler_config.supported_windows_archs if is_windows() else profiler_config.supported_archs):
             logger.warning(f"Disabling {profiler_name} because it doesn't support this architecture ({arch})")
+            continue
+
+        profiling_mode = user_args.get("profiling_mode")
+        if profiling_mode not in profiler_config.supported_profiling_modes:
+            logger.warning(f"Disabling {profiler_name} because it doesn't support profiling mode {profiling_mode!r}")
             continue
 
         profiler_kwargs = profiler_init_kwargs.copy()

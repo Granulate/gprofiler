@@ -10,6 +10,7 @@ import pytest
 from docker import DockerClient
 from docker.models.images import Image
 
+from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profilers.perf import SystemProfiler
 from tests import CONTAINERS_DIRECTORY
@@ -35,6 +36,7 @@ def test_nodejs_attach_maps(
         Event(),
         str(tmp_path),
         False,
+        CPU_PROFILING_MODE,
         False,
         perf_mode="fp",
         perf_inject=False,
@@ -90,6 +92,7 @@ def test_twoprocesses_nodejs_attach_maps(
                 Event(),
                 str(tmp_path),
                 False,
+                CPU_PROFILING_MODE,
                 False,
                 perf_mode="fp",
                 perf_inject=False,
@@ -137,6 +140,7 @@ def test_nodejs_matrix(
         Event(),
         str(tmp_path),
         False,
+        CPU_PROFILING_MODE,
         False,
         perf_mode="fp",
         perf_inject=False,

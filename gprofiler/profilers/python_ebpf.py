@@ -61,11 +61,12 @@ class PythonEbpfProfiler(ProfilerBase):
         storage_dir: str,
         insert_dso_name: bool,
         profile_spawned_processes: bool,
+        profiling_mode: str,
         *,
         add_versions: bool,
         user_stacks_pages: Optional[int] = None,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name)
+        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
         _ = profile_spawned_processes  # Required for mypy unused argument warning
         self.process: Optional[Popen] = None
         self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
