@@ -97,7 +97,7 @@ class ProfilerBase(ProfilerInterface):
         if profiling_mode == "allocation":
             frequency_str = f"allocation interval: {humanfriendly.format_size(frequency, binary=True)}"
         else:
-            frequency_str = f"{frequency}hz"
+            frequency_str = f"frequency: {frequency}hz"
 
         logger.info(
             f"Initialized {self.__class__.__name__} ({frequency_str}, duration: {self._duration}s), "

@@ -32,6 +32,7 @@ from granulate_utils.linux.ns import run_in_ns
 from granulate_utils.linux.process import is_kernel_thread, process_exe
 from psutil import Process
 
+from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.platform import is_linux, is_windows
 
 if is_windows():
@@ -458,9 +459,9 @@ def limit_frequency(
     requested: int,
     msg_header: str,
     runtime_logger: logging.LoggerAdapter,
-    profiling_mode: str = "cpu",
+    profiling_mode: str,
 ) -> int:
-    if profiling_mode != "cpu":
+    if profiling_mode != CPU_PROFILING_MODE:
         return requested
 
     if limit is not None and requested > limit:

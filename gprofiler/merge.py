@@ -374,9 +374,6 @@ def concatenate_from_external_file(
     return start_time, end_time, "\n".join(lines)
 
 
-DEFAULT_PROFILING_MODE = "cpu"
-
-
 def concatenate_profiles(
     process_profiles: ProcessToProfileData,
     container_names_client: Optional[ContainerNamesClient],

@@ -708,6 +708,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._insert_dso_name = insert_dso_name
 
     def _init_ap_mode(self, profiling_mode: str, ap_mode: str) -> None:
+        assert profiling_mode in ("cpu", "allocation"), "async-profiler support only cpu/allocation profiling modes"
         if profiling_mode == "allocation":
             ap_mode = "alloc"
 

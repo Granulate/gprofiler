@@ -10,16 +10,12 @@ import pytest
 from docker import DockerClient
 from docker.models.images import Image
 
+from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profilers.perf import SystemProfiler
 from tests import CONTAINERS_DIRECTORY
 from tests.conftest import AssertInCollapsed
-from tests.utils import (
-    CPU_PROFILING,
-    assert_function_in_collapsed,
-    run_gprofiler_in_container_for_one_session,
-    snapshot_pid_collapsed,
-)
+from tests.utils import assert_function_in_collapsed, run_gprofiler_in_container_for_one_session, snapshot_pid_collapsed
 
 
 @pytest.mark.parametrize("profiler_type", ["attach-maps"])
@@ -40,7 +36,7 @@ def test_nodejs_attach_maps(
         Event(),
         str(tmp_path),
         False,
-        CPU_PROFILING,
+        CPU_PROFILING_MODE,
         False,
         perf_mode="fp",
         perf_inject=False,
@@ -96,7 +92,7 @@ def test_twoprocesses_nodejs_attach_maps(
                 Event(),
                 str(tmp_path),
                 False,
-                CPU_PROFILING,
+                CPU_PROFILING_MODE,
                 False,
                 perf_mode="fp",
                 perf_inject=False,
@@ -144,7 +140,7 @@ def test_nodejs_matrix(
         Event(),
         str(tmp_path),
         False,
-        CPU_PROFILING,
+        CPU_PROFILING_MODE,
         False,
         perf_mode="fp",
         perf_inject=False,

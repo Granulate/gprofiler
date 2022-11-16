@@ -10,9 +10,9 @@ from typing import cast
 import pytest
 from docker.models.containers import Container
 
+from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.profilers.perf import DEFAULT_PERF_DWARF_STACK_SIZE, SystemProfiler
 from tests.utils import (
-    CPU_PROFILING,
     assert_function_in_collapsed,
     is_function_in_collapsed,
     snapshot_pid_collapsed,
@@ -37,7 +37,7 @@ def make_system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) 
         Event(),
         str(tmp_path),
         insert_dso_name,
-        CPU_PROFILING,
+        CPU_PROFILING_MODE,
         False,
         perf_mode=perf_mode,
         perf_inject=False,

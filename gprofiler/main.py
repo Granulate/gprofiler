@@ -27,6 +27,7 @@ from requests import RequestException, Timeout
 
 from gprofiler import __version__
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
+from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.databricks_client import DatabricksClient
 from gprofiler.exceptions import APIError, NoProfilersEnabledError
@@ -704,14 +705,14 @@ def parse_cmd_args() -> configargparse.Namespace:
     args.perf_inject = args.nodejs_mode == "perf"
     args.perf_node_attach = args.nodejs_mode == "attach-maps"
 
-    if args.profiling_mode == "cpu":
+    if args.profiling_mode == CPU_PROFILING_MODE:
         if args.alloc_interval:
             parser.error("--alloc-interval is only allowed in allocation profiling (--mode=alloc)")
         if not args.frequency:
             args.frequency = DEFAULT_SAMPLING_FREQUENCY
     elif args.profiling_mode == "allocation":
         if args.frequency:
-            parser.error("-f|--frequency is only allowed in allocation profiling (--mode=alloc)")
+            parser.error("-f|--frequency is only allowed in cpu profiling (--mode=cpu)")
         if not args.alloc_interval:
             args.alloc_interval = DEFAULT_ALLOC_INTERVAL
         args.frequency = humanfriendly.parse_size(args.alloc_interval, binary=True)
@@ -731,7 +732,7 @@ def parse_cmd_args() -> configargparse.Namespace:
     if args.perf_dwarf_stack_size > 65528:
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
 
-    if args.profiling_mode == "cpu" and args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
+    if args.profiling_mode == CPU_PROFILING_MODE and args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
         parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode 'smart' or 'dwarf'")
 
     if args.nodejs_mode in ("perf", "attach-maps") and args.perf_mode not in ("fp", "smart"):
