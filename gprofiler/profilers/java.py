@@ -44,6 +44,7 @@ from packaging.version import Version
 from psutil import Process
 
 from gprofiler import merge
+from gprofiler.diagnostics import is_diagnostics
 from gprofiler.exceptions import CalledProcessError, CalledProcessTimeoutError, NoRwExecDirectoryFoundError
 from gprofiler.gprofiler_types import (
     ProcessToProfileData,
@@ -56,7 +57,6 @@ from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
-from gprofiler.metadata.base_application_identifier import _ApplicationIdentifier
 from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
@@ -906,13 +906,10 @@ class JavaProfiler(SpawningProcessProfilerBase):
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_java_app_id(process, self._collect_spark_app_name)
 
-        if (
-            _ApplicationIdentifier.enrichment_options is not None
-            and _ApplicationIdentifier.enrichment_options.profile_api_version == "v1"
-        ):
+        if is_diagnostics():
             execfn = (app_metadata or {}).get("execfn")
-            logger.info("Process paths", pid=process.pid, execfn=execfn, exe=exe)
-            logger.info("Process maps", pid=process.pid, maps=Path(f"/proc/{process.pid}/maps").read_text())
+            logger.debug("Process paths", pid=process.pid, execfn=execfn, exe=exe)
+            logger.debug("Process mapped files", pid=process.pid, maps=set(m.path for m in process.memory_maps()))
 
         with AsyncProfiledProcess(
             process,
