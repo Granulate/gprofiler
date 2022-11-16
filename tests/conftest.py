@@ -25,6 +25,7 @@ from gprofiler.metadata.application_identifiers import (
     get_java_app_id,
     get_node_app_id,
     get_python_app_id,
+    get_ruby_app_id,
     set_enrichment_options,
 )
 from gprofiler.metadata.enrichment import EnrichmentOptions
@@ -488,7 +489,8 @@ def assert_app_id(application_pid: int, runtime: str, in_container: bool) -> Gen
     desired_name_and_getter = {
         "java": (get_java_app_id, "java: Fibonacci.jar"),
         "python": (get_python_app_id, "python: lister.py (/app/lister.py)"),
-        "node": (get_node_app_id, "nodejs: fibonacci.js (/app/fibonacci.js"),
+        "nodejs": (get_node_app_id, "nodejs: /app/fibonacci.js (/app/fibonacci.js)"),
+        "ruby": (get_ruby_app_id, "ruby: fibonacci.rb (/app/fibonacci.rb)"),
     }
     # We test the application name only after test has finished because the test may wait until the application is
     # running and application name might change.

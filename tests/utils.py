@@ -17,6 +17,7 @@ from docker.models.containers import Container
 from docker.models.images import Image
 from docker.types import Mount
 
+from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
 from gprofiler.profilers.java import (
     JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
@@ -191,6 +192,7 @@ def make_java_profiler(
     java_async_profiler_mcache: int = AsyncProfiledProcess._DEFAULT_MCACHE,
     java_collect_spark_app_name_as_appid: bool = False,
     java_mode: str = "ap",
+    profiling_mode: str = CPU_PROFILING_MODE,
 ) -> JavaProfiler:
     assert storage_dir is not None
     return JavaProfiler(
@@ -209,6 +211,7 @@ def make_java_profiler(
         java_async_profiler_mcache=java_async_profiler_mcache,
         java_collect_spark_app_name_as_appid=java_collect_spark_app_name_as_appid,
         java_mode=java_mode,
+        profiling_mode=profiling_mode,
     )
 
 

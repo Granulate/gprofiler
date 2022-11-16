@@ -9,7 +9,12 @@ from unittest.mock import Mock
 from psutil import Process
 from pytest import MonkeyPatch
 
-from gprofiler.metadata.application_identifiers import _UwsgiApplicationIdentifier, get_node_app_id, get_python_app_id
+from gprofiler.metadata.application_identifiers import (
+    _UwsgiApplicationIdentifier,
+    get_node_app_id,
+    get_python_app_id,
+    get_ruby_app_id,
+)
 
 PROCESS_CWD = "/my/dir"
 
@@ -207,4 +212,20 @@ def test_node_appid() -> None:
     )
     assert f"nodejs: myapp.js ({PROCESS_CWD}/myapp.js)" == get_node_app_id(
         process_with_cmdline(["node", "--require=myrequire.js", "myapp.js"])
+    )
+
+
+def test_ruby_appid() -> None:
+    assert f"ruby: myapp.rb ({PROCESS_CWD}/myapp.rb)" == get_ruby_app_id(process_with_cmdline(["ruby", "myapp.rb"]))
+    assert "ruby: /path/to/myapp.rb (/path/to/myapp.rb)" == get_ruby_app_id(
+        process_with_cmdline(["ruby", "/path/to/myapp.rb"])
+    )
+    assert f"ruby: myapp.rb ({PROCESS_CWD}/myapp.rb)" == get_ruby_app_id(
+        process_with_cmdline(["ruby", "--myflag", "myapp.rb"])
+    )
+    assert f"ruby: myapp.rb ({PROCESS_CWD}/myapp.rb)" == get_ruby_app_id(
+        process_with_cmdline(["ruby", "-r", "myrequire.rb", "--myflag", "myapp.rb"])
+    )
+    assert f"ruby: myapp.rb ({PROCESS_CWD}/myapp.rb)" == get_ruby_app_id(
+        process_with_cmdline(["ruby", "-rmyrequire.rb", "--myflag", "myapp.rb"])
     )

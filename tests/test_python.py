@@ -10,6 +10,7 @@ import psutil
 import pytest
 from granulate_utils.linux.process import is_musl
 
+from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.profilers.python import PythonProfiler
 from tests.conftest import AssertInCollapsed
 from tests.utils import assert_function_in_collapsed, snapshot_pid_collapsed, snapshot_pid_profile
@@ -33,7 +34,9 @@ def test_python_select_by_libpython(
     We expect to select these because they have "libpython" in their "/proc/pid/maps".
     This test runs a Python named "shmython".
     """
-    with PythonProfiler(1000, 1, Event(), str(tmp_path), False, False, "pyspy", True, None) as profiler:
+    with PythonProfiler(
+        1000, 1, Event(), str(tmp_path), False, CPU_PROFILING_MODE, False, "pyspy", True, None
+    ) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
     assert_collapsed(process_collapsed)
     assert all(stack.startswith("shmython") for stack in process_collapsed.keys())
@@ -79,7 +82,9 @@ def test_python_matrix(
     if python_version == "2.7" and profiler_type == "pyperf" and app == "uwsgi":
         pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/485")
 
-    with PythonProfiler(1000, 2, Event(), str(tmp_path), False, False, profiler_type, True, None) as profiler:
+    with PythonProfiler(
+        1000, 2, Event(), str(tmp_path), False, CPU_PROFILING_MODE, False, profiler_type, True, None
+    ) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
 
     collapsed = profile.stacks
