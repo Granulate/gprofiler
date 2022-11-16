@@ -97,6 +97,9 @@ def log_diagnostics() -> None:
     if not is_diagnostics():
         return
 
-    _log_containers()
-    _log_processes()
-    _log_dmesg()
+    try:
+        _log_containers()
+        _log_processes()
+        _log_dmesg()
+    except Exception:
+        logger.debug("Error during diagnostics runs", exc_info=True)
