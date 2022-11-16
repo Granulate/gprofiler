@@ -70,6 +70,10 @@ DEFAULT_PID_FILE = "/var/run/gprofiler.pid"
 DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 11
 
+# Limits same as in the k8s DaemonSet.
+DEFAULT_CPU_LIMIT = 0.5  # 500m
+DEFAULT_MEMORY_LIMIT = (1 << 30)  # 1Gi
+
 # 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
 SIGINT_RATELIMIT = 0.5
 
@@ -607,25 +611,25 @@ def parse_cmd_args() -> configargparse.Namespace:
 
     parser.add_argument(
         "--limit-memory",
-        default=(1 << 30),  # 1Gi, same as in the k8s DaemonSet
+        default=DEFAULT_MEMORY_LIMIT,
         dest="memory_limit",
         type=int,
-        help="Limit on the memory used by gProfiler."
+        help="Limit on the memory used by gProfiler. Units are bytes and the default is %DEFAULT_MEMORY_LIMIT."
     )
 
     parser.add_argument(
         "--limit-cpu",
-        default=0.5,  # 500m, same as in the k8s DaemonSet
+        default=DEFAULT_CPU_LIMIT,
         dest="cpu_limit",
         type=float,
-        help="Limit on the cpu used by gProfiler."
+        help="Limit on the cpu used by gProfiler. Units are cores and the default is %DEFAULT_CPU_LIMIT."
     )
 
     parser.add_argument(
         "--no-cgroups",
-        action="store_true",
-        dest="disable_cgroups",
-        default=False,
+        action="store_false",
+        dest="cgroups_changes",
+        default=True,
         help="Disable the cgroups changes.",
     )
 
@@ -745,42 +749,27 @@ def init_pid_file(pid_file: str) -> None:
 
 
 # Set limits and return path of the cgroup.
-def set_limits(cpu: float, memory: int) -> str:
-    cgroups = {}
-    logger.debug("Check if cgroup version is supported.")
+def set_limits(cpu: float, memory: int):
     try:
-        cgroups["cpu"] = CpuCgroup()
-        cgroups["memory"] = MemoryCgroup()
+        cpu_cgroup = CpuCgroup()
+        memory_cgroup = MemoryCgroup()
     except UnsupportedCGroupV2:
-        logger.error("cgroup v2 is not supported by gProfiler, cpu and memory limits wouldn't be set.")
-        return
+        logger.debug("cgroup v2 is not supported by gProfiler, cpu and memory limits wouldn't be set.")
+        raise
 
-    logger.debug("Prepare gProfiler cpu cgroup.")
     try:
-        cgroups["cpu"].move_to_cgroup("gprofiler", os.getpid())
+        cpu_cgroup.move_to_cgroup("gprofiler", os.getpid())
     except AlreadyInCgroup:
-        logger.warning("gProfiler have already a cpu group.")
+        logger.debug("gProfiler have already a cpu group.")
+    else:
+        cpu_cgroup.set_cpu_limit_cores(cpu)
 
-    logger.debug("Set cpu limit in the cgroup.")
-    cgroups["cpu"].set_cpu_limit_cores(cpu)
-
-    logger.debug("Prepare gProfiler memory cgroup.")
     try:
-        cgroups["memory"].move_to_cgroup("gprofiler", os.getpid())
+        memory_cgroup.move_to_cgroup("gprofiler", os.getpid())
     except AlreadyInCgroup:
         logger.warning("gProfiler have already a memory group.")
-
-    logger.debug("Set memory limit in the cgroup.")
-    cgroups["memory"].set_limit_in_bytes(memory)
-
-    return cgroups['cpu'].cgroup
-
-
-def setup_usage_logger(log_usage: bool, cgroup: str) -> UsageLoggerInterface:
-    if log_usage:
-        return CgroupsUsageLogger(logger, cgroup)
     else:
-        return NoopUsageLogger()
+        memory_cgroup.set_limit_in_bytes(memory)
 
 
 def main() -> None:
@@ -798,20 +787,19 @@ def main() -> None:
         remote_logs_handler,
     )
 
-    # check if there is no kill switch for managing cgroups
     # TODO(Creatone): Check the containerized scenario.
-    cgroup = "/" # assume we run in the root cgroup (when containerized, that's our view)
-    if not args.disable_cgroups and get_run_mode() not in ("k8s", "container"):
-        logger.info(f"Trying to set resource limits, cpu='{args.cpu_limit}' and memory='{args.memory_limit}'.")
+    if args.cgroups_changes and get_run_mode() not in ("k8s", "container"):
+        logger.info(f"Trying to set resource limits, cpu='{args.cpu_limit}' "
+                    f"cores and memory='{args.memory_limit >> 20}' MB.")
         try:
-            cgroup = set_limits(args.cpu_limit, args.memory_limit)
+            set_limits(args.cpu_limit, args.memory_limit)
         except Exception:
             logger.exception("Failed to set resource limits, continuing anyway")
 
     setup_signals()
     reset_umask()
 
-    usage_logger = CgroupsUsageLogger(logger, cgroup) if args.log_usage else NoopUsageLogger()
+    usage_logger = CgroupsUsageLogger(logger, CpuCgroup().cgroup) if args.log_usage else NoopUsageLogger()
 
     try:
         init_pid_file(args.pid_file)
