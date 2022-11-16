@@ -71,6 +71,8 @@ DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 11
 DEFAULT_ALLOC_INTERVAL = "2mb"
 
+DIAGNOSTICS_INTERVAL_S = 15 * 60
+
 # 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
 SIGINT_RATELIMIT = 0.5
 
@@ -121,6 +123,7 @@ class GProfiler:
         self._stop_event = Event()
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
+        self._last_diagnostics = 0.0
         self._gpid = ""
         self._controller_process = controller_process
         self._duration = duration
@@ -334,7 +337,9 @@ class GProfiler:
                 self._gpid,
             )
 
-        log_diagnostics()
+        if time.monotonic() - self._last_diagnostics > DIAGNOSTICS_INTERVAL_S:
+            self._last_diagnostics = time.monotonic()
+            log_diagnostics()
 
     def _send_remote_logs(self) -> None:
         """
