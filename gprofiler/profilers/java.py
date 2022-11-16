@@ -909,7 +909,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         if is_diagnostics():
             execfn = (app_metadata or {}).get("execfn")
             logger.info("Process paths", pid=process.pid, execfn=execfn, exe=exe)
-            logger.info("Process maps", pid=process.pid, maps=Path(f"/proc/{process.pid}/maps").read_text())
+            logger.info("Process mapped files", pid=process.pid, maps=set(m.path for m in process.memory_maps()))
 
         with AsyncProfiledProcess(
             process,
