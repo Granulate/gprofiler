@@ -707,7 +707,7 @@ def parse_cmd_args() -> configargparse.Namespace:
 
     if args.profiling_mode == CPU_PROFILING_MODE:
         if args.alloc_interval:
-            parser.error("--alloc-interval is only allowed in allocation profiling (--mode=alloc)")
+            parser.error("--alloc-interval is only allowed in allocation profiling (--mode=allocation)")
         if not args.frequency:
             args.frequency = DEFAULT_SAMPLING_FREQUENCY
     elif args.profiling_mode == "allocation":
