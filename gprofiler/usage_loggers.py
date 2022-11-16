@@ -11,7 +11,17 @@ from typing import Optional, Tuple
 
 import psutil
 
-CGROUPFS_ROOT = "/sys/fs/cgroup"  # TODO extract from /proc/mounts, this may change
+from granulate_utils.linux.cgroups.cgroup import find_v1_hierarchies, find_v2_hierarchy
+
+
+# TODO(Creatone): Move it to granulate-utils.
+def _obtain_cgroup_controller_path(cgroup: str, controller: str) -> str:
+    cgroup_v1_hierarchies = find_v1_hierarchies()
+    if len(cgroup_v1_hierarchies) != 1:
+        assert controller in cgroup_v1_hierarchies
+        return f"{cgroup_v1_hierarchies[controller]}{cgroup}"
+    else:
+        return f"{find_v2_hierarchy()}/{controller}{cgroup}"
 
 
 class UsageLoggerInterface:
@@ -30,7 +40,8 @@ class CpuUsageLogger(UsageLoggerInterface):
 
     def __init__(self, logger: logging.LoggerAdapter, cgroup: str):
         self._logger = logger
-        self._cpuacct_usage = Path(f"{CGROUPFS_ROOT}{cgroup}cpuacct/cpuacct.usage")
+        cpu_root = _obtain_cgroup_controller_path(cgroup, 'cpuacct')
+        self._cpuacct_usage = Path(os.path.join(cpu_root, "cpuacct.usage"))
         self._last_usage: Optional[int] = None
         self._last_ts: Optional[float] = None
 
@@ -78,7 +89,7 @@ class MemoryUsageLogger(UsageLoggerInterface):
 
     def __init__(self, logger: logging.LoggerAdapter, cgroup: str):
         self._logger = logger
-        memory_root = f"{CGROUPFS_ROOT}{cgroup}memory"
+        memory_root = _obtain_cgroup_controller_path(cgroup, 'memory')
         self._memory_usage = Path(os.path.join(memory_root, "memory.usage_in_bytes"))
         self._memory_watermark = Path(os.path.join(memory_root, "memory.max_usage_in_bytes"))
         self._last_usage: Optional[int] = None
