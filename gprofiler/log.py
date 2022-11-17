@@ -9,6 +9,7 @@ import logging.handlers
 import os
 import re
 import sys
+import time
 from logging import Logger, LogRecord
 from typing import TYPE_CHECKING, Any, Dict, List, MutableMapping, Optional, Tuple
 
@@ -198,6 +199,10 @@ def initial_root_logger_setup(
 ) -> logging.LoggerAdapter:
     logger_adapter = get_logger_adapter("gprofiler")
     logger_adapter.setLevel(logging.DEBUG)
+
+    # Patch formatTime to be GMT (UTC) for all formatters,
+    # see https://docs.python.org/3/library/logging.html?highlight=formattime#logging.Formatter.formatTime
+    logging.Formatter.converter = time.gmtime
 
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     stream_handler.setLevel(stream_level)
