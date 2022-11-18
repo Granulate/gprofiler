@@ -176,7 +176,7 @@ class RemoteLogsHandler(logging.Handler):
             self._logs[:logs_count] = []
 
 
-class ExtraFormatter(logging.Formatter):
+class _ExtraFormatter(logging.Formatter):
     FILTERED_EXTRA_KEYS = [CYCLE_ID_KEY, RUN_ID_KEY, NO_SERVER_LOG_KEY, NO_SERVER_EXTRA_KEY, GPROFILER_VERSION_KEY]
 
     def format(self, record: LogRecord) -> str:
@@ -190,10 +190,14 @@ class ExtraFormatter(logging.Formatter):
         return formatted
 
 
-class GProfilerFormatter(ExtraFormatter):
+class _UTCFormatter(logging.Formatter):
     # Patch formatTime to be GMT (UTC) for all formatters,
     # see https://docs.python.org/3/library/logging.html?highlight=formattime#logging.Formatter.formatTime
     converter = time.gmtime
+
+
+class GProfilerFormatter(_ExtraFormatter, _UTCFormatter):
+    pass
 
 
 def initial_root_logger_setup(
