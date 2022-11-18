@@ -614,7 +614,7 @@ def parse_cmd_args() -> configargparse.Namespace:
         default=DEFAULT_MEMORY_LIMIT,
         dest="memory_limit",
         type=int,
-        help="Limit on the memory used by gProfiler. Units are bytes and the default is %DEFAULT_MEMORY_LIMIT."
+        help=f"Limit on the memory used by gProfiler. Units are bytes and the default is '{DEFAULT_MEMORY_LIMIT}'."
     )
 
     parser.add_argument(
@@ -622,7 +622,7 @@ def parse_cmd_args() -> configargparse.Namespace:
         default=DEFAULT_CPU_LIMIT,
         dest="cpu_limit",
         type=float,
-        help="Limit on the cpu used by gProfiler. Units are cores and the default is %DEFAULT_CPU_LIMIT."
+        help=f"Limit on the cpu used by gProfiler. Units are cores and the default is '{DEFAULT_CPU_LIMIT}'."
     )
 
     parser.add_argument(
@@ -790,7 +790,7 @@ def main() -> None:
     # TODO(Creatone): Check the containerized scenario.
     if args.cgroups_changes and get_run_mode() not in ("k8s", "container"):
         logger.info(f"Trying to set resource limits, cpu='{args.cpu_limit}' "
-                    f"cores and memory='{args.memory_limit >> 20}' MB.")
+                    f"cores and memory='{args.memory_limit >> 20:.2f}' MB.")
         try:
             set_limits(args.cpu_limit, args.memory_limit)
         except Exception:

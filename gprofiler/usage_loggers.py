@@ -14,7 +14,7 @@ import psutil
 from granulate_utils.linux.cgroups.cgroup import find_v1_hierarchies, find_v2_hierarchy
 
 
-# TODO(Creatone): Move it to granulate-utils.
+# TODO(Creatone): Move it to granulate-utils. Consider change.
 def _obtain_cgroup_controller_path(cgroup: str, controller: str) -> str:
     cgroup_v1_hierarchies = find_v1_hierarchies()
     if len(cgroup_v1_hierarchies) != 1:
