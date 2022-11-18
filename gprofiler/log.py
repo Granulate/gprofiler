@@ -190,6 +190,12 @@ class ExtraFormatter(logging.Formatter):
         return formatted
 
 
+class GProfilerFormatter(ExtraFormatter):
+    # Patch formatTime to be GMT (UTC) for all formatters,
+    # see https://docs.python.org/3/library/logging.html?highlight=formattime#logging.Formatter.formatTime
+    converter = time.gmtime
+
+
 def initial_root_logger_setup(
     stream_level: int,
     log_file_path: str,
@@ -200,16 +206,12 @@ def initial_root_logger_setup(
     logger_adapter = get_logger_adapter("gprofiler")
     logger_adapter.setLevel(logging.DEBUG)
 
-    # Patch formatTime to be GMT (UTC) for all formatters,
-    # see https://docs.python.org/3/library/logging.html?highlight=formattime#logging.Formatter.formatTime
-    logging.Formatter.converter = time.gmtime
-
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     stream_handler.setLevel(stream_level)
     if stream_level < logging.INFO:
-        stream_handler.setFormatter(ExtraFormatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s"))
+        stream_handler.setFormatter(GProfilerFormatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s"))
     else:
-        stream_handler.setFormatter(ExtraFormatter("[%(asctime)s] %(message)s", "%H:%M:%S"))
+        stream_handler.setFormatter(GProfilerFormatter("[%(asctime)s] %(message)s", "%H:%M:%S"))
     logger_adapter.logger.addHandler(stream_handler)
 
     os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
@@ -219,7 +221,7 @@ def initial_root_logger_setup(
         backupCount=rotate_backup_count,
     )
     file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(ExtraFormatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s"))
+    file_handler.setFormatter(GProfilerFormatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s"))
     logger_adapter.logger.addHandler(file_handler)
 
     if remote_logs_handler is not None:
