@@ -659,11 +659,11 @@ def parse_cmd_args() -> configargparse.Namespace:
     )
 
     parser.add_argument(
-        "--disable-application-identification",
+        "--disable-application-identifiers",
         action="store_false",
         default=True,
-        dest="identify_applications",
-        help="Disable identification of applications by heuristics",
+        dest="collect_appids",
+        help="Disable collection of application identifiers",
     )
 
     parser.add_argument(
@@ -959,7 +959,7 @@ def main() -> None:
         enrichment_options = EnrichmentOptions(
             profile_api_version=args.profile_api_version,
             container_names=args.container_names,
-            application_identifiers=args.identify_applications,
+            application_identifiers=args.collect_appids,
             application_identifier_args_filters=args.app_id_args_filters,
             application_metadata=args.application_metadata,
         )
