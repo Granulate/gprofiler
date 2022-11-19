@@ -455,8 +455,8 @@ def send_collapsed_file_only(args: configargparse.Namespace, client: APIClient) 
 
 def parse_cmd_args() -> configargparse.Namespace:
     parser = configargparse.ArgumentParser(
-        help="aaa",
-        description="gprofiler",
+        description="This is the gProfiler CLI documentation. You can access the general"
+        " documentation at https://github.com/Granulate/gprofiler#readme.",
         auto_env_var_prefix="gprofiler_",
         add_config_file_help=True,
         add_env_var_help=False,
