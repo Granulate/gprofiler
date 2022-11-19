@@ -29,12 +29,7 @@ gProfiler can produce output in two ways:
 
   `--no-flamegraph` can be given to avoid generation of the `profile_<timestamp>.html` file - only the collapsed stack samples file will be created.
 
-  The collapsed file (`.col`) is a [collapsed/folded stacks file](https://github.com/brendangregg/FlameGraph#2-fold-stacks).
-  The file begins with a "comment line", starting with `#`, which contains a JSON of metadata about the profile. Following lines are *stacks* - they consist of *frames* separated by `;`, with the ending of each line being a space followed by a number - how many *samples* were collected with this stack.
-  The first frame of each stack is an index in the application metadata array (which is part of the aforementioned JSON), for the process recorded in this sample.
-  The second frame is the container name that the process recorded in this sample runs in; if the process is not running in a container, this frame will be empty.
-  The third frame is the process name - essentially the process `comm` in Linux.
-  All following frames are the output of the profiler which emitted the sample (usually - function names).
+  The output is a collapsed file (`.col`) and its format is described [ahead](#data-format).
 
 * Send the results to the Granulate Performance Studio for viewing online with
   filtering, insights, and more.
@@ -411,6 +406,47 @@ The runtime stacks are then merged into the data collected by `perf`, substituti
 It is possible to run gProfiler without using `perf` - this is useful where `perf` can't be used, for whatever reason (e.g permissions). This mode is enabled by `--perf-mode disabled`.
 
 In this mode, gProfiler uses runtime-specific profilers only, and their results are concatenated (instead of scaled into the results collected by `perf`). This means that, although the results from different profilers are viewed on the same graph, they are not necessarily of the same scale: so you can compare the samples count of Java to Java, but not Java to Python.
+
+## Data format
+
+This section describes the data format output by the profiler. Some of it is relevant to the local output files (`.col`) files and some of it is relevant both for the local output files and for the data as viewable in the Performance Studio.
+
+### collapsed files
+
+The collapsed file (`.col`) is a [collapsed/folded stacks file](https://github.com/brendangregg/FlameGraph#2-fold-stacks) that'll be written locally per profiling session if gProfiler was invoked with the `-o` switch.  
+The file begins with a "comment line", starting with `#`, which contains a JSON of metadata about the profile. Following lines are *stacks* - they consist of *frames* separated by `;`, with the ending of each line being a space followed by a number - how many *samples* were collected with this stack.  
+The first frame of each stack is an index in the application metadata array (which is part of the aforementioned JSON), for the process recorded in this sample.  
+The second frame is the container name that the process recorded in this sample runs in; if the process is not running in a container, this frame will be empty.  
+The third frame is the process name - essentially the process `comm` in Linux.  
+All following frames are the output of the profiler which emitted the sample (usually - function names). Frames are described in [frame format](#frame-format).
+
+### application identifiers
+
+An application identifier ("appid" for short) is an optional frame that follows the process name frame. This frame has the format `appid: ...`. Per profiled process, gProfiler attempts to extract its appid, and "inject" it into the profile collected for that process - the purpose is to give the user more context about the source application of the proceeding frames.  
+For example, a Python application invoked as `cd /path/to/my/app && python myscript.py` will have the following appid: `appid: python: myscript.py (/path/to/my/app/myscript.py)` - this appid tells us it's a Python application running `myscript.py` and gives in parenthesis the absolute path of the executed script.
+
+gProfiler currently supports appids for Java, Python, NodeJS & Ruby, with each runtime having possibly more than one implementation (e.g in Python, the appid of a Gunicorn-based application is decided differently, because the app doesn't specify a "Python script" to invoke, but instead specifies a WSGI application spec). You can see the various implementations in [application_identifiers.py](./gprofiler/metadata/application_identifiers.py)
+
+Collection of appids is enabled by default and can be disabled with the `--disable-application-identifiers` switch.
+
+### frame format
+
+Each frame represents a function as identified by gProfiler. Since gProfiler aggregated frames collected by different profilers, the frame format differs depending on which profiler collected it, and from which runtime it originates (e.g Python vs Java). gProfiler does maintain some common standards.  
+Additionally, each frame has a suffix which designates the profiler it originated from and the logical "source" for the frame - is it Java code? Kernel code? Native library code?
+
+| Runtime                               | Frame Format                                                                                                                                                                            | Suffix                                                                                                   |
+|---------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| Native - C, C++, Rust (perf)          | Symbol name                                                                                                                                                                             | None                                                                                                     |
+| Golang (perf)                         | Symbol name                                                                                                                                                                             | None                                                                                                     |
+| Java (async-profiler)                 | Method FQN + signature, per [async-profiler's `-g` switch](https://github.com/jvm-profiling-tools/async-profiler#profiler-options). `;` in the method signature are replaced with `\|`. | [Per asnyc-profiler `-s` switch](https://github.com/jvm-profiling-tools/async-profiler#profiler-options) |
+| Python (PyPerf)                       | `package.(instance class if it's a method/classmethod).function_name (filename.py:line_number)`                                                                                         | `_[p]`                                                                                                   |
+| Native (PyPerf)                       | Symbol name                                                                                                                                                                             | `_[pn]`                                                                                                  |
+| Python (py-spy)                       | `package.function_name (filename.py:line_number)`                                                                                                                                                                                                   | Same as PyPerf                                                                                           |
+| NodeJS (perf)                         | Per NodeJS                                                                                                                                                                              | None                                                                                                     |
+| Ruby (rbspy)                          | Per rbspy                                                                                                                                                                               | `_[rb]`                                                                                                  |
+| PHP (phpspy)                          | Per phpspy                                                                                                                                                                              | `_[php]`                                                                                                 |
+| .NET (dotnet-trace)                   | Per dotnet-trace                                                                                                                                                                        | `_[net]`                                                                                                 |
+| Kernel (perf, async-profiler, PyPerf) | Function name                                                                                                                                                                           | `_[k]`                                                                                                   |
 
 # Building
 
