@@ -455,6 +455,7 @@ def send_collapsed_file_only(args: configargparse.Namespace, client: APIClient) 
 
 def parse_cmd_args() -> configargparse.Namespace:
     parser = configargparse.ArgumentParser(
+        help="aaa",
         description="gprofiler",
         auto_env_var_prefix="gprofiler_",
         add_config_file_help=True,
