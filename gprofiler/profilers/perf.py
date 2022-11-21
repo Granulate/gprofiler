@@ -156,6 +156,7 @@ class PerfProcess:
     ],
     disablement_help="Disable the global perf of processes,"
     " and instead only concatenate runtime-specific profilers results",
+    supported_profiling_modes=["cpu"],
 )
 class SystemProfiler(ProfilerBase):
     """
@@ -172,13 +173,14 @@ class SystemProfiler(ProfilerBase):
         stop_event: Event,
         storage_dir: str,
         insert_dso_name: bool,
+        profiling_mode: str,
         profile_spawned_processes: bool,
         perf_mode: str,
         perf_dwarf_stack_size: int,
         perf_inject: bool,
         perf_node_attach: bool,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name)
+        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
         _ = profile_spawned_processes  # Required for mypy unused argument warning
         self._perfs: List[PerfProcess] = []
         self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
