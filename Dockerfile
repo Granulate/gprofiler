@@ -170,6 +170,7 @@ COPY scripts/node_builder_glibc_env.sh .
 RUN ./node_builder_glibc_env.sh
 COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
+USER 1001
 
 # burn
 FROM golang${BURN_BUILDER_GOLANG} AS burn-builder

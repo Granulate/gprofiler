@@ -11,5 +11,6 @@ RUN mkdir /app
 ADD fibonacci.js /app
 
 ENV NODE_RUNTIME_FLAGS ${NODE_RUNTIME_FLAGS}
+USER 1001
 
 CMD exec node $NODE_RUNTIME_FLAGS /app/fibonacci.js

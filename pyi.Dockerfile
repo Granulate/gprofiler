@@ -118,6 +118,7 @@ COPY scripts/node_builder_glibc_env.sh .
 RUN ./node_builder_glibc_env.sh
 COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
+USER 1001
 
 # bcc helpers
 # built on newer Ubuntu because they require new clang (newer than available in GPROFILER_BUILDER's CentOS 7)
