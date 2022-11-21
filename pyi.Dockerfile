@@ -143,7 +143,6 @@ RUN ./bcc_helpers_build.sh
 
 # bcc & gprofiler
 FROM centos${GPROFILER_BUILDER} AS build-stage
-WORKDIR /bcc
 
 # fix repo links for CentOS 8, and enable powertools (required to download glibc-static)
 RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
@@ -154,14 +153,28 @@ RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
         yum clean all; \
     fi
 
+# python 3.10 installation
+WORKDIR /usr/src
+RUN yum install -y \
+    openssl-devel \
+    bzip2-devel \
+    libffi-devel \
+    perl-core \
+    zlib-devel \
+    xz-devel \
+    wget && \
+    yum groupinstall -y "Development Tools" && \
+    yum clean all
+COPY ./scripts/update_openssl.sh .
+RUN ./update_openssl.sh
+COPY ./scripts/install_python310.sh .
+RUN ./install_python310.sh
+
 # bcc part
 # TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
 
 RUN yum install -y git && yum clean all
-
-COPY ./scripts/install_python38.sh .
-RUN ./install_python38.sh
-
+WORKDIR /bcc
 # these are needed to build PyPerf, which we don't build on Aarch64, hence not installing them here.
 RUN if [ "$(uname -m)" = "aarch64" ]; then exit 0; fi; yum install -y \
     curl \
