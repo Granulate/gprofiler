@@ -111,7 +111,8 @@ COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
 
 # node-package-builder-glibc
-FROM ubuntu${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
+FROM centos/devtoolset-7-toolchain-centos7${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
+USER 0
 WORKDIR /tmp
 COPY scripts/node_builder_glibc_env.sh .
 RUN ./node_builder_glibc_env.sh
