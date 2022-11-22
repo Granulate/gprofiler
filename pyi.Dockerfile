@@ -154,7 +154,7 @@ RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
     fi
 
 # python 3.10 installation
-WORKDIR /usr/src
+WORKDIR /python
 RUN yum install -y \
     openssl-devel \
     bzip2-devel \
