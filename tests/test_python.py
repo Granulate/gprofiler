@@ -141,7 +141,9 @@ def test_dso_name_in_pyperf_profile(
     application_image_tag: str,
     insert_dso_name: bool,
 ) -> None:
-    with PythonProfiler(1000, 2, Event(), str(tmp_path), insert_dso_name, False, profiler_type, True, None) as profiler:
+    with PythonProfiler(
+        1000, 2, Event(), str(tmp_path), insert_dso_name, CPU_PROFILING_MODE, False, profiler_type, True, None
+    ) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
     python_version, _, _ = application_image_tag.split("-")
     interpreter_frame = "PyEval_EvalFrameEx" if python_version == "2.7" else "_PyEval_EvalFrameDefault"
