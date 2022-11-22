@@ -169,14 +169,12 @@ def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCou
 
 
 def assert_ldd_version_container(container: Container, version: str) -> None:
-    pattern = r"^ldd \(.*\) (\d*.\d*)"
-    command = "ldd --version"
-    exec_output = container.exec_run(command).output.decode("utf-8")
-    search_result = re.search(pattern, exec_output)
+    exec_output = container.exec_run("ldd --version").output.decode("utf-8")
+    search_result = re.search(r"^ldd \(.*\) (\d*.\d*)", exec_output)
     if search_result:
         version_in_container = search_result.group(1)
     else:
-        version_in_container = False
+        version_in_container = None
     assert version_in_container == version, f"ldd version in container: {version_in_container}, expected {version}"
 
 

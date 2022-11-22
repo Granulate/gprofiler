@@ -23,7 +23,7 @@ ARG BURN_BUILDER_GOLANG=@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d
 ARG GPROFILER_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
 # node-package-builder-musl alpine
 ARG NODE_PACKAGE_BUILDER_MUSL=@sha256:69704ef328d05a9f806b6b8502915e6a0a4faa4d72018dc42343f511490daf8a
-# node-package-builder-glibc - centos/devtoolset-7-toolchain-centos7
+# node-package-builder-glibc - centos/devtoolset-7-toolchain-centos7:latest
 ARG NODE_PACKAGE_BUILDER_GLIBC=@sha256:24d4c230cb1fe8e68cefe068458f52f69a1915dd6f6c3ad18aa37c2b8fa3e4e1
 
 # pyspy & rbspy builder base
