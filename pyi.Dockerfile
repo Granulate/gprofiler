@@ -156,19 +156,19 @@ RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
 # python 3.10 installation
 WORKDIR /python
 RUN yum install -y \
-    openssl-devel \
     bzip2-devel \
     libffi-devel \
     perl-core \
     zlib-devel \
     xz-devel \
+    ca-certificates \
     wget && \
     yum groupinstall -y "Development Tools" && \
     yum clean all
-COPY ./scripts/update_openssl.sh .
-RUN ./update_openssl.sh
-COPY ./scripts/install_python310.sh .
-RUN ./install_python310.sh
+COPY ./scripts/openssl_build.sh .
+RUN ./openssl_build.sh
+COPY ./scripts/python310_build.sh .
+RUN ./python310_build.sh
 
 # bcc part
 # TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
