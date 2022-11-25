@@ -168,6 +168,16 @@ def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCou
     assert is_function_in_collapsed(function_name, collapsed), f"function {function_name!r} missing in collapsed data!"
 
 
+def assert_ldd_version_container(container: Container, version: str) -> None:
+    exec_output = container.exec_run("ldd --version").output.decode("utf-8")
+    search_result = re.search(r"^ldd \(.*\) (\d*.\d*)", exec_output)
+    if search_result:
+        version_in_container = search_result.group(1)
+    else:
+        version_in_container = None
+    assert version_in_container == version, f"ldd version in container: {version_in_container}, expected {version}"
+
+
 def snapshot_pid_profile(profiler: ProfilerInterface, pid: int) -> ProfileData:
     return profiler.snapshot()[pid]
 

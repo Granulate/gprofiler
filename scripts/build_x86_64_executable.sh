@@ -26,6 +26,8 @@ BURN_BUILDER_GOLANG=@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d84d6
 # CentOS 7 image is used to grab an old version of `glibc` during `pyinstaller` bundling.
 # this will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
 GPROFILER_BUILDER=@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e
+# node-package-builder-glibc - centos/devtoolset-7-toolchain-centos7:latest
+NODE_PACKAGE_BUILDER_GLIBC=@sha256:24d4c230cb1fe8e68cefe068458f52f69a1915dd6f6c3ad18aa37c2b8fa3e4e1
 
 mkdir -p build/x86_64
 DOCKER_BUILDKIT=1 docker build -f pyi.Dockerfile --output type=local,dest=build/x86_64/ \
@@ -40,5 +42,5 @@ DOCKER_BUILDKIT=1 docker build -f pyi.Dockerfile --output type=local,dest=build/
     --build-arg GPROFILER_BUILDER=$GPROFILER_BUILDER \
     --build-arg DOTNET_BUILDER=$DOTNET_BUILDER \
     --build-arg NODE_PACKAGE_BUILDER_MUSL=$AP_BUILDER_ALPINE \
-    --build-arg NODE_PACKAGE_BUILDER_GLIBC=$UBUNTU_VERSION \
+    --build-arg NODE_PACKAGE_BUILDER_GLIBC=$NODE_PACKAGE_BUILDER_GLIBC \
     . "$@"
