@@ -84,7 +84,7 @@ RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_glibc.sh
 FROM centos${AP_CENTOS_MIN} AS async-profiler-centos-min-test-glibc
 SHELL ["/bin/bash", "-c", "-euo", "pipefail"]
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/libasyncProfiler.so /libasyncProfiler.so
-RUN if ldd /libasyncProfiler.so 2>&1 | grep -q "not found" ; then echo "libasyncProfiler.so is not compatible with minimum CentOS!"; ldd /libasyncProfiler.so; exit 1; fi
+RUN if ldd /libasyncProfiler.so 2>&1 | grep -q "not found" ; then echo "libasyncProfiler.so is not compatible with minimum CentOS!"; readelf -Ws /libasyncProfiler.so; ldd /libasyncProfiler.so; exit 1; fi
 
 # async-profiler musl
 FROM alpine${AP_BUILDER_ALPINE} AS async-profiler-builder-musl
