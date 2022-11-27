@@ -19,8 +19,15 @@ from docker.models.images import Image
 from psutil import Process
 from pytest import FixtureRequest, TempPathFactory, fixture
 
+from gprofiler.diagnostics import set_diagnostics
 from gprofiler.gprofiler_types import StackToSampleCount
-from gprofiler.metadata.application_identifiers import get_java_app_id, get_python_app_id, set_enrichment_options
+from gprofiler.metadata.application_identifiers import (
+    get_java_app_id,
+    get_node_app_id,
+    get_python_app_id,
+    get_ruby_app_id,
+    set_enrichment_options,
+)
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
 from tests.utils import (
@@ -241,29 +248,29 @@ def application_docker_image_configs() -> Mapping[str, Dict[str, Any]]:
             "": dict(
                 buildargs={
                     "NODE_RUNTIME_FLAGS": "--perf-prof --interpreted-frames-native-stack",
-                    "NODE_IMAGE_TAG": "node@sha256:59531d2835edd5161c8f9512f9e095b1836f7a1fcb0ab73e005ec46047384911",
+                    "NODE_IMAGE_TAG": "@sha256:59531d2835edd5161c8f9512f9e095b1836f7a1fcb0ab73e005ec46047384911",
                 }
             ),
             "without-flags": dict(
                 buildargs={
                     "NODE_RUNTIME_FLAGS": "",
-                    "NODE_IMAGE_TAG": "node@sha256:59531d2835edd5161c8f9512f9e095b1836f7a1fcb0ab73e005ec46047384911",
+                    "NODE_IMAGE_TAG": "@sha256:59531d2835edd5161c8f9512f9e095b1836f7a1fcb0ab73e005ec46047384911",
                 }
             ),
-            "10-glibc": dict(buildargs={"NODE_IMAGE_TAG": "10-slim"}),
-            "10-musl": dict(buildargs={"NODE_IMAGE_TAG": "10.24.1-alpine"}),
-            "11-glibc": dict(buildargs={"NODE_IMAGE_TAG": "11-slim"}),
-            "11-musl": dict(buildargs={"NODE_IMAGE_TAG": "11-alpine"}),
-            "12-glibc": dict(buildargs={"NODE_IMAGE_TAG": "12.22.12-slim"}),
-            "12-musl": dict(buildargs={"NODE_IMAGE_TAG": "12.22.12-alpine"}),
-            "13-glibc": dict(buildargs={"NODE_IMAGE_TAG": "13-slim"}),
-            "13-musl": dict(buildargs={"NODE_IMAGE_TAG": "13-alpine"}),
-            "14-glibc": dict(buildargs={"NODE_IMAGE_TAG": "14-slim"}),
-            "14-musl": dict(buildargs={"NODE_IMAGE_TAG": "14-alpine"}),
-            "15-glibc": dict(buildargs={"NODE_IMAGE_TAG": "15-slim"}),
-            "15-musl": dict(buildargs={"NODE_IMAGE_TAG": "15-alpine"}),
-            "16-glibc": dict(buildargs={"NODE_IMAGE_TAG": "16-slim"}),
-            "16-musl": dict(buildargs={"NODE_IMAGE_TAG": "16-alpine"}),
+            "10-glibc": dict(buildargs={"NODE_IMAGE_TAG": ":10-slim"}),
+            "10-musl": dict(buildargs={"NODE_IMAGE_TAG": ":10.24.1-alpine"}),
+            "11-glibc": dict(buildargs={"NODE_IMAGE_TAG": ":11-slim"}),
+            "11-musl": dict(buildargs={"NODE_IMAGE_TAG": ":11-alpine"}),
+            "12-glibc": dict(buildargs={"NODE_IMAGE": "centos/nodejs-12-centos7", "NODE_IMAGE_TAG": ":12"}),
+            "12-musl": dict(buildargs={"NODE_IMAGE_TAG": ":12.22.12-alpine"}),
+            "13-glibc": dict(buildargs={"NODE_IMAGE_TAG": ":13-slim"}),
+            "13-musl": dict(buildargs={"NODE_IMAGE_TAG": ":13-alpine"}),
+            "14-glibc": dict(buildargs={"NODE_IMAGE_TAG": ":14-slim"}),
+            "14-musl": dict(buildargs={"NODE_IMAGE_TAG": ":14-alpine"}),
+            "15-glibc": dict(buildargs={"NODE_IMAGE_TAG": ":15-slim"}),
+            "15-musl": dict(buildargs={"NODE_IMAGE_TAG": ":15-alpine"}),
+            "16-glibc": dict(buildargs={"NODE_IMAGE_TAG": ":16-slim"}),
+            "16-musl": dict(buildargs={"NODE_IMAGE_TAG": ":16-alpine"}),
         },
         "php": {
             "": {},
@@ -482,6 +489,8 @@ def assert_app_id(application_pid: int, runtime: str, in_container: bool) -> Gen
     desired_name_and_getter = {
         "java": (get_java_app_id, "java: Fibonacci.jar"),
         "python": (get_python_app_id, "python: lister.py (/app/lister.py)"),
+        "nodejs": (get_node_app_id, "nodejs: /app/fibonacci.js (/app/fibonacci.js)"),
+        "ruby": (get_ruby_app_id, "ruby: fibonacci.rb (/app/fibonacci.rb)"),
     }
     # We test the application name only after test has finished because the test may wait until the application is
     # running and application name might change.
@@ -543,6 +552,7 @@ def _set_enrichment_options() -> None:
             application_metadata=True,
         )
     )
+    set_diagnostics(False)
 
 
 def pytest_addoption(parser: Any) -> None:

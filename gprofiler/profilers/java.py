@@ -44,6 +44,7 @@ from packaging.version import Version
 from psutil import Process
 
 from gprofiler import merge
+from gprofiler.diagnostics import is_diagnostics
 from gprofiler.exceptions import CalledProcessError, CalledProcessTimeoutError, NoRwExecDirectoryFoundError
 from gprofiler.gprofiler_types import (
     ProcessToProfileData,
@@ -56,7 +57,6 @@ from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
-from gprofiler.metadata.base_application_identifier import _ApplicationIdentifier
 from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
@@ -131,7 +131,7 @@ JAVA_SAFEMODE_DEFAULT_OPTIONS = [
 
 JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 64  # StackRecovery.JAVA_STATE
 
-SUPPORTED_AP_MODES = ["cpu", "itimer"]
+SUPPORTED_AP_MODES = ["cpu", "itimer", "alloc"]
 
 
 class JattachExceptionBase(CalledProcessError):
@@ -349,7 +349,7 @@ class AsyncProfiledProcess:
         self._log_path_host = os.path.join(self._storage_dir_host, f"async-profiler-{self.process.pid}.log")
         self._log_path_process = remove_prefix(self._log_path_host, self._process_root)
 
-        assert mode in ("cpu", "itimer"), f"unexpected mode: {mode}"
+        assert mode in ("cpu", "itimer", "alloc"), f"unexpected mode: {mode}"
         self._mode = mode
         self._fdtransfer_path = f"@async-profiler-{process.pid}-{secrets.token_hex(10)}" if mode == "cpu" else None
         self._ap_safemode = ap_safemode
@@ -466,10 +466,15 @@ class AsyncProfiledProcess:
     def _get_ap_output_args(self) -> str:
         return f",file={self._output_path_process},{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS}"
 
+    def _get_interval_arg(self, interval: int) -> str:
+        if self._mode == "alloc":
+            return f",alloc={interval}"
+        return f",interval={interval}"
+
     def _get_start_cmd(self, interval: int, ap_timeout: int) -> List[str]:
         return self._get_base_cmd() + [
             f"start,event={self._mode}"
-            f"{self._get_ap_output_args()},interval={interval},"
+            f"{self._get_ap_output_args()}{self._get_interval_arg(interval)},"
             f"log={self._log_path_process}"
             f"{f',fdtransfer={self._fdtransfer_path}' if self._mode == 'cpu' else ''}"
             f",safemode={self._ap_safemode},timeout={ap_timeout}"
@@ -520,7 +525,10 @@ class AsyncProfiledProcess:
         """
         assert self._fdtransfer_path is not None  # should be set if fdntransfer is invoked
         run_process(
-            [fdtransfer_path(), self._fdtransfer_path, str(self.process.pid)],
+            # run fdtransfer with accept timeout that's slightly greater than the jattach timeout - to make
+            # sure that fdtransfer is still around for the full duration of jattach, in case the application
+            # takes a while to accept & handle the connection.
+            [fdtransfer_path(), self._fdtransfer_path, str(self.process.pid), str(self._jattach_timeout + 5)],
             stop_event=self._stop_event,
             timeout=self._FDTRANSFER_TIMEOUT,
         )
@@ -631,6 +639,7 @@ class AsyncProfiledProcess:
             help="In case of Spark application executor process - add the name of the Spark application to the appid.",
         ),
     ],
+    supported_profiling_modes=["cpu", "allocation"],
 )
 class JavaProfiler(SpawningProcessProfilerBase):
     JDK_EXCLUSIONS: List[str] = []  # currently empty
@@ -660,6 +669,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         storage_dir: str,
         insert_dso_name: bool,
         profile_spawned_processes: bool,
+        profiling_mode: str,
         java_version_check: bool,
         java_async_profiler_mode: str,
         java_async_profiler_safemode: int,
@@ -671,14 +681,16 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_mode: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes)
-
-        self._interval = frequency_to_ap_interval(frequency)
+        super().__init__(
+            frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes, profiling_mode
+        )
+        # Alloc interval is passed in frequency in allocation profiling (in bytes, as async-profiler expects)
+        self._interval = frequency_to_ap_interval(frequency) if profiling_mode == "cpu" else frequency
         # simple version check, and
         self._simple_version_check = java_version_check
         if not self._simple_version_check:
             logger.warning("Java version checks are disabled")
-        self._init_ap_mode(java_async_profiler_mode)
+        self._init_ap_mode(profiling_mode, java_async_profiler_mode)
         self._ap_safemode = java_async_profiler_safemode
         self._ap_args = java_async_profiler_args
         self._jattach_timeout = java_jattach_timeout
@@ -698,8 +710,12 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._metadata = JavaMetadata(self._stop_event)
         self._insert_dso_name = insert_dso_name
 
-    def _init_ap_mode(self, ap_mode: str) -> None:
-        if ap_mode == "auto":
+    def _init_ap_mode(self, profiling_mode: str, ap_mode: str) -> None:
+        assert profiling_mode in ("cpu", "allocation"), "async-profiler support only cpu/allocation profiling modes"
+        if profiling_mode == "allocation":
+            ap_mode = "alloc"
+
+        elif ap_mode == "auto":
             ap_mode = "cpu" if can_i_use_perf_events() else "itimer"
             logger.debug("Auto selected AP mode", ap_mode=ap_mode)
 
@@ -893,13 +909,10 @@ class JavaProfiler(SpawningProcessProfilerBase):
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_java_app_id(process, self._collect_spark_app_name)
 
-        if (
-            _ApplicationIdentifier.enrichment_options is not None
-            and _ApplicationIdentifier.enrichment_options.profile_api_version == "v1"
-        ):
+        if is_diagnostics():
             execfn = (app_metadata or {}).get("execfn")
-            logger.info("Process paths", pid=process.pid, execfn=execfn, exe=exe)
-            logger.info("Process maps", pid=process.pid, maps=Path(f"/proc/{process.pid}/maps").read_text())
+            logger.debug("Process paths", pid=process.pid, execfn=execfn, exe=exe)
+            logger.debug("Process mapped files", pid=process.pid, maps=set(m.path for m in process.memory_maps()))
 
         with AsyncProfiledProcess(
             process,

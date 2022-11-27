@@ -9,6 +9,7 @@ import logging.handlers
 import os
 import re
 import sys
+import time
 from logging import Logger, LogRecord
 from typing import TYPE_CHECKING, Any, Dict, List, MutableMapping, Optional, Tuple
 
@@ -175,7 +176,7 @@ class RemoteLogsHandler(logging.Handler):
             self._logs[:logs_count] = []
 
 
-class ExtraFormatter(logging.Formatter):
+class _ExtraFormatter(logging.Formatter):
     FILTERED_EXTRA_KEYS = [CYCLE_ID_KEY, RUN_ID_KEY, NO_SERVER_LOG_KEY, NO_SERVER_EXTRA_KEY, GPROFILER_VERSION_KEY]
 
     def format(self, record: LogRecord) -> str:
@@ -187,6 +188,16 @@ class ExtraFormatter(logging.Formatter):
             formatted = f"{formatted} ({formatted_extra})"
 
         return formatted
+
+
+class _UTCFormatter(logging.Formatter):
+    # Patch formatTime to be GMT (UTC) for all formatters,
+    # see https://docs.python.org/3/library/logging.html?highlight=formattime#logging.Formatter.formatTime
+    converter = time.gmtime
+
+
+class GProfilerFormatter(_ExtraFormatter, _UTCFormatter):
+    pass
 
 
 def initial_root_logger_setup(
@@ -202,9 +213,9 @@ def initial_root_logger_setup(
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     stream_handler.setLevel(stream_level)
     if stream_level < logging.INFO:
-        stream_handler.setFormatter(ExtraFormatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s"))
+        stream_handler.setFormatter(GProfilerFormatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s"))
     else:
-        stream_handler.setFormatter(ExtraFormatter("[%(asctime)s] %(message)s", "%H:%M:%S"))
+        stream_handler.setFormatter(GProfilerFormatter("[%(asctime)s] %(message)s", "%H:%M:%S"))
     logger_adapter.logger.addHandler(stream_handler)
 
     os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
@@ -214,7 +225,7 @@ def initial_root_logger_setup(
         backupCount=rotate_backup_count,
     )
     file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(ExtraFormatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s"))
+    file_handler.setFormatter(GProfilerFormatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s"))
     logger_adapter.logger.addHandler(file_handler)
 
     if remote_logs_handler is not None:

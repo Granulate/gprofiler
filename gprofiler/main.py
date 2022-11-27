@@ -18,6 +18,7 @@ from types import FrameType, TracebackType
 from typing import Iterable, Optional, Type, cast
 
 import configargparse
+import humanfriendly
 from granulate_utils.linux.ns import is_running_in_init_pid
 from granulate_utils.linux.process import is_process_running
 from granulate_utils.metadata import Metadata
@@ -26,8 +27,10 @@ from requests import RequestException, Timeout
 
 from gprofiler import __version__
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
+from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.databricks_client import DatabricksClient
+from gprofiler.diagnostics import log_diagnostics, set_diagnostics
 from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
@@ -66,6 +69,9 @@ DEFAULT_PID_FILE = "/var/run/gprofiler.pid"
 
 DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 11
+DEFAULT_ALLOC_INTERVAL = "2mb"
+
+DIAGNOSTICS_INTERVAL_S = 15 * 60
 
 # 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
 SIGINT_RATELIMIT = 0.5
@@ -98,6 +104,7 @@ class GProfiler:
         user_args: UserArgs,
         duration: int,
         profile_api_version: str,
+        profiling_mode: str,
         profile_spawned_processes: bool = True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         controller_process: Optional[Process] = None,
@@ -116,9 +123,11 @@ class GProfiler:
         self._stop_event = Event()
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
+        self._last_diagnostics = 0.0
         self._gpid = ""
         self._controller_process = controller_process
         self._duration = duration
+        self._profiling_mode = profiling_mode
         if collect_metadata:
             self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
@@ -328,6 +337,10 @@ class GProfiler:
                 self._gpid,
             )
 
+        if time.monotonic() - self._last_diagnostics > DIAGNOSTICS_INTERVAL_S:
+            self._last_diagnostics = time.monotonic()
+            log_diagnostics()
+
     def _send_remote_logs(self) -> None:
         """
         The function is safe to call without wrapping with try/except block, the function should does the exception
@@ -442,7 +455,8 @@ def send_collapsed_file_only(args: configargparse.Namespace, client: APIClient) 
 
 def parse_cmd_args() -> configargparse.Namespace:
     parser = configargparse.ArgumentParser(
-        description="gprofiler",
+        description="This is the gProfiler CLI documentation. You can access the general"
+        " documentation at https://github.com/Granulate/gprofiler#readme.",
         auto_env_var_prefix="gprofiler_",
         add_config_file_help=True,
         add_env_var_help=False,
@@ -457,8 +471,8 @@ def parse_cmd_args() -> configargparse.Namespace:
         "--profiling-frequency",
         type=positive_integer,
         dest="frequency",
-        default=DEFAULT_SAMPLING_FREQUENCY,
-        help="Profiler frequency in Hz (default: %(default)s)",
+        help=f"Profiler frequency in Hz (default: {DEFAULT_SAMPLING_FREQUENCY}), to be used only in CPU profiling "
+        f"(--mode=cpu, also the default mode)",
     )
     parser.add_argument(
         "-d",
@@ -485,6 +499,23 @@ def parse_cmd_args() -> configargparse.Namespace:
         help="Do not generate local flamegraphs when -o is given (only collapsed stacks files)",
     )
     parser.set_defaults(flamegraph=True)
+
+    parser.add_argument(
+        "--mode",
+        dest="profiling_mode",
+        choices=["cpu", "allocation"],
+        default="cpu",
+        help="Select gProfiler's profiling mode, default is %(default)s, available options are "
+        "%(choices)s; allocation will profile only Java processes",
+    )
+    parser.add_argument(
+        "--alloc-interval",
+        dest="alloc_interval",
+        type=str,
+        help="Profiling interval to be used in allocation profiling, size in bytes (human friendly sizes supported,"
+        " for example: '100kb'), to be used only in allocation profiling mode (--mode=allocation),"
+        f" default: {DEFAULT_ALLOC_INTERVAL}",
+    )
 
     parser.add_argument(
         "--rotating-output", action="store_true", default=False, help="Keep only the last profile result"
@@ -629,11 +660,11 @@ def parse_cmd_args() -> configargparse.Namespace:
     )
 
     parser.add_argument(
-        "--disable-application-identification",
+        "--disable-application-identifiers",
         action="store_false",
         default=True,
-        dest="identify_applications",
-        help="Disable identification of applications by heuristics",
+        dest="collect_appids",
+        help="Disable collection of application identifiers",
     )
 
     parser.add_argument(
@@ -678,10 +709,28 @@ def parse_cmd_args() -> configargparse.Namespace:
         " beginning of a session.",
     )
 
+    parser.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help="Log extra verbose information, making the debugging of gProfiler easier",
+    )
+
     args = parser.parse_args()
 
     args.perf_inject = args.nodejs_mode == "perf"
     args.perf_node_attach = args.nodejs_mode == "attach-maps"
+
+    if args.profiling_mode == CPU_PROFILING_MODE:
+        if args.alloc_interval:
+            parser.error("--alloc-interval is only allowed in allocation profiling (--mode=allocation)")
+        if not args.frequency:
+            args.frequency = DEFAULT_SAMPLING_FREQUENCY
+    elif args.profiling_mode == "allocation":
+        if args.frequency:
+            parser.error("-f|--frequency is only allowed in cpu profiling (--mode=cpu)")
+        if not args.alloc_interval:
+            args.alloc_interval = DEFAULT_ALLOC_INTERVAL
+        args.frequency = humanfriendly.parse_size(args.alloc_interval, binary=True)
 
     if args.subcommand == "upload-file":
         args.upload_results = True
@@ -698,7 +747,7 @@ def parse_cmd_args() -> configargparse.Namespace:
     if args.perf_dwarf_stack_size > 65528:
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
 
-    if args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
+    if args.profiling_mode == CPU_PROFILING_MODE and args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
         parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode 'smart' or 'dwarf'")
 
     if args.nodejs_mode in ("perf", "attach-maps") and args.perf_mode not in ("fp", "smart"):
@@ -911,12 +960,13 @@ def main() -> None:
         enrichment_options = EnrichmentOptions(
             profile_api_version=args.profile_api_version,
             container_names=args.container_names,
-            application_identifiers=args.identify_applications,
+            application_identifiers=args.collect_appids,
             application_identifier_args_filters=args.app_id_args_filters,
             application_metadata=args.application_metadata,
         )
 
         set_enrichment_options(enrichment_options)
+        set_diagnostics(args.diagnostics)
 
         gprofiler = GProfiler(
             args.output_dir,
@@ -931,6 +981,7 @@ def main() -> None:
             args.__dict__,
             args.duration,
             args.profile_api_version,
+            args.profiling_mode,
             args.profile_spawned_processes,
             remote_logs_handler,
             controller_process,

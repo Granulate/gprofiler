@@ -273,6 +273,39 @@ class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
         return None
 
 
+class _NodeModuleApplicationIdentifier(_ApplicationIdentifier):
+    def get_app_id(self, process: Process) -> Optional[str]:
+        skip_next = False
+        for arg in process.cmdline()[1:]:
+            if skip_next:
+                skip_next = False
+                continue
+            if arg.startswith("--require="):
+                continue
+            if arg in ["--require", "-r"]:
+                skip_next = True
+                continue
+            if arg.endswith(".js"):
+                return f"nodejs: {arg} ({_append_file_to_proc_wd(process, arg)})"
+        return None
+
+
+class _RubyModuleApplicationIdentifier(_ApplicationIdentifier):
+    def get_app_id(self, process: Process) -> Optional[str]:
+        skip_next = False
+        for arg in process.cmdline():
+            if skip_next:
+                skip_next = False
+                continue
+            if arg.startswith("-r"):
+                if len(arg) <= 2:
+                    skip_next = True
+                continue
+            if arg.endswith(".rb"):
+                return f"ruby: {arg} ({_append_file_to_proc_wd(process, arg)})"
+        return None
+
+
 # Please note that the order matter, because the FIRST matching identifier will be used.
 # so when adding new identifiers pay attention to the order, unless aggregate_all is used.
 _IDENTIFIERS_MAP: Dict[str, List[_ApplicationIdentifier]] = {
@@ -285,6 +318,9 @@ _IDENTIFIERS_MAP: Dict[str, List[_ApplicationIdentifier]] = {
         _PythonModuleApplicationIdentifier(),
     ],
 }
+
+_IDENTIFIERS_MAP["node"] = [_NodeModuleApplicationIdentifier()]
+_IDENTIFIERS_MAP["ruby"] = [_RubyModuleApplicationIdentifier()]
 
 if is_linux():
     _IDENTIFIERS_MAP["java"] = [_JavaJarApplicationIdentifier()]
@@ -334,3 +370,11 @@ def get_python_app_id(process: Process) -> Optional[str]:
 
 def get_java_app_id(process: Process, should_collect_spark_app_name: bool = False) -> Optional[str]:
     return get_app_id(process, "java_spark" if should_collect_spark_app_name else "java", aggregate_all=True)
+
+
+def get_node_app_id(process: Process) -> Optional[str]:
+    return get_app_id(process, "node")
+
+
+def get_ruby_app_id(process: Process) -> Optional[str]:
+    return get_app_id(process, "ruby")

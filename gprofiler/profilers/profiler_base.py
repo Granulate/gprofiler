@@ -15,6 +15,7 @@ from threading import Event, Lock, Thread
 from types import TracebackType
 from typing import Dict, List, Optional, Tuple, Type, TypeVar
 
+import humanfriendly
 from granulate_utils.linux.proc_events import register_exec_callback, unregister_exec_callback
 from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
@@ -72,9 +73,17 @@ class ProfilerBase(ProfilerInterface):
     MIN_DURATION: Optional[int] = None
 
     def __init__(
-        self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str, insert_dso_name: bool
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Optional[Event],
+        storage_dir: str,
+        insert_dso_name: bool,
+        profiling_mode: str,
     ):
-        self._frequency = limit_frequency(self.MAX_FREQUENCY, frequency, self.__class__.__name__, logger)
+        self._frequency = limit_frequency(
+            self.MAX_FREQUENCY, frequency, self.__class__.__name__, logger, profiling_mode
+        )
         if self.MIN_DURATION is not None and duration < self.MIN_DURATION:
             raise ValueError(
                 f"Minimum duration for {self.__class__.__name__} is {self.MIN_DURATION} (given {duration}), "
@@ -83,9 +92,16 @@ class ProfilerBase(ProfilerInterface):
         self._duration = duration
         self._stop_event = stop_event or Event()
         self._storage_dir = storage_dir
+        self._profiling_mode = profiling_mode
+
+        if profiling_mode == "allocation":
+            frequency_str = f"allocation interval: {humanfriendly.format_size(frequency, binary=True)}"
+        else:
+            frequency_str = f"frequency: {frequency}hz"
 
         logger.info(
-            f"Initialized {self.__class__.__name__} (frequency: {self._frequency}hz, duration: {self._duration}s)"
+            f"Initialized {self.__class__.__name__} ({frequency_str}, duration: {self._duration}s), "
+            f"profiling mode: {profiling_mode}"
         )
 
 
@@ -196,8 +212,9 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         storage_dir: str,
         insert_dso_name: bool,
         profile_spawned_processes: bool,
+        profiling_mode: str,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name)
+        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
         self._profile_spawned_processes = profile_spawned_processes
         self._submit_lock = Lock()
         self._threads: Optional[ThreadPoolExecutor] = None
