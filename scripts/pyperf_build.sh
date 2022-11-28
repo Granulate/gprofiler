@@ -5,7 +5,7 @@
 #
 set -euo pipefail
 
-git clone --depth 1 -b report-DSO-from-pyperf https://github.com/marcin-ol/bcc.git && cd bcc && git reset --hard b53280e28b6efe6922041521aa8c62624b2a0848
+git clone --depth 1 -b v1.2.4 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard f52a3142da9564266d70d70e28b7db1e3b96ed20
 
 # (after clone, because we copy the licenses)
 # TODO support aarch64
