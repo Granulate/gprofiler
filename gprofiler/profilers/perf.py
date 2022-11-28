@@ -39,6 +39,7 @@ class PerfProcess:
     _dump_timeout_s = 5
     _poll_timeout_s = 5
     _restart_after_s = 3600
+    _perf_memory_usage_treshhold = 536870912  # 512Mb
     # default number of pages used by "perf record" when perf_event_mlock_kb=516
     # we use double for dwarf.
     _mmap_sizes = {"fp": 129, "dwarf": 257}
@@ -81,7 +82,10 @@ class PerfProcess:
         ] + self._extra_args
 
     def check_if_restart(self) -> None:
-        if time.time() - self.start_time >= self._restart_after_s:
+        if (
+            time.monotonic() - self.start_time >= self._restart_after_s
+            and Process(self._process.pid).memory_info().rss >= self._perf_memory_usage_treshhold
+        ):
             self.stop()
             self.start()
 
@@ -90,7 +94,7 @@ class PerfProcess:
         process = start_process(self._get_perf_cmd(), via_staticx=False)
         try:
             wait_event(self._poll_timeout_s, self._stop_event, lambda: os.path.exists(self._output_path))
-            self.start_time = time.time()
+            self.start_time = time.monotonic()
         except TimeoutError:
             process.kill()
             assert process.stdout is not None and process.stderr is not None
