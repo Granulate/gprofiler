@@ -115,9 +115,13 @@ FROM centos/devtoolset-7-toolchain-centos7${NODE_PACKAGE_BUILDER_GLIBC} AS node-
 USER 0
 WORKDIR /tmp
 COPY scripts/node_builder_glibc_env.sh .
-RUN ./node_builder_glibc_env.sh
+RUN if [ "$(uname -m)" != "aarch64" ]; then \
+      ./node_builder_glibc_env.sh; \
+    fi
 COPY scripts/build_node_package.sh .
-RUN ./build_node_package.sh
+RUN if [ "$(uname -m)" != "aarch64" ]; then \
+      ./build_node_package.sh; \
+    fi
 # needed for hadolint
 USER 1001
 
