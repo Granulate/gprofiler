@@ -48,7 +48,7 @@ from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 if is_linux():
     from gprofiler.profilers.python_ebpf import PythonEbpfProfiler, PythonEbpfError
 
-from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
+from gprofiler.utils import pgrep_exe, pgrep_maps, random_prefix, removed_path, resource_path, run_process
 from gprofiler.utils.process import process_comm, search_proc_maps
 
 logger = get_logger_adapter(__name__)
@@ -145,8 +145,12 @@ class PythonMetadata(ApplicationMetadata):
         # python id & libpython id, if exists.
         # if libpython exists then the python binary itself is of less importance; however, to avoid confusion
         # we collect them both here (then we're able to know if either exist)
-        exe_elfid = get_elf_id(f"/proc/{process.pid}/exe")
-        libpython_elfid = get_mapped_dso_elf_id(process, "/libpython")
+        if is_windows():
+            exe_elfid = None
+            libpython_elfid = None
+        else:
+            exe_elfid = get_elf_id(f"/proc/{process.pid}/exe")
+            libpython_elfid = get_mapped_dso_elf_id(process, "/libpython")
 
         metadata = {
             "python_version": version,
@@ -170,16 +174,19 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         stop_event: Optional[Event],
         storage_dir: str,
         insert_dso_name: bool,
+        profiling_mode: str,
         profile_spawned_processes: bool,
         *,
         add_versions: bool,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes)
+        super().__init__(
+            frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes, profiling_mode
+        )
         self.add_versions = add_versions
         self._metadata = PythonMetadata(self._stop_event)
 
     def _make_command(self, pid: int, output_path: str, duration: int) -> List[str]:
-        return [
+        command = [
             resource_path("python/py-spy"),
             "record",
             "-r",
@@ -190,13 +197,15 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             "--format",
             "raw",
             "-F",
-            "--gil",
             "--output",
             output_path,
             "-p",
             str(pid),
             "--full-filenames",
         ]
+        if is_linux():
+            command += ["--gil"]
+        return command
 
     def _profile_process(self, process: Process, duration: int, spawned: bool) -> ProfileData:
         logger.info(
@@ -215,7 +224,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
                     self._make_command(process.pid, local_output_path, duration),
                     stop_event=self._stop_event,
                     timeout=duration + self._EXTRA_TIMEOUT,
-                    kill_signal=signal.SIGKILL,
+                    kill_signal=signal.SIGTERM if is_windows() else signal.SIGKILL,
                 )
             except ProcessStoppedException:
                 raise StopEventSetException
@@ -243,7 +252,12 @@ class PySpyProfiler(SpawningProcessProfilerBase):
 
     def _select_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
-        for process in pgrep_maps(DETECTED_PYTHON_PROCESSES_REGEX):
+        if is_windows():
+            all_processes = [x for x in pgrep_exe("python")]
+        else:
+            all_processes = [x for x in pgrep_maps(DETECTED_PYTHON_PROCESSES_REGEX)]
+
+        for process in all_processes:
             try:
                 if not self._should_skip_process(process):
                     filtered_procs.append(process)
@@ -285,6 +299,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
     # TODO: this inconsistency shows that py-spy and pyperf should have different Profiler classes,
     # we should split them in the future.
     supported_archs=["x86_64", "aarch64"],
+    supported_windows_archs=["AMD64"],
     profiler_mode_argument_help="Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), "
     "pyspy (always use py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails)"
     " or disabled (no runtime profilers for Python).",
@@ -307,6 +322,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             "user frames. Pass 0 to disable user native stacks altogether.",
         ),
     ],
+    supported_profiling_modes=["cpu"],
 )
 class PythonProfiler(ProfilerInterface):
     """
@@ -321,6 +337,7 @@ class PythonProfiler(ProfilerInterface):
         stop_event: Event,
         storage_dir: str,
         insert_dso_name: bool,
+        profiling_mode: str,
         profile_spawned_processes: bool,
         python_mode: str,
         python_add_versions: bool,
@@ -346,6 +363,7 @@ class PythonProfiler(ProfilerInterface):
                 profile_spawned_processes,
                 python_add_versions,
                 python_pyperf_user_stacks_pages,
+                profiling_mode,
             )
         else:
             self._ebpf_profiler = None
@@ -357,6 +375,7 @@ class PythonProfiler(ProfilerInterface):
                 stop_event,
                 storage_dir,
                 insert_dso_name,
+                profiling_mode,
                 profile_spawned_processes,
                 add_versions=python_add_versions,
             )
@@ -375,6 +394,7 @@ class PythonProfiler(ProfilerInterface):
             profile_spawned_processes: bool,
             add_versions: bool,
             user_stacks_pages: Optional[int],
+            profiling_mode: str,
         ) -> Optional[PythonEbpfProfiler]:
             try:
                 profiler = PythonEbpfProfiler(
@@ -384,6 +404,7 @@ class PythonProfiler(ProfilerInterface):
                     storage_dir,
                     insert_dso_name,
                     profile_spawned_processes,
+                    profiling_mode,
                     add_versions=add_versions,
                     user_stacks_pages=user_stacks_pages,
                 )

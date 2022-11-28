@@ -39,6 +39,7 @@ DEFAULT_PROCESS_FILTER = "php-fpm"
             default=DEFAULT_PROCESS_FILTER,
         )
     ],
+    supported_profiling_modes=["cpu"],
 )
 class PHPSpyProfiler(ProfilerBase):
     PHPSPY_RESOURCE = "php/phpspy"
@@ -61,12 +62,13 @@ class PHPSpyProfiler(ProfilerBase):
         stop_event: Optional[Event],
         storage_dir: str,
         insert_dso_name: bool,
+        profiling_mode: str,
         profile_spawned_processes: bool,
         php_process_filter: str,
         php_mode: str,
     ):
         assert php_mode == "phpspy", "PHP profiler should not be initialized, wrong php_mode value given"
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name)
+        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
         _ = profile_spawned_processes  # Required for mypy unused argument warning
         self._process: Optional[Popen] = None
         self._output_path = Path(self._storage_dir) / f"phpspy.{random_prefix()}.col"

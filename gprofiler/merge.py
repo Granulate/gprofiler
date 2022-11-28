@@ -258,6 +258,7 @@ def _make_profile_metadata(
         "metrics": metrics.__dict__,
         "application_metadata": application_metadata,
         "application_metadata_enabled": application_metadata_enabled,
+        "profiling_mode": metadata["profiling_mode"],
     }
     return "# " + json.dumps(profile_metadata)
 

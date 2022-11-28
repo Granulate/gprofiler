@@ -18,8 +18,9 @@ from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
 from gprofiler.exceptions import StopEventSetException
-from gprofiler.gprofiler_types import AppMetadata, ProcessToProfileData, ProfileData
+from gprofiler.gprofiler_types import AppMetadata, ProcessToProfileData, ProfileData, StackToSampleCount
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
@@ -155,6 +156,7 @@ class PerfProcess:
     ],
     disablement_help="Disable the global perf of processes,"
     " and instead only concatenate runtime-specific profilers results",
+    supported_profiling_modes=["cpu"],
 )
 class SystemProfiler(ProfilerBase):
     """
@@ -171,13 +173,14 @@ class SystemProfiler(ProfilerBase):
         stop_event: Event,
         storage_dir: str,
         insert_dso_name: bool,
+        profiling_mode: str,
         profile_spawned_processes: bool,
         perf_mode: str,
         perf_dwarf_stack_size: int,
         perf_inject: bool,
         perf_node_attach: bool,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name)
+        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
         _ = profile_spawned_processes  # Required for mypy unused argument warning
         self._perfs: List[PerfProcess] = []
         self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
@@ -243,6 +246,14 @@ class SystemProfiler(ProfilerBase):
             pass
         return None
 
+    def _get_appid(self, pid: int) -> Optional[str]:
+        try:
+            process = Process(pid)
+            return application_identifiers.get_node_app_id(process)
+        except NoSuchProcess:
+            pass
+        return None
+
     def snapshot(self) -> ProcessToProfileData:
         if self.perf_node_attach:
             self._node_processes = [process for process in self._node_processes if is_process_running(process)]
@@ -257,14 +268,21 @@ class SystemProfiler(ProfilerBase):
             perf.switch_output()
 
         return {
-            # TODO generate appids for non runtime-profiler processes here
-            k: ProfileData(v, None, self._get_metadata(k))
+            k: self._generate_profile_data(v, k)
             for k, v in merge.merge_global_perfs(
                 self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
                 self._perf_dwarf.wait_and_script() if self._perf_dwarf is not None else None,
                 self._insert_dso_name,
             ).items()
         }
+
+    def _generate_profile_data(self, stacks: StackToSampleCount, pid: int) -> ProfileData:
+        metadata = self._get_metadata(pid)
+        if metadata is not None and "node_version" in metadata:
+            appid = self._get_appid(pid)
+        else:
+            appid = None
+        return ProfileData(stacks, appid, metadata)
 
 
 class PerfMetadata(ApplicationMetadata):

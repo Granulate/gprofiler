@@ -104,6 +104,9 @@ def get_mac_address() -> str:
     """
     Gets the MAC address of the first non-loopback interface.
     """
+    if is_windows():
+        mac_address, _ = get_windows_network_details()
+        return mac_address
 
     assert sys.maxsize > 2**32, "expected to run on 64-bit!"
     SIZE_OF_STUCT_ifreq = 40  # correct for 64-bit
@@ -228,10 +231,7 @@ if is_windows():
 
 def get_static_system_info() -> SystemInfo:
     if is_windows():
-        hostname = platform.node()
-        distribution = platform.system(), platform.release(), platform.version()
-        libc_tuple = platform.libc_ver()
-        mac_address, local_ip = get_windows_network_details()
+        hostname, distribution, libc_tuple, mac_address, local_ip = _initialize_system_info_windows()
         spawn_uptime_ms = time.monotonic() * 1000
     else:
         hostname, distribution, libc_tuple, mac_address, local_ip = _initialize_system_info()
@@ -279,6 +279,34 @@ def get_static_system_info() -> SystemInfo:
 def get_hostname() -> str:
     assert hostname is not None, "hostname not initialized!"
     return hostname
+
+
+def _initialize_system_info_windows() -> Any:
+    global hostname
+    hostname = f"<{UNKNOWN_VALUE}>"
+    distribution = (UNKNOWN_VALUE, UNKNOWN_VALUE, UNKNOWN_VALUE)
+    libc_tuple = (UNKNOWN_VALUE, UNKNOWN_VALUE)
+    mac_address = UNKNOWN_VALUE
+    local_ip = UNKNOWN_VALUE
+
+    try:
+        hostname = socket.gethostname()
+    except Exception:
+        logger.exception("Failed to get hostname")
+    try:
+        distribution = platform.system(), platform.release(), platform.version()
+    except Exception:
+        logger.exception("Failed to get distribution")
+    try:
+        libc_tuple = platform.libc_ver()
+    except Exception:
+        logger.exception("Failed to get libc version")
+    try:
+        mac_address, local_ip = get_windows_network_details()
+    except Exception:
+        logger.exception("Failed to get mac address and local ip")
+
+    return hostname, distribution, libc_tuple, mac_address, local_ip
 
 
 def _initialize_system_info() -> Any:

@@ -1,5 +1,7 @@
 ARG NODE_IMAGE_TAG
-FROM node:${NODE_IMAGE_TAG}
+ARG NODE_IMAGE=node
+FROM ${NODE_IMAGE}${NODE_IMAGE_TAG}
+USER 0
 ARG NODE_RUNTIME_FLAGS
 
 # /tmp so node has permissions to write its jitdump file

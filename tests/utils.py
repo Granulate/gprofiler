@@ -17,6 +17,7 @@ from docker.models.containers import Container
 from docker.models.images import Image
 from docker.types import Mount
 
+from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
 from gprofiler.profilers.java import (
     JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
@@ -167,6 +168,16 @@ def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCou
     assert is_function_in_collapsed(function_name, collapsed), f"function {function_name!r} missing in collapsed data!"
 
 
+def assert_ldd_version_container(container: Container, version: str) -> None:
+    exec_output = container.exec_run("ldd --version").output.decode("utf-8")
+    search_result = re.search(r"^ldd \(.*\) (\d*.\d*)", exec_output)
+    if search_result:
+        version_in_container = search_result.group(1)
+    else:
+        version_in_container = None
+    assert version_in_container == version, f"ldd version in container: {version_in_container}, expected {version}"
+
+
 def snapshot_pid_profile(profiler: ProfilerInterface, pid: int) -> ProfileData:
     return profiler.snapshot()[pid]
 
@@ -191,6 +202,7 @@ def make_java_profiler(
     java_async_profiler_mcache: int = AsyncProfiledProcess._DEFAULT_MCACHE,
     java_collect_spark_app_name_as_appid: bool = False,
     java_mode: str = "ap",
+    profiling_mode: str = CPU_PROFILING_MODE,
 ) -> JavaProfiler:
     assert storage_dir is not None
     return JavaProfiler(
@@ -209,6 +221,7 @@ def make_java_profiler(
         java_async_profiler_mcache=java_async_profiler_mcache,
         java_collect_spark_app_name_as_appid=java_collect_spark_app_name_as_appid,
         java_mode=java_mode,
+        profiling_mode=profiling_mode,
     )
 
 
