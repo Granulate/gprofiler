@@ -52,7 +52,7 @@ class PerfProcess:
         inject_jit: bool,
         extra_args: List[str],
     ):
-        self.start_time = None
+        self.start_time = 0.0
         self._frequency = frequency
         self._stop_event = stop_event
         self._output_path = output_path
