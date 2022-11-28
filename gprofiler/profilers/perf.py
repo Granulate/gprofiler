@@ -5,6 +5,7 @@
 
 import os
 import signal
+import time
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
@@ -37,6 +38,7 @@ DEFAULT_PERF_DWARF_STACK_SIZE = 8192
 class PerfProcess:
     _dump_timeout_s = 5
     _poll_timeout_s = 5
+    _restart_after_s = 3600
     # default number of pages used by "perf record" when perf_event_mlock_kb=516
     # we use double for dwarf.
     _mmap_sizes = {"fp": 129, "dwarf": 257}
@@ -50,6 +52,7 @@ class PerfProcess:
         inject_jit: bool,
         extra_args: List[str],
     ):
+        self.start_time = None
         self._frequency = frequency
         self._stop_event = stop_event
         self._output_path = output_path
@@ -77,11 +80,17 @@ class PerfProcess:
             str(self._mmap_sizes[self._type]),
         ] + self._extra_args
 
+    def check_if_restart(self) -> None:
+        if time.time() - self.start_time >= self._restart_after_s:
+            self.stop()
+            self.start()
+
     def start(self) -> None:
         logger.info(f"Starting perf ({self._type} mode)")
         process = start_process(self._get_perf_cmd(), via_staticx=False)
         try:
             wait_event(self._poll_timeout_s, self._stop_event, lambda: os.path.exists(self._output_path))
+            self.start_time = time.time()
         except TimeoutError:
             process.kill()
             assert process.stdout is not None and process.stderr is not None
@@ -267,7 +276,7 @@ class SystemProfiler(ProfilerBase):
         for perf in self._perfs:
             perf.switch_output()
 
-        return {
+        data = {
             k: self._generate_profile_data(v, k)
             for k, v in merge.merge_global_perfs(
                 self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
@@ -275,6 +284,11 @@ class SystemProfiler(ProfilerBase):
                 self._insert_dso_name,
             ).items()
         }
+
+        for perf in self._perfs:
+            perf.check_if_restart()
+
+        return data
 
     def _generate_profile_data(self, stacks: StackToSampleCount, pid: int) -> ProfileData:
         metadata = self._get_metadata(pid)
