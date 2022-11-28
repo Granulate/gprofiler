@@ -4,7 +4,7 @@
 from contextlib import _GeneratorContextManager
 from pathlib import Path
 from threading import Event
-from typing import Callable, Container, List
+from typing import Callable, List
 
 import pytest
 from docker import DockerClient
@@ -15,12 +15,7 @@ from gprofiler.merge import parse_one_collapsed
 from gprofiler.profilers.perf import SystemProfiler
 from tests import CONTAINERS_DIRECTORY
 from tests.conftest import AssertInCollapsed
-from tests.utils import (
-    assert_function_in_collapsed,
-    assert_ldd_version_container,
-    run_gprofiler_in_container_for_one_session,
-    snapshot_pid_collapsed,
-)
+from tests.utils import assert_function_in_collapsed, run_gprofiler_in_container_for_one_session, snapshot_pid_collapsed
 
 
 @pytest.mark.parametrize("profiler_type", ["attach-maps"])
@@ -134,7 +129,6 @@ def test_twoprocesses_nodejs_attach_maps(
 def test_nodejs_matrix(
     tmp_path: Path,
     application_pid: int,
-    application_docker_container: Container,
     assert_collapsed: AssertInCollapsed,
     runtime_specific_args: List[str],
     profiler_flags: List[str],
@@ -153,8 +147,5 @@ def test_nodejs_matrix(
         perf_dwarf_stack_size=0,
         perf_node_attach=True,
     ) as profiler:
-        node_version, libc = application_image_tag.split("-")
-        if node_version == "12" and libc == "glibc":
-            assert_ldd_version_container(application_docker_container, "2.17")
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
