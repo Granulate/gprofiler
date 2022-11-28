@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
+import re
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, MutableMapping, Optional, Union
@@ -30,6 +31,31 @@ class ProfileData:
 
 ProcessToStackSampleCounters = MutableMapping[int, StackToSampleCount]
 ProcessToProfileData = MutableMapping[int, ProfileData]
+
+
+class ProfilingErrorStack(StackToSampleCount):
+
+    PROFILING_ERROR_STACK_PTRN = re.compile(r".*;\[Profiling .+: .+\]")
+
+    def __init__(self, what: str, reason: str, comm: str):
+        super().__init__()
+        self.update({f"{comm};[Profiling {what}: {reason}]": 1})
+
+    @staticmethod
+    def is_error_stack(stack: StackToSampleCount) -> bool:
+        return len(stack) == 1 and ProfilingErrorStack.PROFILING_ERROR_STACK_PTRN.match(next(iter(stack))) is not None
+
+    @staticmethod
+    def attach_error_to_stacks(
+        source_stacks: StackToSampleCount, error_stack: StackToSampleCount
+    ) -> StackToSampleCount:
+        _, error_frame = next(iter(error_stack)).split(";", maxsplit=1)
+        dest_stack: StackToSampleCount = StackToSampleCount()
+        for (frame, count) in source_stacks.items():
+            l, r = frame.split(";", maxsplit=1)
+            annotated = f"{l};{error_frame};{r}"
+            dest_stack[annotated] = count
+        return dest_stack
 
 
 def positive_integer(value_str: str) -> int:
