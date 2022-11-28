@@ -84,7 +84,7 @@ class PerfProcess:
     def check_if_restart(self) -> None:
         if (
             time.monotonic() - self.start_time >= self._restart_after_s
-            and Process(self._process.pid).memory_info().rss >= self._perf_memory_usage_treshhold # type: ignore
+            and Process(self._process.pid).memory_info().rss >= self._perf_memory_usage_treshhold  # type: ignore
         ):
             self.stop()
             self.start()
