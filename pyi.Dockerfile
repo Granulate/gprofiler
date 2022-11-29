@@ -78,7 +78,7 @@ RUN ./async_profiler_env_glibc.sh
 
 COPY scripts/async_profiler_build_shared.sh .
 COPY scripts/async_profiler_build_glibc.sh .
-RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_glibc.sh
+RUN ./async_profiler_build_shared.sh
 
 # a build step to ensure the minimum CentOS version that we require can "ldd" our libasyncProfiler.so file.
 FROM centos${AP_CENTOS_MIN} AS async-profiler-centos-min-test-glibc
@@ -94,7 +94,7 @@ COPY scripts/async_profiler_env_musl.sh .
 RUN ./async_profiler_env_musl.sh
 COPY scripts/async_profiler_build_shared.sh .
 COPY scripts/async_profiler_build_musl.sh .
-RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_musl.sh
+RUN ./async_profiler_build_shared.sh
 
 FROM golang${BURN_BUILDER_GOLANG} AS burn-builder
 WORKDIR /tmp

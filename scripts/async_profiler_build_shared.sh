@@ -5,12 +5,10 @@
 #
 set -euo pipefail
 
-VERSION=v2.9g2
-GIT_REV="8ccc6a0bfb2b9e20c2c361545f4850d751d98955"
+VERSION=async-profiler-granulate
+GIT_REV="230eb3b8608be625b264a35dd45846c62b47b313"
 
 git clone --depth 1 -b "$VERSION" https://github.com/Granulate/async-profiler.git && cd async-profiler && git reset --hard "$GIT_REV"
-# shellcheck disable=SC1090  # we pass it either async_profiler_build_glibc.sh or async_profiler_build_musl.sh
-source "$1"
 make all
 
 # add a version file to the build directory

@@ -5,8 +5,7 @@
 #
 set -euo pipefail
 
-yum install -y centos-release-scl
-yum install -y devtoolset-7-toolchain make java-11-openjdk-devel glibc-static git
+yum install -y make java-11-openjdk-devel glibc-static git gcc gcc-c++
 
 if [ "$(uname -m)" = "x86_64" ]; then
     yum install -y compat-glibc
