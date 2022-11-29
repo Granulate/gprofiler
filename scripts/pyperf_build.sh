@@ -5,7 +5,7 @@
 #
 set -euo pipefail
 
-git clone --depth 1 -b v1.2.4 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard f52a3142da9564266d70d70e28b7db1e3b96ed20
+git clone --depth 1 -b fix-native-stack-presentation https://github.com/marcin-ol/bcc.git && cd bcc && git reset --hard edc53ea4422de577666f2d09e4ab626d5aed5a93
 
 # (after clone, because we copy the licenses)
 # TODO support aarch64
