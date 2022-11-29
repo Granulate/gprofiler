@@ -127,7 +127,7 @@ USER 1001
 FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-helpers
 WORKDIR /tmp
 
-RUN apt-get update && apt install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     clang-10 \
     libelf-dev \
     make \
@@ -334,7 +334,6 @@ COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 RUN set -e; \
     if [ $(uname -m) = "aarch64" ]; then v="7.0"; else v="7"; fi; \
     source scl_source enable devtoolset-8 "llvm-toolset-$v" ; \
-    fi && \
     LIBS=$(./scripts/list_needed_libs.sh) && \
     staticx $LIBS dist/gprofiler dist/gprofiler
 
