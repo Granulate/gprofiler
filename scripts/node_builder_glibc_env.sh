@@ -4,6 +4,10 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 set -eu
+# TODO support aarch64
+if [ "$(uname -m)" = "aarch64" ]; then
+    exit 0
+fi
 
 yum update -y && yum install -y curl python3 make git ca-certificates npm
 # yum has node v10 by default, so we need to add newer version to run node-gyp
