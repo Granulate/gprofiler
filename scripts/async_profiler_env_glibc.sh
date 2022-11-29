@@ -5,7 +5,7 @@
 #
 set -euo pipefail
 
-yum install -y make java-11-openjdk-devel glibc-static git gcc gcc-c++
+yum install -y make java-11-openjdk-devel glibc-static git gcc gcc-c++ libstdc++-static
 
 if [ "$(uname -m)" = "x86_64" ]; then
     yum install -y compat-glibc
