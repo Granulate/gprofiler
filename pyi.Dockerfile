@@ -333,7 +333,7 @@ COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # hadolint ignore=SC2046,SC2086
 RUN set -e; \
     if [ $(uname -m) = "aarch64" ]; then v="7.0"; else v="7"; fi; \
-    source scl_source enable devtoolset-8 "llvm-toolset-$v" ; \
+    source scl_source enable devtoolset-8 "llvm-toolset-$v" && \
     LIBS=$(./scripts/list_needed_libs.sh) && \
     staticx $LIBS dist/gprofiler dist/gprofiler
 
