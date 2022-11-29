@@ -242,7 +242,10 @@ RUN set -e; \
 # needed for aarch64, scons & wheel are needed to build staticx
 RUN set -e; \
     if [ "$(uname -m)" = "aarch64" ]; then \
-        ln -s /usr/local/lib64/python3.10/lib-dynload/ /usr/local/lib/python3.10/lib-dynload && \
+         ln -s /usr/lib64/python3.10/lib-dynload /usr/lib/python3.10/lib-dynload; \
+    fi
+RUN set -e; \
+    if [ "$(uname -m)" = "aarch64" ]; then \
         python3 -m pip install --no-cache-dir 'wheel==0.37.0' 'scons==4.2.0'; \
     fi
 
