@@ -98,7 +98,7 @@ RUN apt-get update && \
     bison \
     libelf-dev \
     libz-dev \
-    liblzma-dev; \
+    liblzma-dev;
 
 # bcc helpers
 FROM bcc-builder-base AS bcc-helpers
