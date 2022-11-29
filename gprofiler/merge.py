@@ -9,7 +9,7 @@ import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from granulate_utils.metadata import Metadata
 
@@ -23,6 +23,7 @@ from gprofiler.gprofiler_types import (
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.system_metrics import Metrics
+from gprofiler.utils import merge_dicts, parse_iso8601_timestamp
 
 logger = get_logger_adapter(__name__)
 
@@ -35,7 +36,7 @@ SAMPLE_REGEX = re.compile(
 # ffffffff81082227 mmput+0x57 ([kernel.kallsyms])
 # 0 [unknown] ([unknown])
 # 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
-FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \((.*)\)$")
+FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \(\[?(.*?)\]?\)$")
 
 
 def parse_one_collapsed(collapsed: str, add_comm: Optional[str] = None) -> StackToSampleCount:
@@ -94,7 +95,7 @@ def parse_many_collapsed(text: str) -> ProcessToStackSampleCounters:
     return results
 
 
-def _collapse_stack(comm: str, stack: str) -> str:
+def _collapse_stack(comm: str, stack: str, insert_dso_name: bool = False) -> str:
     """
     Collapse a single stack from "perf".
     """
@@ -104,18 +105,22 @@ def _collapse_stack(comm: str, stack: str) -> str:
         assert m is not None, f"bad line: {line}"
         sym, dso = m.groups()
         sym = sym.split("+")[0]  # strip the offset part.
-        if sym == "[unknown]" and dso != "[unknown]":
-            sym = f"[{dso}]"
+        if sym == "[unknown]" and dso != "unknown":
+            sym = f"({dso})"
         # append kernel annotation
         elif "kernel" in dso or "vmlinux" in dso:
             sym += "_[k]"
+        elif insert_dso_name:
+            sym += f" ({dso})"
         funcs.append(sym)
     return ";".join(funcs)
 
 
-def merge_global_perfs(raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str]) -> ProcessToStackSampleCounters:
-    fp_perf = _parse_perf_script(raw_fp_perf)
-    dwarf_perf = _parse_perf_script(raw_dwarf_perf)
+def merge_global_perfs(
+    raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str], insert_dso_name: bool = False
+) -> ProcessToStackSampleCounters:
+    fp_perf = _parse_perf_script(raw_fp_perf, insert_dso_name)
+    dwarf_perf = _parse_perf_script(raw_dwarf_perf, insert_dso_name)
 
     if raw_fp_perf is None:
         return dwarf_perf
@@ -203,7 +208,7 @@ def get_average_frame_count(samples: Iterable[str]) -> float:
     return sum(frame_count_per_samples) / len(frame_count_per_samples)
 
 
-def _parse_perf_script(script: Optional[str]) -> ProcessToStackSampleCounters:
+def _parse_perf_script(script: Optional[str], insert_dso_name: bool = False) -> ProcessToStackSampleCounters:
     pid_to_collapsed_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
 
     if script is None:
@@ -224,7 +229,7 @@ def _parse_perf_script(script: Optional[str]) -> ProcessToStackSampleCounters:
             comm = sample_dict["comm"]
             stack = sample_dict["stack"]
             if stack is not None:
-                pid_to_collapsed_stacks_counters[pid][_collapse_stack(comm, stack)] += 1
+                pid_to_collapsed_stacks_counters[pid][_collapse_stack(comm, stack, insert_dso_name)] += 1
         except Exception:
             logger.exception(f"Error processing sample: {sample}")
     return pid_to_collapsed_stacks_counters
@@ -253,6 +258,7 @@ def _make_profile_metadata(
         "metrics": metrics.__dict__,
         "application_metadata": application_metadata,
         "application_metadata_enabled": application_metadata_enabled,
+        "profiling_mode": metadata["profiling_mode"],
     }
     return "# " + json.dumps(profile_metadata)
 
@@ -332,18 +338,53 @@ def _enrich_and_finalize_stack(
     return f"{enrich_data.application_prefix}{enrich_data.container_prefix}{stack} {count}"
 
 
+def concatenate_from_external_file(
+    collapsed_file_path: str,
+    obtained_metadata: Metadata,
+) -> Tuple[Optional[Any], Optional[Any], str]:
+    """
+    Concatenate all stacks from all stack mappings in process_profiles.
+    Add "profile metadata" and metrics as the first line of the resulting collapsed file.
+    """
+
+    lines = []
+    start_time = None
+    end_time = None
+
+    # TODO: container names and application metadata
+    with open(collapsed_file_path) as file:
+        for index, line in enumerate(file):
+            if index == 0:
+                assert line.startswith("#")
+                read_metadata = json.loads(line[1:])
+                metadata = merge_dicts(read_metadata, obtained_metadata)
+                try:
+                    start_time = parse_iso8601_timestamp(metadata["start_time"])
+                    end_time = parse_iso8601_timestamp(metadata["end_time"])
+                except KeyError:
+                    pass
+                try:
+                    del metadata["run_arguments"]["func"]
+                except KeyError:
+                    pass
+                lines.append("# " + json.dumps(metadata))
+            else:
+                lines.append(line.rstrip())
+
+    return start_time, end_time, "\n".join(lines)
+
+
 def concatenate_profiles(
     process_profiles: ProcessToProfileData,
     container_names_client: Optional[ContainerNamesClient],
     enrichment_options: EnrichmentOptions,
     metadata: Metadata,
     metrics: Metrics,
-) -> Tuple[str, int]:
+) -> str:
     """
     Concatenate all stacks from all stack mappings in process_profiles.
     Add "profile metadata" and metrics as the first line of the resulting collapsed file.
     """
-    total_samples = 0
     lines = []
     # the metadata list always contains a "null" entry with index 0 - that's the index used for all
     # processes for which we didn't collect any metadata.
@@ -352,7 +393,6 @@ def concatenate_profiles(
     for pid, profile in process_profiles.items():
         enrich_data = _enrich_pid_stacks(pid, profile, enrichment_options, container_names_client, application_metadata)
         for stack, count in profile.stacks.items():
-            total_samples += count
             lines.append(_enrich_and_finalize_stack(stack, count, enrichment_options, enrich_data))
 
     lines.insert(
@@ -366,7 +406,7 @@ def concatenate_profiles(
             enrichment_options.application_metadata,
         ),
     )
-    return "\n".join(lines), total_samples
+    return "\n".join(lines)
 
 
 def merge_profiles(
@@ -376,7 +416,7 @@ def merge_profiles(
     enrichment_options: EnrichmentOptions,
     metadata: Metadata,
     metrics: Metrics,
-) -> Tuple[str, int]:
+) -> str:
     # merge process profiles into the global perf results.
     for pid, profile in process_profiles.items():
         if len(profile.stacks) == 0:

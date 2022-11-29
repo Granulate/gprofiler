@@ -1,8 +1,8 @@
 # NOTE: Make sure to import any new process profilers to load it
-from gprofiler.platform import is_windows
+from gprofiler.platform import is_linux
 from gprofiler.profilers.python import PythonProfiler
 
-if not is_windows():
+if is_linux():
     from gprofiler.profilers.dotnet import DotnetProfiler
     from gprofiler.profilers.java import JavaProfiler
     from gprofiler.profilers.perf import SystemProfiler
@@ -11,7 +11,7 @@ if not is_windows():
 
 __all__ = ["PythonProfiler"]
 
-if not is_windows():
+if is_linux():
     __all__ += ["JavaProfiler", "PHPSpyProfiler", "RbSpyProfiler", "SystemProfiler", "DotnetProfiler"]
 
-del is_windows
+del is_linux

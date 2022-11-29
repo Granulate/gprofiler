@@ -18,6 +18,7 @@ from types import FrameType, TracebackType
 from typing import Iterable, Optional, Type, cast
 
 import configargparse
+import humanfriendly
 from granulate_utils.linux.ns import is_running_in_init_pid
 from granulate_utils.linux.process import is_process_running
 from granulate_utils.metadata import Metadata
@@ -26,21 +27,24 @@ from requests import RequestException, Timeout
 
 from gprofiler import __version__
 from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
+from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.databricks_client import DatabricksClient
+from gprofiler.diagnostics import log_diagnostics, set_diagnostics
 from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
-from gprofiler.merge import concatenate_profiles, merge_profiles
+from gprofiler.merge import concatenate_from_external_file, concatenate_profiles, merge_profiles
 from gprofiler.metadata.application_identifiers import set_enrichment_options
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
+from gprofiler.platform import is_linux, is_windows
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.state import State, init_state
-from gprofiler.system_metrics import NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
+from gprofiler.system_metrics import Metrics, NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
 from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLoggerInterface
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
@@ -57,7 +61,7 @@ from gprofiler.utils.proxy import get_https_proxy
 
 logger: logging.LoggerAdapter
 
-DEFAULT_LOG_FILE = "/var/log/gprofiler/gprofiler.log"
+DEFAULT_LOG_FILE = "/var/log/gprofiler/gprofiler.log" if is_linux() else "./gprofiler.log"
 DEFAULT_LOG_MAX_SIZE = 1024 * 1024 * 5
 DEFAULT_LOG_BACKUP_COUNT = 1
 
@@ -65,6 +69,9 @@ DEFAULT_PID_FILE = "/var/run/gprofiler.pid"
 
 DEFAULT_PROFILING_DURATION = datetime.timedelta(seconds=60).seconds
 DEFAULT_SAMPLING_FREQUENCY = 11
+DEFAULT_ALLOC_INTERVAL = "2mb"
+
+DIAGNOSTICS_INTERVAL_S = 15 * 60
 
 # 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
 SIGINT_RATELIMIT = 0.5
@@ -97,6 +104,7 @@ class GProfiler:
         user_args: UserArgs,
         duration: int,
         profile_api_version: str,
+        profiling_mode: str,
         profile_spawned_processes: bool = True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         controller_process: Optional[Process] = None,
@@ -115,9 +123,11 @@ class GProfiler:
         self._stop_event = Event()
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
+        self._last_diagnostics = 0.0
         self._gpid = ""
         self._controller_process = controller_process
         self._duration = duration
+        self._profiling_mode = profiling_mode
         if collect_metadata:
             self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
@@ -163,6 +173,8 @@ class GProfiler:
     def _update_last_output(self, last_output_name: str, output_path: str) -> None:
         last_output = os.path.join(self._output_dir, last_output_name)
         prev_output = Path(last_output).resolve()
+        if is_windows() and os.path.exists(last_output):
+            os.remove(last_output)
         atomically_symlink(os.path.basename(output_path), last_output)
         # delete if rotating & there was a link target before.
         if self._rotating_output and os.path.basename(prev_output) != last_output_name:
@@ -180,8 +192,9 @@ class GProfiler:
     ) -> None:
         start_ts = get_iso8601_format_time(local_start_time)
         end_ts = get_iso8601_format_time(local_end_time)
-        base_filename = os.path.join(self._output_dir, "profile_{}".format(end_ts))
-
+        base_filename = os.path.join(
+            self._output_dir, "profile_{}".format(end_ts.replace(":", "-" if is_windows() else ":"))
+        )
         collapsed_path = base_filename + ".col"
         Path(collapsed_path).write_text(collapsed_data, encoding="utf-8")
         stripped_collapsed_data = self._strip_extra_data(collapsed_data)
@@ -291,7 +304,7 @@ class GProfiler:
         metrics = self._system_metrics_monitor.get_metrics()
         if NoopProfiler.is_noop_profiler(self.system_profiler):
             assert system_result == {}, system_result  # should be empty!
-            merged_result, total_samples = concatenate_profiles(
+            merged_result = concatenate_profiles(
                 process_profiles,
                 self._container_names_client,
                 self._enrichment_options,
@@ -300,7 +313,7 @@ class GProfiler:
             )
 
         else:
-            merged_result, total_samples = merge_profiles(
+            merged_result = merge_profiles(
                 system_result,
                 process_profiles,
                 self._container_names_client,
@@ -313,26 +326,20 @@ class GProfiler:
             self._generate_output_files(merged_result, local_start_time, local_end_time)
 
         if self._client:
-            try:
-                response_dict = self._client.submit_profile(
-                    local_start_time,
-                    local_end_time,
-                    merged_result,
-                    total_samples,
-                    self._profile_api_version,
-                    self._spawn_time,
-                    metrics,
-                    self._gpid,
-                )
-                self._gpid = response_dict.get("gpid", "")
-            except Timeout:
-                logger.error("Upload of profile to server timed out.")
-            except APIError as e:
-                logger.error(f"Error occurred sending profile to server: {e}")
-            except RequestException:
-                logger.exception("Error occurred sending profile to server")
-            else:
-                logger.info("Successfully uploaded profiling data to the server")
+            self._gpid = _submit_profile_logged(
+                self._client,
+                local_start_time,
+                local_end_time,
+                merged_result,
+                self._profile_api_version,
+                self._spawn_time,
+                metrics,
+                self._gpid,
+            )
+
+        if time.monotonic() - self._last_diagnostics > DIAGNOSTICS_INTERVAL_S:
+            self._last_diagnostics = time.monotonic()
+            log_diagnostics()
 
     def _send_remote_logs(self) -> None:
         """
@@ -382,9 +389,74 @@ class GProfiler:
                     break
 
 
+def _submit_profile_logged(
+    client: APIClient,
+    start_time: datetime.datetime,
+    end_time: datetime.datetime,
+    profile: str,
+    profile_api_version: Optional[str],
+    spawn_time: float,
+    metrics: "Metrics",
+    gpid: str,
+) -> str:
+    try:
+        response_dict = client.submit_profile(
+            start_time,
+            end_time,
+            profile,
+            profile_api_version,
+            spawn_time,
+            metrics,
+            gpid,
+        )
+    except Timeout:
+        logger.error("Upload of profile to server timed out.")
+    except APIError as e:
+        logger.error(f"Error occurred sending profile to server: {e}")
+    except RequestException:
+        logger.exception("Error occurred sending profile to server")
+    else:
+        logger.info("Successfully uploaded profiling data to the server")
+        return response_dict.get("gpid", "")
+    return ""
+
+
+def send_collapsed_file_only(args: configargparse.Namespace, client: APIClient) -> None:
+    spawn_time = time.time()
+    gpid = ""
+    metrics = NoopSystemMetricsMonitor().get_metrics()
+    static_metadata: Optional[Metadata] = None
+    if args.collect_metadata:
+        static_metadata = get_static_metadata(spawn_time=spawn_time, run_args=args.__dict__)
+    metadata = (
+        get_current_metadata(cast(Metadata, static_metadata)) if args.collect_metadata else {"hostname": get_hostname()}
+    )
+    local_start_time, local_end_time, merged_result = concatenate_from_external_file(
+        args.file_path,
+        metadata,
+    )
+
+    if local_start_time is None or local_end_time is None:
+        assert (
+            local_start_time is None and local_end_time is None
+        ), "both start_time and end_time should be set, or none of them"
+        local_start_time = local_end_time = datetime.datetime.utcnow()
+    _submit_profile_logged(
+        client,
+        local_start_time,
+        local_end_time,
+        merged_result,
+        args.profile_api_version,
+        spawn_time,
+        metrics,
+        gpid,
+    )
+
+
 def parse_cmd_args() -> configargparse.Namespace:
     parser = configargparse.ArgumentParser(
-        description="gprofiler",
+        description="This is the gProfiler CLI documentation. You can access the general"
+        " documentation at https://github.com/Granulate/gprofiler#readme.",
         auto_env_var_prefix="gprofiler_",
         add_config_file_help=True,
         add_env_var_help=False,
@@ -399,8 +471,8 @@ def parse_cmd_args() -> configargparse.Namespace:
         "--profiling-frequency",
         type=positive_integer,
         dest="frequency",
-        default=DEFAULT_SAMPLING_FREQUENCY,
-        help="Profiler frequency in Hz (default: %(default)s)",
+        help=f"Profiler frequency in Hz (default: {DEFAULT_SAMPLING_FREQUENCY}), to be used only in CPU profiling "
+        f"(--mode=cpu, also the default mode)",
     )
     parser.add_argument(
         "-d",
@@ -409,6 +481,12 @@ def parse_cmd_args() -> configargparse.Namespace:
         dest="duration",
         default=DEFAULT_PROFILING_DURATION,
         help="Profiler duration per session in seconds (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--insert-dso-name",
+        action="store_true",
+        default=False,
+        help="Include DSO name along function in call stack frames when available",
     )
     parser.add_argument("-o", "--output-dir", type=str, help="Path to output directory")
     parser.add_argument(
@@ -421,6 +499,23 @@ def parse_cmd_args() -> configargparse.Namespace:
         help="Do not generate local flamegraphs when -o is given (only collapsed stacks files)",
     )
     parser.set_defaults(flamegraph=True)
+
+    parser.add_argument(
+        "--mode",
+        dest="profiling_mode",
+        choices=["cpu", "allocation"],
+        default="cpu",
+        help="Select gProfiler's profiling mode, default is %(default)s, available options are "
+        "%(choices)s; allocation will profile only Java processes",
+    )
+    parser.add_argument(
+        "--alloc-interval",
+        dest="alloc_interval",
+        type=str,
+        help="Profiling interval to be used in allocation profiling, size in bytes (human friendly sizes supported,"
+        " for example: '100kb'), to be used only in allocation profiling mode (--mode=allocation),"
+        f" default: {DEFAULT_ALLOC_INTERVAL}",
+    )
 
     parser.add_argument(
         "--rotating-output", action="store_true", default=False, help="Keep only the last profile result"
@@ -463,18 +558,33 @@ def parse_cmd_args() -> configargparse.Namespace:
         default=False,
         help="Whether to upload the profiling results to the server",
     )
-    parser.add_argument("--server-host", default=GRANULATE_SERVER_HOST, help="Server host (default: %(default)s)")
-    parser.add_argument(
-        "--server-upload-timeout",
-        type=positive_integer,
-        default=DEFAULT_UPLOAD_TIMEOUT,
-        help="Timeout for upload requests to the server in seconds (default: %(default)s)",
+
+    subparsers = parser.add_subparsers(dest="subcommand")
+    upload_file = subparsers.add_parser("upload-file")
+    upload_file.add_argument(
+        "--file-path",
+        type=str,
+        help="Path for the collapsed file to be uploaded",
+        required=True,
     )
-    parser.add_argument("--token", dest="server_token", help="Server token")
-    parser.add_argument("--service-name", help="Service name")
-    parser.add_argument(
-        "--curlify-requests", help="Log cURL commands for HTTP requests (used for debugging)", action="store_true"
-    )
+    for subparser in [parser, upload_file]:
+        connectivity = subparser.add_argument_group("connectivity")
+        connectivity.add_argument(
+            "--server-host", default=GRANULATE_SERVER_HOST, help="Server host (default: %(default)s)"
+        )
+        connectivity.add_argument(
+            "--server-upload-timeout",
+            type=positive_integer,
+            default=DEFAULT_UPLOAD_TIMEOUT,
+            help="Timeout for upload requests to the server in seconds (default: %(default)s)",
+        )
+        connectivity.add_argument("--token", dest="server_token", help="Server token")
+        connectivity.add_argument("--service-name", help="Service name")
+        connectivity.add_argument(
+            "--curlify-requests", help="Log cURL commands for HTTP requests (used for debugging)", action="store_true"
+        )
+
+    upload_file.set_defaults(func=send_collapsed_file_only)
 
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
@@ -550,11 +660,11 @@ def parse_cmd_args() -> configargparse.Namespace:
     )
 
     parser.add_argument(
-        "--disable-application-identification",
+        "--disable-application-identifiers",
         action="store_false",
         default=True,
-        dest="identify_applications",
-        help="Disable identification of applications by heuristics",
+        dest="collect_appids",
+        help="Disable collection of application identifiers",
     )
 
     parser.add_argument(
@@ -599,10 +709,31 @@ def parse_cmd_args() -> configargparse.Namespace:
         " beginning of a session.",
     )
 
+    parser.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help="Log extra verbose information, making the debugging of gProfiler easier",
+    )
+
     args = parser.parse_args()
 
     args.perf_inject = args.nodejs_mode == "perf"
     args.perf_node_attach = args.nodejs_mode == "attach-maps"
+
+    if args.profiling_mode == CPU_PROFILING_MODE:
+        if args.alloc_interval:
+            parser.error("--alloc-interval is only allowed in allocation profiling (--mode=allocation)")
+        if not args.frequency:
+            args.frequency = DEFAULT_SAMPLING_FREQUENCY
+    elif args.profiling_mode == "allocation":
+        if args.frequency:
+            parser.error("-f|--frequency is only allowed in cpu profiling (--mode=cpu)")
+        if not args.alloc_interval:
+            args.alloc_interval = DEFAULT_ALLOC_INTERVAL
+        args.frequency = humanfriendly.parse_size(args.alloc_interval, binary=True)
+
+    if args.subcommand == "upload-file":
+        args.upload_results = True
 
     if args.upload_results:
         if not args.server_token:
@@ -616,7 +747,7 @@ def parse_cmd_args() -> configargparse.Namespace:
     if args.perf_dwarf_stack_size > 65528:
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
 
-    if args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
+    if args.profiling_mode == CPU_PROFILING_MODE and args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
         parser.error("--profiling-frequency|-f can't be larger than 100 when using --perf-mode 'smart' or 'dwarf'")
 
     if args.nodejs_mode in ("perf", "attach-maps") and args.perf_mode not in ("fp", "smart"):
@@ -666,7 +797,7 @@ def verify_preconditions(args: configargparse.Namespace) -> None:
         sys.exit(1)
 
     try:
-        if not grab_gprofiler_mutex():
+        if is_linux() and not grab_gprofiler_mutex():
             sys.exit(0)
     except Exception:
         traceback.print_exc()
@@ -722,7 +853,12 @@ def init_pid_file(pid_file: str) -> None:
 
 def main() -> None:
     args = parse_cmd_args()
-    verify_preconditions(args)
+    if is_windows():
+        args.flamegraph = False
+        args.perf_mode = "disabled"
+        args.pid_ns_check = False
+    if args.subcommand != "upload-file":
+        verify_preconditions(args)
     state = init_state()
 
     remote_logs_handler = RemoteLogsHandler() if _should_send_logs(args) else None
@@ -740,10 +876,11 @@ def main() -> None:
     # assume we run in the root cgroup (when containerized, that's our view)
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
 
-    try:
-        init_pid_file(args.pid_file)
-    except Exception:
-        logger.exception(f"Failed to write pid to '{args.pid_file}', continuing anyway")
+    if is_linux():
+        try:
+            init_pid_file(args.pid_file)
+        except Exception:
+            logger.exception(f"Failed to write pid to '{args.pid_file}', continuing anyway")
 
     if args.databricks_job_name_as_service_name:
         # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
@@ -815,15 +952,21 @@ def main() -> None:
         if client is not None and remote_logs_handler is not None:
             remote_logs_handler.init_api_client(client)
 
+        if hasattr(args, "func"):
+            assert args.subcommand == "upload-file"
+            args.func(args, client)
+            return
+
         enrichment_options = EnrichmentOptions(
             profile_api_version=args.profile_api_version,
             container_names=args.container_names,
-            application_identifiers=args.identify_applications,
+            application_identifiers=args.collect_appids,
             application_identifier_args_filters=args.app_id_args_filters,
             application_metadata=args.application_metadata,
         )
 
         set_enrichment_options(enrichment_options)
+        set_diagnostics(args.diagnostics)
 
         gprofiler = GProfiler(
             args.output_dir,
@@ -838,6 +981,7 @@ def main() -> None:
             args.__dict__,
             args.duration,
             args.profile_api_version,
+            args.profiling_mode,
             args.profile_spawned_processes,
             remote_logs_handler,
             controller_process,

@@ -12,6 +12,7 @@ from psutil import NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.versions import get_exe_version
+from gprofiler.platform import is_windows
 
 logger = get_logger_adapter(__name__)
 
@@ -64,4 +65,4 @@ class ApplicationMetadata:
         return metadata
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        return {"exe": process.exe(), "execfn": read_process_execfn(process)}
+        return {"exe": process.exe(), "execfn": None if is_windows() else read_process_execfn(process)}

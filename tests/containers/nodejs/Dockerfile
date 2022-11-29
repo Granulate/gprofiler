@@ -1,6 +1,7 @@
-# node:10.24.1
-FROM node@sha256:59531d2835edd5161c8f9512f9e095b1836f7a1fcb0ab73e005ec46047384911
-
+ARG NODE_IMAGE_TAG
+ARG NODE_IMAGE=node
+FROM ${NODE_IMAGE}${NODE_IMAGE_TAG}
+USER 0
 ARG NODE_RUNTIME_FLAGS
 
 # /tmp so node has permissions to write its jitdump file
@@ -11,4 +12,4 @@ ADD fibonacci.js /app
 
 ENV NODE_RUNTIME_FLAGS ${NODE_RUNTIME_FLAGS}
 
-CMD node $NODE_RUNTIME_FLAGS /app/fibonacci.js
+CMD exec node $NODE_RUNTIME_FLAGS /app/fibonacci.js

@@ -53,6 +53,7 @@ class DotnetMetadata(ApplicationMetadata):
     possible_modes=["dotnet-trace", "disabled"],
     supported_archs=["x86_64", "aarch64"],
     default_mode="dotnet-trace",
+    supported_profiling_modes=["cpu"],
 )
 class DotnetProfiler(ProcessProfilerBase):
     RESOURCE_PATH = "dotnet/tools/dotnet-trace"
@@ -65,10 +66,12 @@ class DotnetProfiler(ProcessProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
+        insert_dso_name: bool,
         profile_spawned_processes: bool,
+        profiling_mode: str,
         dotnet_mode: str,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir)
+        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
         assert (
             dotnet_mode == "dotnet-trace"
         ), "Dotnet profiler should not be initialized, wrong dotnet-trace value given"

@@ -26,6 +26,8 @@ RUN ./prepare_machine-unknown-linux-musl.sh
 FROM pyspy-rbspy-builder-common AS pyspy-builder
 WORKDIR /tmp
 COPY scripts/pyspy_build.sh .
+COPY scripts/pyspy_commit.txt .
+COPY scripts/pyspy_tag.txt .
 RUN ./pyspy_build.sh
 RUN mv "/tmp/py-spy/target/$(uname -m)-unknown-linux-musl/release/py-spy" /tmp/py-spy/py-spy
 
@@ -109,12 +111,15 @@ COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
 
 # node-package-builder-glibc
-FROM ubuntu${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
+FROM centos${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
+USER 0
 WORKDIR /tmp
 COPY scripts/node_builder_glibc_env.sh .
 RUN ./node_builder_glibc_env.sh
 COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
+# needed for hadolint
+USER 1001
 
 # bcc helpers
 # built on newer Ubuntu because they require new clang (newer than available in GPROFILER_BUILDER's CentOS 7)
@@ -139,7 +144,6 @@ RUN ./bcc_helpers_build.sh
 
 # bcc & gprofiler
 FROM centos${GPROFILER_BUILDER} AS build-stage
-WORKDIR /bcc
 
 # fix repo links for CentOS 8, and enable powertools (required to download glibc-static)
 RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
@@ -150,16 +154,35 @@ RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
         yum clean all; \
     fi
 
+# python 3.10 installation
+WORKDIR /python
+RUN yum install -y \
+    bzip2-devel \
+    libffi-devel \
+    perl-core \
+    zlib-devel \
+    xz-devel \
+    ca-certificates \
+    wget && \
+    yum groupinstall -y "Development Tools" && \
+    yum clean all
+COPY ./scripts/openssl_build.sh .
+RUN ./openssl_build.sh
+COPY ./scripts/python310_build.sh .
+RUN ./python310_build.sh
+
 # bcc part
 # TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
 
 RUN yum install -y git && yum clean all
 
+WORKDIR /bcc
+
+# these are needed to build PyPerf
 RUN yum install -y \
     curl \
     cmake \
     patch \
-    python3 \
     flex \
     bison \
     zlib-devel \
@@ -192,7 +215,6 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then v="7.0"; else v="7"; fi && \
     source scl_source enable devtoolset-8 "llvm-toolset-$v" && \
     source ./pyperf_build.sh exe
 
-
 # gProfiler part
 
 WORKDIR /app
@@ -200,10 +222,7 @@ WORKDIR /app
 RUN yum clean all && yum --setopt=skip_missing_names_on_install=False install -y \
         epel-release \
         gcc \
-        python3 \
         curl \
-        python3-pip \
-        python3-devel \
         libicu
 
 # needed for aarch64 (for staticx)
@@ -212,6 +231,12 @@ RUN set -e; \
         yum install -y glibc-static zlib-devel.aarch64 && \
         yum clean all; \
     fi
+
+RUN set -e; \
+    if [ "$(uname -m)" = "aarch64" ]; then \
+         ln -s /usr/lib64/python3.10/lib-dynload /usr/lib/python3.10/lib-dynload; \
+    fi
+
 # needed for aarch64, scons & wheel are needed to build staticx
 RUN set -e; \
     if [ "$(uname -m)" = "aarch64" ]; then \
@@ -278,11 +303,12 @@ COPY gprofiler gprofiler
 # see https://pyinstaller.readthedocs.io/en/stable/when-things-go-wrong.html
 # from a quick look I didn't see how to tell PyInstaller to exit with an error on this, hence
 # this check in the shell.
-COPY pyi_build.py pyinstaller.spec ./
+COPY pyi_build.py pyinstaller.spec scripts/check_pyinstaller.sh ./
+
 RUN pyinstaller pyinstaller.spec \
     && echo \
     && test -f build/pyinstaller/warn-pyinstaller.txt \
-    && if grep 'gprofiler\.' build/pyinstaller/warn-pyinstaller.txt ; then echo 'PyInstaller failed to pack gProfiler code! See lines above. Make sure to check for SyntaxError as this is often the reason.'; exit 1; fi;
+    && ./check_pyinstaller.sh
 
 # for aarch64 - build a patched version of staticx 0.13.6. we remove calls to getpwnam and getgrnam, for these end up doing dlopen()s which
 # crash the staticx bootloader. we don't need them anyway (all files in our staticx tar are uid 0 and we don't need the names translation)

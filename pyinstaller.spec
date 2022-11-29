@@ -2,7 +2,6 @@
 
 block_cipher = None
 
-
 a = Analysis(scripts=['pyi_build.py'],
              pathex=['/app'],
              binaries=[],
