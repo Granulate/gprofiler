@@ -5,7 +5,7 @@
 #
 set -euo pipefail
 
-git clone --depth 1 -b aarch64 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard b2c69412b3abaaf2bef02ff95459f4572574431d
+git clone --depth 1 -b aarch64 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 747cd10fc32514a221d89547e4ca8b1d2b10843d
 
 mkdir build
 cd build
