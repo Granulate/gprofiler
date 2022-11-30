@@ -211,8 +211,8 @@ def parse_profiles_text(profiles_text: str) -> ProcessToProfileData:
                 process_text="python-123/123;[Profiling error: exception CalledProcessError] 1\n"
                 "java-456/456;[Profiling skipped: profiled-oom] 1",
             ),
-            ";java;[Profiling skipped: profiled-oom];[unknown];pthread_getname_np;do_syscall_64_[k] 3\n"
-            ";python;[Profiling error: exception CalledProcessError];Py_Main;PyRun_SimpleFileExFlags 5",
+            ";python;[Profiling error: exception CalledProcessError];Py_Main;PyRun_SimpleFileExFlags 5\n"
+            ";java;[Profiling skipped: profiled-oom];[unknown];pthread_getname_np;do_syscall_64_[k] 3",
             id="2pids_1perf-each_1java_1pyspy",
         ),
     ],
@@ -229,9 +229,9 @@ def test_merge_profiles_onto_errors(input_dict: Dict[str, str], expected: str) -
     metrics = Metrics(cpu_avg=1.0, mem_avg=1.0)
     perf_pid_to_profiles = parse_profiles_text(input_dict["perf_text"])
     process_profiles = parse_profiles_text(input_dict["process_text"])
-    outcome_split = sorted(
-        merge_profiles(perf_pid_to_profiles, process_profiles, None, enrichment_options, metadata, metrics).splitlines()
-    )
-    header, outcome = outcome_split[0], "\n".join(outcome_split[1:])
+    header_outcome = merge_profiles(
+        perf_pid_to_profiles, process_profiles, None, enrichment_options, metadata, metrics
+    ).split("\n", maxsplit=1)
+    header, outcome = header_outcome[0], header_outcome[1] if len(header_outcome) == 2 else ""
     assert header.startswith("#")
     assert expected == outcome

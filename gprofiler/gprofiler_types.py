@@ -53,12 +53,12 @@ class ProfilingErrorStack(StackToSampleCount):
         source_stacks: StackToSampleCount, error_stack: StackToSampleCount
     ) -> StackToSampleCount:
         _, error_frame = next(iter(error_stack)).split(";", maxsplit=1)
-        dest_stack: StackToSampleCount = StackToSampleCount()
+        dest_stacks: StackToSampleCount = StackToSampleCount()
         for (frame, count) in source_stacks.items():
             comm, stack = frame.split(";", maxsplit=1)
             annotated = f"{comm};{error_frame};{stack}"
-            dest_stack[annotated] = count
-        return dest_stack
+            dest_stacks[annotated] = count
+        return dest_stacks
 
 
 def positive_integer(value_str: str) -> int:
