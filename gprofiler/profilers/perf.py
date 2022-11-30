@@ -89,8 +89,8 @@ class PerfProcess:
             raise
         else:
             self._process = process
-            os.set_blocking(self._process.stdout.fileno(), False)
-            os.set_blocking(self._process.stderr.fileno(), False)
+            os.set_blocking(self._process.stdout.fileno(), False)  # type: ignore
+            os.set_blocking(self._process.stderr.fileno(), False)  # type: ignore
             logger.info(f"Started perf ({self._type} mode)")
 
     def stop(self) -> None:
