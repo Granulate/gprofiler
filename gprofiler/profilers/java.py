@@ -280,6 +280,10 @@ def get_ap_version() -> str:
 
 
 T = TypeVar("T", bound="AsyncProfiledProcess")
+
+# Format is defined by async-profiler here: (Granulate's fork logs the output to logger, hence the `INFO` prefix)
+# https://github.com/jvm-profiling-tools/async-profiler/blob/7eaefdb18f331962dc4c78c82322aec257e95c6c/src/profiler.cpp#L1204
+
 _MEM_INFO_LOG_RE = re.compile(
     r"\[INFO\] Call trace storage:\s*(\d+) "
     r"KB\n\s*Dictionaries:\s*(\d+) KB\n\s*Code cache:\s*(\d+) KB\n-*\n\s*Total:\s*(\d+) "
