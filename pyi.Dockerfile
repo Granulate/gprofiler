@@ -77,14 +77,13 @@ COPY scripts/async_profiler_env_glibc.sh .
 RUN ./async_profiler_env_glibc.sh
 
 COPY scripts/async_profiler_build_shared.sh .
-COPY scripts/async_profiler_build_glibc.sh .
-RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_glibc.sh
+RUN ./async_profiler_build_shared.sh
 
 # a build step to ensure the minimum CentOS version that we require can "ldd" our libasyncProfiler.so file.
 FROM centos${AP_CENTOS_MIN} AS async-profiler-centos-min-test-glibc
 SHELL ["/bin/bash", "-c", "-euo", "pipefail"]
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/libasyncProfiler.so /libasyncProfiler.so
-RUN if ldd /libasyncProfiler.so 2>&1 | grep -q "not found" ; then echo "libasyncProfiler.so is not compatible with minimum CentOS!"; ldd /libasyncProfiler.so; exit 1; fi
+RUN if ldd /libasyncProfiler.so 2>&1 | grep -q "not found" ; then echo "libasyncProfiler.so is not compatible with minimum CentOS!"; readelf -Ws /libasyncProfiler.so; ldd /libasyncProfiler.so; exit 1; fi
 
 # async-profiler musl
 FROM alpine${AP_BUILDER_ALPINE} AS async-profiler-builder-musl
@@ -93,8 +92,7 @@ WORKDIR /tmp
 COPY scripts/async_profiler_env_musl.sh .
 RUN ./async_profiler_env_musl.sh
 COPY scripts/async_profiler_build_shared.sh .
-COPY scripts/async_profiler_build_musl.sh .
-RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_musl.sh
+RUN ./async_profiler_build_shared.sh
 
 FROM golang${BURN_BUILDER_GOLANG} AS burn-builder
 WORKDIR /tmp
@@ -148,7 +146,6 @@ RUN ./bcc_helpers_build.sh
 
 # bcc & gprofiler
 FROM centos${GPROFILER_BUILDER} AS build-stage
-WORKDIR /bcc
 
 # fix repo links for CentOS 8, and enable powertools (required to download glibc-static)
 RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
@@ -159,17 +156,33 @@ RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
         yum clean all; \
     fi
 
+# python 3.10 installation
+WORKDIR /python
+RUN yum install -y \
+    bzip2-devel \
+    libffi-devel \
+    perl-core \
+    zlib-devel \
+    xz-devel \
+    ca-certificates \
+    wget && \
+    yum groupinstall -y "Development Tools" && \
+    yum clean all
+COPY ./scripts/openssl_build.sh .
+RUN ./openssl_build.sh
+COPY ./scripts/python310_build.sh .
+RUN ./python310_build.sh
+
 # bcc part
 # TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
 
 RUN yum install -y git && yum clean all
-
+WORKDIR /bcc
 # these are needed to build PyPerf, which we don't build on Aarch64, hence not installing them here.
 RUN if [ "$(uname -m)" = "aarch64" ]; then exit 0; fi; yum install -y \
     curl \
     cmake \
     patch \
-    python3 \
     flex \
     bison \
     zlib-devel.x86_64 \
@@ -218,10 +231,7 @@ WORKDIR /app
 RUN yum clean all && yum --setopt=skip_missing_names_on_install=False install -y \
         epel-release \
         gcc \
-        python3 \
         curl \
-        python3-pip \
-        python3-devel \
         libicu
 
 # needed for aarch64 (for staticx)
@@ -231,6 +241,10 @@ RUN set -e; \
         yum clean all; \
     fi
 # needed for aarch64, scons & wheel are needed to build staticx
+RUN set -e; \
+    if [ "$(uname -m)" = "aarch64" ]; then \
+         ln -s /usr/lib64/python3.10/lib-dynload /usr/lib/python3.10/lib-dynload; \
+    fi
 RUN set -e; \
     if [ "$(uname -m)" = "aarch64" ]; then \
         python3 -m pip install --no-cache-dir 'wheel==0.37.0' 'scons==4.2.0'; \
