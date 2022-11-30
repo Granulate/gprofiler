@@ -14,8 +14,8 @@ SHARED_ARG=""
 # need in aarch64 as mentioned here: https://github.com/iovisor/bcc/issues/3333#issuecomment-803432248
 # container mdoe doesn't want it - we don't have the libs bundled.
 # exe mode in x86_64 works fine so I don't change it.
-if [ $(uname -m) = "aarch64" ] && [ "$1" == "exe" ]; then
+if [ "$(uname -m)" = "aarch64" ] && [ "$1" == "exe" ]; then
     SHARED_ARG=" -DENABLE_LLVM_SHARED=1"
 fi
-cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root $SHARED_ARG ..
+cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root "$SHARED_ARG" ..
 make -C examples/cpp/pyperf -j -l VERBOSE=1 install
