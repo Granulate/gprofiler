@@ -107,7 +107,8 @@ class PerfProcess:
             perf_data = wait_for_file_by_prefix(f"{self._output_path}.", self._dump_timeout_s, self._stop_event)
         except Exception:
             assert self._process is not None and self._process.stdout is not None and self._process.stderr is not None
-            self._process.kill()
+            os.set_blocking(self._process.stdout.fileno(), False)
+            os.set_blocking(self._process.stderr.fileno(), False)
             logger.critical(
                 f"perf failed to dump output. stdout {self._process.stdout.read()!r}"
                 f" stderr {self._process.stderr.read()!r}"
