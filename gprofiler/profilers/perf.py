@@ -170,8 +170,8 @@ class PerfProcess:
         ProfilerArgument(
             "--perf-no-restart",
             help="Disable checking if perf used memory exceeds threshold and restarting perf",
-            action="store_true",
-            dest="perf_no_restart",
+            action="store_false",
+            dest="perf_restart",
         ),
     ],
     disablement_help="Disable the global perf of processes,"
@@ -199,7 +199,7 @@ class SystemProfiler(ProfilerBase):
         perf_dwarf_stack_size: int,
         perf_inject: bool,
         perf_node_attach: bool,
-        perf_no_restart: bool,
+        perf_restart: bool,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
         _ = profile_spawned_processes  # Required for mypy unused argument warning
@@ -208,7 +208,7 @@ class SystemProfiler(ProfilerBase):
         self._insert_dso_name = insert_dso_name
         self._node_processes: List[Process] = []
         self._node_processes_attached: List[Process] = []
-        self._perf_no_restart = perf_no_restart
+        self._perf_restart = perf_restart
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
@@ -298,7 +298,7 @@ class SystemProfiler(ProfilerBase):
             ).items()
         }
 
-        if not self._perf_no_restart:
+        if self._perf_restart:
             for perf in self._perfs:
                 perf.check_if_needs_restart()
 
