@@ -39,7 +39,7 @@ class PerfProcess:
     _dump_timeout_s = 5
     _poll_timeout_s = 5
     _restart_after_s = 3600
-    _perf_memory_usage_treshhold = 536870912  # 512Mb
+    _perf_memory_usage_threshold = 512 * 1024 * 1024
     # default number of pages used by "perf record" when perf_event_mlock_kb=516
     # we use double for dwarf.
     _mmap_sizes = {"fp": 129, "dwarf": 257}
@@ -53,7 +53,7 @@ class PerfProcess:
         inject_jit: bool,
         extra_args: List[str],
     ):
-        self.start_time = 0.0
+        self._start_time = 0.0
         self._frequency = frequency
         self._stop_event = stop_event
         self._output_path = output_path
@@ -81,10 +81,11 @@ class PerfProcess:
             str(self._mmap_sizes[self._type]),
         ] + self._extra_args
 
-    def check_if_restart(self) -> None:
+    def check_if_needs_restart(self) -> None:
+        """Checks if perf used memory exceeds threshold, and if it does, restarts perf"""
         if (
-            time.monotonic() - self.start_time >= self._restart_after_s
-            and Process(self._process.pid).memory_info().rss >= self._perf_memory_usage_treshhold  # type: ignore
+            time.monotonic() - self._start_time >= self._restart_after_s
+            and Process(self._process.pid).memory_info().rss >= self._perf_memory_usage_threshold  # type: ignore
         ):
             self.stop()
             self.start()
@@ -165,6 +166,12 @@ class PerfProcess:
             type=int,
             default=DEFAULT_PERF_DWARF_STACK_SIZE,
             dest="perf_dwarf_stack_size",
+        ),
+        ProfilerArgument(
+            "--perf-no-restart",
+            help="Disable checking if perf used memory exceeds threshold and restarting perf",
+            action='store_true',
+            dest="perf_no_restart",
         )
     ],
     disablement_help="Disable the global perf of processes,"
@@ -192,6 +199,7 @@ class SystemProfiler(ProfilerBase):
         perf_dwarf_stack_size: int,
         perf_inject: bool,
         perf_node_attach: bool,
+        perf_no_restart: bool,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
         _ = profile_spawned_processes  # Required for mypy unused argument warning
@@ -200,6 +208,7 @@ class SystemProfiler(ProfilerBase):
         self._insert_dso_name = insert_dso_name
         self._node_processes: List[Process] = []
         self._node_processes_attached: List[Process] = []
+        self._perf_no_restart = perf_no_restart
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
@@ -289,8 +298,9 @@ class SystemProfiler(ProfilerBase):
             ).items()
         }
 
-        for perf in self._perfs:
-            perf.check_if_restart()
+        if not self._perf_no_restart:
+            for perf in self._perfs:
+                perf.check_if_needs_restart()
 
         return data
 
