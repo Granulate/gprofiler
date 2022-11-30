@@ -280,6 +280,11 @@ def get_ap_version() -> str:
 
 
 T = TypeVar("T", bound="AsyncProfiledProcess")
+_MEM_INFO_LOG_RE = re.compile(
+    r"\[INFO\] Call trace storage:\s*(\d+) "
+    r"KB\n\s*Dictionaries:\s*(\d+) KB\n\s*Code cache:\s*(\d+) KB\n-*\n\s*Total:\s*(\d+) "
+    r"KB\n"
+)
 
 
 class AsyncProfiledProcess:
@@ -308,6 +313,7 @@ class AsyncProfiledProcess:
         ap_args: str,
         jattach_timeout: int = _JATTACH_TIMEOUT,
         mcache: int = 0,
+        collect_meminfo: bool = True,
     ):
         self.process = process
         self._stop_event = stop_event
@@ -356,6 +362,7 @@ class AsyncProfiledProcess:
         self._ap_args = ap_args
         self._jattach_timeout = jattach_timeout
         self._mcache = mcache
+        self._collect_meminfo = collect_meminfo
 
     def _find_rw_exec_dir(self, available_dirs: Sequence[str]) -> str:
         """
@@ -485,7 +492,8 @@ class AsyncProfiledProcess:
         return self._get_base_cmd() + [
             f"stop,log={self._log_path_process},mcache={self._mcache}"
             f"{self._get_ap_output_args() if with_output else ''}"
-            f"{',lib' if self._insert_dso_name else ''}{self._get_extra_ap_args()}"
+            f"{',lib' if self._insert_dso_name else ''}{',meminfolog' if self._collect_meminfo else ''}"
+            f"{self._get_extra_ap_args()}"
         ]
 
     def _read_ap_log(self) -> str:
@@ -500,7 +508,7 @@ class AsyncProfiledProcess:
         self._recreate_log()
         return ap_log
 
-    def _run_async_profiler(self, cmd: List[str]) -> None:
+    def _run_async_profiler(self, cmd: List[str]) -> str:
         try:
             # kill jattach with SIGTERM if it hangs. it will go down
             run_process(cmd, stop_event=self._stop_event, timeout=self._jattach_timeout, kill_signal=signal.SIGTERM)
@@ -517,7 +525,10 @@ class AsyncProfiledProcess:
             else:
                 raise JattachException(*args) from None
         else:
-            logger.debug("async-profiler log", jattach_cmd=cmd, ap_log=self._read_ap_log())
+            ap_log = self._read_ap_log()
+            ap_log_stripped = _MEM_INFO_LOG_RE.sub(ap_log, "")  # strip out mem info log only when for gProfiler log
+            logger.debug("async-profiler log", jattach_cmd=cmd, ap_log=ap_log_stripped)
+            return ap_log
 
     def _run_fdtransfer(self) -> None:
         """
@@ -555,8 +566,8 @@ class AsyncProfiledProcess:
                     return False
             raise
 
-    def stop_async_profiler(self, with_output: bool) -> None:
-        self._run_async_profiler(self._get_stop_cmd(with_output))
+    def stop_async_profiler(self, with_output: bool) -> str:
+        return self._run_async_profiler(self._get_stop_cmd(with_output))
 
     def read_output(self) -> Optional[str]:
         try:
@@ -638,6 +649,13 @@ class AsyncProfiledProcess:
             default=False,
             help="In case of Spark application executor process - add the name of the Spark application to the appid.",
         ),
+        ProfilerArgument(
+            "--java-async-profiler-no-report-meminfo",
+            dest="java_async_profiler_report_meminfo",
+            action="store_false",
+            default=True,
+            help="Disable collection of async-profiler meminfo at the end of each cycle (collected by default)",
+        ),
     ],
     supported_profiling_modes=["cpu", "allocation"],
 )
@@ -679,6 +697,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_async_profiler_mcache: int,
         java_collect_spark_app_name_as_appid: bool,
         java_mode: str,
+        java_async_profiler_report_meminfo: bool,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
         super().__init__(
@@ -709,6 +728,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
         self._metadata = JavaMetadata(self._stop_event)
         self._insert_dso_name = insert_dso_name
+        self._report_meminfo = java_async_profiler_report_meminfo
 
     def _init_ap_mode(self, profiling_mode: str, ap_mode: str) -> None:
         assert profiling_mode in ("cpu", "allocation"), "async-profiler support only cpu/allocation profiling modes"
@@ -924,10 +944,28 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._ap_args,
             self._jattach_timeout,
             self._ap_mcache,
+            self._report_meminfo,
         ) as ap_proc:
             stackcollapse = self._profile_ap_process(ap_proc, comm, duration)
 
         return ProfileData(stackcollapse, appid, app_metadata)
+
+    @staticmethod
+    def _log_mem_usage(ap_log: str, pid: int) -> None:
+        match = _MEM_INFO_LOG_RE.search(ap_log)
+        if match is None:
+            logger.warning("Couldn't extract mem usage from ap log", log=ap_log, pid=pid)
+            return
+
+        call_trace, dictionaries, code_cache, total = [int(raw) * 1024 for raw in match.groups()]
+        logger.debug(
+            "async-profiler memory usage (in bytes)",
+            mem_total=total,
+            mem_call_trace=call_trace,
+            mem_dictionaries=dictionaries,
+            mem_code_cache=code_cache,
+            pid=pid,
+        )
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str, duration: int) -> StackToSampleCount:
         started = ap_proc.start_async_profiler(self._interval, ap_timeout=self._ap_timeout)
@@ -957,7 +995,9 @@ class JavaProfiler(SpawningProcessProfilerBase):
             # fall-through - try to read the output, since async-profiler writes it upon JVM exit.
         finally:
             if is_process_running(ap_proc.process):
-                ap_proc.stop_async_profiler(True)
+                ap_log = ap_proc.stop_async_profiler(True)
+                if self._report_meminfo:
+                    self._log_mem_usage(ap_log, ap_proc.process.pid)
 
         output = ap_proc.read_output()
         if output is None:
