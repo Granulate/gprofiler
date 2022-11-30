@@ -170,9 +170,9 @@ class PerfProcess:
         ProfilerArgument(
             "--perf-no-restart",
             help="Disable checking if perf used memory exceeds threshold and restarting perf",
-            action='store_true',
+            action="store_true",
             dest="perf_no_restart",
-        )
+        ),
     ],
     disablement_help="Disable the global perf of processes,"
     " and instead only concatenate runtime-specific profilers results",
