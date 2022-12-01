@@ -15,4 +15,3 @@ netifaces==0.11.0; sys.platform == "win32"
 WMI==1.5.1; sys.platform == "win32"
 ./granulate-utils/
 humanfriendly==10.0
-pyinstaller==5.6.2

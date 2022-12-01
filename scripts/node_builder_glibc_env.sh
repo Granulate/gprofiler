@@ -9,7 +9,7 @@ set -eu
 #     exit 0
 # fi
 
-yum update -y && yum install -y curl python3 make git ca-certificates npm
+yum update -y && yum install -y curl make git ca-certificates npm
 # yum has node v10 by default, so we need to add newer version to run node-gyp
 curl -fsSL https://rpm.nodesource.com/setup_16.x | bash -
 yum remove -y nodejs npm
