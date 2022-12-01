@@ -142,8 +142,7 @@ WORKDIR /tmp
 COPY scripts/async_profiler_env_glibc.sh .
 RUN ./async_profiler_env_glibc.sh
 COPY scripts/async_profiler_build_shared.sh .
-COPY scripts/async_profiler_build_glibc.sh .
-RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_glibc.sh
+RUN ./async_profiler_build_shared.sh
 
 # async-profiler musl
 FROM alpine${AP_BUILDER_ALPINE} AS async-profiler-builder-musl
@@ -151,8 +150,7 @@ WORKDIR /tmp
 COPY scripts/async_profiler_env_musl.sh .
 RUN ./async_profiler_env_musl.sh
 COPY scripts/async_profiler_build_shared.sh .
-COPY scripts/async_profiler_build_musl.sh .
-RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_musl.sh
+RUN ./async_profiler_build_shared.sh
 
 # node-package-builder-musl
 FROM alpine${NODE_PACKAGE_BUILDER_MUSL} AS node-package-builder-musl

@@ -8,7 +8,6 @@ import contextlib
 import os
 import sched
 import time
-from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures._base import Future
 from threading import Event, Lock, Thread
@@ -21,7 +20,7 @@ from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import StopEventSetException
-from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, StackToSampleCount
+from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, ProfilingErrorStack, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import limit_frequency
 from gprofiler.utils.process import process_comm
@@ -171,7 +170,7 @@ class ProcessProfilerBase(ProfilerBase):
         # return 1 sample, it will be scaled later in merge_profiles().
         # if --perf-mode=none mode is used, it will not, but we don't have anything logical to
         # do here in that case :/
-        return Counter({f"{comm};[Profiling {what}: {reason}]": 1})
+        return ProfilingErrorStack(what, reason, comm)
 
     def snapshot(self) -> ProcessToProfileData:
         processes_to_profile = self._select_processes_to_profile()
