@@ -13,7 +13,7 @@ ARG GPROFILER_BUILDER
 ARG PYPERF_BUILDER_UBUNTU
 ARG DOTNET_BUILDER
 ARG NODE_PACKAGE_BUILDER_MUSL
-ARG NODE_PACKAGE_BUILDER_GLIBC
+ARG NODE_PACKAGE_BUILDER_GLIBC=build-stage
 
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
@@ -269,7 +269,7 @@ RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
     fi
 RUN python3 -m pip install --no-cache-dir -r exe-requirements.txt
 
-FROM build-stage as node-package-builder-glibc
+FROM ${NODE_PACKAGE_BUILDER_GLIBC} as node-package-builder-glibc
 USER 0
 WORKDIR /tmp
 COPY scripts/node_builder_glibc_env.sh .

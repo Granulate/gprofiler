@@ -27,7 +27,7 @@ BURN_BUILDER_GOLANG=@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d84d6
 # this will allow the executable to run on older versions of the kernel, eventually leading to the executable running on a wider range of machines.
 GPROFILER_BUILDER=@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e
 # node-package-builder-glibc - centos/devtoolset-7-toolchain-centos7:latest
-NODE_PACKAGE_BUILDER_GLIBC=/devtoolset-7-toolchain-centos7@sha256:24d4c230cb1fe8e68cefe068458f52f69a1915dd6f6c3ad18aa37c2b8fa3e4e1
+NODE_PACKAGE_BUILDER_GLIBC=centos/devtoolset-7-toolchain-centos7@sha256:24d4c230cb1fe8e68cefe068458f52f69a1915dd6f6c3ad18aa37c2b8fa3e4e1
 
 mkdir -p build/x86_64
 docker build -f pyi.Dockerfile --output type=local,dest=build/x86_64/ \
