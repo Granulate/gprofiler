@@ -200,6 +200,7 @@ def make_java_profiler(
     java_safemode: str = JAVA_SAFEMODE_ALL,
     java_jattach_timeout: int = AsyncProfiledProcess._JATTACH_TIMEOUT,
     java_async_profiler_mcache: int = AsyncProfiledProcess._DEFAULT_MCACHE,
+    java_async_profiler_report_meminfo: bool = True,
     java_collect_spark_app_name_as_appid: bool = False,
     java_mode: str = "ap",
     profiling_mode: str = CPU_PROFILING_MODE,
@@ -222,6 +223,7 @@ def make_java_profiler(
         java_collect_spark_app_name_as_appid=java_collect_spark_app_name_as_appid,
         java_mode=java_mode,
         profiling_mode=profiling_mode,
+        java_async_profiler_report_meminfo=java_async_profiler_report_meminfo,
     )
 
 
