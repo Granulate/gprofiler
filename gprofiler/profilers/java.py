@@ -287,7 +287,7 @@ T = TypeVar("T", bound="AsyncProfiledProcess")
 _MEM_INFO_LOG_RE = re.compile(
     r"\[INFO\] Call trace storage:\s*(\d+) "
     r"KB\n\s*Dictionaries:\s*(\d+) KB\n\s*Code cache:\s*(\d+) KB\n-*\n\s*Total:\s*(\d+) "
-    r"KB\n"
+    r"KB\n\n"
 )
 
 
@@ -530,7 +530,7 @@ class AsyncProfiledProcess:
                 raise JattachException(*args) from None
         else:
             ap_log = self._read_ap_log()
-            ap_log_stripped = _MEM_INFO_LOG_RE.sub(ap_log, "")  # strip out mem info log only when for gProfiler log
+            ap_log_stripped = _MEM_INFO_LOG_RE.sub("", ap_log)  # strip out mem info log only when for gProfiler log
             logger.debug("async-profiler log", jattach_cmd=cmd, ap_log=ap_log_stripped)
             return ap_log
 
