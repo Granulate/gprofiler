@@ -309,9 +309,9 @@ RUN ./node_builder_glibc_env.sh
 COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
 # needed for hadolint
-USER 1001
 WORKDIR /app
 RUN cp -r /tmp/module_build gprofiler/resources/node/module/glibc
+USER 1001
 
 COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
 
