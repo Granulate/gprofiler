@@ -5,7 +5,7 @@
 #
 set -euo pipefail
 
-git clone --depth 1 -b fix-native-stack-presentation https://github.com/marcin-ol/bcc.git && cd bcc && git reset --hard edc53ea4422de577666f2d09e4ab626d5aed5a93
+git clone --depth 1 -b improve-dso-name-lookup https://github.com/marcin-ol/bcc.git && cd bcc && git reset --hard 7b5c71431903e9031275e1cde49ae6b799df7bde
 
 # (after clone, because we copy the licenses)
 # TODO support aarch64
