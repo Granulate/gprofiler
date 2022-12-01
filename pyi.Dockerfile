@@ -108,16 +108,16 @@ RUN ./node_builder_musl_env.sh
 COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
 
-# node-package-builder-glibc
-FROM centos${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
-USER 0
-WORKDIR /tmp
-COPY scripts/node_builder_glibc_env.sh .
-RUN ./node_builder_glibc_env.sh
-COPY scripts/build_node_package.sh .
-RUN ./build_node_package.sh
-# needed for hadolint
-USER 1001
+# # node-package-builder-glibc
+# FROM centos${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
+# USER 0
+# WORKDIR /tmp
+# COPY scripts/node_builder_glibc_env.sh .
+# RUN ./node_builder_glibc_env.sh
+# COPY scripts/build_node_package.sh .
+# RUN ./build_node_package.sh
+# # needed for hadolint
+# USER 1001
 
 # bcc helpers
 # built on newer Ubuntu because they require new clang (newer than available in GPROFILER_BUILDER's CentOS 7)
@@ -300,7 +300,18 @@ COPY --from=async-profiler-centos-min-test-glibc /libasyncProfiler.so gprofiler/
 COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
 COPY --from=node-package-builder-musl /tmp/module_build gprofiler/resources/node/module/musl
-COPY --from=node-package-builder-glibc /tmp/module_build gprofiler/resources/node/module/glibc
+# COPY --from=node-package-builder-glibc /tmp/module_build gprofiler/resources/node/module/glibc
+
+USER 0
+WORKDIR /tmp
+COPY scripts/node_builder_glibc_env.sh .
+RUN ./node_builder_glibc_env.sh
+COPY scripts/build_node_package.sh .
+RUN ./build_node_package.sh
+# needed for hadolint
+USER 1001
+WORKDIR /app
+COPY /tmp/module_build gprofiler/resources/node/module/glibc
 
 COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
 

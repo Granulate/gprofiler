@@ -5,11 +5,11 @@ set -euo pipefail
 MODULE_PATH=/tmp/module
 BUILD_TARGET_DIR=/tmp/module_build
 # TODO support aarch64
-if [ "$(uname -m)" = "aarch64" ]; then
-    mkdir -p $BUILD_TARGET_DIR
-    touch $BUILD_TARGET_DIR/linux-perf.js
-    exit 0
-fi
+# if [ "$(uname -m)" = "aarch64" ]; then
+#     mkdir -p $BUILD_TARGET_DIR
+#     touch $BUILD_TARGET_DIR/linux-perf.js
+#     exit 0
+# fi
 
 GIT_REV=20eb88a
 git clone https://github.com/mmarchini-oss/node-linux-perf.git $MODULE_PATH
