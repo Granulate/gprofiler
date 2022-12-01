@@ -269,6 +269,18 @@ RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
     fi
 RUN python3 -m pip install --no-cache-dir -r exe-requirements.txt
 
+FROM build_stage as node-package-builder-glibc
+USER 0
+WORKDIR /tmp
+COPY scripts/node_builder_glibc_env.sh .
+RUN ./node_builder_glibc_env.sh
+COPY scripts/build_node_package.sh .
+RUN ./build_node_package.sh
+# needed for hadolint
+WORKDIR /app
+USER 1001
+
+FROM build_stage as build_stage2
 # copy PyPerf, licenses and notice file.
 RUN mkdir -p gprofiler/resources/ruby && \
     mkdir -p gprofiler/resources/python/pyperf && \
@@ -300,18 +312,9 @@ COPY --from=async-profiler-centos-min-test-glibc /libasyncProfiler.so gprofiler/
 COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
 COPY --from=node-package-builder-musl /tmp/module_build gprofiler/resources/node/module/musl
-# COPY --from=node-package-builder-glibc /tmp/module_build gprofiler/resources/node/module/glibc
+COPY --from=node-package-builder-glibc /tmp/module_build gprofiler/resources/node/module/glibc
 
-USER 0
-WORKDIR /tmp
-COPY scripts/node_builder_glibc_env.sh .
-RUN ./node_builder_glibc_env.sh
-COPY scripts/build_node_package.sh .
-RUN ./build_node_package.sh
-# needed for hadolint
-WORKDIR /app
-RUN cp -r /tmp/module_build gprofiler/resources/node/module/glibc
-USER 1001
+
 
 COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
 
@@ -358,4 +361,4 @@ RUN set -e; \
 
 FROM scratch AS export-stage
 
-COPY --from=build-stage /app/dist/gprofiler /gprofiler
+COPY --from=build-stage2 /app/dist/gprofiler /gprofiler
