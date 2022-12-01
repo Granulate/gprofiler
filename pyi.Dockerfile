@@ -269,7 +269,7 @@ RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
     fi
 RUN python3 -m pip install --no-cache-dir -r exe-requirements.txt
 
-FROM build_stage as node-package-builder-glibc
+FROM build-stage as node-package-builder-glibc
 USER 0
 WORKDIR /tmp
 COPY scripts/node_builder_glibc_env.sh .
@@ -280,7 +280,7 @@ RUN ./build_node_package.sh
 WORKDIR /app
 USER 1001
 
-FROM build_stage as build_stage2
+FROM build-stage as build-stage2
 # copy PyPerf, licenses and notice file.
 RUN mkdir -p gprofiler/resources/ruby && \
     mkdir -p gprofiler/resources/python/pyperf && \
@@ -361,4 +361,4 @@ RUN set -e; \
 
 FROM scratch AS export-stage
 
-COPY --from=build_stage2 /app/dist/gprofiler /gprofiler
+COPY --from=build-stage2 /app/dist/gprofiler /gprofiler
