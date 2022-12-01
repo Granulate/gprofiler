@@ -361,4 +361,4 @@ RUN set -e; \
 
 FROM scratch AS export-stage
 
-COPY --from=build-stage2 /app/dist/gprofiler /gprofiler
+COPY --from=build_stage2 /app/dist/gprofiler /gprofiler
