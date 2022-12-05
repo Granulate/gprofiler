@@ -89,8 +89,8 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       curl \
       build-essential \
-      iperf llvm-9-dev \
-      libclang-9-dev \
+      iperf llvm-12-dev \
+      libclang-12-dev \
       cmake \
       python3 \
       flex \
