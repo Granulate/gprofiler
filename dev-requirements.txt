@@ -3,6 +3,9 @@ flake8==5.0.4
 black==22.8.0
 mypy==0.971
 isort==5.10.1
+PyYAML==6.0
+docker==5.0.0
+six==1.16.0
 types-requests==0.1.9
 types-dataclasses==0.1.5
 types-psutil==5.8.19
