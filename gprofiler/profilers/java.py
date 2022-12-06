@@ -131,7 +131,7 @@ JAVA_SAFEMODE_DEFAULT_OPTIONS = [
 
 JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 64  # StackRecovery.JAVA_STATE
 
-SUPPORTED_AP_MODES = ["cpu", "itimer", "alloc"]
+SUPPORTED_AP_MODES = ["cpu", "itimer", "alloc", "wall"]
 
 
 class JattachExceptionBase(CalledProcessError):
@@ -349,7 +349,7 @@ class AsyncProfiledProcess:
         self._log_path_host = os.path.join(self._storage_dir_host, f"async-profiler-{self.process.pid}.log")
         self._log_path_process = remove_prefix(self._log_path_host, self._process_root)
 
-        assert mode in ("cpu", "itimer", "alloc"), f"unexpected mode: {mode}"
+        assert mode in ("cpu", "itimer", "alloc", "wall"), f"unexpected mode: {mode}"
         self._mode = mode
         self._fdtransfer_path = f"@async-profiler-{process.pid}-{secrets.token_hex(10)}" if mode == "cpu" else None
         self._ap_safemode = ap_safemode
