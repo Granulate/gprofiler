@@ -13,7 +13,7 @@ ARG GPROFILER_BUILDER
 ARG PYPERF_BUILDER_UBUNTU
 ARG DOTNET_BUILDER
 ARG NODE_PACKAGE_BUILDER_MUSL
-ARG NODE_PACKAGE_BUILDER_GLIBC=build-stage
+ARG NODE_PACKAGE_BUILDER_GLIBC=build-prepare
 
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
@@ -108,17 +108,6 @@ RUN ./node_builder_musl_env.sh
 COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
 
-# # node-package-builder-glibc
-# FROM centos${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
-# USER 0
-# WORKDIR /tmp
-# COPY scripts/node_builder_glibc_env.sh .
-# RUN ./node_builder_glibc_env.sh
-# COPY scripts/build_node_package.sh .
-# RUN ./build_node_package.sh
-# # needed for hadolint
-# USER 1001
-
 # bcc helpers
 # built on newer Ubuntu because they require new clang (newer than available in GPROFILER_BUILDER's CentOS 7)
 # these are only relevant for modern kernels, so there's no real reason to build them on CentOS 7 anyway.
@@ -145,7 +134,7 @@ RUN ./bcc_helpers_build.sh
 
 
 # bcc & gprofiler
-FROM centos${GPROFILER_BUILDER} AS build-stage
+FROM centos${GPROFILER_BUILDER} AS build-prepare
 
 # fix repo links for CentOS 8, and enable powertools (required to download glibc-static)
 RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
@@ -280,7 +269,7 @@ RUN ./build_node_package.sh
 WORKDIR /app
 USER 1001
 
-FROM build-stage as build-stage2
+FROM build-prepare as build-stage
 # copy PyPerf, licenses and notice file.
 RUN mkdir -p gprofiler/resources/ruby && \
     mkdir -p gprofiler/resources/python/pyperf && \
@@ -361,4 +350,4 @@ RUN set -e; \
 
 FROM scratch AS export-stage
 
-COPY --from=build-stage2 /app/dist/gprofiler /gprofiler
+COPY --from=build-stage /app/dist/gprofiler /gprofiler

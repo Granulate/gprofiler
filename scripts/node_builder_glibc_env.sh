@@ -20,4 +20,6 @@ if [ "$(uname -m)" != "aarch64" ]; then
     ./configure --enable-optimizations
     make altinstall
     cd ..
+    ln -sfn /usr/local/bin/python3.7 /usr/bin/python3
+    ln -sfn /usr/local/bin/pip3.7 /usr/bin/pip3
 fi
