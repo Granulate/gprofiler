@@ -258,96 +258,96 @@ RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
     fi
 RUN python3 -m pip install --no-cache-dir -r exe-requirements.txt
 
-FROM ${NODE_PACKAGE_BUILDER_GLIBC} as node-package-builder-glibc
-USER 0
-WORKDIR /tmp
-COPY scripts/node_builder_glibc_env.sh .
-RUN ./node_builder_glibc_env.sh
-COPY scripts/build_node_package.sh .
-RUN ./build_node_package.sh
-# needed for hadolint
-WORKDIR /app
-USER 1001
+# FROM ${NODE_PACKAGE_BUILDER_GLIBC} as node-package-builder-glibc
+# USER 0
+# WORKDIR /tmp
+# COPY scripts/node_builder_glibc_env.sh .
+# RUN ./node_builder_glibc_env.sh
+# COPY scripts/build_node_package.sh .
+# RUN ./build_node_package.sh
+# # needed for hadolint
+# WORKDIR /app
+# USER 1001
 
-FROM build-prepare as build-stage
-# copy PyPerf, licenses and notice file.
-RUN mkdir -p gprofiler/resources/ruby && \
-    mkdir -p gprofiler/resources/python/pyperf && \
-    cp /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/ && \
-    cp /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/ && \
-    cp -r /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses && \
-    cp /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
-COPY --from=bcc-helpers /bpf_get_fs_offset/get_fs_offset gprofiler/resources/python/pyperf/
-COPY --from=bcc-helpers /bpf_get_stack_offset/get_stack_offset gprofiler/resources/python/pyperf/
+# FROM build-prepare as build-stage
+# # copy PyPerf, licenses and notice file.
+# RUN mkdir -p gprofiler/resources/ruby && \
+#     mkdir -p gprofiler/resources/python/pyperf && \
+#     cp /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/ && \
+#     cp /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/ && \
+#     cp -r /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses && \
+#     cp /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
+# COPY --from=bcc-helpers /bpf_get_fs_offset/get_fs_offset gprofiler/resources/python/pyperf/
+# COPY --from=bcc-helpers /bpf_get_stack_offset/get_stack_offset gprofiler/resources/python/pyperf/
 
-COPY --from=pyspy-builder /tmp/py-spy/py-spy gprofiler/resources/python/py-spy
-COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
-COPY --from=perf-builder /perf gprofiler/resources/perf
+# COPY --from=pyspy-builder /tmp/py-spy/py-spy gprofiler/resources/python/py-spy
+# COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
+# COPY --from=perf-builder /perf gprofiler/resources/perf
 
-COPY --from=dotnet-builder /usr/share/dotnet/host gprofiler/resources/dotnet/host
-COPY --from=dotnet-builder /tmp/dotnet/deps gprofiler/resources/dotnet/shared/Microsoft.NETCore.App/6.0.7
-COPY --from=dotnet-builder /tmp/dotnet/tools gprofiler/resources/dotnet/tools
+# COPY --from=dotnet-builder /usr/share/dotnet/host gprofiler/resources/dotnet/host
+# COPY --from=dotnet-builder /tmp/dotnet/deps gprofiler/resources/dotnet/shared/Microsoft.NETCore.App/6.0.7
+# COPY --from=dotnet-builder /tmp/dotnet/tools gprofiler/resources/dotnet/tools
 
-COPY --from=phpspy-builder /tmp/phpspy/phpspy gprofiler/resources/php/phpspy
-COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
-COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/strings gprofiler/resources/php/strings
-# copying from async-profiler-builder as an "old enough" centos.
-COPY --from=async-profiler-builder-glibc /usr/bin/awk gprofiler/resources/php/awk
-COPY --from=async-profiler-builder-glibc /usr/bin/xargs gprofiler/resources/php/xargs
+# COPY --from=phpspy-builder /tmp/phpspy/phpspy gprofiler/resources/php/phpspy
+# COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
+# COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/strings gprofiler/resources/php/strings
+# # copying from async-profiler-builder as an "old enough" centos.
+# COPY --from=async-profiler-builder-glibc /usr/bin/awk gprofiler/resources/php/awk
+# COPY --from=async-profiler-builder-glibc /usr/bin/xargs gprofiler/resources/php/xargs
 
-COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/jattach gprofiler/resources/java/jattach
-COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
-COPY --from=async-profiler-centos-min-test-glibc /libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
-COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
-COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
-COPY --from=node-package-builder-musl /tmp/module_build gprofiler/resources/node/module/musl
-COPY --from=node-package-builder-glibc /tmp/module_build gprofiler/resources/node/module/glibc
+# COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/jattach gprofiler/resources/java/jattach
+# COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
+# COPY --from=async-profiler-centos-min-test-glibc /libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
+# COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
+# COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
+# COPY --from=node-package-builder-musl /tmp/module_build gprofiler/resources/node/module/musl
+# COPY --from=node-package-builder-glibc /tmp/module_build gprofiler/resources/node/module/glibc
 
 
 
-COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
+# COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
 
-COPY gprofiler gprofiler
+# COPY gprofiler gprofiler
 
-# run PyInstaller and make sure no 'gprofiler.*' modules are missing.
-# see https://pyinstaller.readthedocs.io/en/stable/when-things-go-wrong.html
-# from a quick look I didn't see how to tell PyInstaller to exit with an error on this, hence
-# this check in the shell.
-COPY pyi_build.py pyinstaller.spec scripts/check_pyinstaller.sh ./
+# # run PyInstaller and make sure no 'gprofiler.*' modules are missing.
+# # see https://pyinstaller.readthedocs.io/en/stable/when-things-go-wrong.html
+# # from a quick look I didn't see how to tell PyInstaller to exit with an error on this, hence
+# # this check in the shell.
+# COPY pyi_build.py pyinstaller.spec scripts/check_pyinstaller.sh ./
 
-RUN pyinstaller pyinstaller.spec \
-    && echo \
-    && test -f build/pyinstaller/warn-pyinstaller.txt \
-    && ./check_pyinstaller.sh
+# RUN pyinstaller pyinstaller.spec \
+#     && echo \
+#     && test -f build/pyinstaller/warn-pyinstaller.txt \
+#     && ./check_pyinstaller.sh
 
-# for aarch64 - build a patched version of staticx 0.13.6. we remove calls to getpwnam and getgrnam, for these end up doing dlopen()s which
-# crash the staticx bootloader. we don't need them anyway (all files in our staticx tar are uid 0 and we don't need the names translation)
-COPY scripts/staticx_patch.diff staticx_patch.diff
-# hadolint ignore=DL3003
-RUN if [ "$(uname -m)" = "aarch64" ]; then \
-        git clone -b v0.13.6 https://github.com/JonathonReinhart/staticx.git && \
-        cd staticx && \
-        git reset --hard 819d8eafecbaab3646f70dfb1e3e19f6bbc017f8 && \
-        git apply ../staticx_patch.diff && \
-        python3 -m pip install --no-cache-dir . ; \
-    fi
+# # for aarch64 - build a patched version of staticx 0.13.6. we remove calls to getpwnam and getgrnam, for these end up doing dlopen()s which
+# # crash the staticx bootloader. we don't need them anyway (all files in our staticx tar are uid 0 and we don't need the names translation)
+# COPY scripts/staticx_patch.diff staticx_patch.diff
+# # hadolint ignore=DL3003
+# RUN if [ "$(uname -m)" = "aarch64" ]; then \
+#         git clone -b v0.13.6 https://github.com/JonathonReinhart/staticx.git && \
+#         cd staticx && \
+#         git reset --hard 819d8eafecbaab3646f70dfb1e3e19f6bbc017f8 && \
+#         git apply ../staticx_patch.diff && \
+#         python3 -m pip install --no-cache-dir . ; \
+#     fi
 
-RUN yum install -y patchelf upx && yum clean all
+# RUN yum install -y patchelf upx && yum clean all
 
-COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
-# staticx packs dynamically linked app with all of their dependencies, it tries to figure out which dynamic libraries are need for its execution
-# in some cases, when the application is lazily loading some DSOs, staticx doesn't handle it.
-# we use list_needed_libs.sh to list the dynamic dependencies of *all* of our resources,
-# and make staticx pack them as well.
-# using scl here to get the proper LD_LIBRARY_PATH set
-# hadolint ignore=SC2046,SC2086
-RUN set -e; \
-    if [ $(uname -m) != "aarch64" ]; then \
-        source scl_source enable devtoolset-8 llvm-toolset-7 ; \
-    fi && \
-    LIBS=$(./scripts/list_needed_libs.sh) && \
-    staticx $LIBS dist/gprofiler dist/gprofiler
+# COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
+# # staticx packs dynamically linked app with all of their dependencies, it tries to figure out which dynamic libraries are need for its execution
+# # in some cases, when the application is lazily loading some DSOs, staticx doesn't handle it.
+# # we use list_needed_libs.sh to list the dynamic dependencies of *all* of our resources,
+# # and make staticx pack them as well.
+# # using scl here to get the proper LD_LIBRARY_PATH set
+# # hadolint ignore=SC2046,SC2086
+# RUN set -e; \
+#     if [ $(uname -m) != "aarch64" ]; then \
+#         source scl_source enable devtoolset-8 llvm-toolset-7 ; \
+#     fi && \
+#     LIBS=$(./scripts/list_needed_libs.sh) && \
+#     staticx $LIBS dist/gprofiler dist/gprofiler
 
-FROM scratch AS export-stage
+# FROM scratch AS export-stage
 
-COPY --from=build-stage /app/dist/gprofiler /gprofiler
+# COPY --from=build-stage /app/dist/gprofiler /gprofiler
