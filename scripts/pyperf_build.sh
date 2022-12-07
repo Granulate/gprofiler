@@ -5,7 +5,7 @@
 #
 set -euo pipefail
 
-git clone --depth 1 -b v1.2.3 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 257430e792575b131441c776ea44e9e80bad6396
+git clone --depth 1 -b v1.2.6 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 6a995642d12287f26cbb97edd3d29e62a5fde337
 
 # (after clone, because we copy the licenses)
 # TODO support aarch64

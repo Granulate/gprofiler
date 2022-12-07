@@ -13,7 +13,12 @@ from granulate_utils.linux.process import is_musl
 from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.profilers.python import PythonProfiler
 from tests.conftest import AssertInCollapsed
-from tests.utils import assert_function_in_collapsed, snapshot_pid_collapsed, snapshot_pid_profile
+from tests.utils import (
+    assert_function_in_collapsed,
+    is_pattern_in_collapsed,
+    snapshot_pid_collapsed,
+    snapshot_pid_profile,
+)
 
 
 @pytest.fixture
@@ -116,3 +121,35 @@ def test_python_matrix(
         assert profile.app_metadata["sys_maxunicode"] == "1114111"
     else:
         assert profile.app_metadata["sys_maxunicode"] is None
+
+
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("profiler_type", ["pyperf"])
+@pytest.mark.parametrize("insert_dso_name", [False, True])
+@pytest.mark.parametrize(
+    "application_image_tag",
+    [
+        "2.7-glibc-python",
+        "3.10-glibc-python",
+    ],
+)
+def test_dso_name_in_pyperf_profile(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed: AssertInCollapsed,
+    profiler_type: str,
+    application_image_tag: str,
+    insert_dso_name: bool,
+) -> None:
+    with PythonProfiler(
+        1000, 2, Event(), str(tmp_path), insert_dso_name, CPU_PROFILING_MODE, False, profiler_type, True, None
+    ) as profiler:
+        profile = snapshot_pid_profile(profiler, application_pid)
+    python_version, _, _ = application_image_tag.split("-")
+    interpreter_frame = "PyEval_EvalFrameEx" if python_version == "2.7" else "_PyEval_EvalFrameDefault"
+    collapsed = profile.stacks
+    assert_collapsed(collapsed)
+    assert_function_in_collapsed(interpreter_frame, collapsed)
+    assert insert_dso_name == is_pattern_in_collapsed(
+        rf"{interpreter_frame} \(.+?/libpython{python_version}.*?\.so.*?\)_\[pn\]", collapsed
+    )
