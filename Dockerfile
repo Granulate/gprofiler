@@ -24,7 +24,7 @@ ARG GPROFILER_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a5
 # node-package-builder-musl alpine
 ARG NODE_PACKAGE_BUILDER_MUSL=@sha256:69704ef328d05a9f806b6b8502915e6a0a4faa4d72018dc42343f511490daf8a
 # node-package-builder-glibc - centos/devtoolset-7-toolchain-centos7:latest
-ARG NODE_PACKAGE_BUILDER_GLIBC=@sha256:24d4c230cb1fe8e68cefe068458f52f69a1915dd6f6c3ad18aa37c2b8fa3e4e1
+ARG NODE_PACKAGE_BUILDER_GLIBC=/devtoolset-7-toolchain-centos7@sha256:24d4c230cb1fe8e68cefe068458f52f69a1915dd6f6c3ad18aa37c2b8fa3e4e1
 
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
@@ -142,8 +142,7 @@ WORKDIR /tmp
 COPY scripts/async_profiler_env_glibc.sh .
 RUN ./async_profiler_env_glibc.sh
 COPY scripts/async_profiler_build_shared.sh .
-COPY scripts/async_profiler_build_glibc.sh .
-RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_glibc.sh
+RUN ./async_profiler_build_shared.sh
 
 # async-profiler musl
 FROM alpine${AP_BUILDER_ALPINE} AS async-profiler-builder-musl
@@ -151,8 +150,7 @@ WORKDIR /tmp
 COPY scripts/async_profiler_env_musl.sh .
 RUN ./async_profiler_env_musl.sh
 COPY scripts/async_profiler_build_shared.sh .
-COPY scripts/async_profiler_build_musl.sh .
-RUN ./async_profiler_build_shared.sh /tmp/async_profiler_build_musl.sh
+RUN ./async_profiler_build_shared.sh
 
 # node-package-builder-musl
 FROM alpine${NODE_PACKAGE_BUILDER_MUSL} AS node-package-builder-musl
@@ -163,7 +161,7 @@ COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
 
 # node-package-builder-glibc
-FROM centos/devtoolset-7-toolchain-centos7${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
+FROM centos${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
 USER 0
 WORKDIR /tmp
 COPY scripts/node_builder_glibc_env.sh .

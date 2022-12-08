@@ -675,3 +675,19 @@ def test_handling_missing_symbol_in_profile(
     ) as profiler:
         collapsed = snapshot_pid_profile(profiler, application_pid).stacks
         assert is_pattern_in_collapsed(libc_pattern, collapsed)
+
+
+@pytest.mark.parametrize("in_container", [True])
+def test_meminfo_logged(
+    tmp_path: Path,
+    application_pid: int,
+    caplog: LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG)
+    with make_java_profiler(
+        storage_dir=str(tmp_path),
+        duration=3,
+        frequency=999,
+    ) as profiler:
+        snapshot_pid_profile(profiler, application_pid)
+        assert "async-profiler memory usage (in bytes)" in caplog.text
