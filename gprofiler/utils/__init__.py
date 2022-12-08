@@ -358,11 +358,6 @@ def get_iso8601_format_time(time: datetime.datetime) -> str:
     return time.replace(microsecond=0).isoformat()
 
 
-# can be replaced by fromisoformat(), but it is unavailable in python 3.6
-def parse_iso8601_timestamp(time: str) -> Any:
-    return datetime.datetime.strptime(time, "%Y-%m-%dT%H:%M:%S.%f")
-
-
 def remove_prefix(s: str, prefix: str) -> str:
     # like str.removeprefix of Python 3.9, but this also ensures the prefix exists.
     assert s.startswith(prefix), f"{s} doesn't start with {prefix}"
