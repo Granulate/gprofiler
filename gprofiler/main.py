@@ -121,13 +121,15 @@ class GProfiler:
         self._collect_metadata = collect_metadata
         self._enrichment_options = enrichment_options
         self._stop_event = Event()
+        self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
         self._last_diagnostics = 0.0
         self._gpid = ""
         self._controller_process = controller_process
         self._duration = duration
         self._profiling_mode = profiling_mode
-        self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
+        if collect_metadata:
+            self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
         # 1. accessible by everyone - for profilers that run code in target processes, like async-profiler
