@@ -6,8 +6,6 @@
 import uuid
 from typing import Optional
 
-from gprofiler.exceptions import StateAlreadyInitializedException, UninitializedStateException
-
 
 # Declare this function here (rather than in utils.py) to avoid circular imports.
 def generate_random_id() -> str:
@@ -30,7 +28,8 @@ class State:
         return self._run_id
 
     @property
-    def cycle_id(self) -> Optional[str]:
+    def cycle_id(self) -> str:
+        assert self._cycle_id is not None
         return self._cycle_id
 
 
@@ -39,15 +38,12 @@ _state: Optional[State] = None
 
 def init_state(run_id: str = None) -> State:
     global _state
-    if _state is not None:
-        raise StateAlreadyInitializedException("gProfiler state already initialized")
+    assert _state is None
 
     _state = State(run_id=run_id)
     return _state
 
 
 def get_state() -> State:
-    if _state is None:
-        raise UninitializedStateException("gProfiler state is not initialized")
-
+    assert _state is not None
     return _state
