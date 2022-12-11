@@ -60,7 +60,7 @@ jobs:
   test:
     needs: build-container
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04  # for 3.10.0 python tag
 
     strategy:
       fail-fast: false  # helps detecting flakiness / errors specific to one Python version
