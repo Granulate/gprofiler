@@ -9,7 +9,7 @@ import re
 import sys
 import time
 from logging import LogRecord
-from typing import Dict, Optional
+from typing import Any, Dict, Mapping, Optional
 from urllib.parse import urlparse
 
 from glogger.extra_adapter import ExtraAdapter
@@ -29,7 +29,16 @@ LOGGER_NAME_RE = re.compile(r"gprofiler(?:\..+)?")
 def get_logger_adapter(logger_name: str) -> logging.LoggerAdapter:
     # Validate the name starts with gprofiler (the root logger name), so logging parent logger propagation will work.
     assert LOGGER_NAME_RE.match(logger_name) is not None, "logger name must start with 'gprofiler'"
-    return ExtraAdapter(logging.getLogger(logger_name))
+    return GProfilerExtraAdapter(logging.getLogger(logger_name))
+
+
+class GProfilerExtraAdapter(ExtraAdapter):
+    def get_extra(self, **kwargs: Mapping[str, Any]) -> Mapping[str, Any]:
+        extra = super().get_extra(**kwargs)
+        # here we add fields which change during the lifetime of gProfiler.
+        # fields that do not change go in RemoteLogsHandler.get_metadata().
+        assert "cycle_id" not in extra
+        return {**extra, "cycle_id": get_state().cycle_id}
 
 
 class RemoteLogsHandler(BatchRequestsHandler):
@@ -63,9 +72,10 @@ class RemoteLogsHandler(BatchRequestsHandler):
         state = get_state()
         hostname = get_hostname_or_none()
 
+        # here we add fields which don't change during the lifetime of gProfiler.
+        # fields that do change go in GProfilerExtraAdapter.get_extra().
         metadata = {
             "run_id": state.run_id,
-            "cycle_id": state.cycle_id,
             "gprofiler_version": __version__,
             "service_name": self._service_name,
         }
