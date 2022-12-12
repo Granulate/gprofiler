@@ -30,7 +30,7 @@ GPROFILER_BUILDER=@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492
 NODE_PACKAGE_BUILDER_GLIBC=centos/devtoolset-7-toolchain-centos7@sha256:24d4c230cb1fe8e68cefe068458f52f69a1915dd6f6c3ad18aa37c2b8fa3e4e1
 
 mkdir -p build/x86_64
-docker build -f pyi.Dockerfile --output type=local,dest=build/x86_64/ \
+DOCKER_BUILDKIT=1 docker build -f pyi.Dockerfile --output type=local,dest=build/x86_64/ \
     --build-arg RUST_BUILDER_VERSION=$RUST_BUILDER_VERSION \
     --build-arg PYPERF_BUILDER_UBUNTU=$UBUNTU_VERSION \
     --build-arg PERF_BUILDER_UBUNTU=$UBUNTU_VERSION_1604 \

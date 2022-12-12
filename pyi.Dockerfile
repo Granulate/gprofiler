@@ -303,8 +303,6 @@ COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gp
 COPY --from=node-package-builder-musl /tmp/module_build gprofiler/resources/node/module/musl
 COPY --from=node-package-builder-glibc /tmp/module_build gprofiler/resources/node/module/glibc
 
-
-
 COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
 
 COPY gprofiler gprofiler
