@@ -58,10 +58,12 @@ class RemoteLogsHandler(BatchRequestsHandler):
         )
 
     def emit(self, record: LogRecord) -> None:
-        if self.get_extra_fields(record).pop(NO_SERVER_LOG_KEY, False):
+        extra = self.get_extra_fields(record)
+
+        if extra.pop(NO_SERVER_LOG_KEY, False):
             return
 
-        if self.get_extra_fields(record).pop(NO_SERVER_EXTRA_KEY, False):
+        if extra.pop(NO_SERVER_EXTRA_KEY, False):
             record.extra = {}
 
         return super().emit(record)
