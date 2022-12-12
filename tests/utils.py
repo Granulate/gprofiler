@@ -60,6 +60,7 @@ def start_container(
         volumes=volumes,
         stderr=True,
         detach=True,
+        auto_remove=True,
         **extra_kwargs,
     )
 
