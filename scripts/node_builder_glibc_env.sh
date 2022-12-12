@@ -23,5 +23,7 @@ if [ "$(uname -m)" != "aarch64" ]; then
     ln -sfn /usr/local/bin/python3.7 /usr/bin/python3
     ln -sfn /usr/local/bin/pip3.7 /usr/bin/pip3
 else
-    cp /tmp/libstdc++.so.6.0.19 /lib64/libstdc++.so.6.0.19
+    yum install -y libstdc++-static
+    export LDFLAGS="-static-libstdc++"
+    export CPPFLAGS="-static-libstdc++"
 fi

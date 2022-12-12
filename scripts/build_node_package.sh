@@ -21,12 +21,6 @@ sed -i 's/node \-e \\"require('\''nan'\'')\\"/echo $NAN_PATH/g' binding.gyp
 rm -rf nan.tar.gz
 mkdir $BUILD_TARGET_DIR
 node_versions=( "10.10.0" "11.0.0" )
-if [ "$(uname -m)" = "aarch64" ] && [ -f /lib64/libstdc++.so.6.0.19 ]; then
-    rm -f /lib64/libstdc++.so.6
-    rm -f /lib64/libstdc++.so.6.0.25
-    ln -s /lib64/libstdc++.so.6.0.19 /lib64/libstdc++.so.6
-    ln -s /lib64/libstdc++.so.6.0.19 /lib64/libstdc++.so
-fi
 for node_version in "${node_versions[@]}"; do
     node-gyp configure --target="$node_version"  --build_v8_with_gn=false
     node-gyp build --target="$node_version"

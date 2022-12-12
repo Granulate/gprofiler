@@ -259,7 +259,6 @@ RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
 RUN python3 -m pip install --no-cache-dir -r exe-requirements.txt
 
 FROM ${NODE_PACKAGE_BUILDER_GLIBC} as node-package-builder-glibc
-COPY --from=async-profiler-centos-min-test-glibc /lib64/libstdc++.so.6.0.19 /tmp/libstdc++.so.6.0.19
 USER 0
 WORKDIR /tmp
 COPY scripts/node_builder_glibc_env.sh .
