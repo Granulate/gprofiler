@@ -11,10 +11,11 @@ jobs:
    runs-on: ubuntu-latest
    steps:
      - name: Checkout Code
-       uses: actions/checkout@v2
+       uses: actions/checkout@v3
        with:
          fetch-depth: 0
          submodules: true
+
      - name: Get and verify tag value
        run: |
          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
@@ -84,7 +85,7 @@ jobs:
           node-version: 10.x
 
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           submodules: true
 
@@ -105,7 +106,7 @@ jobs:
     runs-on: ["self-hosted", "ARM64"]
     steps:
      - name: Checkout Code
-       uses: actions/checkout@v2
+       uses: actions/checkout@v3
        with:
          fetch-depth: 0
          submodules: true
