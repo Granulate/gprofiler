@@ -19,7 +19,14 @@ else
     nproc=$(nproc)
 fi
 
-./configure --disable-tests --disable-documentation && make install -j "$nproc"
+prefix_flag=""
+if [ "$#" -gt 2 ]; then
+    echo "Too many arguments"
+elif [ "$#" -eq 1 ]; then
+    prefix_flag="--prefix=$1"
+fi
+
+./configure --disable-tests --disable-documentation "$prefix_flag" && make install -j "$nproc"
 cd ..
 rm -r libunwind-"$LIBUNWIND_VERSION"
 rm "$LIBUNWIND_TAR"

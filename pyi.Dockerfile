@@ -20,10 +20,8 @@ FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
 WORKDIR /tmp
 
 COPY scripts/prepare_machine-unknown-linux-musl.sh .
-RUN ./prepare_machine-unknown-linux-musl.sh
-
 COPY scripts/libunwind_build.sh .
-RUN ./libunwind_build.sh
+RUN ./prepare_machine-unknown-linux-musl.sh
 
 # py-spy
 FROM pyspy-rbspy-builder-common AS pyspy-builder
