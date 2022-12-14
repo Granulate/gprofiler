@@ -121,7 +121,7 @@ class PHPSpyProfiler(ProfilerBase):
         )
 
         # Ignoring type since _process.stderr is typed as Optional[IO[Any]] which doesn't have the `read1` method.
-        stderr = self._process.stderr.read1(1024).decode()  # type: ignore
+        stderr = self._process.stderr.read1().decode()  # type: ignore
         self._process_stderr(stderr)
 
     def _dump(self) -> Path:
@@ -209,7 +209,7 @@ class PHPSpyProfiler(ProfilerBase):
     def snapshot(self) -> ProcessToProfileData:
         if self._stop_event.wait(self._duration):
             raise StopEventSetException()
-        stderr = self._process.stderr.read1(1024).decode()  # type: ignore
+        stderr = self._process.stderr.read1().decode()  # type: ignore
         self._process_stderr(stderr)
 
         phpspy_output_path = self._dump()
