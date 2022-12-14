@@ -59,12 +59,14 @@ class PythonEbpfProfiler(ProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
+        insert_dso_name: bool,
         profile_spawned_processes: bool,
+        profiling_mode: str,
         *,
         add_versions: bool,
         user_stacks_pages: Optional[int] = None,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir)
+        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
         _ = profile_spawned_processes  # Required for mypy unused argument warning
         self.process: Optional[Popen] = None
         self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
@@ -72,6 +74,7 @@ class PythonEbpfProfiler(ProfilerBase):
         self.user_stacks_pages = user_stacks_pages
         self._kernel_offsets: Dict[str, int] = {}
         self._metadata = python.PythonMetadata(self._stop_event)
+        self._insert_dso_name = insert_dso_name
 
     @classmethod
     def _pyperf_error(cls, process: Popen) -> NoReturn:
@@ -177,6 +180,8 @@ class PythonEbpfProfiler(ProfilerBase):
             str(self._SYMBOLS_MAP_SIZE),
             # Duration is irrelevant here, we want to run continuously.
         ] + self._offset_args()
+        if self._insert_dso_name:
+            cmd.extend(["--insert-dso-name"])
 
         if self.user_stacks_pages is not None:
             cmd.extend(["--user-stacks-pages", str(self.user_stacks_pages)])

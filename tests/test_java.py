@@ -22,7 +22,6 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 from granulate_utils.java import parse_jvm_version
-from granulate_utils.linux.elf import get_elf_buildid
 from granulate_utils.linux.ns import get_process_nspid
 from granulate_utils.linux.process import is_musl
 from packaging.version import Version
@@ -35,12 +34,13 @@ from gprofiler.profilers.java import (
     frequency_to_ap_interval,
     get_java_version,
 )
-from gprofiler.utils import remove_prefix
 from tests.conftest import AssertInCollapsed
 from tests.type_utils import cast_away_optional
 from tests.utils import (
     _application_docker_container,
     assert_function_in_collapsed,
+    is_function_in_collapsed,
+    is_pattern_in_collapsed,
     make_java_profiler,
     snapshot_pid_collapsed,
     snapshot_pid_profile,
@@ -98,8 +98,8 @@ def test_async_profiler_already_running(
         with AsyncProfiledProcess(
             process=process,
             storage_dir=profiler._storage_dir,
+            insert_dso_name=False,
             stop_event=profiler._stop_event,
-            buildids=False,
             mode=profiler._mode,
             ap_safemode=0,
             ap_args="",
@@ -110,8 +110,8 @@ def test_async_profiler_already_running(
         with AsyncProfiledProcessForTests(
             process=process,
             storage_dir=profiler._storage_dir,
+            insert_dso_name=False,
             stop_event=profiler._stop_event,
-            buildids=False,
             mode="itimer",
             ap_safemode=0,
             ap_args="",
@@ -330,8 +330,8 @@ def test_async_profiler_stops_after_given_timeout(
     with AsyncProfiledProcessForTests(
         process=process,
         storage_dir=str(tmp_path_world_accessible),
+        insert_dso_name=False,
         stop_event=Event(),
-        buildids=False,
         mode="itimer",
         ap_safemode=0,
         ap_args="",
@@ -388,29 +388,6 @@ def test_java_deleted_libjvm(
     with make_java_profiler(storage_dir=str(tmp_path), duration=3) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
-
-
-# test only in a container so that we don't mess with the environment.
-@pytest.mark.parametrize("in_container", [True])
-def test_java_async_profiler_buildids(
-    tmp_path: Path, application_pid: int, assert_collapsed: AssertInCollapsed
-) -> None:
-    """
-    Tests that async-profiler's buildid feature works.
-    """
-    libc = get_lib_path(application_pid, "/libc-")
-    buildid = get_elf_buildid(libc)
-
-    with make_java_profiler(
-        storage_dir=str(tmp_path), duration=3, frequency=99, java_async_profiler_buildids=True
-    ) as profiler:
-        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
-        # path buildid+0xoffset_[bid]
-        # we check for libc because it has undefined symbols in all profiles :shrug:
-        assert_function_in_collapsed(
-            f"{remove_prefix(libc, f'/proc/{application_pid}/root/')} {buildid}+0x", process_collapsed
-        )
-        assert_function_in_collapsed("_[bid]", process_collapsed)
 
 
 @pytest.mark.parametrize(
@@ -592,7 +569,12 @@ def test_java_jattach_async_profiler_log_output(
 
 
 @pytest.mark.parametrize(
-    "change_argv0", [pytest.param(True, id="argv0 is java"), pytest.param(False, id="argv0 is not java")]
+    "change_argv0,java_path",
+    [
+        pytest.param(True, "java", id="argv0 is 'java'"),
+        pytest.param(True, "/usr/bin/java", id="argv0 is '/usr/bin/java'"),
+        pytest.param(False, "", id="argv0 is not java"),
+    ],
 )
 def test_java_different_basename(
     tmp_path: Path,
@@ -601,6 +583,7 @@ def test_java_different_basename(
     assert_collapsed: AssertInCollapsed,
     caplog: LogCaptureFixture,
     change_argv0: bool,
+    java_path: Optional[str],
 ) -> None:
     """
     Tests that we can profile a Java app that runs with non-java "comm", by reading the argv0 instead.
@@ -612,6 +595,7 @@ def test_java_different_basename(
         duration=1,
         java_safemode=JAVA_SAFEMODE_ALL,  # explicitly enable, for basename checks
     ) as profiler:
+        prefix_exec_func = f"exec -a {java_path} " if change_argv0 else ""
         with _application_docker_container(
             docker_client,
             application_docker_image,
@@ -620,7 +604,7 @@ def test_java_different_basename(
             application_docker_command=[
                 "bash",
                 "-c",
-                f"{'exec -a java ' if change_argv0 else ''}{java_notjava_basename} -jar Fibonacci.jar",
+                f"{prefix_exec_func}{java_notjava_basename} -jar Fibonacci.jar",
             ],
         ) as container:
             application_pid = container.attrs["State"]["Pid"]
@@ -653,3 +637,57 @@ def test_java_different_basename(
                     os.path.basename(log_records[0].gprofiler_adapter_extra["exe"])  # type: ignore
                     == java_notjava_basename
                 )
+
+
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("insert_dso_name", [False, True])
+def test_dso_name_in_ap_profile(
+    tmp_path: Path,
+    application_pid: int,
+    insert_dso_name: bool,
+) -> None:
+    with make_java_profiler(
+        storage_dir=str(tmp_path),
+        insert_dso_name=insert_dso_name,
+        duration=3,
+        frequency=999,
+    ) as profiler:
+        collapsed = snapshot_pid_profile(profiler, application_pid).stacks
+        assert is_function_in_collapsed("jni_NewObject", collapsed)
+        assert insert_dso_name == is_pattern_in_collapsed(r"jni_NewObject \(.+?/libjvm.so\)", collapsed)
+
+
+# test that missing symbol and only DSO name is recognized and handled correctly by async profiler
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("insert_dso_name", [False, True])
+@pytest.mark.parametrize("libc_pattern", [r"(^|;)\(/.*/libc-.*\.so\)($|;)"])
+def test_handling_missing_symbol_in_profile(
+    tmp_path: Path,
+    application_pid: int,
+    insert_dso_name: bool,
+    libc_pattern: str,
+) -> None:
+    with make_java_profiler(
+        storage_dir=str(tmp_path),
+        insert_dso_name=insert_dso_name,
+        duration=3,
+        frequency=999,
+    ) as profiler:
+        collapsed = snapshot_pid_profile(profiler, application_pid).stacks
+        assert is_pattern_in_collapsed(libc_pattern, collapsed)
+
+
+@pytest.mark.parametrize("in_container", [True])
+def test_meminfo_logged(
+    tmp_path: Path,
+    application_pid: int,
+    caplog: LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG)
+    with make_java_profiler(
+        storage_dir=str(tmp_path),
+        duration=3,
+        frequency=999,
+    ) as profiler:
+        snapshot_pid_profile(profiler, application_pid)
+        assert "async-profiler memory usage (in bytes)" in caplog.text

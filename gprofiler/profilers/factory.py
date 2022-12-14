@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, List, Tuple, Union
 from gprofiler.exceptions import NoProfilersEnabledError
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_arch
+from gprofiler.platform import is_windows
 from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.profiler_base import NoopProfiler
 from gprofiler.profilers.registry import get_profilers_registry
@@ -14,7 +15,7 @@ if TYPE_CHECKING:
 
 
 logger = get_logger_adapter(__name__)
-COMMON_PROFILER_ARGUMENT_NAMES = ["frequency", "duration"]
+COMMON_PROFILER_ARGUMENT_NAMES = ["frequency", "duration", "insert_dso_name", "profiling_mode"]
 
 
 def get_profilers(
@@ -30,8 +31,13 @@ def get_profilers(
         if profiler_mode in ("none", "disabled"):
             continue
 
-        if arch not in profiler_config.supported_archs:
+        if arch not in (profiler_config.supported_windows_archs if is_windows() else profiler_config.supported_archs):
             logger.warning(f"Disabling {profiler_name} because it doesn't support this architecture ({arch})")
+            continue
+
+        profiling_mode = user_args.get("profiling_mode")
+        if profiling_mode not in profiler_config.supported_profiling_modes:
+            logger.warning(f"Disabling {profiler_name} because it doesn't support profiling mode {profiling_mode!r}")
             continue
 
         profiler_kwargs = profiler_init_kwargs.copy()

@@ -8,19 +8,19 @@ import contextlib
 import os
 import sched
 import time
-from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures._base import Future
 from threading import Event, Lock, Thread
 from types import TracebackType
 from typing import Dict, List, Optional, Tuple, Type, TypeVar
 
+import humanfriendly
 from granulate_utils.linux.proc_events import register_exec_callback, unregister_exec_callback
 from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import StopEventSetException
-from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, StackToSampleCount
+from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, ProfilingErrorStack, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import limit_frequency
 from gprofiler.utils.process import process_comm
@@ -71,8 +71,18 @@ class ProfilerBase(ProfilerInterface):
     MAX_FREQUENCY: Optional[int] = None
     MIN_DURATION: Optional[int] = None
 
-    def __init__(self, frequency: int, duration: int, stop_event: Optional[Event], storage_dir: str):
-        self._frequency = limit_frequency(self.MAX_FREQUENCY, frequency, self.__class__.__name__, logger)
+    def __init__(
+        self,
+        frequency: int,
+        duration: int,
+        stop_event: Optional[Event],
+        storage_dir: str,
+        insert_dso_name: bool,
+        profiling_mode: str,
+    ):
+        self._frequency = limit_frequency(
+            self.MAX_FREQUENCY, frequency, self.__class__.__name__, logger, profiling_mode
+        )
         if self.MIN_DURATION is not None and duration < self.MIN_DURATION:
             raise ValueError(
                 f"Minimum duration for {self.__class__.__name__} is {self.MIN_DURATION} (given {duration}), "
@@ -81,9 +91,16 @@ class ProfilerBase(ProfilerInterface):
         self._duration = duration
         self._stop_event = stop_event or Event()
         self._storage_dir = storage_dir
+        self._profiling_mode = profiling_mode
+
+        if profiling_mode == "allocation":
+            frequency_str = f"allocation interval: {humanfriendly.format_size(frequency, binary=True)}"
+        else:
+            frequency_str = f"frequency: {frequency}hz"
 
         logger.info(
-            f"Initialized {self.__class__.__name__} (frequency: {self._frequency}hz, duration: {self._duration}s)"
+            f"Initialized {self.__class__.__name__} ({frequency_str}, duration: {self._duration}s), "
+            f"profiling mode: {profiling_mode}"
         )
 
 
@@ -153,7 +170,7 @@ class ProcessProfilerBase(ProfilerBase):
         # return 1 sample, it will be scaled later in merge_profiles().
         # if --perf-mode=none mode is used, it will not, but we don't have anything logical to
         # do here in that case :/
-        return Counter({f"{comm};[Profiling {what}: {reason}]": 1})
+        return ProfilingErrorStack(what, reason, comm)
 
     def snapshot(self) -> ProcessToProfileData:
         processes_to_profile = self._select_processes_to_profile()
@@ -192,9 +209,11 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         duration: int,
         stop_event: Optional[Event],
         storage_dir: str,
+        insert_dso_name: bool,
         profile_spawned_processes: bool,
+        profiling_mode: str,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir)
+        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
         self._profile_spawned_processes = profile_spawned_processes
         self._submit_lock = Lock()
         self._threads: Optional[ThreadPoolExecutor] = None

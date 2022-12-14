@@ -22,15 +22,22 @@ from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Any, Callable, Iterator, List, Optional, Tuple, Union, cast
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union, cast
 
 import importlib_resources
 import psutil
 from granulate_utils.exceptions import CouldNotAcquireMutex
 from granulate_utils.linux.mutex import try_acquire_mutex
 from granulate_utils.linux.ns import run_in_ns
-from granulate_utils.linux.process import process_exe
+from granulate_utils.linux.process import is_kernel_thread, process_exe
 from psutil import Process
+
+from gprofiler.consts import CPU_PROFILING_MODE
+from gprofiler.platform import is_linux, is_windows
+
+if is_windows():
+    import pythoncom
+    import wmi
 
 from gprofiler.exceptions import (
     CalledProcessError,
@@ -44,7 +51,11 @@ from gprofiler.log import get_logger_adapter
 logger = get_logger_adapter(__name__)
 
 GPROFILER_DIRECTORY_NAME = "gprofiler_tmp"
-TEMPORARY_STORAGE_PATH = f"/tmp/{GPROFILER_DIRECTORY_NAME}"
+TEMPORARY_STORAGE_PATH = (
+    f"/tmp/{GPROFILER_DIRECTORY_NAME}"
+    if is_linux()
+    else os.getenv("USERPROFILE", default=os.getcwd()) + f"\\AppData\\Local\\Temp\\{GPROFILER_DIRECTORY_NAME}"
+)
 
 gprofiler_mutex: Optional[socket.socket] = None
 
@@ -62,7 +73,10 @@ def resource_path(relative_path: str = "") -> str:
 
 @lru_cache(maxsize=None)
 def is_root() -> bool:
-    return os.geteuid() == 0
+    if is_windows():
+        return cast(int, ctypes.windll.shell32.IsUserAnAdmin()) == 1  # type: ignore
+    else:
+        return os.geteuid() == 0
 
 
 libc: Optional[ctypes.CDLL] = None
@@ -125,10 +139,12 @@ def start_process(
             env = env if env is not None else os.environ.copy()
             env.update({"LD_LIBRARY_PATH": ""})
 
-    cur_preexec_fn = kwargs.pop("preexec_fn", os.setpgrp)
-
-    if term_on_parent_death:
-        cur_preexec_fn = wrap_callbacks([set_child_termination_on_parent_death, cur_preexec_fn])
+    if is_windows():
+        cur_preexec_fn = None  # preexec_fn is not supported on Windows platforms. subprocess.py reports this.
+    else:
+        cur_preexec_fn = kwargs.pop("preexec_fn", os.setpgrp)
+        if term_on_parent_death:
+            cur_preexec_fn = wrap_callbacks([set_child_termination_on_parent_death, cur_preexec_fn])
 
     popen = Popen(
         cmd,
@@ -207,7 +223,7 @@ def run_process(
     via_staticx: bool = False,
     check: bool = True,
     timeout: int = None,
-    kill_signal: signal.Signals = signal.SIGKILL,
+    kill_signal: signal.Signals = signal.SIGTERM if is_windows() else signal.SIGKILL,
     communicate: bool = True,
     stdin: bytes = None,
     **kwargs: Any,
@@ -266,17 +282,30 @@ def run_process(
     return result
 
 
-def pgrep_exe(match: str) -> List[Process]:
-    pattern = re.compile(match)
-    procs = []
-    for process in psutil.process_iter():
-        try:
-            # kernel threads should be child of process with pid 2
-            if process.pid != 2 and process.ppid() != 2 and pattern.match(process_exe(process)):
-                procs.append(process)
-        except psutil.NoSuchProcess:  # process might have died meanwhile
-            continue
-    return procs
+if is_windows():
+
+    def pgrep_exe(match: str) -> List[Process]:
+        """psutil doesn't return all running python processes on Windows"""
+        pythoncom.CoInitialize()
+        w = wmi.WMI()
+        return [
+            Process(pid=p.ProcessId)
+            for p in w.Win32_Process()
+            if match in p.Name.lower() and p.ProcessId != os.getpid()
+        ]
+
+else:
+
+    def pgrep_exe(match: str) -> List[Process]:
+        pattern = re.compile(match)
+        procs = []
+        for process in psutil.process_iter():
+            try:
+                if not is_kernel_thread(process) and pattern.match(process_exe(process)):
+                    procs.append(process)
+            except psutil.NoSuchProcess:  # process might have died meanwhile
+                continue
+        return procs
 
 
 def pgrep_maps(match: str) -> List[Process]:
@@ -327,6 +356,11 @@ def get_iso8601_format_time_from_epoch_time(time: float) -> str:
 
 def get_iso8601_format_time(time: datetime.datetime) -> str:
     return time.replace(microsecond=0).isoformat()
+
+
+# can be replaced by fromisoformat(), but it is unavailable in python 3.6
+def parse_iso8601_timestamp(time: str) -> Any:
+    return datetime.datetime.strptime(time, "%Y-%m-%dT%H:%M:%S.%f")
 
 
 def remove_prefix(s: str, prefix: str) -> str:
@@ -382,7 +416,7 @@ def grab_gprofiler_mutex() -> bool:
     GPROFILER_LOCK = "\x00gprofiler_lock"
 
     try:
-        run_in_ns(["net"], lambda: try_acquire_mutex(GPROFILER_LOCK), passthrough_exception=True)
+        run_in_ns(["net"], lambda: try_acquire_mutex(GPROFILER_LOCK))
     except CouldNotAcquireMutex:
         print(
             "Could not acquire gProfiler's lock. Is it already running?"
@@ -421,8 +455,15 @@ def reset_umask() -> None:
 
 
 def limit_frequency(
-    limit: Optional[int], requested: int, msg_header: str, runtime_logger: logging.LoggerAdapter
+    limit: Optional[int],
+    requested: int,
+    msg_header: str,
+    runtime_logger: logging.LoggerAdapter,
+    profiling_mode: str,
 ) -> int:
+    if profiling_mode != CPU_PROFILING_MODE:
+        return requested
+
     if limit is not None and requested > limit:
         runtime_logger.warning(
             f"{msg_header}: Requested frequency ({requested}) is higher than the limit {limit}, "
@@ -468,3 +509,14 @@ def add_permission_dir(path: str, permission_for_file: int, permission_for_dir: 
             add_permission_dir(absolute_subpath, permission_for_file, permission_for_dir)
         else:
             os.chmod(absolute_subpath, os.stat(absolute_subpath).st_mode | permission_for_file)
+
+
+def merge_dicts(source: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any]:
+    for key, value in source.items():
+        # in case value is a dict itself
+        if isinstance(value, dict):
+            node = dest.setdefault(key, {})
+            merge_dicts(value, node)
+        else:
+            dest[key] = value
+    return dest
