@@ -68,7 +68,7 @@ jobs:
         python-version:
           - "3.8"
           - "3.9"
-          - "3.10.0"
+          - "3.10.0"  # see https://github.com/Granulate/gprofiler/issues/502, we need 3.10.0, others fail PyPerf tests.
 
     steps:
     - name: Set up Python ${{ matrix.python-version }}
