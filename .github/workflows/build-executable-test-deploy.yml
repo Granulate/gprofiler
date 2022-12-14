@@ -11,10 +11,11 @@ jobs:
    runs-on: ubuntu-latest
    steps:
      - name: Checkout Code
-       uses: actions/checkout@v2
+       uses: actions/checkout@v3
        with:
          fetch-depth: 0
          submodules: true
+
      - name: Get and verify tag value
        run: |
          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
@@ -41,7 +42,9 @@ jobs:
 
   test-executable:
     if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04  # the tests which use ruby/node/python etc and run at non-root privs, fail to read the files when running
+                           # on ubuntu-22.04/ubuntu-latest:
+                           # stderr: ruby: Permission denied -- /home/runner/work/gprofiler/gprofiler/tests/containers/ruby/fibonacci.rb (LoadError)
     needs: build-executable
     strategy:
       fail-fast: false
@@ -68,7 +71,7 @@ jobs:
       - name: Set up Python 3.8
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8.8
+          python-version: "3.8"
 
       - name: Install Java
         uses: actions/setup-java@v1
@@ -84,7 +87,7 @@ jobs:
           node-version: 10.x
 
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           submodules: true
 
@@ -105,7 +108,7 @@ jobs:
     runs-on: ["self-hosted", "ARM64"]
     steps:
      - name: Checkout Code
-       uses: actions/checkout@v2
+       uses: actions/checkout@v3
        with:
          fetch-depth: 0
          submodules: true
