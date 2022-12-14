@@ -2,7 +2,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Type, Union
 
 
 class ProfilerArgument:
-    # TODO convert to a datalcass
+    # TODO convert to a dataclass
     def __init__(
         self,
         name: str,
