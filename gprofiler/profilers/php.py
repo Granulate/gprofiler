@@ -232,10 +232,8 @@ class PHPSpyProfiler(ProfilerBase):
 
     def _process_stderr(self, stderr: str) -> None:
         skip_re = self._get_stderr_skip_regex()
-        lines = stderr.splitlines()
-        for line in lines:
-            if not skip_re.search(line):
-                logger.debug(f"phpspy: error: {line}")
+        log_lines = [line for line in stderr.splitlines() if skip_re.search(line) is None]
+        logger.debug("phpspy stderr", phpspy_stderr="\n".join(log_lines))
 
     @staticmethod
     @lru_cache(maxsize=1)
