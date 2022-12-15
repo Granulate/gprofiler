@@ -8,6 +8,7 @@ import random
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -18,12 +19,13 @@ from gprofiler.gprofiler_types import (
     ProcessToProfileData,
     ProcessToStackSampleCounters,
     ProfileData,
+    ProfilingErrorStack,
     StackToSampleCount,
 )
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.system_metrics import Metrics
-from gprofiler.utils import merge_dicts, parse_iso8601_timestamp
+from gprofiler.utils import merge_dicts
 
 logger = get_logger_adapter(__name__)
 
@@ -359,8 +361,8 @@ def concatenate_from_external_file(
                 read_metadata = json.loads(line[1:])
                 metadata = merge_dicts(read_metadata, obtained_metadata)
                 try:
-                    start_time = parse_iso8601_timestamp(metadata["start_time"])
-                    end_time = parse_iso8601_timestamp(metadata["end_time"])
+                    start_time = datetime.fromisoformat(metadata["start_time"])
+                    end_time = datetime.fromisoformat(metadata["end_time"])
                 except KeyError:
                     pass
                 try:
@@ -434,12 +436,16 @@ def merge_profiles(
         profile_samples_count = sum(profile.stacks.values())
         assert profile_samples_count > 0
 
-        # do the scaling by the ratio of samples: samples we received from perf for this process,
-        # divided by samples we received from the runtime profiler of this process.
-        ratio = perf_samples_count / profile_samples_count
-        profile.stacks = scale_sample_counts(profile.stacks, ratio)
+        if process_perf is not None and perf_samples_count > 0 and ProfilingErrorStack.is_error_stack(profile.stacks):
+            # runtime profiler returned an error stack; extend it with perf profiler stacks for the pid
+            profile.stacks = ProfilingErrorStack.attach_error_to_stacks(process_perf.stacks, profile.stacks)
+        else:
+            # do the scaling by the ratio of samples: samples we received from perf for this process,
+            # divided by samples we received from the runtime profiler of this process.
+            ratio = perf_samples_count / profile_samples_count
+            profile.stacks = scale_sample_counts(profile.stacks, ratio)
 
-        # swap them: use the samples from the runtime profiler.
+        # swap them: use the processed (scaled or extended) samples from the runtime profiler.
         perf_pid_to_profiles[pid] = profile
 
     return concatenate_profiles(perf_pid_to_profiles, container_names_client, enrichment_options, metadata, metrics)
