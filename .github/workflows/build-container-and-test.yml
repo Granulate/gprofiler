@@ -6,7 +6,10 @@ jobs:
   lint:
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8, 3.9, 3.10.0]
+        python-version:
+          - "3.8"
+          - "3.9"
+          - "3.10"
 
     runs-on: ubuntu-latest
 
@@ -17,7 +20,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Checkout Code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         submodules: true
 
@@ -35,7 +38,7 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         submodules: true
 
@@ -57,12 +60,15 @@ jobs:
   test:
     needs: build-container
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04  # for 3.10.0 python tag
 
     strategy:
       fail-fast: false  # helps detecting flakiness / errors specific to one Python version
       matrix:
-        python-version: [3.6, 3.7, 3.8.8, 3.9.2, 3.10.0]
+        python-version:
+          - "3.8"
+          - "3.9"
+          - "3.10.0"  # see https://github.com/Granulate/gprofiler/issues/502, we need 3.10.0, others fail PyPerf tests.
 
     steps:
     - name: Set up Python ${{ matrix.python-version }}
@@ -84,7 +90,7 @@ jobs:
         node-version: 10.x
 
     - name: Checkout Code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         submodules: true
 
