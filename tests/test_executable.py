@@ -30,8 +30,12 @@ def test_executable(
     docker_client: DockerClient,
     output_directory: Path,
     profiler_flags: List[str],
+    runtime: str,
 ) -> None:
     _ = application_pid  # Fixture only used for running the application.
+
+    if runtime == "php":
+        pytest.skip("Flaky, https://github.com/Granulate/gprofiler/issues/630")
 
     if exec_container_image is not None:
         if "centos:6" in exec_container_image.tags and any("pyperf" in flag for flag in profiler_flags):

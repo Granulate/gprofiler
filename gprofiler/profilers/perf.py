@@ -119,7 +119,7 @@ class PerfProcess:
             # using read1() which performs just a single read() call and doesn't read until EOF
             # (unlike Popen.communicate())
             assert self._process is not None and self._process.stderr is not None
-            logger.debug(f"perf stderr: {self._process.stderr.read1(4096)}")  # type: ignore
+            logger.debug(f"perf stderr: {self._process.stderr.read1()}")  # type: ignore
 
         if self._inject_jit:
             inject_data = Path(f"{str(perf_data)}.inject")
