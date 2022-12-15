@@ -5,7 +5,7 @@
 #
 set -eu
 
-# prepares the environment for building py-spy:
+# prepares the environment for building py-spy & rbspy:
 # 1. installs the rust target $(uname -m)-unknown-linux-musl - this can build static binaries
 # 2. downloads, builds & installs libz with musl
 # I use musl because it builds statically. otherwise, we need to build with old glibc; I tried to
