@@ -6,6 +6,6 @@
 set -eu
 
 git clone --depth 1 -b rbspy-upgrade https://github.com/Granulate/rbspy.git
-git -C rbspy reset --hard 09fae41d424137af6b150efee3947f0f684a8128
+git -C rbspy reset --hard dd4518391de1cf41e0615174541c17542efc96b9
 cd rbspy
 cargo build --release --target="$(uname -m)"-unknown-linux-musl
