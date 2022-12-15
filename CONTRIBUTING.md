@@ -23,7 +23,6 @@ and install all needed dependencies with:
 ````bash
 pip3 install -r requirements.txt
 pip3 install -r dev-requirements.txt
-pip3 install -r test-requirements.txt
 ````
 
 This above commands installs all packages required for building, developing and testing the project.
