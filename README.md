@@ -355,7 +355,7 @@ The playbook defines 2 more variables:
 * `gprofiler_args` - additional arguments to pass to gProfiler, empty by default. You can use it to pass, for example, `'--profiling-frequency 15'` to change the frequency.
 
 ## Running from source
-gProfiler requires Python 3.6+ to run.
+gProfiler requires Python 3.8+ to run.
 
 ```bash
 pip3 install -r requirements.txt
