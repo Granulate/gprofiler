@@ -7,7 +7,8 @@ set -eu
 
 # prepares the environment for building py-spy:
 # 1. installs the rust target $(uname -m)-unknown-linux-musl - this can build static binaries
-# 2. downloads, builds & installs libz with musl
+# 2. downloads, builds & installs libz
+# 2. downloads, builds & installs libunwind
 # I use musl because it builds statically. otherwise, we need to build with old glibc; I tried to
 # build on centos:7 but it caused some errors out-of-the-box (libunwind was built w/o -fPIC and rust tried
 # to build it as shared (?))
