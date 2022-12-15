@@ -133,6 +133,14 @@ JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 64  # StackRecovery.JAVA_STATE
 
 SUPPORTED_AP_MODES = ["cpu", "itimer", "alloc"]
 
+PROBLEMATIC_FRAME_REGEX = re.compile(r"^# Problematic frame:\n# (.*?)\n#\n", re.MULTILINE | re.DOTALL)
+"""
+See VMError::report.
+Example:
+    # Problematic frame:
+    # C  [libasyncProfiler.so+0x218a0]  Profiler::getJavaTraceAsync(void*, ASGCT_CallFrame*, int)+0xe0
+"""
+
 
 class JattachExceptionBase(CalledProcessError):
     def __init__(
@@ -1019,6 +1027,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
             return
 
         contents = open(error_file).read()
+        m = PROBLEMATIC_FRAME_REGEX.search(contents)
+        problematic_frame = m[1] if m else ""
         m = VM_INFO_REGEX.search(contents)
         vm_info = m[1] if m else ""
         m = SIGINFO_REGEX.search(contents)
@@ -1029,6 +1039,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         container_info = m[1] if m else ""
         logger.warning(
             f"Found Hotspot error log for pid {pid} at {error_file}:\n"
+            f"Problematic frame: {problematic_frame}\n"
             f"VM info: {vm_info}\n"
             f"siginfo: {siginfo}\n"
             f"native frames:\n{native_frames}\n"
