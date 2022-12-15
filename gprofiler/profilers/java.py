@@ -1027,21 +1027,21 @@ class JavaProfiler(SpawningProcessProfilerBase):
             return
 
         contents = open(error_file).read()
-        m = PROBLEMATIC_FRAME_REGEX.search(contents)
-        problematic_frame = m[1] if m else ""
         m = VM_INFO_REGEX.search(contents)
         vm_info = m[1] if m else ""
         m = SIGINFO_REGEX.search(contents)
         siginfo = m[1] if m else ""
+        m = PROBLEMATIC_FRAME_REGEX.search(contents)
+        problematic_frame = m[1] if m else ""
         m = NATIVE_FRAMES_REGEX.search(contents)
         native_frames = m[1] if m else ""
         m = CONTAINER_INFO_REGEX.search(contents)
         container_info = m[1] if m else ""
         logger.warning(
             f"Found Hotspot error log for pid {pid} at {error_file}:\n"
-            f"Problematic frame: {problematic_frame}\n"
             f"VM info: {vm_info}\n"
             f"siginfo: {siginfo}\n"
+            f"Problematic frame: {problematic_frame}\n"
             f"native frames:\n{native_frames}\n"
             f"container info:\n{container_info}"
         )
