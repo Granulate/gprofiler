@@ -243,7 +243,7 @@ def start_gprofiler_in_container_for_one_session(
     volumes = {
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
     }
-    args = ["--rm", "-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args + profiler_flags
+    args = ["-v", "-d", "3", "-o", inner_output_directory] + runtime_specific_args + profiler_flags
 
     remove_path(str(output_path), missing_ok=True)
     return start_container(
