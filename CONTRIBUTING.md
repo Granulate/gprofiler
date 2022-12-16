@@ -23,7 +23,6 @@ and install all needed dependencies with:
 ````bash
 pip3 install -r requirements.txt
 pip3 install -r dev-requirements.txt
-pip3 install -r test-requirements.txt
 ````
 
 This above commands installs all packages required for building, developing and testing the project.
@@ -49,6 +48,28 @@ Alternatively, you can build the docker image, including all dependencies, throu
 To build the gProfiler executable, you can run `./scripts/build_x86_64_executable.sh`.
 
 There are matching scripts for `aarch64`.
+
+### Debugging the build
+
+If a certain build step fails, it helps to have access to the failing build layer when debugging it.
+
+This can be achieved in 2 steps:
+1. Adding a `FROM A AS B` line right below the failing line, where `A` is the name given to the previous base layer. For example, if these are the layers in question:  
+```
+FROM ubuntu:20.04 AS mylayer
+ADD ...
+RUN ...
+RUN .....  # THIS ONE FAILS!
+```
+then we'd add this layer:
+```
+FROM ubuntu:20.04 AS mylayer
+ADD ...
+RUN ...
+FROM mylayer AS mylayer2
+RUN .....  # THIS ONE FAILS!
+```
+2. In the relevant `build_{arch}_{target}.sh` script, remove `--output` if it's the executable one, and add `--target mydebug`. This will cause Docker to run the build of the requested layer (and its dependencies) *until* `mylayer2` begins, and the result is a layer which we can use with `docker run` and try out the failing `RUN` command on.
 
 ## Linting
 
