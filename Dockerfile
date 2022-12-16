@@ -124,7 +124,7 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
     ./libunwind_build.sh
 
 WORKDIR /bcc
-
+COPY local-bcc/ /bcc/bcc/
 COPY ./scripts/pyperf_build.sh .
 RUN ./pyperf_build.sh
 

@@ -5,7 +5,7 @@
 #
 set -euo pipefail
 
-git clone --depth 1 -b upgrade-bcc-reference https://github.com/marcin-ol/bcc.git && cd bcc && git reset --hard f969415
+git clone --depth 1 -b upgrade-bcc-reference https://github.com/marcin-ol/bcc.git && cd bcc && git reset --hard 863d545
 
 # (after clone, because we copy the licenses)
 # TODO support aarch64
@@ -17,5 +17,5 @@ fi
 
 mkdir build
 cd build
-cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root ..
+cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root -DBCC_CLOADER_KERNEL_HEADERLESS=1 ..
 make -C examples/cpp/pyperf -j -l VERBOSE=1 install
