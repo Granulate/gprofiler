@@ -256,9 +256,14 @@ class PythonEbpfProfiler(ProfilerBase):
             self.process.terminate()  # okay to call even if process is already dead
             code = self.process.wait()
             self.process = None
+
+        assert self.process is None  # means we're not running
         return code
 
     def stop(self) -> None:
         code = self._terminate()
         if code is not None:
             logger.info("Finished profiling Python processes with PyPerf")
+
+    def is_running(self) -> bool:
+        return self.process is not None
