@@ -121,7 +121,7 @@ class PHPSpyProfiler(ProfilerBase):
         )
 
         # Ignoring type since _process.stderr is typed as Optional[IO[Any]] which doesn't have the `read1` method.
-        stderr = self._process.stderr.read1(1024).decode()  # type: ignore
+        stderr = self._process.stderr.read1().decode()  # type: ignore
         self._process_stderr(stderr)
 
     def _dump(self) -> Path:
@@ -209,7 +209,7 @@ class PHPSpyProfiler(ProfilerBase):
     def snapshot(self) -> ProcessToProfileData:
         if self._stop_event.wait(self._duration):
             raise StopEventSetException()
-        stderr = self._process.stderr.read1(1024).decode()  # type: ignore
+        stderr = self._process.stderr.read1().decode()  # type: ignore
         self._process_stderr(stderr)
 
         phpspy_output_path = self._dump()
@@ -232,10 +232,8 @@ class PHPSpyProfiler(ProfilerBase):
 
     def _process_stderr(self, stderr: str) -> None:
         skip_re = self._get_stderr_skip_regex()
-        lines = stderr.splitlines()
-        for line in lines:
-            if not skip_re.search(line):
-                logger.debug(f"phpspy: error: {line}")
+        log_lines = [line for line in stderr.splitlines() if skip_re.search(line) is None]
+        logger.debug("phpspy stderr", phpspy_stderr="\n".join(log_lines))
 
     @staticmethod
     @lru_cache(maxsize=1)

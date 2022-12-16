@@ -8,6 +8,7 @@ import random
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -24,7 +25,7 @@ from gprofiler.gprofiler_types import (
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.system_metrics import Metrics
-from gprofiler.utils import merge_dicts, parse_iso8601_timestamp
+from gprofiler.utils import merge_dicts
 
 logger = get_logger_adapter(__name__)
 
@@ -360,8 +361,8 @@ def concatenate_from_external_file(
                 read_metadata = json.loads(line[1:])
                 metadata = merge_dicts(read_metadata, obtained_metadata)
                 try:
-                    start_time = parse_iso8601_timestamp(metadata["start_time"])
-                    end_time = parse_iso8601_timestamp(metadata["end_time"])
+                    start_time = datetime.fromisoformat(metadata["start_time"])
+                    end_time = datetime.fromisoformat(metadata["end_time"])
                 except KeyError:
                     pass
                 try:
