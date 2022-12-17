@@ -212,7 +212,6 @@ COPY ./scripts/pyperf_build.sh .
 RUN if [ "$(uname -m)" = "aarch64" ]; then v="7.0"; else v="7"; fi && \
     source scl_source enable devtoolset-8 "llvm-toolset-$v" && \
     source ./pyperf_build.sh exe
-
 # gProfiler part
 
 WORKDIR /app
