@@ -118,10 +118,10 @@ def wrap_callbacks(callbacks: List[Callable]) -> Callable:
 def start_process(
     cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_death: bool = True, **kwargs: Any
 ) -> Popen:
-    cmd_text = " ".join(cmd) if isinstance(cmd, list) else cmd
-    logger.debug(f"Running command: ({cmd_text})")
     if isinstance(cmd, str):
         cmd = [cmd]
+
+    logger.debug("Running command", command=cmd)
 
     env = kwargs.pop("env", None)
     staticx_dir = get_staticx_dir()
@@ -269,12 +269,13 @@ def run_process(
 
     result: CompletedProcess[bytes] = CompletedProcess(process.args, retcode, stdout, stderr)
 
-    logger.debug(f"({process.args!r}) exit code: {result.returncode}")
+    extra: Dict[str, Any] = {"exit_code": result.returncode}
     if not suppress_log:
         if result.stdout:
-            logger.debug(f"({process.args!r}) stdout: {result.stdout.decode()!r}")
+            extra["stdout"] = result.stdout.decode()
         if result.stderr:
-            logger.debug(f"({process.args!r}) stderr: {result.stderr.decode()!r}")
+            extra["stderr"] = result.stderr.decode()
+    logger.debug("Command exited", command=process.args, **extra)
     if reraise_exc is not None:
         raise reraise_exc
     elif check and retcode != 0:
