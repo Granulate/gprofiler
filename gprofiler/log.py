@@ -23,6 +23,7 @@ DEFAULT_API_SERVER_ADDRESS = "https://api.granulate.io"
 
 NO_SERVER_LOG_KEY = "no_server_log"
 NO_SERVER_EXTRA_KEY = "no_extra_to_server"
+CYCLE_ID_KEY = "cycle_id"
 LOGGER_NAME_RE = re.compile(r"gprofiler(?:\..+)?")
 
 
@@ -37,8 +38,8 @@ class GProfilerExtraAdapter(ExtraAdapter):
         extra = super().get_extra(**kwargs)
         # here we add fields which change during the lifetime of gProfiler.
         # fields that do not change go in RemoteLogsHandler.get_metadata().
-        assert "cycle_id" not in extra
-        return {**extra, "cycle_id": get_state().cycle_id}
+        assert CYCLE_ID_KEY not in extra
+        return {**extra, CYCLE_ID_KEY: get_state().cycle_id}
 
 
 class RemoteLogsHandler(BatchRequestsHandler):
@@ -88,7 +89,7 @@ class RemoteLogsHandler(BatchRequestsHandler):
 
 
 class _ExtraFormatter(logging.Formatter):
-    FILTERED_EXTRA_KEYS = [NO_SERVER_LOG_KEY, NO_SERVER_EXTRA_KEY]  # don't print those fields locally
+    FILTERED_EXTRA_KEYS = [NO_SERVER_LOG_KEY, NO_SERVER_EXTRA_KEY, CYCLE_ID_KEY]  # don't print those fields locally
 
     def format(self, record: LogRecord) -> str:
         formatted = super().format(record)
