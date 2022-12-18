@@ -195,7 +195,7 @@ def test_java_safemode_version_check(
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
     log_record = next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records))
-    log_extra = log_record.gprofiler_adapter_extra  # type: ignore
+    log_extra = log_record.extra  # type: ignore  # our logging adapter adds "extra"
     assert log_extra["jvm_version"] == repr(jvm_version)
 
 
@@ -215,7 +215,7 @@ def test_java_safemode_build_number_check(
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
     log_record = next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records))
-    log_extra = log_record.gprofiler_adapter_extra  # type: ignore
+    log_extra = log_record.extra  # type: ignore  # our logging adapter adds "extra"
     assert log_extra["jvm_version"] == repr(jvm_version)
 
 
@@ -561,11 +561,11 @@ def test_java_jattach_async_profiler_log_output(
         assert len(log_records) == 2  # start,stop
         # start
         assert (
-            log_records[0].gprofiler_adapter_extra["ap_log"]  # type: ignore
+            log_records[0].extra["ap_log"]  # type: ignore  # our logging adapter adds "extra"
             == "[WARN] Install JVM debug symbols to improve profile accuracy\n"
         )
         # stop
-        assert log_records[1].gprofiler_adapter_extra["ap_log"] == ""  # type: ignore
+        assert log_records[1].extra["ap_log"] == ""  # type: ignore  # our logging adapter adds "extra"
 
 
 @pytest.mark.parametrize(
@@ -634,7 +634,7 @@ def test_java_different_basename(
                 )
                 assert len(log_records) == 1
                 assert (
-                    os.path.basename(log_records[0].gprofiler_adapter_extra["exe"])  # type: ignore
+                    os.path.basename(log_records[0].extra["exe"])  # type: ignore  # our logging adapter adds "extra"
                     == java_notjava_basename
                 )
 

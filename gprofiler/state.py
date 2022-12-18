@@ -28,8 +28,7 @@ class State:
         return self._run_id
 
     @property
-    def cycle_id(self) -> str:
-        assert self._cycle_id is not None
+    def cycle_id(self) -> Optional[str]:
         return self._cycle_id
 
 
