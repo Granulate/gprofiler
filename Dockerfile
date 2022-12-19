@@ -162,13 +162,13 @@ RUN ./build_node_package.sh
 
 # node-package-builder-glibc
 FROM ${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
+WORKDIR /tmp
 COPY scripts/fix_centos8.sh .
 USER 0
 RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
         ./fix_centos8.sh; \
         yum groupinstall -y "Development Tools"; \
     fi
-WORKDIR /tmp
 COPY scripts/node_builder_glibc_env.sh .
 RUN ./node_builder_glibc_env.sh
 COPY scripts/build_node_package.sh .
