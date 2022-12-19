@@ -52,14 +52,6 @@ class APIError(Exception):
         return self.message
 
 
-class UninitializedStateException(Exception):
-    pass
-
-
-class StateAlreadyInitializedException(Exception):
-    pass
-
-
 class ThreadStopTimeoutError(Exception):
     pass
 
