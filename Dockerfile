@@ -235,6 +235,7 @@ RUN pip3 install --upgrade --no-cache-dir pip
 COPY requirements.txt ./
 COPY granulate-utils/setup.py granulate-utils/requirements.txt granulate-utils/README.md granulate-utils/
 COPY granulate-utils/granulate_utils granulate-utils/granulate_utils
+COPY granulate-utils/glogger granulate-utils/glogger
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY LICENSE.md MANIFEST.in README.md setup.py  ./

@@ -63,7 +63,7 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
         if not os.path.exists(props_path):
             _logger.warning(
                 f"Spark props file doesn't exist: {props_path}. \
-                        Proces args: {process.cmdline()}, pid: {process.pid}"
+                        Process args: {process.cmdline()}, pid: {process.pid}"
             )
             return self._APP_NAME_NOT_FOUND
         with open(props_path) as f:
