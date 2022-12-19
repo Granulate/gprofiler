@@ -20,6 +20,7 @@ export NAN_PATH
 sed -i 's/node \-e \\"require('\''nan'\'')\\"/echo $NAN_PATH/g' binding.gyp
 rm -rf nan.tar.gz
 mkdir $BUILD_TARGET_DIR
+# Need to build with static libstdc++ to avoid https://github.com/Granulate/gprofiler/issues/604 centos7 issue. 
 if grep -q "CentOS Linux 8" /etc/os-release; then
     export LDFLAGS="-static-libstdc++"
 fi

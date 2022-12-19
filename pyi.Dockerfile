@@ -135,14 +135,10 @@ RUN ./bcc_helpers_build.sh
 
 # bcc & gprofiler
 FROM centos${GPROFILER_BUILDER} AS build-prepare
-
+COPY scripts/fix_centos8.sh
 # fix repo links for CentOS 8, and enable powertools (required to download glibc-static)
 RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
-        sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*; \
-        sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*; \
-        yum install -y dnf-plugins-core; \
-        dnf config-manager --set-enabled powertools; \
-        yum clean all; \
+        ./fix_centos8.sh
     fi
 
 # python 3.10 installation

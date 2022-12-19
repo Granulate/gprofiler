@@ -162,13 +162,10 @@ RUN ./build_node_package.sh
 
 # node-package-builder-glibc
 FROM ${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
+COPY scripts/fix_centos8.sh
 USER 0
 RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
-        sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*; \
-        sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*; \
-        yum install -y dnf-plugins-core; \
-        dnf config-manager --set-enabled powertools; \
-        yum clean all; \
+        ./fix_centos8.sh
         yum groupinstall -y "Development Tools"; \
     fi
 WORKDIR /tmp
