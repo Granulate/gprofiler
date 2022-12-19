@@ -83,9 +83,10 @@ class PerfProcess:
 
     def check_if_needs_restart(self) -> None:
         """Checks if perf used memory exceeds threshold, and if it does, restarts perf"""
+        assert self._process is not None
         if (
             time.monotonic() - self._start_time >= self._restart_after_s
-            and Process(self._process.pid).memory_info().rss >= self._perf_memory_usage_threshold  # type: ignore
+            and Process(self._process.pid).memory_info().rss >= self._perf_memory_usage_threshold
         ):
             self.stop()
             self.start()
