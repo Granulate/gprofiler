@@ -90,7 +90,7 @@ RUN apt-get update && \
       curl \
       build-essential \
       iperf llvm-12-dev \
-      libclang-12-dev \
+      clang-12 libclang-12-dev \
       cmake \
       python3 \
       flex \
@@ -124,7 +124,7 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
     ./libunwind_build.sh
 
 WORKDIR /bcc
-COPY local-bcc/ /bcc/bcc/
+
 COPY ./scripts/pyperf_build.sh .
 RUN ./pyperf_build.sh
 

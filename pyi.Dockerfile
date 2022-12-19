@@ -119,32 +119,69 @@ RUN ./build_node_package.sh
 # needed for hadolint
 USER 1001
 
-# bcc helpers
+# building bcc along with helpers
 # built on newer Ubuntu because they require new clang (newer than available in GPROFILER_BUILDER's CentOS 7)
 # these are only relevant for modern kernels, so there's no real reason to build them on CentOS 7 anyway.
-FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-helpers
+FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-build
 WORKDIR /tmp
 
 RUN if [ "$(uname -m)" = "aarch64" ]; then \
         exit 0; \
     fi && \
     apt-get update && \
-    apt-get install -y --no-install-recommends \
-        clang-10 \
-        libelf-dev \
-        make \
-        build-essential \
-        llvm \
-        ca-certificates \
-        git
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      curl \
+      build-essential \
+      iperf llvm-12-dev \
+      clang-12 libclang-12-dev \
+      cmake \
+      python3 python3-pip \
+      flex \
+      libfl-dev \
+      bison \
+      libelf-dev \
+      libz-dev \
+      liblzma-dev \
+      ca-certificates \
+      git \
+      patchelf scons
 
 COPY --from=perf-builder /bpftool /bpftool
 
 COPY scripts/bcc_helpers_build.sh .
 RUN ./bcc_helpers_build.sh
 
+# build bcc
+# TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
+WORKDIR /tmp
 
-# bcc & gprofiler
+COPY ./scripts/libunwind_build.sh .
+RUN if [ "$(uname -m)" = "aarch64" ]; then \
+      exit 0; \
+    fi && \
+    ./libunwind_build.sh
+
+WORKDIR /bcc
+COPY ./scripts/pyperf_build.sh .
+RUN ./pyperf_build.sh
+
+# build staticx dedicated for PyPerf and process PyPerf binary;
+# apply patch to ensure staticx bootloader propagates dump signal to actual PyPerf binary
+COPY scripts/staticx_for_pyperf_patch.diff staticx_for_pyperf_patch.diff
+RUN if [ "$(uname -m)" = "aarch64" ]; then \
+      exit 0; \
+    fi && \
+    git clone -b v0.13.8 https://github.com/JonathonReinhart/staticx.git && \
+    cd staticx && \
+    git reset --hard e12a69ee4d8d9c03a9cea7c333e32ab2858e5068 && \
+    git apply ../staticx_for_pyperf_patch.diff && \
+    python3 -m pip install --no-cache-dir .
+
+RUN if [ $(uname -m) != "aarch64" ]; then \
+        staticx  ./root/share/bcc/examples/cpp/PyPerf  ./root/share/bcc/examples/cpp/PyPerf; \
+    fi
+
+# gprofiler
 FROM centos${GPROFILER_BUILDER} AS build-stage
 
 # fix repo links for CentOS 8, and enable powertools (required to download glibc-static)
@@ -172,57 +209,6 @@ COPY ./scripts/openssl_build.sh .
 RUN ./openssl_build.sh
 COPY ./scripts/python310_build.sh .
 RUN ./python310_build.sh
-
-# bcc part
-# TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
-
-RUN yum install -y git && yum clean all
-WORKDIR /bcc
-# these are needed to build PyPerf, which we don't build on Aarch64, hence not installing them here.
-RUN if [ "$(uname -m)" = "aarch64" ]; then exit 0; fi; yum install -y \
-    curl \
-    cmake \
-    patch \
-    flex \
-    bison \
-    zlib-devel.x86_64 \
-    xz-devel \
-    ncurses-devel \
-    elfutils-libelf-devel && \
-    yum clean all
-
-RUN if [ "$(uname -m)" = "aarch64" ]; \
-        then exit 0; \
-    fi && \
-    yum install -y centos-release-scl-rh && \
-    yum clean all
-# mostly taken from https://github.com/iovisor/bcc/blob/master/INSTALL.md#install-and-compile-llvm
-RUN if [ "$(uname -m)" = "aarch64" ]; \
-        then exit 0; \
-    fi && \
-    yum install -y devtoolset-8 \
-        llvm-toolset-7 \
-        llvm-toolset-7-llvm-devel \
-        llvm-toolset-7-llvm-static \
-        llvm-toolset-7-clang-devel \
-        devtoolset-8-elfutils-libelf-devel && \
-    yum clean all
-
-COPY ./scripts/libunwind_build.sh .
-# hadolint ignore=SC1091
-RUN if [ "$(uname -m)" = "aarch64" ]; then \
-        exit 0; \
-    fi && \
-    source scl_source enable devtoolset-8 && \
-    ./libunwind_build.sh
-
-COPY ./scripts/pyperf_build.sh .
-# hadolint ignore=SC1091
-RUN set -e; \
-    if [ "$(uname -m)" != "aarch64" ]; then \
-        source scl_source enable devtoolset-8 llvm-toolset-7; \
-    fi && \
-    source ./pyperf_build.sh
 
 # gProfiler part
 
@@ -271,13 +257,13 @@ RUN python3 -m pip install --no-cache-dir -r exe-requirements.txt
 
 # copy PyPerf, licenses and notice file.
 RUN mkdir -p gprofiler/resources/ruby && \
-    mkdir -p gprofiler/resources/python/pyperf && \
-    cp /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/ && \
-    cp /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/ && \
-    cp -r /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses && \
-    cp /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
-COPY --from=bcc-helpers /bpf_get_fs_offset/get_fs_offset gprofiler/resources/python/pyperf/
-COPY --from=bcc-helpers /bpf_get_stack_offset/get_stack_offset gprofiler/resources/python/pyperf/
+    mkdir -p gprofiler/resources/python/pyperf
+COPY --from=bcc-build /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
+COPY --from=bcc-build /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
+COPY --from=bcc-build /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
+COPY --from=bcc-build /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
+COPY --from=bcc-build /bpf_get_fs_offset/get_fs_offset gprofiler/resources/python/pyperf/
+COPY --from=bcc-build /bpf_get_stack_offset/get_stack_offset gprofiler/resources/python/pyperf/
 
 COPY --from=pyspy-builder /tmp/py-spy/py-spy gprofiler/resources/python/py-spy
 COPY --from=rbspy-builder /tmp/rbspy/rbspy gprofiler/resources/ruby/rbspy
@@ -340,10 +326,9 @@ COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # hadolint ignore=SC2046,SC2086
 RUN set -e; \
     if [ $(uname -m) != "aarch64" ]; then \
-        source scl_source enable devtoolset-8 llvm-toolset-7 ; \
-    fi && \
-    LIBS=$(./scripts/list_needed_libs.sh) && \
-    staticx $LIBS dist/gprofiler dist/gprofiler
+        LIBS=$(./scripts/list_needed_libs.sh) && \
+        staticx $LIBS dist/gprofiler dist/gprofiler ; \
+    fi
 
 FROM scratch AS export-stage
 
