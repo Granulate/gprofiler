@@ -17,7 +17,7 @@ class State:
         self._run_id: str = run_id or generate_random_id()
         self._cycle_id: Optional[str] = None
 
-    def set_cycle_id(self, cycle_id: str) -> None:
+    def set_cycle_id(self, cycle_id: Optional[str]) -> None:
         self._cycle_id = cycle_id
 
     def init_new_cycle(self) -> None:

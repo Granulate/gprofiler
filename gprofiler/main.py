@@ -346,6 +346,7 @@ class GProfiler:
             # In case of single run mode, use the same id for run_id and cycle_id
             self._state.set_cycle_id(self._state.run_id)
             self._snapshot()
+            self._state.set_cycle_id(None)
 
     def run_continuous(self) -> None:
         with self:
@@ -367,6 +368,8 @@ class GProfiler:
                 if self._controller_process is not None and not is_process_running(self._controller_process):
                     logger.info(f"Controller process {self._controller_process.pid} has exited; gProfiler stopping...")
                     break
+
+            self._state.set_cycle_id(None)
 
 
 def _submit_profile_logged(
