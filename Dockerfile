@@ -165,7 +165,7 @@ FROM ${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
 COPY scripts/fix_centos8.sh .
 USER 0
 RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
-        ./fix_centos8.sh
+        ./fix_centos8.sh; \
         yum groupinstall -y "Development Tools"; \
     fi
 WORKDIR /tmp
