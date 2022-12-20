@@ -5,6 +5,7 @@
 
 import os
 import signal
+import time
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
@@ -37,6 +38,8 @@ DEFAULT_PERF_DWARF_STACK_SIZE = 8192
 class PerfProcess:
     _dump_timeout_s = 5
     _poll_timeout_s = 5
+    _restart_after_s = 3600
+    _perf_memory_usage_threshold = 512 * 1024 * 1024
     # default number of pages used by "perf record" when perf_event_mlock_kb=516
     # we use double for dwarf.
     _mmap_sizes = {"fp": 129, "dwarf": 257}
@@ -50,6 +53,7 @@ class PerfProcess:
         inject_jit: bool,
         extra_args: List[str],
     ):
+        self._start_time = 0.0
         self._frequency = frequency
         self._stop_event = stop_event
         self._output_path = output_path
@@ -77,11 +81,22 @@ class PerfProcess:
             str(self._mmap_sizes[self._type]),
         ] + self._extra_args
 
+    def check_if_needs_restart(self) -> None:
+        """Checks if perf used memory exceeds threshold, and if it does, restarts perf"""
+        assert self._process is not None
+        if (
+            time.monotonic() - self._start_time >= self._restart_after_s
+            and Process(self._process.pid).memory_info().rss >= self._perf_memory_usage_threshold
+        ):
+            self.stop()
+            self.start()
+
     def start(self) -> None:
         logger.info(f"Starting perf ({self._type} mode)")
         process = start_process(self._get_perf_cmd(), via_staticx=False)
         try:
             wait_event(self._poll_timeout_s, self._stop_event, lambda: os.path.exists(self._output_path))
+            self.start_time = time.monotonic()
         except TimeoutError:
             process.kill()
             assert process.stdout is not None and process.stderr is not None
@@ -154,7 +169,13 @@ class PerfProcess:
             type=int,
             default=DEFAULT_PERF_DWARF_STACK_SIZE,
             dest="perf_dwarf_stack_size",
-        )
+        ),
+        ProfilerArgument(
+            "--perf-no-restart",
+            help="Disable checking if perf used memory exceeds threshold and restarting perf",
+            action="store_false",
+            dest="perf_restart",
+        ),
     ],
     disablement_help="Disable the global perf of processes,"
     " and instead only concatenate runtime-specific profilers results",
@@ -181,6 +202,7 @@ class SystemProfiler(ProfilerBase):
         perf_dwarf_stack_size: int,
         perf_inject: bool,
         perf_node_attach: bool,
+        perf_restart: bool,
     ):
         super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
         _ = profile_spawned_processes  # Required for mypy unused argument warning
@@ -189,6 +211,7 @@ class SystemProfiler(ProfilerBase):
         self._insert_dso_name = insert_dso_name
         self._node_processes: List[Process] = []
         self._node_processes_attached: List[Process] = []
+        self._perf_restart = perf_restart
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
@@ -269,7 +292,7 @@ class SystemProfiler(ProfilerBase):
         for perf in self._perfs:
             perf.switch_output()
 
-        return {
+        data = {
             k: self._generate_profile_data(v, k)
             for k, v in merge.merge_global_perfs(
                 self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
@@ -277,6 +300,12 @@ class SystemProfiler(ProfilerBase):
                 self._insert_dso_name,
             ).items()
         }
+
+        if self._perf_restart:
+            for perf in self._perfs:
+                perf.check_if_needs_restart()
+
+        return data
 
     def _generate_profile_data(self, stacks: StackToSampleCount, pid: int) -> ProfileData:
         metadata = self._get_metadata(pid)

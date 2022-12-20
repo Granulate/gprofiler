@@ -780,7 +780,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
 
     def _is_zing_vm_supported(self, jvm_version: JvmVersion) -> bool:
         # name is e.g Zing 64-Bit Tiered VM Zing22.04.1.0+1
-        m = re.search(r"Zing(\d+)\.", jvm_version.name)
+        # or (Zing 21.12.0.0-b2-linux64) from the azul/prime:1.8.0-312-2-21.12.0.0 image.
+        m = re.search(r"Zing ?(\d+)\.", jvm_version.name)
         if m is None:
             return False  # unknown
 
