@@ -169,6 +169,7 @@ RUN ./pyperf_build.sh
 # build staticx dedicated for PyPerf and process PyPerf binary;
 # apply patch to ensure staticx bootloader propagates dump signal to actual PyPerf binary
 COPY scripts/staticx_for_pyperf_patch.diff staticx_for_pyperf_patch.diff
+# hadolint ignore=DL3003
 RUN if [ "$(uname -m)" = "aarch64" ]; then \
       exit 0; \
     fi && \
@@ -178,7 +179,7 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
     git apply ../staticx_for_pyperf_patch.diff && \
     python3 -m pip install --no-cache-dir .
 
-RUN if [ $(uname -m) != "aarch64" ]; then \
+RUN if [ "$(uname -m)" != "aarch64" ]; then \
         staticx  ./root/share/bcc/examples/cpp/PyPerf  ./root/share/bcc/examples/cpp/PyPerf; \
     fi
 
