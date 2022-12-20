@@ -78,7 +78,11 @@ def test_phpspy(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
+    in_container: bool,
 ) -> None:
+    if not in_container:
+        pytest.skip("Flaky https://github.com/Granulate/gprofiler/issues/630")
+
     with PHPSpyProfiler(
         1000,
         PHPSPY_DURATION,
@@ -137,6 +141,7 @@ def test_nodejs(
         perf_inject=True,
         perf_dwarf_stack_size=0,
         perf_node_attach=False,
+        perf_restart=False,
     ) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -190,7 +195,12 @@ def test_from_container(
     assert_collapsed: AssertInCollapsed,
     assert_app_id: Callable,
     profiler_flags: List[str],
+    runtime: str,
+    in_container: bool,
 ) -> None:
+    if runtime == "php" and not in_container:
+        pytest.skip("Flaky https://github.com/Granulate/gprofiler/issues/630")
+
     _ = application_pid  # Fixture only used for running the application.
     _ = assert_app_id  # Required for mypy unused argument warning
     collapsed_text = run_gprofiler_in_container_for_one_session(

@@ -42,5 +42,5 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     include_package_data=True,
     install_requires=list(read_requirements("requirements.txt")),
-    python_requires=">=3.6",
+    python_requires=">=3.8",
 )

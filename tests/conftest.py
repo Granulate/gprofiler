@@ -29,6 +29,7 @@ from gprofiler.metadata.application_identifiers import (
     set_enrichment_options,
 )
 from gprofiler.metadata.enrichment import EnrichmentOptions
+from gprofiler.state import init_state
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
 from tests.utils import (
     _application_docker_container,
@@ -553,6 +554,7 @@ def _set_enrichment_options() -> None:
         )
     )
     set_diagnostics(False)
+    init_state(run_id="tests-run-id")
 
 
 def pytest_addoption(parser: Any) -> None:

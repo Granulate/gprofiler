@@ -195,7 +195,7 @@ def test_java_safemode_version_check(
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
     log_record = next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records))
-    log_extra = log_record.gprofiler_adapter_extra  # type: ignore
+    log_extra = log_record.extra  # type: ignore  # our logging adapter adds "extra"
     assert log_extra["jvm_version"] == repr(jvm_version)
 
 
@@ -215,7 +215,7 @@ def test_java_safemode_build_number_check(
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
     log_record = next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records))
-    log_extra = log_record.gprofiler_adapter_extra  # type: ignore
+    log_extra = log_record.extra  # type: ignore  # our logging adapter adds "extra"
     assert log_extra["jvm_version"] == repr(jvm_version)
 
 
@@ -561,11 +561,11 @@ def test_java_jattach_async_profiler_log_output(
         assert len(log_records) == 2  # start,stop
         # start
         assert (
-            log_records[0].gprofiler_adapter_extra["ap_log"]  # type: ignore
+            log_records[0].extra["ap_log"]  # type: ignore  # our logging adapter adds "extra"
             == "[WARN] Install JVM debug symbols to improve profile accuracy\n"
         )
         # stop
-        assert log_records[1].gprofiler_adapter_extra["ap_log"] == ""  # type: ignore
+        assert log_records[1].extra["ap_log"] == ""  # type: ignore  # our logging adapter adds "extra"
 
 
 @pytest.mark.parametrize(
@@ -634,7 +634,7 @@ def test_java_different_basename(
                 )
                 assert len(log_records) == 1
                 assert (
-                    os.path.basename(log_records[0].gprofiler_adapter_extra["exe"])  # type: ignore
+                    os.path.basename(log_records[0].extra["exe"])  # type: ignore  # our logging adapter adds "extra"
                     == java_notjava_basename
                 )
 
@@ -675,3 +675,19 @@ def test_handling_missing_symbol_in_profile(
     ) as profiler:
         collapsed = snapshot_pid_profile(profiler, application_pid).stacks
         assert is_pattern_in_collapsed(libc_pattern, collapsed)
+
+
+@pytest.mark.parametrize("in_container", [True])
+def test_meminfo_logged(
+    tmp_path: Path,
+    application_pid: int,
+    caplog: LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG)
+    with make_java_profiler(
+        storage_dir=str(tmp_path),
+        duration=3,
+        frequency=999,
+    ) as profiler:
+        snapshot_pid_profile(profiler, application_pid)
+        assert "async-profiler memory usage (in bytes)" in caplog.text
