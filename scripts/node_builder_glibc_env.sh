@@ -5,6 +5,11 @@
 #
 set -eu
 
+# x86_64 container: Centos7 -> python3.7 built by code from node_builder_glibc_env.sh
+# x86_64 exe: Centos7 -> python3.7 built by code from node_builder_glibc_env.sh
+# aarch64 container: Centos8 -> python3.6.8 (default python from centos8 image) -> building with --static-libstdc++
+# aarch64 exe: Centos8 -> python3.10 based from build-prepare stage where it is built -> building with --static-libstc++
+
 yum update -y && yum install -y curl make git ca-certificates npm
 # yum has node v10 by default, so we need to add newer version to run node-gyp
 curl -fsSL https://rpm.nodesource.com/setup_16.x | bash -
