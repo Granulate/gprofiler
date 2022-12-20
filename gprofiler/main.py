@@ -33,7 +33,7 @@ from gprofiler.databricks_client import DatabricksClient
 from gprofiler.diagnostics import log_diagnostics, set_diagnostics
 from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
-from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
+from gprofiler.log import DEFAULT_API_SERVER_ADDRESS, RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import concatenate_from_external_file, concatenate_profiles, merge_profiles
 from gprofiler.metadata.application_identifiers import set_enrichment_options
 from gprofiler.metadata.enrichment import EnrichmentOptions
@@ -341,29 +341,12 @@ class GProfiler:
             self._last_diagnostics = time.monotonic()
             log_diagnostics()
 
-    def _send_remote_logs(self) -> None:
-        """
-        The function is safe to call without wrapping with try/except block, the function should does the exception
-        handling by itself.
-        """
-        if self._remote_logs_handler is None:
-            return
-
-        try:
-            self._remote_logs_handler.try_send_log_to_server()
-        except Exception:
-            logger.exception("Couldn't send logs to server")
-        else:
-            logger.debug("Successfully uploaded logs to the server")
-
     def run_single(self) -> None:
         with self:
             # In case of single run mode, use the same id for run_id and cycle_id
             self._state.set_cycle_id(self._state.run_id)
-            try:
-                self._snapshot()
-            finally:
-                self._send_remote_logs()  # function is safe, wrapped with try/except block inside
+            self._snapshot()
+            self._state.set_cycle_id(None)
 
     def run_continuous(self) -> None:
         with self:
@@ -377,8 +360,6 @@ class GProfiler:
                     self._snapshot()
                 except Exception:
                     logger.exception("Profiling run failed!")
-                finally:
-                    self._send_remote_logs()  # function is safe, wrapped with try/except block inside
                 self._usage_logger.log_cycle()
 
                 # wait for one duration
@@ -387,6 +368,8 @@ class GProfiler:
                 if self._controller_process is not None and not is_process_running(self._controller_process):
                     logger.info(f"Controller process {self._controller_process.pid} has exited; gProfiler stopping...")
                     break
+
+            self._state.set_cycle_id(None)
 
 
 def _submit_profile_logged(
@@ -582,6 +565,11 @@ def parse_cmd_args() -> configargparse.Namespace:
         connectivity.add_argument("--service-name", help="Service name")
         connectivity.add_argument(
             "--curlify-requests", help="Log cURL commands for HTTP requests (used for debugging)", action="store_true"
+        )
+        connectivity.add_argument(
+            "--glogger-server",
+            default=DEFAULT_API_SERVER_ADDRESS,
+            help="URL for remote gLogger logs (default: %(default)s)",
         )
 
     upload_file.set_defaults(func=send_collapsed_file_only)
@@ -861,7 +849,11 @@ def main() -> None:
         verify_preconditions(args)
     state = init_state()
 
-    remote_logs_handler = RemoteLogsHandler() if _should_send_logs(args) else None
+    remote_logs_handler = (
+        RemoteLogsHandler(args.glogger_server, args.server_token, args.service_name)
+        if _should_send_logs(args)
+        else None
+    )
     global logger
     logger = initial_root_logger_setup(
         logging.DEBUG if args.verbose else logging.INFO,
@@ -890,8 +882,7 @@ def main() -> None:
             args.service_name = f"databricks-{databricks_client.job_name}"
 
     try:
-        logger.info(f"Running gProfiler (version {__version__}), commandline: {' '.join(sys.argv[1:])!r}")
-        logger.info(f"gProfiler arguments: {args!r}")
+        logger.info("Running gProfiler", commandline=" ".join(sys.argv[1:]), arguments=args.__dict__)
 
         if args.controller_pid is not None:
             try:
@@ -948,9 +939,6 @@ def main() -> None:
                 f" Proxy used: {proxy_str}. Error: {e}"
             )
             sys.exit(1)
-
-        if client is not None and remote_logs_handler is not None:
-            remote_logs_handler.init_api_client(client)
 
         if hasattr(args, "func"):
             assert args.subcommand == "upload-file"

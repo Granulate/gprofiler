@@ -20,6 +20,7 @@ FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
 WORKDIR /tmp
 
 COPY scripts/prepare_machine-unknown-linux-musl.sh .
+COPY scripts/libunwind_build.sh .
 RUN ./prepare_machine-unknown-linux-musl.sh
 
 # py-spy
@@ -243,6 +244,7 @@ RUN python3 -m pip install --no-cache-dir --upgrade pip
 COPY requirements.txt requirements.txt
 COPY granulate-utils/setup.py granulate-utils/requirements.txt granulate-utils/README.md granulate-utils/
 COPY granulate-utils/granulate_utils granulate-utils/granulate_utils
+COPY granulate-utils/glogger granulate-utils/glogger
 RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
 COPY exe-requirements.txt exe-requirements.txt
