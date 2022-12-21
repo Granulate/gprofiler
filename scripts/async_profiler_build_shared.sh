@@ -6,7 +6,7 @@
 set -euo pipefail
 
 VERSION=v2.9g4
-GIT_REV="ebda293a42c7db0b5918b0ef07ac6546958c764a"
+GIT_REV="cde6aead3f8c30ccc79eaa3a44f36ed97b8ebc91"
 
 git clone --depth 1 -b "$VERSION" https://github.com/Granulate/async-profiler.git && cd async-profiler && git reset --hard "$GIT_REV"
 make all
