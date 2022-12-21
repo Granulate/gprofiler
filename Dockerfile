@@ -1,7 +1,7 @@
 # these need to be defined before any FROM - otherwise, the ARGs expand to empty strings.
 
-# pyspy & rbspy, using the same builder for both pyspy and rbspy since they share build dependencies - rust:latest 1.52.1
-ARG RUST_BUILDER_VERSION=@sha256:9c106c1222abe1450f45774273f36246ebf257623ed51280dbc458632d14c9fc
+# pyspy & rbspy, using the same builder for both pyspy and rbspy since they share build dependencies - rust:1.58-alpine3.15
+ARG RUST_BUILDER_VERSION=@sha256:b61698ea823c6f9bc726272d7783867d89e79ca87e9944998739ce619da7699a
 # pyperf - ubuntu 20.04
 ARG PYPERF_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
 # perf - ubuntu:16.04
@@ -31,6 +31,7 @@ FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
 WORKDIR /tmp
 
 COPY scripts/prepare_machine-unknown-linux-musl.sh .
+COPY scripts/libunwind_build.sh .
 RUN ./prepare_machine-unknown-linux-musl.sh
 
 # pyspy

@@ -69,7 +69,7 @@ RUN ...
 FROM mylayer AS mylayer2
 RUN .....  # THIS ONE FAILS!
 ```
-2. In the relevant `build_{arch}_{target}.sh` script, remove `--output` if it's the executable one, and add `--target mydebug`. This will cause Docker to run the build of the requested layer (and its dependencies) *until* `mylayer2` begins, and the result is a layer which we can use with `docker run` and try out the failing `RUN` command on.
+2. In the relevant `build_{arch}_{target}.sh` script, remove `--output` if it's the executable one, and add `--target mylayer`. This will cause Docker to run the build of the requested layer (and its dependencies) *until* `mylayer2` begins, and the result is a layer which we can use with `docker run` and try out the failing `RUN` command on.
 
 ## Linting
 
