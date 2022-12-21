@@ -52,6 +52,9 @@ IF ERRORLEVEL 1 (
 python -m pip install --upgrade pip
 ECHO pip is installed.
 
+ECHO Building dotnet-trace...
+CALL .\scripts\windows\build-dotnet-trace.bat
+
 IF EXIST .\py-spy\py-spy.exe (
 	ECHO Found py-spy.exe
 ) ELSE (
