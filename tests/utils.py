@@ -58,7 +58,7 @@ def start_container(
         pid_mode=pid_mode,
         userns_mode="host",
         volumes=volumes,
-        labels=["test"],
+        labels=["gprofiler_test"],
         stderr=True,
         detach=True,
         **extra_kwargs,
