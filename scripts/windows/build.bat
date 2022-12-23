@@ -85,3 +85,4 @@ COPY ..\py-spy\py-spy.exe gprofiler\resources\python
 ECHO D | XCOPY ..\gprofiler .\gprofiler /E
 FOR %%i in ("..\pyi_build.py" "..\pyinstaller.spec") do COPY "%%i" .
 pyinstaller pyinstaller.spec
+CD ..
