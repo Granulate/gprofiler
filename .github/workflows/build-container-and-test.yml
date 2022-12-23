@@ -114,7 +114,7 @@ jobs:
     - name: Check exited containers
       run: docker ps -a
 
-    - name: Check exited containers
+    - name: Remove exited containers
       run: docker container prune --force
 
     - name: Check exited containers again
