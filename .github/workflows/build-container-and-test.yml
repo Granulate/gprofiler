@@ -112,4 +112,4 @@ jobs:
       run: NO_APT_INSTALL=1 ./tests/test.sh --ignore=tests/test_executable.py
 
     - name: Check exited containers
-      run: docker ps
+      run: docker ps -a
