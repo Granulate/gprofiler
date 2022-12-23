@@ -59,3 +59,4 @@ FOR %%i IN (".\dep\dotnet\shared\Microsoft.NETCore.App\6.0.0\Microsoft.CSharp.dl
             ) DO COPY %%i .\app\gprofiler\resources\dotnet\shared
 ECHO D | XCOPY .\dep\dotnet\tools .\app\gprofiler\resources\dotnet\tools /E
 COPY .\dep\dotnet\host\fxr\6.0.0\hostfxr.dll .\app\gprofiler\resources\dotnet\tools\.store\dotnet-trace\6.0.351802\dotnet-trace\6.0.351802\tools\netcoreapp3.1\any\
+rmdir /s /q .\dep\dotnet
