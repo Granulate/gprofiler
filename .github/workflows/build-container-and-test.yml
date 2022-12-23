@@ -118,7 +118,7 @@ jobs:
       run: docker ps -a --filter "label=test"
 
     - name: Remove exited containers
-      run:  docker container prune --force --filter "status=exited" --filter "label=test"
+      run:  docker container prune --force --filter "label=test"
 
     - name: Check exited containers again
       run: docker ps -a
