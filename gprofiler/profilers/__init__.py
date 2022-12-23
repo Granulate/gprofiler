@@ -1,7 +1,7 @@
 # NOTE: Make sure to import any new process profilers to load it
 from gprofiler.platform import is_linux
-from gprofiler.profilers.python import PythonProfiler
 from gprofiler.profilers.dotnet import DotnetProfiler
+from gprofiler.profilers.python import PythonProfiler
 
 if is_linux():
     from gprofiler.profilers.java import JavaProfiler
