@@ -111,6 +111,3 @@ jobs:
     - name: Run gProfiler tests
       run: NO_APT_INSTALL=1 ./tests/test.sh --ignore=tests/test_executable.py
 
-    - name: Check exited containers again
-      run: docker ps -a
-
