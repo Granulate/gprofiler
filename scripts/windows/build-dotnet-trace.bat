@@ -4,7 +4,7 @@ IF NOT EXIST .\dep\dotnet-install.ps1 (
 )
 
 powershell -ExecutionPolicy Bypass -File .\dep\dotnet-install.ps1 -Runtime dotnet -Version 6.0.0 -InstallDir .\dep\dotnet
-.\dep\dotnet\dotnet.exe tool install --tool-path .\dep\dotnet\tools dotnet-trace
+.\dep\dotnet\dotnet.exe tool install --tool-path .\dep\dotnet\tools dotnet-trace --version 6.0.351802
 MKDIR app\gprofiler\resources\dotnet
 FOR %%i IN (".\dep\dotnet\shared\Microsoft.NETCore.App\6.0.0\Microsoft.CSharp.dll",
             ".\dep\dotnet\shared\Microsoft.NETCore.App\6.0.0\Microsoft.NETCore.App.deps.json",
