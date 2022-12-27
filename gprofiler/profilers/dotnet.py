@@ -88,7 +88,7 @@ class DotnetProfiler(ProcessProfilerBase):
             "--format",
             "speedscope",
             "--process-id",
-            str(process.pid) if is_windows() else str(get_process_nspid(process.pid)),
+            str(process.pid if is_windows() else get_process_nspid(process.pid)),
             "--profile",
             "cpu-sampling",
             "--duration",
