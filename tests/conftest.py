@@ -95,12 +95,12 @@ def artifacts_dir(tmp_path_factory: TempPathFactory) -> Path:
 
 
 @fixture(scope="session", autouse=True)
-def stopped_container_cleanup(request, docker_client: DockerClient):
+def stopped_container_cleanup(request: FixtureRequest, docker_client: DockerClient) -> None:
     """
     Remove stopped containers at the end of the testing session
     """
 
-    def remove_stopped_containers():
+    def remove_stopped_containers() -> None:
         docker_client.containers.prune(filters=["label=gprofiler_test"])
 
     request.addfinalizer(remove_stopped_containers)
