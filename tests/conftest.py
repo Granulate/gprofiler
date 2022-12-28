@@ -101,7 +101,7 @@ def stopped_container_cleanup(request: FixtureRequest, docker_client: DockerClie
     """
 
     def remove_stopped_containers() -> None:
-        docker_client.containers.prune(filters={"label":"gprofiler_test"})
+        docker_client.containers.prune(filters={"label": "gprofiler_test"})
 
     request.addfinalizer(remove_stopped_containers)
 
