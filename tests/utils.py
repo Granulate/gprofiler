@@ -45,6 +45,7 @@ def start_container(
     volumes: Dict[str, Dict[str, str]] = None,
     privileged: bool = False,
     pid_mode: Optional[str] = "host",
+    tests_id: str = "gprofiler_test",
     **extra_kwargs: Any,
 ) -> Container:
     if volumes is None:
@@ -58,7 +59,7 @@ def start_container(
         pid_mode=pid_mode,
         userns_mode="host",
         volumes=volumes,
-        labels=["gprofiler_test"],
+        labels=[tests_id],
         stderr=True,
         detach=True,
         **extra_kwargs,

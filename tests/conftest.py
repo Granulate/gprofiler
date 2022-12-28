@@ -5,6 +5,8 @@
 import os
 import stat
 import subprocess
+import string
+import random
 from contextlib import _GeneratorContextManager, contextmanager
 from functools import lru_cache, partial
 from pathlib import Path
@@ -94,14 +96,19 @@ def artifacts_dir(tmp_path_factory: TempPathFactory) -> Path:
     return tmp_path_factory.mktemp("artifacts")
 
 
+@fixture(scope="session")
+def tests_id():
+   return ''.join(random.choice(string.ascii_uppercase) for _ in range(10))
+
+
 @fixture(scope="session", autouse=True)
-def stopped_container_cleanup(request: FixtureRequest, docker_client: DockerClient) -> None:
+def stopped_container_cleanup(request: FixtureRequest, docker_client: DockerClient, tests_id: str) -> None:
     """
     Remove stopped containers at the end of the testing session
     """
 
     def remove_stopped_containers() -> None:
-        docker_client.containers.prune(filters={"label": "gprofiler_test"})
+        docker_client.containers.prune(filters={"label": tests_id})
 
     request.addfinalizer(remove_stopped_containers)
 
