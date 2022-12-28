@@ -99,8 +99,10 @@ def stopped_container_cleanup(request, docker_client: DockerClient):
     """
     Remove stopped containers at the end of the testing session
     """
+
     def remove_stopped_containers():
         docker_client.containers.prune(filters=["label=gprofiler_test"])
+
     request.addfinalizer(remove_stopped_containers)
 
 
