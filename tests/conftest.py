@@ -96,9 +96,12 @@ def artifacts_dir(tmp_path_factory: TempPathFactory) -> Path:
     return tmp_path_factory.mktemp("artifacts")
 
 
+random_string = "".join(random.choice(string.ascii_uppercase) for _ in range(10))
+
+
 @fixture(scope="session")
 def tests_id() -> str:
-    return "".join(random.choice(string.ascii_uppercase) for _ in range(10))
+    return random_string
 
 
 @fixture(scope="session", autouse=True)
