@@ -94,6 +94,16 @@ def artifacts_dir(tmp_path_factory: TempPathFactory) -> Path:
     return tmp_path_factory.mktemp("artifacts")
 
 
+@fixture(scope="session", autouse=True)
+def stopped_container_cleanup(request, docker_client: DockerClient):
+    """
+    Remove stopped containers at the end of the testing session
+    """
+    def remove_stopped_containers():
+        docker_client.containers.prune(filters=["label=gprofiler_test"])
+    request.addfinalizer(remove_stopped_containers)
+
+
 @lru_cache(maxsize=None)
 def java_command_line(path: Path, java_args: Tuple[str]) -> List[str]:
     class_path = path / "java"
