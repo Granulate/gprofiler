@@ -3,10 +3,10 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
-import stat
-import subprocess
-import string
 import random
+import stat
+import string
+import subprocess
 from contextlib import _GeneratorContextManager, contextmanager
 from functools import lru_cache, partial
 from pathlib import Path
@@ -97,8 +97,8 @@ def artifacts_dir(tmp_path_factory: TempPathFactory) -> Path:
 
 
 @fixture(scope="session")
-def tests_id():
-   return ''.join(random.choice(string.ascii_uppercase) for _ in range(10))
+def tests_id() -> str:
+    return "".join(random.choice(string.ascii_uppercase) for _ in range(10))
 
 
 @fixture(scope="session", autouse=True)
