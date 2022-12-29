@@ -42,10 +42,10 @@ def start_container(
     docker_client: DockerClient,
     image: Image,
     command: List[str],
+    tests_id: str,
     volumes: Dict[str, Dict[str, str]] = None,
     privileged: bool = False,
     pid_mode: Optional[str] = "host",
-    tests_id: str = "gprofiler_test",
     **extra_kwargs: Any,
 ) -> Container:
     if volumes is None:
