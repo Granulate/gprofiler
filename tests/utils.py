@@ -124,12 +124,14 @@ def _no_errors(logs: str) -> None:
     assert "] ERROR: " not in logs, f"found ERRORs in gProfiler logs!: {logs}"
 
 
-def run_gprofiler_in_container(docker_client: DockerClient, image: Image, command: List[str], **kwargs: Any) -> None:
+def run_gprofiler_in_container(
+    docker_client: DockerClient, tests_id: str, image: Image, command: List[str], **kwargs: Any
+) -> None:
     """
     Wrapper around run_privileged_container() that also verifies there are no ERRORs in gProfiler's output log.
     """
     assert "-v" in command, "please run with -v!"  # otherwise there are no loglevel prints
-    logs = run_privileged_container(docker_client, image, command, **kwargs)
+    logs = run_privileged_container(docker_client, tests_id, image, command, **kwargs)
     _no_errors(logs)
 
 

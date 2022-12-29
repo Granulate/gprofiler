@@ -28,6 +28,7 @@ def test_executable(
     assert_collapsed: Callable[[Mapping[str, int]], None],
     exec_container_image: Optional[Image],
     docker_client: DockerClient,
+    test_id: str,
     output_directory: Path,
     profiler_flags: List[str],
     runtime: str,
@@ -60,7 +61,7 @@ def test_executable(
             + runtime_specific_args
             + profiler_flags
         )
-        run_gprofiler_in_container(docker_client, exec_container_image, command=command, volumes=volumes)
+        run_gprofiler_in_container(docker_client, test_id, exec_container_image, command=command, volumes=volumes)
     else:
         os.mkdir(output_directory)
         command = (
