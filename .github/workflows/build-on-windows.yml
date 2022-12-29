@@ -1,0 +1,17 @@
+name: Build gProfiler on Windows
+
+on:
+  pull_request:
+  push:
+    tags:
+      - 'windows'
+
+jobs:
+  build-executable:
+   runs-on: windows-latest
+   steps:
+      - name: check if its working
+        run: echo "hello from windows"
+
+      - name: check if its really windows
+        run: ipconfig
