@@ -95,6 +95,7 @@ from tests.utils import run_gprofiler_in_container_for_one_session
 )
 def test_app_metadata(
     docker_client: DockerClient,
+    tests_id: str,
     application_docker_container: Container,
     runtime_specific_args: List[str],
     gprofiler_docker_image: Image,
@@ -106,7 +107,13 @@ def test_app_metadata(
     application_executable: str,
 ) -> None:
     run_gprofiler_in_container_for_one_session(
-        docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags
+        docker_client,
+        tests_id,
+        gprofiler_docker_image,
+        output_directory,
+        output_collapsed,
+        runtime_specific_args,
+        profiler_flags,
     )
     collapsed_text = Path(output_directory / "last_profile.col").read_text()
     # sanity

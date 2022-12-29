@@ -40,9 +40,9 @@ RUNTIME_PROFILERS = [
 
 def start_container(
     docker_client: DockerClient,
+    tests_id: str,
     image: Image,
     command: List[str],
-    tests_id: str,
     volumes: Dict[str, Dict[str, str]] = None,
     privileged: bool = False,
     pid_mode: Optional[str] = "host",
@@ -103,6 +103,7 @@ def wait_for_container(container: Container) -> str:
 
 def run_privileged_container(
     docker_client: DockerClient,
+    tests_id: str,
     image: Image,
     command: List[str],
     volumes: Dict[str, Dict[str, str]] = None,
@@ -110,7 +111,7 @@ def run_privileged_container(
 ) -> str:
     container = None
     try:
-        container = start_container(docker_client, image, command, volumes, privileged=True, **extra_kwargs)
+        container = start_container(docker_client, tests_id, image, command, volumes, privileged=True, **extra_kwargs)
         return wait_for_container(container)
 
     finally:
@@ -231,6 +232,7 @@ def make_java_profiler(
 
 def start_gprofiler_in_container_for_one_session(
     docker_client: DockerClient,
+    tests_id: str,
     gprofiler_docker_image: Image,
     output_directory: Path,
     output_path: Path,
@@ -249,6 +251,7 @@ def start_gprofiler_in_container_for_one_session(
     remove_path(str(output_path), missing_ok=True)
     return start_container(
         docker_client,
+        tests_id,
         gprofiler_docker_image,
         args,
         privileged=privileged,
@@ -269,6 +272,7 @@ def wait_for_gprofiler_container(container: Container, output_path: Path) -> str
 
 def run_gprofiler_in_container_for_one_session(
     docker_client: DockerClient,
+    tests_id: str,
     gprofiler_docker_image: Image,
     output_directory: Path,
     output_path: Path,
@@ -281,7 +285,13 @@ def run_gprofiler_in_container_for_one_session(
     container: Container = None
     try:
         container = start_gprofiler_in_container_for_one_session(
-            docker_client, gprofiler_docker_image, output_directory, output_path, runtime_specific_args, profiler_flags
+            docker_client,
+            tests_id,
+            gprofiler_docker_image,
+            output_directory,
+            output_path,
+            runtime_specific_args,
+            profiler_flags,
         )
         return wait_for_gprofiler_container(container, output_path)
     finally:

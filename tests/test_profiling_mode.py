@@ -21,6 +21,7 @@ from tests.utils import assert_function_in_collapsed, run_gprofiler_in_container
 )
 def test_sanity(
     docker_client: DockerClient,
+    tests_id: str,
     gprofiler_docker_image: Image,
     output_directory: Path,
     output_collapsed: Path,
@@ -28,7 +29,7 @@ def test_sanity(
     expected_profiling_mode: str,
 ) -> None:
     run_gprofiler_in_container_for_one_session(
-        docker_client, gprofiler_docker_image, output_directory, output_collapsed, [], profiler_flags
+        docker_client, tests_id, gprofiler_docker_image, output_directory, output_collapsed, [], profiler_flags
     )
     collapsed_text = Path(output_directory / "last_profile.col").read_text()
     # check the metadata
@@ -49,6 +50,7 @@ def test_sanity(
 def test_allocation_being_profiled(
     application_docker_container: Container,
     docker_client: DockerClient,
+    tests_id: str,
     gprofiler_docker_image: Image,
     output_directory: Path,
     output_collapsed: Path,
@@ -60,6 +62,7 @@ def test_allocation_being_profiled(
 ) -> None:
     run_gprofiler_in_container_for_one_session(
         docker_client,
+        tests_id,
         gprofiler_docker_image,
         output_directory,
         output_collapsed,
