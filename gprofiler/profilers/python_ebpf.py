@@ -205,7 +205,8 @@ class PythonEbpfProfiler(ProfilerBase):
             self.process = process
 
     def _dump(self) -> Path:
-        assert self.process is not None, "profiling not started!"
+        assert self.is_running()
+        assert self.process is not None  # for mypy
         self.process.send_signal(self._DUMP_SIGNAL)
 
         try:
@@ -215,7 +216,6 @@ class PythonEbpfProfiler(ProfilerBase):
             # also, makes sure its output pipe doesn't fill up.
             # using read1() which performs just a single read() call and doesn't read until EOF
             # (unlike Popen.communicate())
-            assert self.process is not None
             logger.debug(f"PyPerf output: {self.process.stderr.read1()}")  # type: ignore
             return output
         except TimeoutError:
@@ -252,13 +252,19 @@ class PythonEbpfProfiler(ProfilerBase):
 
     def _terminate(self) -> Optional[int]:
         code = None
-        if self.process is not None:
+        if self.is_running():
+            assert self.process is not None  # for mypy
             self.process.terminate()  # okay to call even if process is already dead
             code = self.process.wait()
             self.process = None
+
+        assert self.process is None  # means we're not running
         return code
 
     def stop(self) -> None:
         code = self._terminate()
         if code is not None:
             logger.info("Finished profiling Python processes with PyPerf")
+
+    def is_running(self) -> bool:
+        return self.process is not None
