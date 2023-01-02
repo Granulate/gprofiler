@@ -16,7 +16,7 @@ if [ ! -f "/usr/bin/python3" ]; then
 fi
 # yum has node v10 by default, so we need to add newer version to run node-gyp
 curl -fsSL https://rpm.nodesource.com/setup_16.x | bash -
-yum install -y nodejs
+yum install -y --allowerasing nodejs
 yum install -y openssl-devel bzip2-devel
 
 if [ "$(uname -m)" = "aarch64" ]; then
