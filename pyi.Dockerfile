@@ -135,7 +135,7 @@ RUN ./bcc_helpers_build.sh
 
 # bcc & gprofiler
 FROM centos${GPROFILER_BUILDER} AS build-prepare
-WORKDIR /tmp
+WORKDIR /fix_centos8
 COPY scripts/fix_centos8.sh .
 # fix repo links for CentOS 8, and enable powertools (required to download glibc-static)
 RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
