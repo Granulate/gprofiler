@@ -93,7 +93,7 @@ class PerfProcess:
 
     def start(self) -> None:
         logger.info(f"Starting perf ({self._type} mode)")
-        process = start_process(self._get_perf_cmd(), via_staticx=False)
+        process = start_process(self._get_perf_cmd())
         try:
             wait_event(self._poll_timeout_s, self._stop_event, lambda: os.path.exists(self._output_path))
             self.start_time = time.monotonic()

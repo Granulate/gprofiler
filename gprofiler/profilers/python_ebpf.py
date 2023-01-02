@@ -157,7 +157,7 @@ class PythonEbpfProfiler(ProfilerBase):
             "--duration",
             "1",
         ] + self._offset_args()
-        process = start_process(cmd, via_staticx=False)
+        process = start_process(cmd)
         try:
             poll_process(process, self._POLL_TIMEOUT, self._stop_event)
         except TimeoutError:
@@ -189,7 +189,7 @@ class PythonEbpfProfiler(ProfilerBase):
         for f in glob.glob(f"{str(self.output_path)}.*"):
             os.unlink(f)
 
-        process = start_process(cmd, via_staticx=False)
+        process = start_process(cmd)
         # wait until the transient data file appears - because once returning from here, PyPerf may
         # be polled via snapshot() and we need it to finish installing its signal handler.
         try:
