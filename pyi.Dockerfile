@@ -240,6 +240,19 @@ RUN set -e; \
 # hadolint ignore=DL3013
 RUN python3 -m pip install --no-cache-dir --upgrade pip
 
+FROM ${NODE_PACKAGE_BUILDER_GLIBC} as node-package-builder-glibc
+USER 0
+WORKDIR /tmp
+COPY scripts/node_builder_glibc_env.sh .
+RUN ./node_builder_glibc_env.sh
+COPY scripts/build_node_package.sh .
+RUN ./build_node_package.sh
+# needed for hadolint
+WORKDIR /app
+USER 1001
+
+FROM build-prepare as build-stage
+
 COPY requirements.txt requirements.txt
 COPY granulate-utils/setup.py granulate-utils/requirements.txt granulate-utils/README.md granulate-utils/
 COPY granulate-utils/granulate_utils granulate-utils/granulate_utils
@@ -255,18 +268,6 @@ RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
     fi
 RUN python3 -m pip install --no-cache-dir -r exe-requirements.txt
 
-FROM ${NODE_PACKAGE_BUILDER_GLIBC} as node-package-builder-glibc
-USER 0
-WORKDIR /tmp
-COPY scripts/node_builder_glibc_env.sh .
-RUN ./node_builder_glibc_env.sh
-COPY scripts/build_node_package.sh .
-RUN ./build_node_package.sh
-# needed for hadolint
-WORKDIR /app
-USER 1001
-
-FROM build-prepare as build-stage
 # copy PyPerf, licenses and notice file.
 RUN mkdir -p gprofiler/resources/ruby && \
     mkdir -p gprofiler/resources/python/pyperf && \
