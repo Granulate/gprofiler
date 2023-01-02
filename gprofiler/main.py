@@ -301,6 +301,7 @@ class GProfiler:
             if self._collect_metadata
             else {"hostname": get_hostname()}
         )
+        metadata.update({"profiling_mode": self._profiling_mode})
         metrics = self._system_metrics_monitor.get_metrics()
         if NoopProfiler.is_noop_profiler(self.system_profiler):
             assert system_result == {}, system_result  # should be empty!
