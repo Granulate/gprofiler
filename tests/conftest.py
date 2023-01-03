@@ -96,11 +96,9 @@ def artifacts_dir(tmp_path_factory: TempPathFactory) -> Path:
     return tmp_path_factory.mktemp("artifacts")
 
 
-random_string = "".join(random.choice(string.ascii_uppercase) for _ in range(10))
-
-
 @fixture(scope="session")
 def tests_id() -> str:
+    random_string = "".join(random.choice(string.ascii_uppercase) for _ in range(10))
     return random_string
 
 
@@ -224,8 +222,11 @@ def application_process(
 
 
 @fixture(scope="session")
-def docker_client() -> DockerClient:
-    return docker.from_env()
+def docker_client(tests_id: str) -> Generator[Tuple[DockerClient, str], None, None]:
+    yield docker.from_env(), tests_id
+    docker.from_env().containers.prune(filters={"label": tests_id})
+    if len(docker.from_env().containers.list(filters={"label": tests_id})) > 0:
+        raise Exception("Container has not been properly pruned")
 
 
 @fixture(scope="session")

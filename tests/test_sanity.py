@@ -7,7 +7,7 @@ import re
 from contextlib import _GeneratorContextManager
 from pathlib import Path
 from threading import Event
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Tuple
 
 import pytest
 from docker import DockerClient
@@ -186,8 +186,7 @@ def test_python_ebpf(
     RUNTIME_PROFILERS,
 )
 def test_from_container(
-    docker_client: DockerClient,
-    tests_id: str,
+    docker_client: Tuple[DockerClient, str],
     application_pid: int,
     runtime_specific_args: List[str],
     gprofiler_docker_image: Image,
@@ -206,7 +205,6 @@ def test_from_container(
     _ = assert_app_id  # Required for mypy unused argument warning
     collapsed_text = run_gprofiler_in_container_for_one_session(
         docker_client,
-        tests_id,
         gprofiler_docker_image,
         output_directory,
         output_collapsed,
@@ -226,8 +224,7 @@ def test_from_container(
     ],
 )
 def test_from_container_spawned_process(
-    docker_client: DockerClient,
-    tests_id: str,
+    docker_client: Tuple[DockerClient, str],
     runtime_specific_args: List[str],
     gprofiler_docker_image: Image,
     output_directory: Path,
@@ -239,7 +236,6 @@ def test_from_container_spawned_process(
     profiler_flags.extend(["-d", "30", "--profile-spawned-processes"])
     container = start_gprofiler_in_container_for_one_session(
         docker_client,
-        tests_id,
         gprofiler_docker_image,
         output_directory,
         output_collapsed,

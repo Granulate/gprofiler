@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from threading import Event
 from time import sleep
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from docker import DockerClient
 from docker.errors import ContainerError
@@ -39,8 +39,7 @@ RUNTIME_PROFILERS = [
 
 
 def start_container(
-    docker_client: DockerClient,
-    tests_id: str,
+    docker_client: Tuple[DockerClient, str],
     image: Image,
     command: List[str],
     volumes: Dict[str, Dict[str, str]] = None,
@@ -48,10 +47,11 @@ def start_container(
     pid_mode: Optional[str] = "host",
     **extra_kwargs: Any,
 ) -> Container:
+
     if volumes is None:
         volumes = {}
 
-    return docker_client.containers.run(
+    return docker_client[0].containers.run(
         image,
         command,
         privileged=privileged,
@@ -59,7 +59,7 @@ def start_container(
         pid_mode=pid_mode,
         userns_mode="host",
         volumes=volumes,
-        labels=[tests_id],
+        labels=[docker_client[1]],
         stderr=True,
         detach=True,
         **extra_kwargs,
@@ -102,8 +102,7 @@ def wait_for_container(container: Container) -> str:
 
 
 def run_privileged_container(
-    docker_client: DockerClient,
-    tests_id: str,
+    docker_client: Tuple[DockerClient, str],
     image: Image,
     command: List[str],
     volumes: Dict[str, Dict[str, str]] = None,
@@ -111,7 +110,7 @@ def run_privileged_container(
 ) -> str:
     container = None
     try:
-        container = start_container(docker_client, tests_id, image, command, volumes, privileged=True, **extra_kwargs)
+        container = start_container(docker_client, image, command, volumes, privileged=True, **extra_kwargs)
         return wait_for_container(container)
 
     finally:
@@ -125,13 +124,13 @@ def _no_errors(logs: str) -> None:
 
 
 def run_gprofiler_in_container(
-    docker_client: DockerClient, tests_id: str, image: Image, command: List[str], **kwargs: Any
+    docker_client: Tuple[DockerClient, str], image: Image, command: List[str], **kwargs: Any
 ) -> None:
     """
     Wrapper around run_privileged_container() that also verifies there are no ERRORs in gProfiler's output log.
     """
     assert "-v" in command, "please run with -v!"  # otherwise there are no loglevel prints
-    logs = run_privileged_container(docker_client, tests_id, image, command, **kwargs)
+    logs = run_privileged_container(docker_client, image, command, **kwargs)
     _no_errors(logs)
 
 
@@ -233,8 +232,7 @@ def make_java_profiler(
 
 
 def start_gprofiler_in_container_for_one_session(
-    docker_client: DockerClient,
-    tests_id: str,
+    docker_client: Tuple[DockerClient, str],
     gprofiler_docker_image: Image,
     output_directory: Path,
     output_path: Path,
@@ -253,7 +251,6 @@ def start_gprofiler_in_container_for_one_session(
     remove_path(str(output_path), missing_ok=True)
     return start_container(
         docker_client,
-        tests_id,
         gprofiler_docker_image,
         args,
         privileged=privileged,
@@ -273,8 +270,7 @@ def wait_for_gprofiler_container(container: Container, output_path: Path) -> str
 
 
 def run_gprofiler_in_container_for_one_session(
-    docker_client: DockerClient,
-    tests_id: str,
+    docker_client: Tuple[DockerClient, str],
     gprofiler_docker_image: Image,
     output_directory: Path,
     output_path: Path,
@@ -288,7 +284,6 @@ def run_gprofiler_in_container_for_one_session(
     try:
         container = start_gprofiler_in_container_for_one_session(
             docker_client,
-            tests_id,
             gprofiler_docker_image,
             output_directory,
             output_path,
