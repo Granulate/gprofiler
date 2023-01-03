@@ -529,12 +529,12 @@ def assert_app_id(application_pid: int, runtime: str, in_container: bool) -> Gen
 
 
 @fixture
-def exec_container_image(request: FixtureRequest, docker_client: DockerClient) -> Optional[Image]:
+def exec_container_image(request: FixtureRequest, docker_client: Tuple[DockerClient, str]) -> Optional[Image]:
     image_name = request.config.getoption("--exec-container-image")
     if image_name is None:
         return None
 
-    return docker_client.images.pull(image_name)
+    return docker_client[0].images.pull(image_name)
 
 
 @fixture
