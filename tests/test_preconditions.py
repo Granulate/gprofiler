@@ -65,9 +65,7 @@ def test_mutex_taken_twice(
     Mutex can only be taken once. Second gProfiler executed should fail with the mutex already taken error.
     """
     # Run the first one continuously
-    with run_gprofiler_container(
-        docker_client, gprofiler_docker_image, extra_profiler_args=["-c"]
-    ) as gprofiler1:
+    with run_gprofiler_container(docker_client, gprofiler_docker_image, extra_profiler_args=["-c"]) as gprofiler1:
         wait_for_log(gprofiler1, "Running gProfiler", 0)
         with run_gprofiler_container(docker_client, tests_id, gprofiler_docker_image) as gprofiler2:
             # exits without an error
