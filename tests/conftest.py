@@ -230,17 +230,19 @@ def docker_client(tests_id: str) -> Generator[Tuple[DockerClient, str], None, No
 
 
 @fixture(scope="session")
-def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
+def gprofiler_docker_image(docker_client: Tuple[DockerClient, str]) -> Iterable[Image]:
     # access the prebuilt image.
     # this is built in the CI, in the "Build gProfiler image" step.
-    yield docker_client.images.get("gprofiler")
+    yield docker_client[0].images.get("gprofiler")
 
 
 def _build_image(
-    docker_client: DockerClient, runtime: str, dockerfile: str = "Dockerfile", **kwargs: Mapping[str, Any]
+    docker_client: Tuple[DockerClient, str], runtime: str, dockerfile: str = "Dockerfile", **kwargs: Mapping[str, Any]
 ) -> Image:
     base_path = CONTAINERS_DIRECTORY / runtime
-    return docker_client.images.build(path=str(base_path), rm=True, dockerfile=str(base_path / dockerfile), **kwargs)[0]
+    return docker_client[0].images.build(
+        path=str(base_path), rm=True, dockerfile=str(base_path / dockerfile), **kwargs
+    )[0]
 
 
 def image_name(runtime: str, image_tag: str) -> str:
@@ -349,7 +351,7 @@ def application_image_tag() -> str:
 
 @fixture
 def application_docker_image(
-    docker_client: DockerClient,
+    docker_client: Tuple[DockerClient, str],
     application_docker_image_configs: Mapping[str, Dict[str, Any]],
     runtime: str,
     application_image_tag: str,
@@ -403,7 +405,7 @@ def application_docker_capabilities() -> List[str]:
 @fixture
 def application_docker_container(
     in_container: bool,
-    docker_client: DockerClient,
+    docker_client: Tuple[DockerClient, str],
     application_docker_image: Image,
     output_directory: Path,
     application_docker_mounts: List[docker.types.Mount],
@@ -432,7 +434,7 @@ def output_collapsed(output_directory: Path) -> Path:
 @fixture
 def application_factory(
     in_container: bool,
-    docker_client: DockerClient,
+    docker_client: Tuple[DockerClient, str],
     application_docker_image: Image,
     output_directory: Path,
     application_docker_mounts: List[docker.types.Mount],

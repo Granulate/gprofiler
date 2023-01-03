@@ -13,7 +13,7 @@ from collections import Counter
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 
 import docker
 import psutil
@@ -578,7 +578,7 @@ def test_java_jattach_async_profiler_log_output(
 )
 def test_java_different_basename(
     tmp_path: Path,
-    docker_client: DockerClient,
+    docker_client: Tuple[DockerClient, str],
     application_docker_image: Image,
     assert_collapsed: AssertInCollapsed,
     caplog: LogCaptureFixture,

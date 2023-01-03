@@ -339,13 +339,13 @@ def _application_process(command_line: List[str], check_app_exited: bool) -> Ite
 
 @contextmanager
 def _application_docker_container(
-    docker_client: DockerClient,
+    docker_client: Tuple[DockerClient, str],
     application_docker_image: Image,
     application_docker_mounts: List[Mount],
     application_docker_capabilities: List[str],
     application_docker_command: Optional[List[str]] = None,
 ) -> Container:
-    container: Container = docker_client.containers.run(
+    container: Container = docker_client[0].containers.run(
         application_docker_image,
         detach=True,
         user="5555:6666",
