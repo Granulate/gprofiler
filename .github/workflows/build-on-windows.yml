@@ -11,6 +11,9 @@ jobs:
   build-executable:
    runs-on: windows-latest
    steps:
+      - name: where am i
+        run: pwd
+
       - name: run the build script
         run: .\scripts\windows\build.bat
         shell: cmd
@@ -21,4 +24,4 @@ jobs:
 
       - name: remove dep dir
         run: rmdir -r .\dep -force
-        shell: cmd
+        shell: cmd  
