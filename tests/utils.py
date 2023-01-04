@@ -47,7 +47,6 @@ def start_container(
     pid_mode: Optional[str] = "host",
     **extra_kwargs: Any,
 ) -> Container:
-
     if volumes is None:
         volumes = {}
 
@@ -281,12 +280,7 @@ def run_gprofiler_in_container_for_one_session(
     container: Container = None
     try:
         container = start_gprofiler_in_container_for_one_session(
-            docker_client,
-            gprofiler_docker_image,
-            output_directory,
-            output_path,
-            runtime_specific_args,
-            profiler_flags,
+            docker_client, gprofiler_docker_image, output_directory, output_path, runtime_specific_args, profiler_flags
         )
         return wait_for_gprofiler_container(container, output_path)
     finally:
@@ -343,7 +337,7 @@ def _application_docker_container(
     application_docker_capabilities: List[str],
     application_docker_command: Optional[List[str]] = None,
 ) -> Container:
-    container: Container = docker_client[0].containers.run(
+    container: Container = docker_client.containers.run(
         application_docker_image,
         detach=True,
         user="5555:6666",

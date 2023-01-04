@@ -102,18 +102,6 @@ def tests_id() -> str:
     return random_string
 
 
-# @fixture(scope="session", autouse=True)
-# def stopped_container_cleanup(request: FixtureRequest, docker_client: DockerClient, tests_id: str) -> None:
-#     """
-#     Remove stopped containers at the end of the testing session
-#     """
-
-#     def remove_stopped_containers() -> None:
-#         docker_client.containers.prune(filters={"label": tests_id})
-
-#     request.addfinalizer(remove_stopped_containers)
-
-
 @lru_cache(maxsize=None)
 def java_command_line(path: Path, java_args: Tuple[str]) -> List[str]:
     class_path = path / "java"

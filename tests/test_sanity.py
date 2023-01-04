@@ -204,12 +204,7 @@ def test_from_container(
     _ = application_pid  # Fixture only used for running the application.
     _ = assert_app_id  # Required for mypy unused argument warning
     collapsed_text = run_gprofiler_in_container_for_one_session(
-        docker_client,
-        gprofiler_docker_image,
-        output_directory,
-        output_collapsed,
-        runtime_specific_args,
-        profiler_flags,
+        docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags
     )
     collapsed = parse_one_collapsed(collapsed_text)
     assert_collapsed(collapsed)
