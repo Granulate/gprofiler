@@ -27,7 +27,7 @@ from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_p
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import run_process, start_process, wait_event, wait_for_file_by_prefix
-from gprofiler.utils.perf import perf_path
+from gprofiler.utils.perf import perf_path, valid_perf_pid
 
 logger = get_logger_adapter(__name__)
 
@@ -259,7 +259,7 @@ class SystemProfiler(ProfilerBase):
             perf.stop()
 
     def _get_metadata(self, pid: int) -> Optional[AppMetadata]:
-        if pid in (0, -1):  # funny values retrieved by perf
+        if not valid_perf_pid(pid):
             return None
 
         try:
