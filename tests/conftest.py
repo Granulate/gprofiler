@@ -204,7 +204,7 @@ def application_process(
 
 
 @fixture(scope="session")
-def docker_client(tests_id: str) -> DockerClient:
+def docker_client() -> DockerClient:
     tests_id = "".join(random.choice(string.ascii_uppercase) for _ in range(10))
     docker_client = docker.from_env()
     setattr(docker_client, "test_id", tests_id)
