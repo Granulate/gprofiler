@@ -4,7 +4,7 @@
 #
 from contextlib import contextmanager
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import pytest
 from docker import DockerClient
@@ -16,7 +16,7 @@ from tests.utils import start_gprofiler_in_container_for_one_session, wait_for_c
 
 
 def start_gprofiler(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     gprofiler_docker_image: Image,
     privileged: bool = True,
     user: int = 0,
@@ -39,7 +39,7 @@ def start_gprofiler(
 
 @contextmanager
 def run_gprofiler_container(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     gprofiler_docker_image: Image,
     privileged: bool = True,
     user: int = 0,
@@ -58,7 +58,7 @@ def run_gprofiler_container(
 
 
 def test_mutex_taken_twice(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     gprofiler_docker_image: Image,
 ) -> None:
     """
@@ -67,7 +67,7 @@ def test_mutex_taken_twice(
     # Run the first one continuously
     with run_gprofiler_container(docker_client, gprofiler_docker_image, extra_profiler_args=["-c"]) as gprofiler1:
         wait_for_log(gprofiler1, "Running gProfiler", 0)
-        with run_gprofiler_container(docker_client, tests_id, gprofiler_docker_image) as gprofiler2:
+        with run_gprofiler_container(docker_client, gprofiler_docker_image) as gprofiler2:
             # exits without an error
             assert wait_for_container(gprofiler2) == (
                 "Could not acquire gProfiler's lock. Is it already running?"
@@ -78,7 +78,7 @@ def test_mutex_taken_twice(
 
 
 def test_not_root(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     gprofiler_docker_image: Image,
 ) -> None:
     """
@@ -95,7 +95,7 @@ def test_not_root(
 
 
 def test_not_host_pid(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     gprofiler_docker_image: Image,
 ) -> None:
     """
@@ -116,7 +116,7 @@ def test_not_host_pid(
 
 
 def test_host_pid_not_privileged(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     gprofiler_docker_image: Image,
 ) -> None:
     """

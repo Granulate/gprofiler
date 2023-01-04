@@ -6,7 +6,7 @@ import os
 import shutil
 from pathlib import Path
 from subprocess import Popen
-from typing import Callable, List, Mapping, Optional, Tuple
+from typing import Callable, List, Mapping, Optional
 
 import pytest
 from docker import DockerClient
@@ -27,7 +27,7 @@ def test_executable(
     runtime_specific_args: List[str],
     assert_collapsed: Callable[[Mapping[str, int]], None],
     exec_container_image: Optional[Image],
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     output_directory: Path,
     profiler_flags: List[str],
     runtime: str,

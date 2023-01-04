@@ -7,7 +7,7 @@ import re
 from contextlib import _GeneratorContextManager
 from pathlib import Path
 from threading import Event
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional
 
 import pytest
 from docker import DockerClient
@@ -186,7 +186,7 @@ def test_python_ebpf(
     RUNTIME_PROFILERS,
 )
 def test_from_container(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     application_pid: int,
     runtime_specific_args: List[str],
     gprofiler_docker_image: Image,
@@ -224,7 +224,7 @@ def test_from_container(
     ],
 )
 def test_from_container_spawned_process(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     runtime_specific_args: List[str],
     gprofiler_docker_image: Image,
     output_directory: Path,

@@ -4,7 +4,7 @@
 from contextlib import _GeneratorContextManager
 from pathlib import Path
 from threading import Event
-from typing import Callable, Container, List, Tuple
+from typing import Callable, Container, List
 
 import pytest
 from docker import DockerClient
@@ -62,7 +62,7 @@ def test_nodejs_attach_maps(
 @pytest.mark.parametrize("application_image_tag", ["without-flags"])
 @pytest.mark.parametrize("command_line", [["node", f"{CONTAINERS_DIRECTORY}/nodejs/fibonacci.js"]])
 def test_nodejs_attach_maps_from_container(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     application_pid: int,
     runtime_specific_args: List[str],
     gprofiler_docker_image: Image,

@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Container, List, Tuple
+from typing import Container, List
 
 import pytest as pytest
 from docker import DockerClient
@@ -20,7 +20,7 @@ from tests.utils import assert_function_in_collapsed, run_gprofiler_in_container
     ],
 )
 def test_sanity(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     gprofiler_docker_image: Image,
     output_directory: Path,
     output_collapsed: Path,
@@ -48,7 +48,7 @@ def test_sanity(
 )
 def test_allocation_being_profiled(
     application_docker_container: Container,
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     gprofiler_docker_image: Image,
     output_directory: Path,
     output_collapsed: Path,

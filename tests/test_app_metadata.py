@@ -4,7 +4,7 @@
 #
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import pytest
 from docker import DockerClient
@@ -94,7 +94,7 @@ from tests.utils import run_gprofiler_in_container_for_one_session
     ],
 )
 def test_app_metadata(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     application_docker_container: Container,
     runtime_specific_args: List[str],
     gprofiler_docker_image: Image,

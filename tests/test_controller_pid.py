@@ -4,7 +4,6 @@
 #
 import subprocess
 from pathlib import Path
-from typing import Tuple
 
 from docker import DockerClient
 from docker.models.images import Image
@@ -13,7 +12,7 @@ from tests.utils import start_gprofiler_in_container_for_one_session, wait_for_c
 
 
 def test_controlller_pid(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     gprofiler_docker_image: Image,
     output_directory: Path,
     output_collapsed: Path,

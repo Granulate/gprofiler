@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from threading import Event
 from time import sleep
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional
 
 from docker import DockerClient
 from docker.errors import ContainerError
@@ -39,7 +39,7 @@ RUNTIME_PROFILERS = [
 
 
 def start_container(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     image: Image,
     command: List[str],
     volumes: Dict[str, Dict[str, str]] = None,
@@ -51,7 +51,7 @@ def start_container(
     if volumes is None:
         volumes = {}
 
-    return docker_client[0].containers.run(
+    return docker_client.containers.run(
         image,
         command,
         privileged=privileged,
@@ -59,7 +59,7 @@ def start_container(
         pid_mode=pid_mode,
         userns_mode="host",
         volumes=volumes,
-        labels=[docker_client[1]],
+        labels=[docker_client.test_id],
         stderr=True,
         detach=True,
         **extra_kwargs,
@@ -102,7 +102,7 @@ def wait_for_container(container: Container) -> str:
 
 
 def run_privileged_container(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     image: Image,
     command: List[str],
     volumes: Dict[str, Dict[str, str]] = None,
@@ -123,9 +123,7 @@ def _no_errors(logs: str) -> None:
     assert "] ERROR: " not in logs, f"found ERRORs in gProfiler logs!: {logs}"
 
 
-def run_gprofiler_in_container(
-    docker_client: Tuple[DockerClient, str], image: Image, command: List[str], **kwargs: Any
-) -> None:
+def run_gprofiler_in_container(docker_client: DockerClient, image: Image, command: List[str], **kwargs: Any) -> None:
     """
     Wrapper around run_privileged_container() that also verifies there are no ERRORs in gProfiler's output log.
     """
@@ -232,7 +230,7 @@ def make_java_profiler(
 
 
 def start_gprofiler_in_container_for_one_session(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     gprofiler_docker_image: Image,
     output_directory: Path,
     output_path: Path,
@@ -270,7 +268,7 @@ def wait_for_gprofiler_container(container: Container, output_path: Path) -> str
 
 
 def run_gprofiler_in_container_for_one_session(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     gprofiler_docker_image: Image,
     output_directory: Path,
     output_path: Path,
@@ -339,7 +337,7 @@ def _application_process(command_line: List[str], check_app_exited: bool) -> Ite
 
 @contextmanager
 def _application_docker_container(
-    docker_client: Tuple[DockerClient, str],
+    docker_client: DockerClient,
     application_docker_image: Image,
     application_docker_mounts: List[Mount],
     application_docker_capabilities: List[str],
