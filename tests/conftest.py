@@ -96,12 +96,6 @@ def artifacts_dir(tmp_path_factory: TempPathFactory) -> Path:
     return tmp_path_factory.mktemp("artifacts")
 
 
-@fixture(scope="session")
-def tests_id() -> str:
-    random_string = "".join(random.choice(string.ascii_uppercase) for _ in range(10))
-    return random_string
-
-
 @lru_cache(maxsize=None)
 def java_command_line(path: Path, java_args: Tuple[str]) -> List[str]:
     class_path = path / "java"
@@ -211,6 +205,7 @@ def application_process(
 
 @fixture(scope="session")
 def docker_client(tests_id: str) -> DockerClient:
+    tests_id = "".join(random.choice(string.ascii_uppercase) for _ in range(10))
     docker_client = docker.from_env()
     setattr(docker_client, "test_id", tests_id)
     yield docker_client
