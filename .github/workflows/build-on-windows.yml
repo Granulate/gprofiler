@@ -13,9 +13,12 @@ jobs:
    steps:
       - name: run the build script
         run: .\scripts\windows\build.bat
+        shell: cmd
 
       - name: remove app dir
         run: rmdir -r .\app -force
+        shell: cmd
 
       - name: remove dep dir
         run: rmdir -r .\dep -force
+        shell: cmd
