@@ -1,17 +1,21 @@
 name: Build gProfiler on Windows
 
-on:
-  pull_request:
-  push:
-    tags:
-      - 'windows'
+on: pull_request
+# on:
+#   pull_request:
+#   push:
+#     tags:
+#       - 'windows'
 
 jobs:
   build-executable:
    runs-on: windows-latest
    steps:
-      - name: check if its working
-        run: echo "hello from windows"
+      - name: run the build script
+        run: .\scripts\windows\build.bat
 
-      - name: check if its really windows
-        run: ipconfig
+      - name: remove app dir
+        run: rmdir -r .\app -force
+
+      - name: remove dep dir
+        rmdir -r .\dep -force
