@@ -21,6 +21,9 @@ jobs:
       
       - name: install wget
         run: choco install wget -y
+      
+      - name: install deps
+        run: pip install glogger
         
       - name: run the build script
         run: .\scripts\windows\build.bat
