@@ -11,6 +11,11 @@ jobs:
   build-executable:
    runs-on: windows-latest
    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+        submodules: true
+
       - name: where am i
         run: pwd
 
