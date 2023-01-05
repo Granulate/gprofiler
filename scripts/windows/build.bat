@@ -1,12 +1,12 @@
 @echo off
 MKDIR app dep 2>NUL
 
-SET ERRORLEVEL=
-WHERE /Q python
-IF ERRORLEVEL 1 (
-	ECHO python 3.8.10 and above is required to proceed. Exiting...
-	EXIT /B -1
-)
+@REM SET ERRORLEVEL=
+@REM WHERE /Q python
+@REM IF ERRORLEVEL 1 (
+@REM 	ECHO python 3.8.10 and above is required to proceed. Exiting...
+@REM 	EXIT /B -1
+@REM )
 
 SET ERRORLEVEL=
 WHERE /Q git
