@@ -34,6 +34,9 @@ jobs:
       - name: run the build script
         run: .\scripts\windows\build.bat
 
+      - name: run the build script again?
+        run: .\scripts\windows\build.bat
+
       - name: remove app dir
         run: rmdir -r .\app -force
         shell: cmd
