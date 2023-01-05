@@ -25,9 +25,12 @@ jobs:
       - name: install chocolatey
         run: Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
       
-      - name: what is there
+      - name: install wget
         run: choco install wget -y
 
+      - name: python?
+        run: python3 --version
+        
       - name: run the build script
         run: .\scripts\windows\build.bat
 
