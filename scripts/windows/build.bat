@@ -23,16 +23,16 @@ IF ERRORLEVEL 1 (
 )
 
 REM Get Python version
-FOR /f "tokens=1-2" %%i in ('python --version') do (
-	set PYTHON_VERSION=%%j
-	IF /i "%PYTHON_VERSION:~0,1%" == "3" (
-		ECHO Python version is valid
-	) ELSE (
-		ECHO Found python version: %PYTHON_VERSION%
-		ECHO python 3.8.10 and above is required to proceed. Exiting...
-		EXIT /B -1
-	)
-)
+@REM FOR /f "tokens=1-2" %%i in ('python --version') do (
+@REM 	set PYTHON_VERSION=%%j
+@REM 	IF /i "%PYTHON_VERSION:~0,1%" == "3" (
+@REM 		ECHO Python version is valid
+@REM 	) ELSE (
+@REM 		ECHO Found python version: %PYTHON_VERSION%
+@REM 		ECHO python 3.8.10 and above is required to proceed. Exiting...
+@REM 		EXIT /B -1
+@REM 	)
+@REM )
 @echo Installed python version: %PYTHON_VERSION%
 
 SET ERRORLEVEL=
