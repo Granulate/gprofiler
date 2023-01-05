@@ -24,7 +24,6 @@ jobs:
 
       - name: run the build script
         run: .\scripts\windows\build.bat
-        shell: cmd
 
       - name: remove app dir
         run: rmdir -r .\app -force
