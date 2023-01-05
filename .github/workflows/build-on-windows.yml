@@ -16,28 +16,14 @@ jobs:
         with:
           submodules: true
 
-      - name: where am i
-        run: pwd
-
-      - name: what is there
-        run: dir
-
       - name: install chocolatey
         run: Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
       
       - name: install wget
         run: choco install wget -y
-
-      - name: python?
-        run: python3 --version
         
       - name: run the build script
         run: .\scripts\windows\build.bat
 
-      - name: remove app dir
-        run: rmdir -r .\app -force
-        shell: cmd
-
-      - name: remove dep dir
-        run: rmdir -r .\dep -force
-        shell: cmd  
+      - name: check gprofiler build
+        run: .\app\dist\gprofiler.exe -h
