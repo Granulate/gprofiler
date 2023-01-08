@@ -16,6 +16,14 @@ class ProcessStoppedException(Exception):
 
 
 class CalledProcessError(subprocess.CalledProcessError):
+    # Enough characters for 200 long lines
+    MAX_STDIO_LENGTH = 120 * 200
+
+    def _truncate_stdio(self, string: str) -> str:
+        if len(string) > self.MAX_STDIO_LENGTH:
+            string = string[: self.MAX_STDIO_LENGTH - 3] + "..."
+        return string
+
     def __str__(self) -> str:
         if self.returncode and self.returncode < 0:
             try:
@@ -24,7 +32,7 @@ class CalledProcessError(subprocess.CalledProcessError):
                 base = f"Command {self.cmd!r} died with unknown signal {-self.returncode}."
         else:
             base = f"Command {self.cmd!r} returned non-zero exit status {self.returncode}."
-        return f"{base}\nstdout: {self.stdout}\nstderr: {self.stderr}"
+        return f"{base}\nstdout: {self._truncate_stdio(self.stdout)}\nstderr: {self._truncate_stdio(self.stderr)}"
 
 
 class CalledProcessTimeoutError(CalledProcessError):
