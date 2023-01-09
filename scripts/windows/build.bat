@@ -77,7 +77,7 @@ COPY ..\exe-requirements.txt exe-requirements.txt
 python -m pip install --no-cache-dir -r exe-requirements.txt
 MKDIR gprofiler\resources\python
 COPY ..\py-spy\py-spy.exe gprofiler\resources\python
-
+python -m pip install ./granulate-utils
 ECHO D | XCOPY ..\gprofiler .\gprofiler /E
 FOR %%i in ("..\pyi_build.py" "..\pyinstaller.spec") do COPY "%%i" .
 python -m PyInstaller pyinstaller.spec
