@@ -129,7 +129,8 @@ JAVA_SAFEMODE_DEFAULT_OPTIONS = [
     JavaSafemodeOptions.HSERR.value,
 ]
 
-JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 64  # StackRecovery.JAVA_STATE
+# https://github.com/jvm-profiling-tools/async-profiler/blob/63799a6055363cbd7ca8ef951e2393db0d0ba7dd/src/profiler.cpp#L77
+JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 256  # StackRecovery.PROBE_SP
 
 SUPPORTED_AP_MODES = ["cpu", "itimer", "alloc"]
 
@@ -608,8 +609,8 @@ class AsyncProfiledProcess:
             "--java-async-profiler-safemode",
             dest="java_async_profiler_safemode",
             default=JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
-            type=integer_range(0, 128),
-            metavar="[0-127]",
+            type=integer_range(0, 0x200),
+            metavar="[0-511]",
             help="Controls the 'safemode' parameter passed to async-profiler. This is parameter denotes multiple"
             " bits that describe different stack recovery techniques which async-profiler uses (see StackRecovery"
             " enum in async-profiler's code, in profiler.cpp)."
