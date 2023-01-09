@@ -202,7 +202,7 @@ def application_process(
             yield popen
 
 
-@fixture
+@fixture(scope="session")
 def docker_client() -> DockerClient:
     tests_id = secrets.token_hex(5)
     docker_client = docker.from_env()
@@ -210,7 +210,7 @@ def docker_client() -> DockerClient:
     yield docker_client
 
     exited_ids = []  # type: List[str]
-    exited_container_list = docker_client.containers.list(filters={"label": tests_id})
+    exited_container_list = docker_client.containers.list(filters={"status": "exited", "label": tests_id})
     for container in exited_container_list:
         exited_ids.append(container.id)
 
