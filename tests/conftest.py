@@ -3,9 +3,8 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
-import random
+import secrets
 import stat
-import string
 import subprocess
 from contextlib import _GeneratorContextManager, contextmanager
 from functools import lru_cache, partial
@@ -203,15 +202,26 @@ def application_process(
             yield popen
 
 
-@fixture(scope="session")
+@fixture
 def docker_client() -> DockerClient:
-    tests_id = "".join(random.choice(string.ascii_uppercase) for _ in range(10))
+    tests_id = secrets.token_hex(5)
     docker_client = docker.from_env()
     setattr(docker_client, "test_id", tests_id)
     yield docker_client
-    docker_client.containers.prune(filters={"label": tests_id})
-    if len(docker_client.containers.list(filters={"label": tests_id})) > 0:
-        raise Exception("Container has not been properly pruned")
+
+    exited_ids = []  # type: List[str]
+    exited_container_list = docker_client.containers.list(filters={"label": tests_id})
+    for container in exited_container_list:
+        exited_ids.append(container.id)
+
+    pruned_ids = []  # type: List[str]
+    pruned_container_list = docker_client.containers.prune(filters={"label": tests_id})
+    if pruned_container_list["ContainersDeleted"] is not None:
+        pruned_ids = pruned_ids + pruned_container_list["ContainersDeleted"]
+
+    for id in exited_ids:
+        if id not in pruned_ids:
+            raise Exception("Container with id " + id + " has not been properly pruned")
 
 
 @fixture(scope="session")
