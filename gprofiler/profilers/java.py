@@ -610,7 +610,7 @@ class AsyncProfiledProcess:
             dest="java_async_profiler_safemode",
             default=JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
             type=integer_range(0, 0x200),
-            metavar="[0-512]",
+            metavar="[0-511]",
             help="Controls the 'safemode' parameter passed to async-profiler. This is parameter denotes multiple"
             " bits that describe different stack recovery techniques which async-profiler uses (see StackRecovery"
             " enum in async-profiler's code, in profiler.cpp)."
