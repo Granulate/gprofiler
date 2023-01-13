@@ -43,6 +43,8 @@ from gprofiler.platform import is_linux, is_windows
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
+from gprofiler.spark.client import SparkAPIClient
+from gprofiler.spark.spark_collector import SparkSampler
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import Metrics, NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
 from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLoggerInterface
@@ -507,6 +509,63 @@ def parse_cmd_args() -> configargparse.Namespace:
 
     _add_profilers_arguments(parser)
 
+    spark_options = parser.add_argument_group("Spark")
+    spark_options.add_argument(
+        "--spark-mode",
+        dest="spark_mode",
+        default="unknown",
+        choices=["yarn", "mesos", "driver", "unknown"],
+        help="Spark cluster mode. Possible options are yarn, mesos, driver and unknown",
+    )
+
+    spark_options.add_argument(
+        "--spark-master-address",
+        dest="spark_master_address",
+        type=str,
+        default=None,
+        help="Spark cluster address",
+    )
+
+    spark_options.add_argument(
+        "--spark-sample-period",
+        dest="spark_sample_period",
+        type=int,
+        default=1,
+        help="Time in seconds between each metric collection",
+    )
+
+    spark_options.add_argument(
+        "--no-spark-app-metrics",
+        dest="disable_spark_app_metrics",
+        default=False,
+        action="store_true",
+        help="Disable the collection of application metrics from the Spark cluster",
+    )
+
+    spark_options.add_argument(
+        "--no-spark-stream-metrics",
+        dest="disable_spark_stream_metrics",
+        default=False,
+        action="store_true",
+        help="Disable the collection of streaming metrics from the Spark cluster",
+    )
+
+    spark_options.add_argument(
+        "--no-spark-cluster-metrics",
+        dest="disable_spark_cluster_metrics",
+        default=False,
+        action="store_true",
+        help="Disable the collection of cluster metrics from the Spark cluster",
+    )
+
+    spark_options.add_argument(
+        "--no-spark",
+        dest="enable_spark",
+        default=True,
+        action="store_false",
+        help="Disable Spark metrics collection",
+    )
+
     nodejs_options = parser.add_argument_group("NodeJS")
     nodejs_options.add_argument(
         "--nodejs-mode",
@@ -882,6 +941,7 @@ def main() -> None:
         if databricks_client.job_name is not None:
             args.service_name = f"databricks-{databricks_client.job_name}"
 
+    spark_sampler = None
     try:
         logger.info("Running gProfiler", commandline=" ".join(sys.argv[1:]), arguments=args.__dict__)
 
@@ -957,6 +1017,48 @@ def main() -> None:
         set_enrichment_options(enrichment_options)
         set_diagnostics(args.diagnostics)
 
+        if args.enable_spark:
+            try:
+                client_kwargs = {}
+                if "server_upload_timeout" in args:
+                    client_kwargs["upload_timeout"] = args.server_upload_timeout
+                spark_client = (
+                    SparkAPIClient(
+                        args.server_host,
+                        args.server_token,
+                        args.service_name,
+                        get_hostname(),
+                        **client_kwargs,
+                    )
+                    if args.upload_results
+                    else None
+                )
+            except APIError as e:
+                logger.error(f"Server error: {e}")
+                sys.exit(1)
+            except RequestException as e:
+                proxy = get_https_proxy()
+                proxy_str = repr(proxy) if proxy is not None else "none"
+                logger.error(
+                    "Failed to connect to server. It might be blocked by your security rules / firewall,"
+                    " or you might require a proxy to access it from your environment?"
+                    f" Proxy used: {proxy_str}. Error: {e}"
+                )
+                sys.exit(1)
+            spark_sampler = SparkSampler(
+                sample_period=args.spark_sample_period,
+                master_address=args.spark_master_address,
+                spark_mode=args.spark_mode,
+                disable_app_metrics=args.disable_spark_app_metrics,
+                disable_cluster_metrics=args.disable_spark_cluster_metrics,
+                disable_streaming_metrics=args.disable_spark_stream_metrics,
+                storage_dir=args.output_dir,
+                client=spark_client,
+            )
+
+            if not spark_sampler.start():
+                logger.error("Unable to start Spark metrics collection")
+
         gprofiler = GProfiler(
             args.output_dir,
             args.flamegraph,
@@ -982,11 +1084,16 @@ def main() -> None:
             gprofiler.run_single()
 
     except KeyboardInterrupt:
-        pass
+        if spark_sampler is not None and spark_sampler.is_running():
+            spark_sampler.stop()
     except NoProfilersEnabledError:
+        if spark_sampler is not None and spark_sampler.is_running():
+            spark_sampler.stop()
         logger.error("All profilers are disabled! Please enable at least one of them!")
         sys.exit(1)
     except Exception:
+        if spark_sampler is not None and spark_sampler.is_running():
+            spark_sampler.stop()
         logger.exception("Unexpected error occurred")
         sys.exit(1)
 

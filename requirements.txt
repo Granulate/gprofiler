@@ -14,3 +14,8 @@ netifaces==0.11.0; sys.platform == "win32"
 WMI==1.5.1; sys.platform == "win32"
 ./granulate-utils/
 humanfriendly==10.0
+wheel
+urllib3
+certifi>=2017.4.17
+charset-normalizer~=2.0.0
+idna<4,>=2.5
