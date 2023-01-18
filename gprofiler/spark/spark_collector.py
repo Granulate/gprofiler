@@ -6,7 +6,6 @@ import threading
 import time
 import traceback
 import xml.etree.ElementTree as ET
-from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union, cast
 from urllib.parse import urljoin, urlparse
@@ -53,7 +52,7 @@ STRUCTURED_STREAMS_METRICS_REGEX = re.compile(
 )
 
 
-class SparkCollector():
+class SparkCollector:
     def __init__(self, **kwargs: Any) -> None:
         self._lock = threading.Lock()
         self._logger = get_logger_adapter(__name__)
@@ -772,12 +771,20 @@ class SparkSampler(object):
             )
             return os.path.join("/etc/hadoop/conf/", "yarn-site.xml")
 
+    @staticmethod
+    def _get_process_root_relative_path(process: psutil.Process, absolute_path: str) -> str:
+        return os.path.join(f"/proc/{process.pid}/root", absolute_path.lstrip(os.sep))
+
     def _get_yarn_config(self, process: psutil.Process) -> Optional[ET.Element]:
         config_path = self._get_yarn_config_path(process)
 
         self._logger.debug("Trying to open yarn config file for reading", extra={"config_path": config_path})
         try:
-            with open(config_path, "rb") as conf_file:
+            # resolve config path against process' filesystem root
+            process_relative_config_path = self._get_process_root_relative_path(
+                process, self._get_yarn_config_path(process)
+            )
+            with open(process_relative_config_path, "rb") as conf_file:
                 config_xml_string = conf_file.read()
             return ET.fromstring(config_xml_string)
         except FileNotFoundError:
