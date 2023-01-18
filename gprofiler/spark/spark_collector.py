@@ -53,18 +53,21 @@ STRUCTURED_STREAMS_METRICS_REGEX = re.compile(
 )
 
 
-class BaseCollector(ABC):
-    def __init__(self) -> None:
+class SparkCollector():
+    def __init__(self, **kwargs: Any) -> None:
         self._lock = threading.Lock()
         self._logger = get_logger_adapter(__name__)
 
-    @abstractmethod
-    def _collect(self) -> Generator[Dict[str, Any], None, None]:
-        """
-        Metrics collection should happen here, refer https://github.com/prometheus/client_python#custom-collectors for
-        additional information
-        """
-        pass
+        self._last_sample_time = int(time.monotonic() * 1000)
+        self._cluster_mode = kwargs["spark_mode"]
+        self._master_address = "http://" + kwargs["master_address"]
+        self._cluster_metrics = kwargs.get("cluster_metrics", True)
+        self._applications_metrics = kwargs.get("applications_metrics", False)
+        self._streaming_metrics = kwargs.get("streaming_metrics", True)
+        self._task_summary_metrics = True
+        self._metricsservlet_path = "/metrics/json"  # TODO: figure out if need to be treat better
+        self._init_metrics()
+        self._last_iteration_app_job_metrics: Dict[str, Dict[str, Any]] = {}
 
     def collect(self) -> Generator[Dict[str, Any], None, None]:
         if not self._lock.acquire(False):
@@ -80,22 +83,6 @@ class BaseCollector(ABC):
             self._logger.exception(f"Error while trying to collect f{self.__class__.__name__}")
         finally:
             self._lock.release()
-
-
-class SparkCollector(BaseCollector):
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__()
-
-        self._last_sample_time = int(time.time() * 1000)
-        self._cluster_mode = kwargs["spark_mode"]
-        self._master_address = "http://" + kwargs["master_address"]
-        self._cluster_metrics = kwargs.get("cluster_metrics", True)
-        self._applications_metrics = kwargs.get("applications_metrics", False)
-        self._streaming_metrics = kwargs.get("streaming_metrics", True)
-        self._task_summary_metrics = True
-        self._metricsservlet_path = "/metrics/json"  # TODO: figure out if need to be treat better
-        self._init_metrics()
-        self._last_iteration_app_job_metrics: Dict[str, Dict[str, Any]] = {}
 
     def _init_metrics(self) -> None:
         if self._cluster_mode == "yarn":
