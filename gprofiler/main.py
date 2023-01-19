@@ -1054,6 +1054,7 @@ def main() -> None:
                 disable_streaming_metrics=args.disable_spark_stream_metrics,
                 storage_dir=args.output_dir,
                 client=spark_client,
+                continuous_mode=args.continuous
             )
 
             if not spark_sampler.start():
