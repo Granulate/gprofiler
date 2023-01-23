@@ -4,6 +4,7 @@
 #
 import functools
 import json
+import logging
 import os
 import re
 import secrets
@@ -13,7 +14,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event, Lock
 from types import TracebackType
-from typing import Any, Dict, List, Optional, Sequence, Set, Type, TypeVar
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Type, TypeVar
 
 import psutil
 from granulate_utils.java import (
@@ -258,7 +259,7 @@ class JavaMetadata(ApplicationMetadata):
         # that loads other libs.
         libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")
 
-        metadata = {"java_version": version, "libjvm_elfid": libjvm_elfid}
+        metadata = {"java_version": version, "libjvm_elfid": libjvm_elfid, "jvm_flags": get_jvm_flags(process)}
 
         metadata.update(super().make_application_metadata(process))
         return metadata
@@ -277,6 +278,72 @@ def fdtransfer_path() -> str:
 @functools.lru_cache(maxsize=1)
 def get_ap_version() -> str:
     return Path(resource_path("java/async-profiler-version")).read_text()
+
+
+@functools.lru_cache(maxsize=1024)
+def get_jvm_flags(
+    process: Process,
+) -> List[Tuple[Optional[str], Optional[str], Optional[str], str, Optional[List[str]]]]:
+    return [
+        (flag_name, flag_type, flag_value, flag_source, flag_kind)
+        for flag_name, flag_type, flag_value, flag_source, flag_kind in get_jvm_flags_raw(process)
+        if filter_jvm_flags(flag_name, flag_type, flag_value, flag_source, flag_kind) is True
+    ]
+
+
+def filter_jvm_flags(
+    _flag_name: Optional[str],
+    flag_type: Optional[str],
+    _flag_value: Optional[str],
+    flag_source: str,
+    flag_kind: Optional[List[str]],
+) -> bool:
+    if flag_source == "default":
+        return False
+
+    if flag_type and flag_type not in ["bool", "int", "uint", "intx", "uintx", "uint64_t", "size_t", "double"]:
+        return False
+
+    if flag_kind and any(
+        (not_supported_kind in flag_kind) for not_supported_kind in ["notproduct", "pd", "experimental"]
+    ):
+        return False
+
+    return True
+
+
+def get_jvm_flags_raw(
+    process: Process,
+) -> List[Tuple[Optional[str], Optional[str], Optional[str], str, Optional[List[str]]]]:
+    try:
+        output = run_process([jattach_path(), str(process.pid), "jcmd", "VM.flags -all"]).stdout.decode()
+    except CalledProcessError as e:
+        logging.warning(f"Couldn't get jvm flags for process {process.pid}: {e.stderr}")
+        return []
+
+    vm_flags = []
+    vm_flags_pattern = re.compile(r"(\S+)\s+(\S+)\s+(:)?= (\S*)\s+{(.+?)}(?:\s*{(.*)})*")
+
+    for line in output.splitlines():
+        match = vm_flags_pattern.search(line)
+        if match:
+            flag_type = match.group(1)
+            flag_name = match.group(2)
+            flag_is_non_default_source_only_jdk_8 = match.group(3) == ":"
+            flag_value = match.group(4)
+            flag_kind = match.group(5).split()
+            flag_source_jdk_9 = match.group(6)
+
+            if flag_is_non_default_source_only_jdk_8:
+                flag_source = "non-default"
+            elif flag_source_jdk_9:
+                flag_source = flag_source_jdk_9
+            else:
+                flag_source = "default"
+
+            vm_flags += [(flag_name, flag_type, flag_value, flag_source, flag_kind)]
+
+    return vm_flags
 
 
 T = TypeVar("T", bound="AsyncProfiledProcess")
