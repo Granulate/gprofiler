@@ -705,4 +705,5 @@ def test_java_frames_include_no_semicolons(
     ) as profiler:
         collapsed = snapshot_pid_profile(profiler, application_pid).stacks
         assert is_function_in_collapsed(".main([Ljava/lang/String|)", collapsed)
+        assert not is_function_in_collapsed(";_[j];", collapsed)
         assert not is_pattern_in_collapsed(r"\([^);]+[;][^)]*\)", collapsed)
