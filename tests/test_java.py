@@ -715,4 +715,6 @@ def test_java_frames_include_no_semicolons(
         # no semicolon in return type:
         assert not is_function_in_collapsed(";_[j];", collapsed)
         # no semicolon in arguments list signatures:
-        assert not is_pattern_in_collapsed(r"\([^);]+[;][^)]*\)", collapsed)
+        assert not is_pattern_in_collapsed(r"\([^);]+;[^)]*\)", collapsed)
+        # only a pipe can occur within arguments
+        assert is_pattern_in_collapsed(r"\([^);|]+\|[^)]*\)", collapsed)
