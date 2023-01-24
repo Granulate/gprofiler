@@ -5,10 +5,10 @@
 #
 set -euo pipefail
 
-VERSION=remove-our-semicolon-patch
-GIT_REV="f9d5b861eb0b0bb2e0a8e2b4ed7bf6ca13a41d63"
+VERSION=v2.9g5
+GIT_REV="60cbc128a752c657e8a97300784686e08c8dbe9d"
 
-git clone --depth 1 -b "$VERSION" https://github.com/marcin-ol/async-profiler.git && cd async-profiler && git reset --hard "$GIT_REV"
+git clone --depth 1 -b "$VERSION" https://github.com/granulate/async-profiler.git && cd async-profiler && git reset --hard "$GIT_REV"
 make all
 
 # add a version file to the build directory

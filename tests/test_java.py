@@ -693,6 +693,7 @@ def test_meminfo_logged(
         assert "async-profiler memory usage (in bytes)" in caplog.text
 
 
+# test that java frames include no semicolon but use a pipe '|' character instead, as implemented by AP
 @pytest.mark.parametrize("in_container", [True])
 def test_java_frames_include_no_semicolons(
     tmp_path: Path,
@@ -704,6 +705,14 @@ def test_java_frames_include_no_semicolons(
         frequency=999,
     ) as profiler:
         collapsed = snapshot_pid_profile(profiler, application_pid).stacks
-        assert is_function_in_collapsed(".main([Ljava/lang/String|)", collapsed)
+        # JVM ends object-type signatures with a semicolon; in decompiled output of a class file semicolon appears
+        # after each object type. async-profiler replaces them with '|' to have consistent collapsed stacks format.
+        # We make sure semicolons do not appear neither in function arguments list nor in the return type.
+        # make sure pipe character is used where semicolon would be:
+        assert is_function_in_collapsed("Fibonacci.main([Ljava/lang/String|)V_[j];", collapsed)
+        # make sure semicolon is used only to separate function frames:
+        assert is_function_in_collapsed("Fibonacci$1.run()V_[j];java/io/File.list()[Ljava/lang/String|_[j]", collapsed)
+        # no semicolon in return type:
         assert not is_function_in_collapsed(";_[j];", collapsed)
+        # no semicolon in arguments list signatures:
         assert not is_pattern_in_collapsed(r"\([^);]+[;][^)]*\)", collapsed)
