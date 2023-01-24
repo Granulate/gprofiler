@@ -7,8 +7,8 @@ import functools
 from threading import Event, Lock
 from typing import Any, Dict, Optional
 
-from granulate_utils.linux.process import is_process_running, read_process_execfn
-from psutil import NoSuchProcess, Process
+from granulate_utils.linux.process import is_process_running, process_exe, read_process_execfn
+from psutil import NoSuchProcess, Process, ZombieProcess
 
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.versions import get_exe_version
@@ -50,14 +50,16 @@ class ApplicationMetadata:
                 self._clear_cache()
             try:
                 metadata = self.make_application_metadata(process)
-            except NoSuchProcess:
+            except (NoSuchProcess, ZombieProcess):
                 # let our caller handler this
                 raise
             except Exception:
                 # log only the first _MAX_METADATA_EXCEPTION_LOGS exceptions; I expect the same exceptions to
                 # be repeated again and again, so it's enough to log just a handful of them.
                 if self._metadata_exception_logs_count < self._MAX_METADATA_EXCEPTION_LOGS:
-                    logger.exception(f"Exception while collecting metadata in {self.__class__.__name__}!")
+                    logger.exception(
+                        f"Exception while collecting metadata in {self.__class__.__name__}!", pid=process.pid
+                    )
                     self._metadata_exception_logs_count += 1
             else:
                 self._cache[process] = metadata
@@ -65,4 +67,24 @@ class ApplicationMetadata:
         return metadata
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        return {"exe": process.exe(), "execfn": None if is_windows() else read_process_execfn(process)}
+        md = {}
+
+        try:
+            exe = process_exe(process)
+        except (NoSuchProcess, ZombieProcess):
+            raise  # let caller handle
+        except Exception as e:
+            logger.exception("Exception while reading process exe", pid=process.pid)
+            exe = f"error: {e.__class__.__name__}"
+        md["exe"] = exe
+
+        try:
+            execfn = "error: not supported on Windows" if is_windows() else read_process_execfn(process)
+        except (NoSuchProcess, ZombieProcess):
+            raise  # let caller handle
+        except Exception as e:
+            logger.exception("Exception while reading process execfn", pid=process.pid)
+            execfn = f"error: {e.__class__.__name__}"
+        md["execfn"] = execfn
+
+        return md
