@@ -32,6 +32,7 @@ class SparkAPIClient:
         key: str,
         service: str,
         hostname: str,
+        curlify_requests: bool,
         upload_timeout: int,
         version: str = "v0",
     ):
@@ -41,6 +42,7 @@ class SparkAPIClient:
         self._key = key
         self._service = service
         self._hostname = hostname
+        self._curlify = curlify_requests
 
         self._init_session()
         logger.info(f"The connection to the server was successfully established (service {service!r})")
@@ -98,10 +100,29 @@ class SparkAPIClient:
         opts["params"] = self._get_query_params() + [(k, v) for k, v in params.items()]
 
         resp = self._session.request(method, "{}/{}".format(self.get_base_url(api_version), path), **opts)
+        if self._curlify:
+            import curlify  # type: ignore # import here as it's not always required.
+
+            if resp.request.body is not None:
+                # curlify attempts to decode bytes into utf-8. Our content is gzipped so we undo the gzip here
+                # (it's fine to edit the object, as the request was already sent).
+                assert resp.request.headers["Content-Encoding"] == "gzip"  # make sure it's really gzip before we undo
+                assert isinstance(resp.request.body, bytes)
+                resp.request.body = gzip.decompress(resp.request.body)
+                del resp.request.headers["Content-Encoding"]
+            logger.debug(
+                "API request",
+                curl_command=curlify.to_curl(resp.request),
+                status_code=resp.status_code
+                no_server_log=True,
+            )
 
         if 400 <= resp.status_code < 500:
             try:
                 response_data = resp.json()
+                assert isinstance(response_data, json)
+                logger.debug(response_data)
+                logger.debug(resp)
                 raise APIError(response_data.get("message", "(no message in response)"), response_data)
             except ValueError:
                 raise APIError(resp.text)

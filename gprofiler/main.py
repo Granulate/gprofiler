@@ -1028,6 +1028,7 @@ def main() -> None:
                         args.server_token,
                         args.service_name,
                         get_hostname(),
+                        args.curlify_requests,
                         **client_kwargs,
                     )
                     if args.upload_results
