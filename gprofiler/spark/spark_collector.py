@@ -735,6 +735,7 @@ class SparkSampler(object):
         disable_streaming_metrics: Optional[bool] = False,
         storage_dir: Optional[str] = None,
         client: Optional[SparkAPIClient] = None,
+        continuous_mode: Optional[bool] = False
     ):
         self._logger = get_logger_adapter(__name__)
         if spark_mode is not None:
@@ -752,6 +753,7 @@ class SparkSampler(object):
         self._spark_sampler: Optional[SparkCollector] = None
         self._stop_collection = False
         self._is_running = False
+        self._continuous_mode = continuous_mode
         self._storage_dir = storage_dir
         if self._storage_dir is not None:
             assert os.path.exists(self._storage_dir) and os.path.isdir(self._storage_dir)
@@ -971,6 +973,8 @@ class SparkSampler(object):
                     timestamp = cast(int, results[METRIC_TIMESTAMP_KEY])
                     data = cast(List[Dict[str, Any]], results[METRICS_DATA_KEY])
                     self._client.submit_spark_metrics(timestamp, data)
+                if not self._continuous_mode:
+                    return
             except StopIteration:
                 pass
             time.sleep(cast(float, self._sample_period))
