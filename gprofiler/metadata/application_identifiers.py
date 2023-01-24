@@ -15,6 +15,7 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.base_application_identifier import _ApplicationIdentifier
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.platform import is_linux
+from gprofiler.profilers.java import JattachJcmdRunner
 
 if is_linux():
     from gprofiler.metadata.application_identifiers_java import (
@@ -322,10 +323,6 @@ _IDENTIFIERS_MAP: Dict[str, List[_ApplicationIdentifier]] = {
 _IDENTIFIERS_MAP["node"] = [_NodeModuleApplicationIdentifier()]
 _IDENTIFIERS_MAP["ruby"] = [_RubyModuleApplicationIdentifier()]
 
-if is_linux():
-    _IDENTIFIERS_MAP["java"] = [_JavaJarApplicationIdentifier()]
-    _IDENTIFIERS_MAP["java_spark"] = _IDENTIFIERS_MAP["java"] + [_JavaSparkApplicationIdentifier()]
-
 
 def set_enrichment_options(enrichment_options: EnrichmentOptions) -> None:
     _ApplicationIdentifier.enrichment_options = enrichment_options
@@ -368,7 +365,13 @@ def get_python_app_id(process: Process) -> Optional[str]:
     return get_app_id(process, "python")
 
 
-def get_java_app_id(process: Process, should_collect_spark_app_name: bool = False) -> Optional[str]:
+def get_java_app_id(
+    process: Process, jattach_jcmd_runner: JattachJcmdRunner, should_collect_spark_app_name: bool = False
+) -> Optional[str]:
+    if is_linux():
+        _IDENTIFIERS_MAP["java"] = [_JavaJarApplicationIdentifier(jattach_jcmd_runner)]
+        _IDENTIFIERS_MAP["java_spark"] = _IDENTIFIERS_MAP["java"] + [_JavaSparkApplicationIdentifier()]
+
     return get_app_id(process, "java_spark" if should_collect_spark_app_name else "java", aggregate_all=True)
 
 

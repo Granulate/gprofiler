@@ -11,16 +11,18 @@ from psutil import Process
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.base_application_identifier import _ApplicationIdentifier
-from gprofiler.profilers.java import jattach_path
-from gprofiler.utils import run_process
+from gprofiler.profilers.java import JattachJcmdRunner
 
 _logger = get_logger_adapter(__name__)
 
 
 class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
+    def __init__(self, jattach_jcmd_runner: JattachJcmdRunner):
+        self.jattach_jcmd_runner = jattach_jcmd_runner
+
     def get_app_id(self, process: Process) -> Optional[str]:
         try:
-            java_properties = run_process([jattach_path(), str(process.pid), "jcmd", "VM.command_line"]).stdout.decode()
+            java_properties = self.jattach_jcmd_runner.run(process, "VM.command_line")
             java_command = None
             java_args = []
             for line in java_properties.splitlines():

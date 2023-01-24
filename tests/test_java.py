@@ -691,3 +691,85 @@ def test_meminfo_logged(
     ) as profiler:
         snapshot_pid_profile(profiler, application_pid)
         assert "async-profiler memory usage (in bytes)" in caplog.text
+
+
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize(
+    "application_image_tag,expected_flags",
+    [
+        (
+            "hotspot-jdk-8",
+            [
+                ("CICompilerCount", "intx", "4", "non-default", ["product"]),
+                ("InitialHeapSize", "uintx", "264241152", "non-default", ["product"]),
+                ("MaxHeapSize", "uintx", "4196401152", "non-default", ["product"]),
+                ("MaxNewSize", "uintx", "1398800384", "non-default", ["product"]),
+                ("MinHeapDeltaBytes", "uintx", "524288", "non-default", ["product"]),
+                ("NewSize", "uintx", "88080384", "non-default", ["product"]),
+                ("OldSize", "uintx", "176160768", "non-default", ["product"]),
+                ("UseCompressedClassPointers", "bool", "true", "non-default", ["lp64_product"]),
+                ("UseCompressedOops", "bool", "true", "non-default", ["lp64_product"]),
+                ("UseParallelGC", "bool", "true", "non-default", ["product"]),
+            ],
+        ),
+        (
+            "hotspot-jdk-11",
+            [
+                ("CICompilerCount", "intx", "4", "ergonomic", ["product"]),
+                ("ConcGCThreads", "uint", "2", "ergonomic", ["product"]),
+                ("G1ConcRefinementThreads", "uint", "8", "ergonomic", ["product"]),
+                ("G1HeapRegionSize", "size_t", "1048576", "ergonomic", ["product"]),
+                ("GCDrainStackTargetSize", "uintx", "64", "ergonomic", ["product"]),
+                ("InitialHeapSize", "size_t", "264241152", "ergonomic", ["product"]),
+                ("MarkStackSize", "size_t", "4194304", "ergonomic", ["product"]),
+                ("MaxHeapSize", "size_t", "4196401152", "ergonomic", ["product"]),
+                ("MaxNewSize", "size_t", "2517630976", "ergonomic", ["product"]),
+                ("MinHeapDeltaBytes", "size_t", "1048576", "ergonomic", ["product"]),
+                ("SegmentedCodeCache", "bool", "true", "ergonomic", ["product"]),
+                ("UseCompressedClassPointers", "bool", "true", "ergonomic", ["lp64_product"]),
+                ("UseCompressedOops", "bool", "true", "ergonomic", ["lp64_product"]),
+                ("UseG1GC", "bool", "true", "ergonomic", ["product"]),
+            ],
+        ),
+        (
+            "zing",
+            [
+                ("AllocOopTablesInCHeap", "bool", "true", "ergonomic", ["product"]),
+                ("BestEffortElasticity", "bool", "false", "ergonomic", ["product"]),
+                ("CIMaxCompilerThreads", "intx", "5", "ergonomic", ["product"]),
+                ("CodeCacheMinimumFreeSpace", "uintx", "8388608", "ergonomic", ["product"]),
+                ("FalconCompensateForIntelMCUForErratumSKX102", "bool", "false", "ergonomic", ["ARCH", "product"]),
+                ("FalconOSROptimizationLevel", "uintx", "2", "ergonomic", ["FALCON", "product"]),
+                ("GPGCElasticSideband", "bool", "true", "ergonomic", ["product"]),
+                ("GPGCNoZSTUseNUMAInterleaving", "bool", "false", "ergonomic", ["product"]),
+                ("GPGCSmallSpaceAllocateForRelocateSlots", "uintx", "8", "ergonomic", ["product"]),
+                ("GPGCThreads", "uintx", "6", "ergonomic", ["product"]),
+                ("GPGCUseDensePhaseEncoding", "bool", "false", "ergonomic", ["product"]),
+                ("GenPauselessNewThreads", "uintx", "4", "ergonomic", ["product"]),
+                ("GenPauselessOldThreads", "uintx", "2", "ergonomic", ["product"]),
+                ("HeapElasticityLogIntervalBytes", "uintx", "209715200", "ergonomic", ["manageable"]),
+                ("HeapElasticityTargetMinAvailableSystemMemory", "uintx", "125829120", "ergonomic", ["product"]),
+                ("InitialHeapSize", "uintx", "536870912", "ergonomic", ["product"]),
+                ("InitialSystemDictionarySize", "uintx", "320219", "ergonomic", ["product"]),
+                ("KlassTableSize", "intx", "8388608", "ergonomic", ["product"]),
+                ("MaxHeapSize", "uintx", "4194304000", "ergonomic", ["product"]),
+                ("MlockCodeCache", "bool", "true", "command line", ["product"]),
+                ("StringTableSize", "uintx", "320219", "ergonomic", ["product"]),
+                ("SymbolTableSize", "uintx", "320219", "ergonomic", ["product"]),
+                ("UseZST", "bool", "false", "ergonomic", ["product"]),
+            ],
+        ),
+    ],
+)
+def test_get_jvm_flags(
+    tmp_path: Path,
+    application_pid: int,
+    assert_collapsed: AssertInCollapsed,
+    expected_flags: list,
+) -> None:
+    with make_java_profiler(
+        frequency=99,
+        storage_dir=str(tmp_path),
+        java_async_profiler_mode="cpu",
+    ) as profiler:
+        assert profiler._metadata.get_jvm_flags(psutil.Process(application_pid)) == expected_flags

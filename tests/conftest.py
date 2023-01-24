@@ -235,6 +235,12 @@ def application_docker_image_configs() -> Mapping[str, Dict[str, Any]]:
         },
         "java": {
             "": {},
+            "hotspot-jdk-8": {},  # add for clarity when testing with multiple JDKs
+            "hotspot-jdk-11": dict(
+                buildargs={
+                    "JAVA_BASE_IMAGE": "openjdk@sha256:e81b7f317654b0f26d3993e014b04bcb29250339b11b9de41e130feecd4cd43c"
+                }
+            ),  # openjdk:11-jdk (11.0.16)
             "j9": dict(buildargs={"JAVA_BASE_IMAGE": "adoptopenjdk/openjdk8-openj9"}),
             "zing": dict(dockerfile="zing.Dockerfile"),
             "musl": dict(dockerfile="musl.Dockerfile"),

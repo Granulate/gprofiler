@@ -2,6 +2,7 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import dataclasses
 import functools
 import json
 import logging
@@ -14,7 +15,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event, Lock
 from types import TracebackType
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Type, TypeVar
+from typing import Any, Dict, List, Optional, Sequence, Set, Type, TypeVar
 
 import psutil
 from granulate_utils.java import (
@@ -197,6 +198,26 @@ class JattachSocketMissingException(JattachExceptionBase):
         )
 
 
+class JattachJcmdRunner:
+    def __init__(self, stop_event: Event, jattach_timeout: int):
+        self.stop_event = stop_event
+        self.jattach_timeout = jattach_timeout
+
+    def run(self, process: Process, cmd: str) -> str:
+        return run_process(
+            [jattach_path(), str(process.pid), "jcmd", cmd], stop_event=self.stop_event, timeout=self.jattach_timeout
+        ).stdout.decode()
+
+
+@dataclasses.dataclass
+class JvmFlag:
+    flag_name: str
+    flag_type: str
+    flag_value: str
+    flag_origin: str
+    flag_kind: List[str]
+
+
 def is_java_basename(process: Process) -> bool:
     return is_process_basename_matching(process, r"^java$")
 
@@ -250,6 +271,10 @@ def get_java_version_logged(process: Process, stop_event: Event) -> str:
 
 
 class JavaMetadata(ApplicationMetadata):
+    def __init__(self, stop_event: Event, jattach_jcmd_runner: JattachJcmdRunner):
+        super().__init__(stop_event)
+        self.jattach_jcmd_runner = jattach_jcmd_runner
+
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         if is_java_basename(process):
             version = get_java_version(process, self._stop_event)
@@ -259,10 +284,106 @@ class JavaMetadata(ApplicationMetadata):
         # that loads other libs.
         libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")
 
-        metadata = {"java_version": version, "libjvm_elfid": libjvm_elfid, "jvm_flags": get_jvm_flags(process)}
+        metadata = {"java_version": version, "libjvm_elfid": libjvm_elfid, "jvm_flags": self.get_jvm_flags(process)}
 
         metadata.update(super().make_application_metadata(process))
         return metadata
+
+    @functools.lru_cache(maxsize=1024)
+    def get_jvm_flags(self, process: Process) -> Optional[List[tuple]]:
+        jvm_raw_flags = self.get_jvm_flags_raw(process)
+        if jvm_raw_flags is None:
+            return None
+
+        return [dataclasses.astuple(flag) for flag in jvm_raw_flags if self.filter_jvm_flags(flag)]
+
+    @staticmethod
+    def filter_jvm_flags(flag: JvmFlag) -> bool:
+        if flag.flag_origin == "default":
+            return False
+
+        if flag.flag_type not in [
+            "bool",
+            "int",
+            "uint",
+            "intx",
+            "uintx",
+            "uint64_t",
+            "size_t",
+            "double",
+        ]:
+            return False
+
+        if set(flag.flag_kind).intersection({"notproduct", "pd", "experimental", "develop"}):
+            return False
+
+        return True
+
+    def get_jvm_flags_raw(self, process: Process) -> Optional[List[JvmFlag]]:
+        try:
+            output = self.jattach_jcmd_runner.run(process, "VM.flags -all")
+        except CalledProcessError as e:
+            logging.warning(f"Couldn't get jvm flags for process {process.pid}: {e.stderr}")
+            return None
+
+        vm_flags = []
+        # The output of VM.flags -all format on jdk 8:
+        # bool UseCompressedClassPointers               := true                                {lp64_product}
+        # flag_type flag_name                           := flag_value                          {flag_kind}
+        # ":=" indicates non default origin for the flag, while "=" indicates default origin
+
+        # The output of VM.flags -all format on jdk 9+:
+        # bool OptoScheduling                           = false                               {C2 pd product} {default}
+        # flag_type flag_name                           = flag_value                          {flag_kind} {flag_origin}
+
+        # flag_kind is space separated list of kinds, e.g. "C2 pd product"
+
+        # possible flag kinds: "product", "manageable", "diagnostic", "experimental", "notproduct", "develop",
+        # "lp64_product", "rw", "pd", "JVMCI", "C1", "C2", "ARCH"
+
+        # possible flag types: "bool", "int", "uint", "intx", "uintx", "uint64_t", "size_t", "double", "ccstr",
+        # "ccstrlist"
+
+        # possible flag origins: default, non-default, command line, environment, config file, management, ergonomic,
+        # attach, internal, jimage
+
+        vm_flags_pattern = re.compile(
+            r"(?P<flag_type>\S+)\s+(?P<flag_name>\S+)\s+(?P<flag_is_non_default_origin_only_jdk_8>:)?= (?P<flag_value>\S*)\s+{(?P<flag_kind>.+?)}(?:\s*{(?P<flag_origin_jdk_9>.*)})*"  # noqa: E501
+        )
+
+        for line in output.splitlines():
+            match = vm_flags_pattern.search(line)
+            if match:
+                # get the flag origin if jvm 9+, otherwise get is the flag from non default origin as described above
+                flag_is_non_default_origin_only_jdk_8 = match.group("flag_is_non_default_origin_only_jdk_8") == ":"
+                flag_origin_jdk_9 = match.group("flag_origin_jdk_9")
+
+                # split the list of space separated flag_kinds as described above
+                flag_kind = match.group("flag_kind").split()
+
+                flag_name = match.group("flag_name")
+                flag_value = match.group("flag_value")
+                flag_type = match.group("flag_type")
+
+                if flag_is_non_default_origin_only_jdk_8:
+                    flag_origin = "non-default"
+                elif flag_origin_jdk_9:
+                    flag_origin = flag_origin_jdk_9
+                else:
+                    flag_origin = "default"
+
+                if flag_type and flag_name and flag_value and flag_kind:
+                    vm_flags.append(
+                        JvmFlag(
+                            flag_name=flag_name,
+                            flag_type=flag_type,
+                            flag_value=flag_value,
+                            flag_origin=flag_origin,
+                            flag_kind=flag_kind,
+                        )
+                    )
+
+        return vm_flags
 
 
 @functools.lru_cache(maxsize=1)
@@ -278,72 +399,6 @@ def fdtransfer_path() -> str:
 @functools.lru_cache(maxsize=1)
 def get_ap_version() -> str:
     return Path(resource_path("java/async-profiler-version")).read_text()
-
-
-@functools.lru_cache(maxsize=1024)
-def get_jvm_flags(
-    process: Process,
-) -> List[Tuple[Optional[str], Optional[str], Optional[str], str, Optional[List[str]]]]:
-    return [
-        (flag_name, flag_type, flag_value, flag_source, flag_kind)
-        for flag_name, flag_type, flag_value, flag_source, flag_kind in get_jvm_flags_raw(process)
-        if filter_jvm_flags(flag_name, flag_type, flag_value, flag_source, flag_kind) is True
-    ]
-
-
-def filter_jvm_flags(
-    _flag_name: Optional[str],
-    flag_type: Optional[str],
-    _flag_value: Optional[str],
-    flag_source: str,
-    flag_kind: Optional[List[str]],
-) -> bool:
-    if flag_source == "default":
-        return False
-
-    if flag_type and flag_type not in ["bool", "int", "uint", "intx", "uintx", "uint64_t", "size_t", "double"]:
-        return False
-
-    if flag_kind and any(
-        (not_supported_kind in flag_kind) for not_supported_kind in ["notproduct", "pd", "experimental"]
-    ):
-        return False
-
-    return True
-
-
-def get_jvm_flags_raw(
-    process: Process,
-) -> List[Tuple[Optional[str], Optional[str], Optional[str], str, Optional[List[str]]]]:
-    try:
-        output = run_process([jattach_path(), str(process.pid), "jcmd", "VM.flags -all"]).stdout.decode()
-    except CalledProcessError as e:
-        logging.warning(f"Couldn't get jvm flags for process {process.pid}: {e.stderr}")
-        return []
-
-    vm_flags = []
-    vm_flags_pattern = re.compile(r"(\S+)\s+(\S+)\s+(:)?= (\S*)\s+{(.+?)}(?:\s*{(.*)})*")
-
-    for line in output.splitlines():
-        match = vm_flags_pattern.search(line)
-        if match:
-            flag_type = match.group(1)
-            flag_name = match.group(2)
-            flag_is_non_default_source_only_jdk_8 = match.group(3) == ":"
-            flag_value = match.group(4)
-            flag_kind = match.group(5).split()
-            flag_source_jdk_9 = match.group(6)
-
-            if flag_is_non_default_source_only_jdk_8:
-                flag_source = "non-default"
-            elif flag_source_jdk_9:
-                flag_source = flag_source_jdk_9
-            else:
-                flag_source = "default"
-
-            vm_flags += [(flag_name, flag_type, flag_value, flag_source, flag_kind)]
-
-    return vm_flags
 
 
 T = TypeVar("T", bound="AsyncProfiledProcess")
@@ -796,8 +851,11 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._pid_to_java_version: Dict[int, Optional[str]] = {}
         self._kernel_messages_provider = get_kernel_messages_provider()
         self._enabled_proc_events_java = False
+        self._jattach_jcmd_runner = JattachJcmdRunner(
+            stop_event=self._stop_event, jattach_timeout=self._jattach_timeout
+        )
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
-        self._metadata = JavaMetadata(self._stop_event)
+        self._metadata = JavaMetadata(self._stop_event, self._jattach_jcmd_runner)
         self._insert_dso_name = insert_dso_name
         self._report_meminfo = java_async_profiler_report_meminfo
 
@@ -990,7 +1048,9 @@ class JavaProfiler(SpawningProcessProfilerBase):
 
         logger.info(f"Profiling{' spawned' if spawned else ''} process {process.pid} with async-profiler")
         app_metadata = self._metadata.get_metadata(process)
-        appid = application_identifiers.get_java_app_id(process, self._collect_spark_app_name)
+        appid = application_identifiers.get_java_app_id(
+            process, self._jattach_jcmd_runner, self._collect_spark_app_name
+        )
 
         if is_diagnostics():
             execfn = (app_metadata or {}).get("execfn")
