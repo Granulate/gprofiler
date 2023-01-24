@@ -691,3 +691,18 @@ def test_meminfo_logged(
     ) as profiler:
         snapshot_pid_profile(profiler, application_pid)
         assert "async-profiler memory usage (in bytes)" in caplog.text
+
+
+@pytest.mark.parametrize("in_container", [True])
+def test_java_frames_include_no_semicolons(
+    tmp_path: Path,
+    application_pid: int,
+) -> None:
+    with make_java_profiler(
+        storage_dir=str(tmp_path),
+        duration=3,
+        frequency=999,
+    ) as profiler:
+        collapsed = snapshot_pid_profile(profiler, application_pid).stacks
+        assert is_function_in_collapsed(".main([Ljava/lang/String|)", collapsed)
+        assert not is_pattern_in_collapsed(r"\([^);]+[;][^)]*\)", collapsed)
