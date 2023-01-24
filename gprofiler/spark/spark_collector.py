@@ -6,7 +6,6 @@ import threading
 import time
 import traceback
 import xml.etree.ElementTree as ET
-from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union, cast
 from urllib.parse import urljoin, urlparse
@@ -53,18 +52,21 @@ STRUCTURED_STREAMS_METRICS_REGEX = re.compile(
 )
 
 
-class BaseCollector(ABC):
-    def __init__(self) -> None:
+class SparkCollector:
+    def __init__(self, **kwargs: Any) -> None:
         self._lock = threading.Lock()
         self._logger = get_logger_adapter(__name__)
 
-    @abstractmethod
-    def _collect(self) -> Generator[Dict[str, Any], None, None]:
-        """
-        Metrics collection should happen here, refer https://github.com/prometheus/client_python#custom-collectors for
-        additional information
-        """
-        pass
+        self._last_sample_time = int(time.monotonic() * 1000)
+        self._cluster_mode = kwargs["spark_mode"]
+        self._master_address = "http://" + kwargs["master_address"]
+        self._cluster_metrics = kwargs.get("cluster_metrics", True)
+        self._applications_metrics = kwargs.get("applications_metrics", False)
+        self._streaming_metrics = kwargs.get("streaming_metrics", True)
+        self._task_summary_metrics = True
+        self._metricsservlet_path = "/metrics/json"  # TODO: figure out if need to be treat better
+        self._init_metrics()
+        self._last_iteration_app_job_metrics: Dict[str, Dict[str, Any]] = {}
 
     def collect(self) -> Generator[Dict[str, Any], None, None]:
         if not self._lock.acquire(False):
@@ -80,22 +82,6 @@ class BaseCollector(ABC):
             self._logger.exception(f"Error while trying to collect f{self.__class__.__name__}")
         finally:
             self._lock.release()
-
-
-class SparkCollector(BaseCollector):
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__()
-
-        self._last_sample_time = int(time.time() * 1000)
-        self._cluster_mode = kwargs["spark_mode"]
-        self._master_address = "http://" + kwargs["master_address"]
-        self._cluster_metrics = kwargs.get("cluster_metrics", True)
-        self._applications_metrics = kwargs.get("applications_metrics", False)
-        self._streaming_metrics = kwargs.get("streaming_metrics", True)
-        self._task_summary_metrics = True
-        self._metricsservlet_path = "/metrics/json"  # TODO: figure out if need to be treat better
-        self._init_metrics()
-        self._last_iteration_app_job_metrics: Dict[str, Dict[str, Any]] = {}
 
     def _init_metrics(self) -> None:
         if self._cluster_mode == "yarn":
@@ -749,6 +735,7 @@ class SparkSampler(object):
         disable_streaming_metrics: Optional[bool] = False,
         storage_dir: Optional[str] = None,
         client: Optional[SparkAPIClient] = None,
+        continuous_mode: Optional[bool] = False
     ):
         self._logger = get_logger_adapter(__name__)
         if spark_mode is not None:
@@ -766,6 +753,7 @@ class SparkSampler(object):
         self._spark_sampler: Optional[SparkCollector] = None
         self._stop_collection = False
         self._is_running = False
+        self._continuous_mode = continuous_mode
         self._storage_dir = storage_dir
         if self._storage_dir is not None:
             assert os.path.exists(self._storage_dir) and os.path.isdir(self._storage_dir)
@@ -785,12 +773,20 @@ class SparkSampler(object):
             )
             return os.path.join("/etc/hadoop/conf/", "yarn-site.xml")
 
+    @staticmethod
+    def _get_process_root_relative_path(process: psutil.Process, absolute_path: str) -> str:
+        return os.path.join(f"/proc/{process.pid}/root", absolute_path.lstrip(os.sep))
+
     def _get_yarn_config(self, process: psutil.Process) -> Optional[ET.Element]:
         config_path = self._get_yarn_config_path(process)
 
         self._logger.debug("Trying to open yarn config file for reading", extra={"config_path": config_path})
         try:
-            with open(config_path, "rb") as conf_file:
+            # resolve config path against process' filesystem root
+            process_relative_config_path = self._get_process_root_relative_path(
+                process, self._get_yarn_config_path(process)
+            )
+            with open(process_relative_config_path, "rb") as conf_file:
                 config_xml_string = conf_file.read()
             return ET.fromstring(config_xml_string)
         except FileNotFoundError:
@@ -977,6 +973,8 @@ class SparkSampler(object):
                     timestamp = cast(int, results[METRIC_TIMESTAMP_KEY])
                     data = cast(List[Dict[str, Any]], results[METRICS_DATA_KEY])
                     self._client.submit_spark_metrics(timestamp, data)
+                if not self._continuous_mode:
+                    return
             except StopIteration:
                 pass
             time.sleep(cast(float, self._sample_period))
