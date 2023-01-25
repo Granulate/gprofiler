@@ -212,11 +212,11 @@ class JattachJcmdRunner:
 
 @dataclasses.dataclass
 class JvmFlag:
-    flag_name: str
-    flag_type: str
-    flag_value: str
-    flag_origin: str
-    flag_kind: List[str]
+    name: str
+    type: str
+    value: str
+    origin: str
+    kind: List[str]
 
 
 def is_java_basename(process: Process) -> bool:
@@ -300,10 +300,10 @@ class JavaMetadata(ApplicationMetadata):
 
     @staticmethod
     def filter_jvm_flags(flag: JvmFlag) -> bool:
-        if flag.flag_origin == "default":
+        if flag.origin == "default":
             return False
 
-        if flag.flag_type not in [
+        if flag.type not in [
             "bool",
             "int",
             "uint",
@@ -315,12 +315,34 @@ class JavaMetadata(ApplicationMetadata):
         ]:
             return False
 
-        if set(flag.flag_kind).intersection({"notproduct", "pd", "experimental", "develop"}):
+        if set(flag.kind).intersection({"notproduct", "pd", "develop"}):
             return False
 
         return True
 
     def get_jvm_flags_raw(self, process: Process) -> Optional[List[JvmFlag]]:
+        """
+        The output of VM.flags -all format on jdk 8:
+        bool UseCompressedClassPointers               := true                                {lp64_product}
+        flag_type flag_name                           := flag_value                          {flag_kind}
+        ":=" indicates non default origin for the flag, while "=" indicates default origin
+
+        The output of VM.flags -all format on jdk 9+:
+        bool OptoScheduling                           = false                               {C2 pd product} {default}
+        flag_type flag_name                           = flag_value                          {flag_kind} {flag_origin}
+
+        flag_kind is space separated list of kinds, e.g. "C2 pd product"
+
+        possible flag kinds: "product", "manageable", "diagnostic", "experimental", "notproduct", "develop",
+        "lp64_product", "rw", "pd", "JVMCI", "C1", "C2", "ARCH"
+
+        possible flag types: "bool", "int", "uint", "intx", "uintx", "uint64_t", "size_t", "double", "ccstr",
+        "ccstrlist"
+
+        possible flag origins: default, non-default, command line, environment, config file, management, ergonomic,
+        attach, internal, jimage
+        """
+
         try:
             output = self.jattach_jcmd_runner.run(process, "VM.flags -all")
         except CalledProcessError as e:
@@ -328,28 +350,8 @@ class JavaMetadata(ApplicationMetadata):
             return None
 
         vm_flags = []
-        # The output of VM.flags -all format on jdk 8:
-        # bool UseCompressedClassPointers               := true                                {lp64_product}
-        # flag_type flag_name                           := flag_value                          {flag_kind}
-        # ":=" indicates non default origin for the flag, while "=" indicates default origin
-
-        # The output of VM.flags -all format on jdk 9+:
-        # bool OptoScheduling                           = false                               {C2 pd product} {default}
-        # flag_type flag_name                           = flag_value                          {flag_kind} {flag_origin}
-
-        # flag_kind is space separated list of kinds, e.g. "C2 pd product"
-
-        # possible flag kinds: "product", "manageable", "diagnostic", "experimental", "notproduct", "develop",
-        # "lp64_product", "rw", "pd", "JVMCI", "C1", "C2", "ARCH"
-
-        # possible flag types: "bool", "int", "uint", "intx", "uintx", "uint64_t", "size_t", "double", "ccstr",
-        # "ccstrlist"
-
-        # possible flag origins: default, non-default, command line, environment, config file, management, ergonomic,
-        # attach, internal, jimage
-
         vm_flags_pattern = re.compile(
-            r"(?P<flag_type>\S+)\s+(?P<flag_name>\S+)\s+(?P<flag_is_non_default_origin_only_jdk_8>:)?= (?P<flag_value>\S*)\s+{(?P<flag_kind>.+?)}(?:\s*{(?P<flag_origin_jdk_9>.*)})*"  # noqa: E501
+            r"(?P<flag_type>\S+)\s+(?P<flag_name>\S+)\s+(?P<flag_is_non_default_origin_only_jdk_8>:)?= (?P<flag_value>\S*)\s+{(?P<flag_kind>.+?)}(?:\s*{(?P<flag_origin_jdk_9>.*)})?"  # noqa: E501
         )
 
         for line in output.splitlines():
@@ -376,11 +378,11 @@ class JavaMetadata(ApplicationMetadata):
                 if flag_type and flag_name and flag_value and flag_kind:
                     vm_flags.append(
                         JvmFlag(
-                            flag_name=flag_name,
-                            flag_type=flag_type,
-                            flag_value=flag_value,
-                            flag_origin=flag_origin,
-                            flag_kind=flag_kind,
+                            name=flag_name,
+                            type=flag_type,
+                            value=flag_value,
+                            origin=flag_origin,
+                            kind=flag_kind,
                         )
                     )
 
