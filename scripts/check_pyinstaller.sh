@@ -9,6 +9,7 @@ set -uo pipefail
 result=$(grep "gprofiler\." "build/pyinstaller/warn-pyinstaller.txt" | grep -v 'missing module named wmi' | grep -v 'missing module named pythoncom' | grep -v 'missing module named netifaces')
 
 if [ -n "$result" ]; then
+	echo "$result"
 	echo 'PyInstaller failed to pack gProfiler code! See lines above. Make sure to check for SyntaxError as this is often the reason.';
 	exit 1;
 fi
