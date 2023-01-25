@@ -735,7 +735,7 @@ class SparkSampler(object):
         disable_streaming_metrics: Optional[bool] = False,
         storage_dir: Optional[str] = None,
         client: Optional[SparkAPIClient] = None,
-        continuous_mode: Optional[bool] = False
+        continuous_mode: Optional[bool] = False,
     ):
         self._logger = get_logger_adapter(__name__)
         if spark_mode is not None:
@@ -972,6 +972,7 @@ class SparkSampler(object):
                 if self._client is not None:
                     timestamp = cast(int, results[METRIC_TIMESTAMP_KEY])
                     data = cast(List[Dict[str, Any]], results[METRICS_DATA_KEY])
+                    self._logger.debug(f"Original results: {results} \n Submitting spark metrics to API: {data}")
                     self._client.submit_spark_metrics(timestamp, data)
                 if not self._continuous_mode:
                     return
