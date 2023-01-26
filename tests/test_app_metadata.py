@@ -13,6 +13,7 @@ from docker.models.images import Image
 
 from gprofiler.merge import parse_one_collapsed
 from tests.conftest import AssertInCollapsed
+from tests.helpers import assert_jvm_flags_equal
 from tests.utils import run_gprofiler_in_container_for_one_session
 
 
@@ -55,18 +56,48 @@ from tests.utils import run_gprofiler_in_container_for_one_session
                 "OpenJDK Runtime Environment (build 1.8.0_275-b01)\n"
                 "OpenJDK 64-Bit Server VM (build 25.275-b01, mixed mode)",
                 "libjvm_elfid": "buildid:0542486ff00153ca0bcf9f2daea9a36c428d6cde",
-                "jvm_flags": [
-                    ["CICompilerCount", "intx", "2", "non-default", ["product"]],
-                    ["InitialHeapSize", "uintx", "115343360", "non-default", ["product"]],
-                    ["MaxHeapSize", "uintx", "4198498304", "non-default", ["product"]],
-                    ["MaxNewSize", "uintx", "1399324672", "non-default", ["product"]],
-                    ["MinHeapDeltaBytes", "uintx", "524288", "non-default", ["product"]],
-                    ["NewSize", "uintx", "38273024", "non-default", ["product"]],
-                    ["OldSize", "uintx", "176160768", "non-default", ["product"]],
-                    ["UseCompressedClassPointers", "bool", "true", "non-default", ["lp64_product"]],
-                    ["UseCompressedOops", "bool", "true", "non-default", ["lp64_product"]],
-                    ["UseParallelGC", "bool", "true", "non-default", ["product"]],
-                ],
+                "jvm_flags": {
+                    "CICompilerCount": {"kind": ["product"], "origin": "non-default", "type": "intx", "value": "4"},
+                    "InitialHeapSize": {
+                        "kind": ["product"],
+                        "origin": "non-default",
+                        "type": "uintx",
+                        "value": "264241152",
+                    },
+                    "MaxHeapSize": {
+                        "kind": ["product"],
+                        "origin": "non-default",
+                        "type": "uintx",
+                        "value": "4196401152",
+                    },
+                    "MaxNewSize": {
+                        "kind": ["product"],
+                        "origin": "non-default",
+                        "type": "uintx",
+                        "value": "1398800384",
+                    },
+                    "MinHeapDeltaBytes": {
+                        "kind": ["product"],
+                        "origin": "non-default",
+                        "type": "uintx",
+                        "value": "524288",
+                    },
+                    "NewSize": {"kind": ["product"], "origin": "non-default", "type": "uintx", "value": "88080384"},
+                    "OldSize": {"kind": ["product"], "origin": "non-default", "type": "uintx", "value": "176160768"},
+                    "UseCompressedClassPointers": {
+                        "kind": ["lp64_product"],
+                        "origin": "non-default",
+                        "type": "bool",
+                        "value": "true",
+                    },
+                    "UseCompressedOops": {
+                        "kind": ["lp64_product"],
+                        "origin": "non-default",
+                        "type": "bool",
+                        "value": "true",
+                    },
+                    "UseParallelGC": {"kind": ["product"], "origin": "non-default", "type": "bool", "value": "true"},
+                },
             },
         ),
         (
@@ -114,6 +145,7 @@ def test_app_metadata(
     output_collapsed: Path,
     assert_collapsed: AssertInCollapsed,
     profiler_flags: List[str],
+    runtime: str,
     expected_metadata: Dict,
     application_executable: str,
 ) -> None:
@@ -135,6 +167,12 @@ def test_app_metadata(
     stack = next(filter(lambda l: application_docker_container.name in l and application_executable in l, lines[1:]))
     # stack begins with index
     idx = int(stack.split(";")[0])
+
+    if runtime == "java":
+        # dont check the jvm flags, they have different values on different machines
+        actual_jvm_flags = metadata["application_metadata"][idx].pop("jvm_flags")
+        expected_jvm_flags = expected_metadata.pop("jvm_flags")
+        assert_jvm_flags_equal(actual_jvm_flags=actual_jvm_flags, expected_jvm_flags=expected_jvm_flags)
 
     # values from the current test container
     assert metadata["application_metadata"][idx] == expected_metadata

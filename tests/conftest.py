@@ -17,7 +17,7 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 from psutil import Process
-from pytest import FixtureRequest, TempPathFactory, fixture
+from pytest import FixtureRequest, TempPathFactory, fixture, register_assert_rewrite
 
 from gprofiler.diagnostics import set_diagnostics
 from gprofiler.gprofiler_types import StackToSampleCount
@@ -36,7 +36,11 @@ from tests.utils import (
     _application_process,
     assert_function_in_collapsed,
     chmod_path_parts,
+    find_application_pid,
 )
+
+# Patch helpers.py to use assert that works well with pytest
+register_assert_rewrite("helpers")
 
 
 @fixture
@@ -236,11 +240,7 @@ def application_docker_image_configs() -> Mapping[str, Dict[str, Any]]:
         "java": {
             "": {},
             "hotspot-jdk-8": {},  # add for clarity when testing with multiple JDKs
-            "hotspot-jdk-11": dict(
-                buildargs={
-                    "JAVA_BASE_IMAGE": "openjdk@sha256:e81b7f317654b0f26d3993e014b04bcb29250339b11b9de41e130feecd4cd43c"
-                }
-            ),  # openjdk:11-jdk (11.0.16)
+            "hotspot-jdk-11": dict(buildargs={"JAVA_BASE_IMAGE": "openjdk:11-jdk"}),
             "j9": dict(buildargs={"JAVA_BASE_IMAGE": "adoptopenjdk/openjdk8-openj9"}),
             "zing": dict(dockerfile="zing.Dockerfile"),
             "musl": dict(dockerfile="musl.Dockerfile"),
@@ -442,17 +442,7 @@ def application_pid(
     in_container: bool, application_process: subprocess.Popen, application_docker_container: Container
 ) -> int:
     pid: int = application_docker_container.attrs["State"]["Pid"] if in_container else application_process.pid
-
-    # Application might be run using "sh -c ...", we detect the case and return the "real" application pid
-    process = Process(pid)
-    if (
-        process.cmdline()[0].endswith("sh")
-        and process.cmdline()[1] == "-c"
-        and len(process.children(recursive=False)) == 1
-    ):
-        pid = process.children(recursive=False)[0].pid
-
-    return pid
+    return find_application_pid(pid)
 
 
 @fixture

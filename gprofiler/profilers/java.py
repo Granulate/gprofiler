@@ -15,7 +15,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event, Lock
 from types import TracebackType
-from typing import Any, Dict, List, Optional, Sequence, Set, Type, TypeVar
+from typing import Any, Dict, List, Match, Optional, Sequence, Set, Type, TypeVar, Union
 
 import psutil
 from granulate_utils.java import (
@@ -137,6 +137,11 @@ JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 256  # StackRecovery.PROBE_SP
 SUPPORTED_AP_MODES = ["cpu", "itimer", "alloc"]
 
 
+class JavaFlagRetrievalOptions(str, Enum):
+    ALL = "all"
+    DEFAULT = "default"
+
+
 class JattachExceptionBase(CalledProcessError):
     def __init__(
         self, returncode: int, cmd: Any, stdout: Any, stderr: Any, target_pid: int, ap_log: str, is_loaded: bool
@@ -218,6 +223,30 @@ class JvmFlag:
     origin: str
     kind: List[str]
 
+    @classmethod
+    def from_match(cls, match: Match) -> "JvmFlag":
+        # get the flag origin if jvm 9+, otherwise get is the flag from non default origin as described above
+        flag_is_non_default_origin_only_jdk_8 = match.group("flag_is_non_default_origin_only_jdk_8") == ":"
+        flag_origin_jdk_9 = match.group("flag_origin_jdk_9")
+
+        # split the list of space separated flag_kinds as described above
+        flag_kind = match.group("flag_kind").split()
+
+        if flag_is_non_default_origin_only_jdk_8:
+            flag_origin = "non-default"
+        elif flag_origin_jdk_9:
+            flag_origin = flag_origin_jdk_9
+        else:
+            flag_origin = "default"
+
+        return cls(
+            name=match.group("flag_name"),
+            type=match.group("flag_type"),
+            value=match.group("flag_value"),
+            origin=flag_origin,
+            kind=flag_kind,
+        )
+
 
 def is_java_basename(process: Process) -> bool:
     return is_process_basename_matching(process, r"^java$")
@@ -272,9 +301,15 @@ def get_java_version_logged(process: Process, stop_event: Event) -> str:
 
 
 class JavaMetadata(ApplicationMetadata):
-    def __init__(self, stop_event: Event, jattach_jcmd_runner: JattachJcmdRunner):
+    def __init__(
+        self,
+        stop_event: Event,
+        jattach_jcmd_runner: JattachJcmdRunner,
+        jvm_flags_to_retrieve: Union[JavaFlagRetrievalOptions, List[str]],
+    ):
         super().__init__(stop_event)
         self.jattach_jcmd_runner = jattach_jcmd_runner
+        self.jvm_flags_to_retrieve = jvm_flags_to_retrieve
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         if is_java_basename(process):
@@ -290,16 +325,42 @@ class JavaMetadata(ApplicationMetadata):
         metadata.update(super().make_application_metadata(process))
         return metadata
 
-    @functools.lru_cache(maxsize=1024)
-    def get_jvm_flags(self, process: Process) -> Optional[List[tuple]]:
-        jvm_raw_flags = self.get_jvm_flags_raw(process)
+    def get_jvm_flags(self, process: Process) -> Optional[Dict[str, Dict[str, Union[str, List[str]]]]]:
+        jvm_raw_flags: Optional[List[JvmFlag]] = self.get_jvm_flags_raw(process)
+
         if jvm_raw_flags is None:
             return None
 
-        return [dataclasses.astuple(flag) for flag in jvm_raw_flags if self.filter_jvm_flags(flag)]
+        elif self.jvm_flags_to_retrieve == JavaFlagRetrievalOptions.ALL:
+            return self.jvm_flag_list_serialize([flag for flag in jvm_raw_flags])
+        elif self.jvm_flags_to_retrieve == JavaFlagRetrievalOptions.DEFAULT:
+            return self.jvm_flag_list_serialize([flag for flag in jvm_raw_flags if self.filter_jvm_flag(flag)])
+        elif isinstance(self.jvm_flags_to_retrieve, list):
+            flags = self.jvm_flag_list_serialize(jvm_raw_flags)
+            selected_flags = {}
+
+            for flag_name in self.jvm_flags_to_retrieve:
+                flag = flags.get(flag_name)
+                if flag is None:
+                    logger.error("Flag %s not found", flag_name)
+                else:
+                    selected_flags[flag_name] = flag
+
+            return selected_flags
+
+        logging.error("Unrecognized jvm_flags_to_retrieve value: %s", self.jvm_flags_to_retrieve)
+
+        return None
 
     @staticmethod
-    def filter_jvm_flags(flag: JvmFlag) -> bool:
+    def jvm_flag_list_serialize(flag_list: List[JvmFlag]) -> Dict[str, Dict[str, Union[str, List[str]]]]:
+        return {
+            flag.name: {"type": flag.type, "value": flag.value, "origin": flag.origin, "kind": flag.kind}
+            for flag in flag_list
+        }
+
+    @staticmethod
+    def filter_jvm_flag(flag: JvmFlag) -> bool:
         if flag.origin == "default":
             return False
 
@@ -320,6 +381,7 @@ class JavaMetadata(ApplicationMetadata):
 
         return True
 
+    @functools.lru_cache(maxsize=1024)
     def get_jvm_flags_raw(self, process: Process) -> Optional[List[JvmFlag]]:
         """
         The output of VM.flags -all format on jdk 8:
@@ -346,7 +408,7 @@ class JavaMetadata(ApplicationMetadata):
         try:
             output = self.jattach_jcmd_runner.run(process, "VM.flags -all")
         except CalledProcessError as e:
-            logging.warning(f"Couldn't get jvm flags for process {process.pid}: {e.stderr}")
+            logging.warning("Couldn't get jvm flags for process %d: %s", process.pid, e.stderr)
             return None
 
         vm_flags = []
@@ -357,34 +419,7 @@ class JavaMetadata(ApplicationMetadata):
         for line in output.splitlines():
             match = vm_flags_pattern.search(line)
             if match:
-                # get the flag origin if jvm 9+, otherwise get is the flag from non default origin as described above
-                flag_is_non_default_origin_only_jdk_8 = match.group("flag_is_non_default_origin_only_jdk_8") == ":"
-                flag_origin_jdk_9 = match.group("flag_origin_jdk_9")
-
-                # split the list of space separated flag_kinds as described above
-                flag_kind = match.group("flag_kind").split()
-
-                flag_name = match.group("flag_name")
-                flag_value = match.group("flag_value")
-                flag_type = match.group("flag_type")
-
-                if flag_is_non_default_origin_only_jdk_8:
-                    flag_origin = "non-default"
-                elif flag_origin_jdk_9:
-                    flag_origin = flag_origin_jdk_9
-                else:
-                    flag_origin = "default"
-
-                if flag_type and flag_name and flag_value and flag_kind:
-                    vm_flags.append(
-                        JvmFlag(
-                            name=flag_name,
-                            type=flag_type,
-                            value=flag_value,
-                            origin=flag_origin,
-                            kind=flag_kind,
-                        )
-                    )
+                vm_flags.append(JvmFlag.from_match(match))
 
         return vm_flags
 
@@ -785,6 +820,16 @@ class AsyncProfiledProcess:
             default=True,
             help="Disable collection of async-profiler meminfo at the end of each cycle (collected by default)",
         ),
+        ProfilerArgument(
+            "--java-jvm-flags-to-retrieve",
+            dest="java_jvm_flags_to_retrieve",
+            type=str,
+            const="all",
+            nargs="?",
+            default=None,
+            help="Comma-separated list of JVM flags to retrieve from the JVM process, or 'all' to retrieve all flags, "
+            "default is to retrieve only non-default jvm flags.",
+        ),
     ],
     supported_profiling_modes=["cpu", "allocation"],
 )
@@ -827,6 +872,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_collect_spark_app_name_as_appid: bool,
         java_mode: str,
         java_async_profiler_report_meminfo: bool,
+        java_jvm_flags_to_retrieve: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
         super().__init__(
@@ -854,11 +900,12 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._pid_to_java_version: Dict[int, Optional[str]] = {}
         self._kernel_messages_provider = get_kernel_messages_provider()
         self._enabled_proc_events_java = False
+        self._java_jvm_flags_to_retrieve = self._init_java_flag_retrieval(java_jvm_flags_to_retrieve)
         self._jattach_jcmd_runner = JattachJcmdRunner(
             stop_event=self._stop_event, jattach_timeout=self._jattach_timeout
         )
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
-        self._metadata = JavaMetadata(self._stop_event, self._jattach_jcmd_runner)
+        self._metadata = JavaMetadata(self._stop_event, self._jattach_jcmd_runner, self._java_jvm_flags_to_retrieve)
         self._insert_dso_name = insert_dso_name
         self._report_meminfo = java_async_profiler_report_meminfo
 
@@ -894,6 +941,19 @@ class JavaProfiler(SpawningProcessProfilerBase):
                 "Java version checks are mandatory in"
                 f" --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS}"
             )
+
+    def _init_java_flag_retrieval(self, java_jvm_flags_to_retrieve: str) -> Union[JavaFlagRetrievalOptions, List[str]]:
+        if java_jvm_flags_to_retrieve is None or java_jvm_flags_to_retrieve == "":
+            return JavaFlagRetrievalOptions.DEFAULT
+        if any(
+            [
+                java_jvm_flags_to_retrieve == java_flag_retrieval_option.value
+                for java_flag_retrieval_option in JavaFlagRetrievalOptions
+            ]
+        ):
+            return JavaFlagRetrievalOptions(java_jvm_flags_to_retrieve)
+        else:
+            return java_jvm_flags_to_retrieve.split(",")
 
     def _disable_profiling(self, cause: str) -> None:
         if self._safemode_disable_reason is None and cause in self._java_safemode:

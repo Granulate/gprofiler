@@ -35,10 +35,12 @@ from gprofiler.profilers.java import (
     get_java_version,
 )
 from tests.conftest import AssertInCollapsed
+from tests.helpers import assert_jvm_flags_equal
 from tests.type_utils import cast_away_optional
 from tests.utils import (
     _application_docker_container,
     assert_function_in_collapsed,
+    find_application_pid,
     is_function_in_collapsed,
     is_pattern_in_collapsed,
     make_java_profiler,
@@ -726,77 +728,217 @@ def test_java_frames_include_no_semicolons(
     [
         (
             "hotspot-jdk-8",
-            [
-                ("CICompilerCount", "intx", "4", "non-default", ["product"]),
-                ("InitialHeapSize", "uintx", "264241152", "non-default", ["product"]),
-                ("MaxHeapSize", "uintx", "4196401152", "non-default", ["product"]),
-                ("MaxNewSize", "uintx", "1398800384", "non-default", ["product"]),
-                ("MinHeapDeltaBytes", "uintx", "524288", "non-default", ["product"]),
-                ("NewSize", "uintx", "88080384", "non-default", ["product"]),
-                ("OldSize", "uintx", "176160768", "non-default", ["product"]),
-                ("UseCompressedClassPointers", "bool", "true", "non-default", ["lp64_product"]),
-                ("UseCompressedOops", "bool", "true", "non-default", ["lp64_product"]),
-                ("UseParallelGC", "bool", "true", "non-default", ["product"]),
-            ],
+            {
+                "CICompilerCount": {"kind": ["product"], "origin": "non-default", "type": "intx", "value": "4"},
+                "InitialHeapSize": {
+                    "kind": ["product"],
+                    "origin": "non-default",
+                    "type": "uintx",
+                    "value": "264241152",
+                },
+                "MaxHeapSize": {"kind": ["product"], "origin": "non-default", "type": "uintx", "value": "4196401152"},
+                "MaxNewSize": {"kind": ["product"], "origin": "non-default", "type": "uintx", "value": "1398800384"},
+                "MinHeapDeltaBytes": {"kind": ["product"], "origin": "non-default", "type": "uintx", "value": "524288"},
+                "NewSize": {"kind": ["product"], "origin": "non-default", "type": "uintx", "value": "88080384"},
+                "OldSize": {"kind": ["product"], "origin": "non-default", "type": "uintx", "value": "176160768"},
+                "UseCompressedClassPointers": {
+                    "kind": ["lp64_product"],
+                    "origin": "non-default",
+                    "type": "bool",
+                    "value": "true",
+                },
+                "UseCompressedOops": {
+                    "kind": ["lp64_product"],
+                    "origin": "non-default",
+                    "type": "bool",
+                    "value": "true",
+                },
+                "UseParallelGC": {"kind": ["product"], "origin": "non-default", "type": "bool", "value": "true"},
+            },
         ),
         (
             "hotspot-jdk-11",
-            [
-                ("CICompilerCount", "intx", "4", "ergonomic", ["product"]),
-                ("ConcGCThreads", "uint", "2", "ergonomic", ["product"]),
-                ("G1ConcRefinementThreads", "uint", "8", "ergonomic", ["product"]),
-                ("G1HeapRegionSize", "size_t", "1048576", "ergonomic", ["product"]),
-                ("GCDrainStackTargetSize", "uintx", "64", "ergonomic", ["product"]),
-                ("InitialHeapSize", "size_t", "264241152", "ergonomic", ["product"]),
-                ("MarkStackSize", "size_t", "4194304", "ergonomic", ["product"]),
-                ("MaxHeapSize", "size_t", "4196401152", "ergonomic", ["product"]),
-                ("MaxNewSize", "size_t", "2517630976", "ergonomic", ["product"]),
-                ("MinHeapDeltaBytes", "size_t", "1048576", "ergonomic", ["product"]),
-                ("SegmentedCodeCache", "bool", "true", "ergonomic", ["product"]),
-                ("UseCompressedClassPointers", "bool", "true", "ergonomic", ["lp64_product"]),
-                ("UseCompressedOops", "bool", "true", "ergonomic", ["lp64_product"]),
-                ("UseG1GC", "bool", "true", "ergonomic", ["product"]),
-            ],
+            {
+                "CICompilerCount": {"kind": ["product"], "origin": "ergonomic", "type": "intx", "value": "4"},
+                "ConcGCThreads": {"kind": ["product"], "origin": "ergonomic", "type": "uint", "value": "2"},
+                "G1ConcRefinementThreads": {"kind": ["product"], "origin": "ergonomic", "type": "uint", "value": "8"},
+                "G1HeapRegionSize": {"kind": ["product"], "origin": "ergonomic", "type": "size_t", "value": "1048576"},
+                "GCDrainStackTargetSize": {"kind": ["product"], "origin": "ergonomic", "type": "uintx", "value": "64"},
+                "InitialHeapSize": {"kind": ["product"], "origin": "ergonomic", "type": "size_t", "value": "264241152"},
+                "MarkStackSize": {"kind": ["product"], "origin": "ergonomic", "type": "size_t", "value": "4194304"},
+                "MaxHeapSize": {"kind": ["product"], "origin": "ergonomic", "type": "size_t", "value": "4196401152"},
+                "MaxNewSize": {"kind": ["product"], "origin": "ergonomic", "type": "size_t", "value": "2517630976"},
+                "MinHeapDeltaBytes": {"kind": ["product"], "origin": "ergonomic", "type": "size_t", "value": "1048576"},
+                "SegmentedCodeCache": {"kind": ["product"], "origin": "ergonomic", "type": "bool", "value": "true"},
+                "UseCompressedClassPointers": {
+                    "kind": ["lp64_product"],
+                    "origin": "ergonomic",
+                    "type": "bool",
+                    "value": "true",
+                },
+                "UseCompressedOops": {"kind": ["lp64_product"], "origin": "ergonomic", "type": "bool", "value": "true"},
+                "UseG1GC": {"kind": ["product"], "origin": "ergonomic", "type": "bool", "value": "true"},
+            },
         ),
         (
             "zing",
-            [
-                ("AllocOopTablesInCHeap", "bool", "true", "ergonomic", ["product"]),
-                ("BestEffortElasticity", "bool", "false", "ergonomic", ["product"]),
-                ("CIMaxCompilerThreads", "intx", "5", "ergonomic", ["product"]),
-                ("CodeCacheMinimumFreeSpace", "uintx", "8388608", "ergonomic", ["product"]),
-                ("FalconCompensateForIntelMCUForErratumSKX102", "bool", "false", "ergonomic", ["ARCH", "product"]),
-                ("FalconOSROptimizationLevel", "uintx", "2", "ergonomic", ["FALCON", "product"]),
-                ("GPGCElasticSideband", "bool", "true", "ergonomic", ["product"]),
-                ("GPGCNoZSTUseNUMAInterleaving", "bool", "false", "ergonomic", ["product"]),
-                ("GPGCSmallSpaceAllocateForRelocateSlots", "uintx", "8", "ergonomic", ["product"]),
-                ("GPGCThreads", "uintx", "6", "ergonomic", ["product"]),
-                ("GPGCUseDensePhaseEncoding", "bool", "false", "ergonomic", ["product"]),
-                ("GenPauselessNewThreads", "uintx", "4", "ergonomic", ["product"]),
-                ("GenPauselessOldThreads", "uintx", "2", "ergonomic", ["product"]),
-                ("HeapElasticityLogIntervalBytes", "uintx", "209715200", "ergonomic", ["manageable"]),
-                ("HeapElasticityTargetMinAvailableSystemMemory", "uintx", "125829120", "ergonomic", ["product"]),
-                ("InitialHeapSize", "uintx", "536870912", "ergonomic", ["product"]),
-                ("InitialSystemDictionarySize", "uintx", "320219", "ergonomic", ["product"]),
-                ("KlassTableSize", "intx", "8388608", "ergonomic", ["product"]),
-                ("MaxHeapSize", "uintx", "4194304000", "ergonomic", ["product"]),
-                ("MlockCodeCache", "bool", "true", "command line", ["product"]),
-                ("StringTableSize", "uintx", "320219", "ergonomic", ["product"]),
-                ("SymbolTableSize", "uintx", "320219", "ergonomic", ["product"]),
-                ("UseZST", "bool", "false", "ergonomic", ["product"]),
-            ],
+            {
+                "AllocOopTablesInCHeap": {"kind": ["product"], "origin": "ergonomic", "type": "bool", "value": "true"},
+                "BestEffortElasticity": {"kind": ["product"], "origin": "ergonomic", "type": "bool", "value": "false"},
+                "CIMaxCompilerThreads": {"kind": ["product"], "origin": "ergonomic", "type": "intx", "value": "5"},
+                "CodeCacheMinimumFreeSpace": {
+                    "kind": ["product"],
+                    "origin": "ergonomic",
+                    "type": "uintx",
+                    "value": "8388608",
+                },
+                "FalconCompensateForIntelMCUForErratumSKX102": {
+                    "kind": ["ARCH", "product"],
+                    "origin": "ergonomic",
+                    "type": "bool",
+                    "value": "false",
+                },
+                "FalconOSROptimizationLevel": {
+                    "kind": ["FALCON", "product"],
+                    "origin": "ergonomic",
+                    "type": "uintx",
+                    "value": "2",
+                },
+                "GPGCElasticSideband": {"kind": ["product"], "origin": "ergonomic", "type": "bool", "value": "true"},
+                "GPGCNoZSTUseNUMAInterleaving": {
+                    "kind": ["product"],
+                    "origin": "ergonomic",
+                    "type": "bool",
+                    "value": "false",
+                },
+                "GPGCSmallSpaceAllocateForRelocateSlots": {
+                    "kind": ["product"],
+                    "origin": "ergonomic",
+                    "type": "uintx",
+                    "value": "8",
+                },
+                "GPGCThreads": {"kind": ["product"], "origin": "ergonomic", "type": "uintx", "value": "6"},
+                "GPGCUseDensePhaseEncoding": {
+                    "kind": ["product"],
+                    "origin": "ergonomic",
+                    "type": "bool",
+                    "value": "false",
+                },
+                "GenPauselessNewThreads": {"kind": ["product"], "origin": "ergonomic", "type": "uintx", "value": "4"},
+                "GenPauselessOldThreads": {"kind": ["product"], "origin": "ergonomic", "type": "uintx", "value": "2"},
+                "HeapElasticityLogIntervalBytes": {
+                    "kind": ["manageable"],
+                    "origin": "ergonomic",
+                    "type": "uintx",
+                    "value": "209715200",
+                },
+                "HeapElasticityTargetMinAvailableSystemMemory": {
+                    "kind": ["product"],
+                    "origin": "ergonomic",
+                    "type": "uintx",
+                    "value": "125829120",
+                },
+                "InitialHeapSize": {"kind": ["product"], "origin": "ergonomic", "type": "uintx", "value": "536870912"},
+                "InitialSystemDictionarySize": {
+                    "kind": ["product"],
+                    "origin": "ergonomic",
+                    "type": "uintx",
+                    "value": "320219",
+                },
+                "KlassTableSize": {"kind": ["product"], "origin": "ergonomic", "type": "intx", "value": "8388608"},
+                "MaxHeapSize": {"kind": ["product"], "origin": "ergonomic", "type": "uintx", "value": "4194304000"},
+                "MlockCodeCache": {"kind": ["product"], "origin": "command line", "type": "bool", "value": "true"},
+                "StringTableSize": {"kind": ["product"], "origin": "ergonomic", "type": "uintx", "value": "320219"},
+                "SymbolTableSize": {"kind": ["product"], "origin": "ergonomic", "type": "uintx", "value": "320219"},
+                "UseZST": {"kind": ["product"], "origin": "ergonomic", "type": "bool", "value": "false"},
+            },
         ),
     ],
 )
-def test_get_jvm_flags(
+def test_get_default_jvm_flags(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
-    expected_flags: list,
+    expected_flags: dict,
 ) -> None:
     with make_java_profiler(
         frequency=99,
         storage_dir=str(tmp_path),
         java_async_profiler_mode="cpu",
     ) as profiler:
-        assert profiler._metadata.get_jvm_flags(psutil.Process(application_pid)) == expected_flags
+        assert_jvm_flags_equal(profiler._metadata.get_jvm_flags(psutil.Process(application_pid)), expected_flags)
+
+
+@pytest.mark.parametrize(
+    "java_cli_flags,java_env_flags",
+    [
+        (
+            "-XX:SelfDestructTimer=5",
+            "-XX:+PrintCodeCache",
+        ),
+    ],
+)
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize(
+    "application_image_tag,expected_flags",
+    [
+        (
+            "hotspot-jdk-8",
+            {
+                "PrintCodeCache": {"kind": ["product"], "origin": "non-default", "type": "bool", "value": "true"},
+                "SelfDestructTimer": {"kind": ["product"], "origin": "non-default", "type": "intx", "value": "5"},
+            },
+        ),
+        (
+            "hotspot-jdk-11",
+            {
+                "PrintCodeCache": {"kind": ["product"], "origin": "environment", "type": "bool", "value": "true"},
+                "SelfDestructTimer": {"kind": ["product"], "origin": "command line", "type": "intx", "value": "5"},
+            },
+        ),
+        (
+            "zing",
+            {
+                "PrintCodeCache": {"kind": ["product"], "origin": "environment", "type": "bool", "value": "true"},
+                "SelfDestructTimer": {"kind": ["product"], "origin": "command line", "type": "intx", "value": "5"},
+            },
+        ),
+    ],
+)
+def test_get_cmdline_and_env_jvm_flags(
+    tmp_path: Path,
+    docker_client: DockerClient,
+    application_docker_image: Image,
+    assert_collapsed: AssertInCollapsed,
+    java_cli_flags: str,
+    java_env_flags: str,
+    expected_flags: dict,
+    application_pid: int,
+    application_image_tag: str,
+) -> None:
+    """
+    Tests that we can profile a Java app that runs with non-java "comm", by reading the argv0 instead.
+    """
+    with make_java_profiler(
+        frequency=99,
+        storage_dir=str(tmp_path),
+        java_async_profiler_mode="cpu",
+        java_jvm_flags_to_retrieve="SelfDestructTimer,PrintCodeCache",
+    ) as profiler:
+        # When running a container manually we can't use application_pid fixture as it will come from the fixture
+        # container and not from the manully started one
+        with _application_docker_container(
+            docker_client,
+            application_docker_image,
+            [],
+            [],
+            application_docker_command=[
+                "bash",
+                "-c",
+                f"export JAVA_TOOL_OPTIONS={java_env_flags}" ";" f"java {java_cli_flags} -jar Fibonacci.jar",
+            ],
+        ) as container:
+            actual_flags = profiler._metadata.get_jvm_flags(
+                psutil.Process(find_application_pid(container.attrs["State"]["Pid"]))
+            )
+            assert_jvm_flags_equal(actual_jvm_flags=actual_flags, expected_jvm_flags=expected_flags)

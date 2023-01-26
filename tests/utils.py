@@ -16,6 +16,7 @@ from docker.errors import ContainerError
 from docker.models.containers import Container
 from docker.models.images import Image
 from docker.types import Mount
+from psutil import Process
 
 from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
@@ -23,6 +24,7 @@ from gprofiler.profilers.java import (
     JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
     JAVA_SAFEMODE_ALL,
     AsyncProfiledProcess,
+    JavaFlagRetrievalOptions,
     JavaProfiler,
 )
 from gprofiler.profilers.profiler_base import ProfilerInterface
@@ -204,6 +206,7 @@ def make_java_profiler(
     java_collect_spark_app_name_as_appid: bool = False,
     java_mode: str = "ap",
     profiling_mode: str = CPU_PROFILING_MODE,
+    java_jvm_flags_to_retrieve: str = JavaFlagRetrievalOptions.DEFAULT,
 ) -> JavaProfiler:
     assert storage_dir is not None
     return JavaProfiler(
@@ -224,6 +227,7 @@ def make_java_profiler(
         java_mode=java_mode,
         profiling_mode=profiling_mode,
         java_async_profiler_report_meminfo=java_async_profiler_report_meminfo,
+        java_jvm_flags_to_retrieve=java_jvm_flags_to_retrieve,
     )
 
 
@@ -351,3 +355,16 @@ def _application_docker_container(
         container.reload()
     yield container
     container.remove(force=True)
+
+
+def find_application_pid(pid: int) -> int:
+    # Application might be run using "sh -c ...", we detect the case and return the "real" application pid
+    process = Process(pid)
+    if (
+        process.cmdline()[0].endswith("sh")
+        and process.cmdline()[1] == "-c"
+        and len(process.children(recursive=False)) == 1
+    ):
+        pid = process.children(recursive=False)[0].pid
+
+    return pid
