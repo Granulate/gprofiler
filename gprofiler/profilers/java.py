@@ -38,10 +38,11 @@ from granulate_utils.linux.process import (
     is_process_basename_matching,
     is_process_running,
     process_exe,
+    read_proc_file,
 )
 from granulate_utils.linux.signals import get_signal_entry
 from packaging.version import Version
-from psutil import Process
+from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
 from gprofiler.diagnostics import is_diagnostics
@@ -137,22 +138,26 @@ SUPPORTED_AP_MODES = ["cpu", "itimer", "alloc"]
 
 class JattachExceptionBase(CalledProcessError):
     def __init__(
-        self, returncode: int, cmd: Any, stdout: Any, stderr: Any, target_pid: int, ap_log: str, is_loaded: bool
+        self, returncode: int, cmd: Any, stdout: Any, stderr: Any, target_pid: int, ap_log: str, ap_loaded: str
     ):
         super().__init__(returncode, cmd, stdout, stderr)
         self._target_pid = target_pid
         self._ap_log = ap_log
-        self.is_loaded = is_loaded
+        self.ap_loaded = ap_loaded
 
     def __str__(self) -> str:
         ap_log = self._ap_log.strip()
         if not ap_log:
             ap_log = "(empty)"
-        loaded_msg = f"async-profiler DSO was{'' if self.is_loaded else ' not'} loaded"
+        loaded_msg = f"async-profiler DSO loaded: {self.ap_loaded}"
         return super().__str__() + f"\nJava PID: {self._target_pid}\n{loaded_msg}\nasync-profiler log:\n{ap_log}"
 
     def get_ap_log(self) -> str:
         return self._ap_log
+
+    @property
+    def is_ap_loaded(self) -> bool:
+        return self.ap_loaded == "yes"
 
 
 class JattachException(JattachExceptionBase):
@@ -170,10 +175,10 @@ class JattachTimeout(JattachExceptionBase):
         stderr: Any,
         target_pid: int,
         ap_log: str,
-        is_loaded: bool,
+        ap_loaded: str,
         timeout: int,
     ):
-        super().__init__(returncode, cmd, stdout, stderr, target_pid, ap_log, is_loaded)
+        super().__init__(returncode, cmd, stdout, stderr, target_pid, ap_log, ap_loaded)
         self._timeout = timeout
 
     def __str__(self) -> str:
@@ -519,9 +524,14 @@ class AsyncProfiledProcess:
             run_process(cmd, stop_event=self._stop_event, timeout=self._jattach_timeout, kill_signal=signal.SIGTERM)
         except CalledProcessError as e:  # catches CalledProcessTimeoutError as well
             ap_log = self._read_ap_log()
-            is_loaded = f" {self._libap_path_process}\n" in Path(f"/proc/{self.process.pid}/maps").read_text()
+            try:
+                ap_loaded = (
+                    "yes" if f" {self._libap_path_process}\n" in read_proc_file(self.process, "maps").decode() else "no"
+                )
+            except NoSuchProcess:
+                ap_loaded = "not sure, process exited"
 
-            args = e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, is_loaded
+            args = e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, ap_loaded
             if isinstance(e, CalledProcessTimeoutError):
                 raise JattachTimeout(*args, timeout=self._jattach_timeout) from None
             elif e.stderr == b"Could not start attach mechanism: No such file or directory\n":
@@ -562,7 +572,7 @@ class AsyncProfiledProcess:
             self._run_async_profiler(start_cmd)
             return True
         except JattachException as e:
-            if e.is_loaded:
+            if e.is_ap_loaded:
                 if (
                     e.returncode == 200  # 200 == AP's COMMAND_ERROR
                     and e.get_ap_log() == "[ERROR] Profiler already started\n"
