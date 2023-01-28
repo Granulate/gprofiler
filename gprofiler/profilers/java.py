@@ -143,13 +143,13 @@ class JattachExceptionBase(CalledProcessError):
         super().__init__(returncode, cmd, stdout, stderr)
         self._target_pid = target_pid
         self._ap_log = ap_log
-        self.ap_loaded = ap_loaded
+        self._ap_loaded = ap_loaded
 
     def __str__(self) -> str:
         ap_log = self._ap_log.strip()
         if not ap_log:
             ap_log = "(empty)"
-        loaded_msg = f"async-profiler DSO loaded: {self.ap_loaded}"
+        loaded_msg = f"async-profiler DSO loaded: {self._ap_loaded}"
         return super().__str__() + f"\nJava PID: {self._target_pid}\n{loaded_msg}\nasync-profiler log:\n{ap_log}"
 
     def get_ap_log(self) -> str:
@@ -157,7 +157,7 @@ class JattachExceptionBase(CalledProcessError):
 
     @property
     def is_ap_loaded(self) -> bool:
-        return self.ap_loaded == "yes"
+        return self._ap_loaded == "yes"
 
 
 class JattachException(JattachExceptionBase):
