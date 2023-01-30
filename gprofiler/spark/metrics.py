@@ -83,49 +83,40 @@ DRIVER_CLUSTER_METRICS = {
 SPARK_APPLICATION_GAUGE_METRICS = {
     "numActiveTasks": {
         "name": "spark_job_num_active_tasks",
-        "documentation": "Number of currently active tasks",
         "labels": SPARK_APP_LABELS,
     },
     "numActiveStages": {
         "name": "spark_job_num_active_stages",
-        "documentation": "Number of total active stages",
         "labels": SPARK_APP_LABELS,
     },
 }
 SPARK_APPLICATION_DIFF_METRICS = {
     "numTasks": {
         "name": "spark_job_diff_num_tasks",
-        "documentation": "Diff between queries of total submitted tasks count",
         "labels": SPARK_APP_LABELS,
     },
     "numCompletedTasks": {
         "name": "spark_job_diff_num_completed_tasks",
-        "documentation": "Diff between queries of total completed tasks count",
         "labels": SPARK_APP_LABELS,
     },
     "numSkippedTasks": {
         "name": "spark_job_diff_num_skipped_tasks",
-        "documentation": "Diff between queries of total skipped tasks count",
         "labels": SPARK_APP_LABELS,
     },
     "numFailedTasks": {
         "name": "spark_job_diff_num_failed_tasks",
-        "documentation": "Diff between queries of total failed tasks count",
         "labels": SPARK_APP_LABELS,
     },
     "numCompletedStages": {
         "name": "spark_job_diff_num_completed_stages",
-        "documentation": "Diff between queries of total completed stages count",
         "labels": SPARK_APP_LABELS,
     },
     "numSkippedStages": {
         "name": "spark_job_diff_num_skipped_stages",
-        "documentation": "Diff between queries of total skipped stages count",
         "labels": SPARK_APP_LABELS,
     },
     "numFailedStages": {
         "name": "spark_job_diff_num_failed_stages",
-        "documentation": "Diff between queries of total failed stages count",
         "labels": SPARK_APP_LABELS,
     },
 }
@@ -188,39 +179,36 @@ SPARK_RDD_METRICS = {
     "diskUsed": {"name": "spark_rdd_disk_used", "labels": SPARK_RDD_LABELS},
 }
 SPARK_EXECUTOR_TEMPLATE_METRICS = {
-    "rddBlocks": ("spark_%s_rdd_blocks", ""),
-    "memoryUsed": ("spark_%s_memory_used", ""),
-    "diskUsed": ("spark_%s_disk_used", ""),
-    "activeTasks": ("spark_%s_active_tasks", ""),
-    "failedTasks": ("spark_%s_failed_tasks", ""),
-    "completedTasks": ("spark_%s_completed_tasks", ""),
-    "totalTasks": ("spark_%s_total_tasks", ""),
-    "totalDuration": ("spark_%s_total_duration", ""),
-    "totalInputBytes": ("spark_%s_total_input_bytes", ""),
-    "totalShuffleRead": ("spark_%s_total_shuffle_read", ""),
-    "totalShuffleWrite": ("spark_%s_total_shuffle_write", ""),
-    "maxMemory": ("spark_%s_max_memory", ""),
+    "rddBlocks": "spark_%s_rdd_blocks",
+    "memoryUsed": "spark_%s_memory_used",
+    "diskUsed": "spark_%s_disk_used",
+    "activeTasks": "spark_%s_active_tasks",
+    "failedTasks": "spark_%s_failed_tasks",
+    "completedTasks": "spark_%s_completed_tasks",
+    "totalTasks": "spark_%s_total_tasks",
+    "totalDuration": "spark_%s_total_duration",
+    "totalInputBytes": "spark_%s_total_input_bytes",
+    "totalShuffleRead": "spark_%s_total_shuffle_read",
+    "totalShuffleWrite": "spark_%s_total_shuffle_write",
+    "maxMemory": "spark_%s_max_memory",
 }
 SPARK_DRIVER_METRICS = {
     key: {
-        "name": value[0] % "driver",
-        "documentation": value[1],
+        "name": value % "driver",
         "labels": SPARK_DRIVER_LABELS,
     }
     for key, value in SPARK_EXECUTOR_TEMPLATE_METRICS.items()
 }
 SPARK_EXECUTOR_METRICS = {
     key: {
-        "name": value[0] % "executor",
-        "documentation": value[1],
+        "name": value % "executor",
         "labels": SPARK_EXECUTORS_LABELS,
     }
     for key, value in SPARK_EXECUTOR_TEMPLATE_METRICS.items()
 }
 SPARK_EXECUTOR_LEVEL_METRICS = {
     key: {
-        "name": value[0] % "executor_id",
-        "documentation": value[1],
+        "name": value % "executor_id",
         "labels": SPARK_EXECUTOR_LABELS,
     }
     for key, value in SPARK_EXECUTOR_TEMPLATE_METRICS.items()
