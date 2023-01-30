@@ -682,9 +682,9 @@ class SparkSampler(object):
         storage_dir: str,
         api_client: Optional[APIClient] = None,
     ):
-        self._master_address = None
-        self._spark_mode = None
-        self._collection_thread = None
+        self._master_address: Optional[str] = None
+        self._spark_mode: Optional[str] = None
+        self._collection_thread: Optional[Thread] = None
         self._logger = get_logger_adapter(__name__)
         self._sample_period = sample_period
         self._stop_event = Event()
