@@ -1,19 +1,16 @@
-import contextlib
 import json
 import os
 import re
 import time
 import traceback
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta
+from datetime import datetime
 from threading import Event, Lock, Thread
-from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union, cast
 from urllib.parse import urljoin, urlparse
 
 import psutil
 import requests
-from granulate_utils.linux.process import is_process_running
-from psutil import AccessDenied, NoSuchProcess, Process, process_iter
 from requests.exceptions import ConnectionError, HTTPError, InvalidURL, Timeout
 
 import gprofiler.spark.metrics as metrics_definition
@@ -22,6 +19,7 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_hostname
 from gprofiler.platform import is_windows
 from gprofiler.utils import get_iso8601_format_time
+from gprofiler.utils.process import search_for_process
 
 GMT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fGMT"
 
@@ -86,7 +84,6 @@ class SparkCollector:
     def _init_metrics(self) -> None:
         if self._cluster_mode == "yarn":
             self.CLUSTER_METRICS = metrics_definition.YARN_CLUSTER_METRICS
-            self.ORIGINAL_CLUSTER_METRICS = metrics_definition.YARN_ORIGINAL_CLUSTER_METRICS
             self.NODES_METRICS = metrics_definition.YARN_NODES_METRICS
         elif self._cluster_mode == "driver":
             self.CLUSTER_METRICS = metrics_definition.DRIVER_CLUSTER_METRICS
@@ -105,7 +102,6 @@ class SparkCollector:
         self.SPARK_STREAMING_BATCHES_METRICS = metrics_definition.SPARK_STREAMING_BATCHES_METRICS
         self.EXECUTORS_COUNT = metrics_definition.EXECUTORS_COUNT
         self.ACTIVE_EXECUTORS_COUNT = metrics_definition.ACTIVE_EXECUTORS_COUNT
-        self.YARN_APPLICATIONS_ELAPSED_TIME = metrics_definition.YARN_APPLICATIONS_ELAPSED_TIME
 
     def _collect(self) -> Generator[Dict[str, Any], None, None]:
         try:
@@ -114,9 +110,7 @@ class SparkCollector:
             if self._cluster_metrics:
                 if self._cluster_mode == "yarn":
                     self._yarn_cluster_metrics(collected_metrics)
-                    self._yarn_original_cluster_metrics(collected_metrics)
                     self._yarn_nodes_metrics(collected_metrics)
-                    self._yarn_apps_stats(collected_metrics)
                 elif self._cluster_mode == "driver":
                     pass
 
@@ -165,20 +159,6 @@ class SparkCollector:
             self._logger.warning("Could not gather yarn cluster metrics.")
             self._logger.debug(e)
 
-    def _yarn_original_cluster_metrics(self, collected_metrics: Dict[str, Dict[str, Any]]) -> None:
-        try:
-            # The last keyword argument is a magic to make sure that we read the original metrics
-            metrics_json = self._rest_request_to_json(self._master_address, YARN_CLUSTER_PATH, W7egoh2TvE8zmIuY4e1S=1)
-
-            if metrics_json.get("clusterMetrics") is not None:
-                self._set_metrics_from_json(
-                    collected_metrics, [], metrics_json["clusterMetrics"], self.ORIGINAL_CLUSTER_METRICS
-                )
-
-        except Exception as e:
-            self._logger.warning("Could not gather original yarn cluster metrics.")
-            self._logger.debug(e)
-
     def _yarn_nodes_metrics(self, collected_metrics: Dict[str, Dict[str, Any]]) -> None:
         nodes_state = {"states": "RUNNING"}
         try:
@@ -198,35 +178,6 @@ class SparkCollector:
         except Exception as e:
             self._logger.warning("Could not gather yarn nodes metrics.")
             self._logger.debug(e)
-
-    def _yarn_apps_stats(self, collected_metrics: Dict[str, Dict[str, Any]]) -> None:
-        try:
-            # YARN's API doesn't return a sorted list of applications, and we want the last 25 apps that finished, so
-            # we'll query for applications finished in the past couple of hours and then sort them
-            finished_time_begin_ms = (datetime.now() - timedelta(hours=2)).timestamp() * 1000
-
-            yarn_apps_response = self._rest_request_to_json(
-                self._master_address,
-                YARN_APPS_PATH,
-                finishedTimeBegin=int(finished_time_begin_ms),
-                states=YARN_COMPLETED_APPLICATION_SPECIFIER,
-            )
-            if "apps" in yarn_apps_response and "app" in yarn_apps_response["apps"]:
-                yarn_apps_metrics = yarn_apps_response["apps"]["app"]
-                yarn_apps_metrics.sort(key=lambda app: app["finishedTime"], reverse=True)
-                elapsed_times = [yarn_app["elapsedTime"] for yarn_app in yarn_apps_metrics]
-
-                metrics = {"last_elapsedTime": elapsed_times[0]}
-                for n in metrics_definition.YARN_APPS_ELAPSED_TIME_RANGES:
-                    last_n_elapsed_times = elapsed_times[:n]
-                    if len(last_n_elapsed_times) != n:
-                        continue
-                    metrics[f"avg{n}_elapsedTime"] = int(sum(last_n_elapsed_times) / len(last_n_elapsed_times))
-                    metrics[f"max{n}_elapsedTime"] = max(last_n_elapsed_times)
-
-                self._set_metrics_from_json(collected_metrics, [], metrics, self.YARN_APPLICATIONS_ELAPSED_TIME)
-        except Exception as e:
-            self._logger.warning("Could not gather yarn applications stats", exc_info=e)
 
     def _spark_application_metrics(
         self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
@@ -731,6 +682,9 @@ class SparkSampler(object):
         storage_dir: str,
         api_client: Optional[APIClient] = None,
     ):
+        self._master_address = None
+        self._spark_mode = None
+        self._collection_thread = None
         self._logger = get_logger_adapter(__name__)
         self._sample_period = sample_period
         self._stop_event = Event()
@@ -856,16 +810,10 @@ class SparkSampler(object):
             )
         return is_collection_master
 
-    def _search_for_process(self, filter: Callable[[Process], bool]) -> Generator[Process, None, None]:
-        for proc in process_iter():
-            with contextlib.suppress(NoSuchProcess, AccessDenied):
-                if is_process_running(proc) and filter(proc):
-                    yield proc
-
     def _get_spark_manager_process(self) -> Optional[psutil.Process]:
         try:
             return next(
-                self._search_for_process(
+                search_for_process(
                     lambda process: "org.apache.hadoop.yarn.server.resourcemanager.ResourceManager" in process.cmdline()
                     or "org.apache.spark.deploy.master.Master" in process.cmdline()
                     or "mesos-master" in process.exe()

@@ -10,500 +10,457 @@ SPARK_EXECUTORS_LABELS = ["app_name", "app_id"]
 SPARK_EXECUTOR_LABELS = ["app_name", "app_id", "executor_id"]
 
 YARN_CLUSTER_METRICS = {
-    "appsSubmitted": {"name": "yarn:cluster:appsSubmitted", "documentation": "", "labels": []},
-    "appsCompleted": {"name": "yarn:cluster:appsCompleted", "documentation": "", "labels": []},
-    "appsPending": {"name": "yarn:cluster:appsPending", "documentation": "", "labels": []},
-    "appsRunning": {"name": "yarn:cluster:appsRunning", "documentation": "", "labels": []},
-    "appsFailed": {"name": "yarn:cluster:appsFailed", "documentation": "", "labels": []},
-    "appsKilled": {"name": "yarn:cluster:appsKilled", "documentation": "", "labels": []},
-    "totalMB": {"name": "yarn:cluster:totalMB", "documentation": "", "labels": []},
-    "availableMB": {"name": "yarn:cluster:availableMB", "documentation": "", "labels": []},
-    "allocatedMB": {"name": "yarn:cluster:allocatedMB", "documentation": "", "labels": []},
-    "availableVirtualCores": {"name": "yarn:cluster:availableVirtualCores", "documentation": "", "labels": []},
-    "allocatedVirtualCores": {"name": "yarn:cluster:allocatedVirtualCores", "documentation": "", "labels": []},
-    "totalNodes": {"name": "yarn:cluster:totalNodes", "documentation": "", "labels": []},
-    "activeNodes": {"name": "yarn:cluster:activeNodes", "documentation": "", "labels": []},
-    "lostNodes": {"name": "yarn:cluster:lostNodes", "documentation": "", "labels": []},
-    "decommissioningNodes": {"name": "yarn:cluster:decommissioningNodes", "documentation": "", "labels": []},
-    "decommissionedNodes": {"name": "yarn:cluster:decommissionedNodes", "documentation": "", "labels": []},
-    "rebootedNodes": {"name": "yarn:cluster:rebootedNodes", "documentation": "", "labels": []},
-    "shutdownNodes": {"name": "yarn:cluster:shutdownNodes", "documentation": "", "labels": []},
-    "unhealthyNodes": {"name": "yarn:cluster:unhealthyNodes", "documentation": "", "labels": []},
-    "containersAllocated": {"name": "yarn:cluster:containersAllocated", "documentation": "", "labels": []},
-    "containersPending": {"name": "yarn:cluster:containersPending", "documentation": "", "labels": []},
-}
-YARN_ORIGINAL_CLUSTER_METRICS = {
-    "availableMB": {"name": "yarn:cluster:originalAvailableMB", "documentation": "", "labels": []}
+    "appsSubmitted": {"name": "yarn_cluster_appsSubmitted", "labels": []},
+    "appsCompleted": {"name": "yarn_cluster_appsCompleted", "labels": []},
+    "appsPending": {"name": "yarn_cluster_appsPending", "labels": []},
+    "appsRunning": {"name": "yarn_cluster_appsRunning", "labels": []},
+    "appsFailed": {"name": "yarn_cluster_appsFailed", "labels": []},
+    "appsKilled": {"name": "yarn_cluster_appsKilled", "labels": []},
+    "totalMB": {"name": "yarn_cluster_totalMB", "labels": []},
+    "availableMB": {"name": "yarn_cluster_availableMB", "labels": []},
+    "allocatedMB": {"name": "yarn_cluster_allocatedMB", "labels": []},
+    "availableVirtualCores": {
+        "name": "yarn_cluster_availableVirtualCores",
+        "labels": [],
+    },
+    "allocatedVirtualCores": {
+        "name": "yarn_cluster_allocatedVirtualCores",
+        "labels": [],
+    },
+    "totalNodes": {"name": "yarn_cluster_totalNodes", "labels": []},
+    "activeNodes": {"name": "yarn_cluster_activeNodes", "labels": []},
+    "lostNodes": {"name": "yarn_cluster_lostNodes", "labels": []},
+    "decommissioningNodes": {"name": "yarn_cluster_decommissioningNodes", "labels": []},
+    "decommissionedNodes": {"name": "yarn_cluster_decommissionedNodes", "labels": []},
+    "rebootedNodes": {"name": "yarn_cluster_rebootedNodes", "labels": []},
+    "shutdownNodes": {"name": "yarn_cluster_shutdownNodes", "labels": []},
+    "unhealthyNodes": {"name": "yarn_cluster_unhealthyNodes", "labels": []},
+    "containersAllocated": {"name": "yarn_cluster_containersAllocated", "labels": []},
+    "containersPending": {"name": "yarn_cluster_containersPending", "labels": []},
 }
 YARN_NODES_METRICS = {
-    "numContainers": {"name": "yarn:node:numContainers", "documentation": "", "labels": YARN_NODES_LABELS},
-    "usedMemoryMB": {"name": "yarn:node:usedMemoryMB", "documentation": "", "labels": YARN_NODES_LABELS},
-    "availMemoryMB": {"name": "yarn:node:availMemoryMB", "documentation": "", "labels": YARN_NODES_LABELS},
-    "usedVirtualCores": {"name": "yarn:node:usedVirtualCores", "documentation": "", "labels": YARN_NODES_LABELS},
+    "numContainers": {"name": "yarn_node_numContainers", "labels": YARN_NODES_LABELS},
+    "usedMemoryMB": {"name": "yarn_node_usedMemoryMB", "labels": YARN_NODES_LABELS},
+    "availMemoryMB": {"name": "yarn_node_availMemoryMB", "labels": YARN_NODES_LABELS},
+    "usedVirtualCores": {
+        "name": "yarn_node_usedVirtualCores",
+        "labels": YARN_NODES_LABELS,
+    },
     "availableVirtualCores": {
-        "name": "yarn:node:availableVirtualCores",
-        "documentation": "",
+        "name": "yarn_node_availableVirtualCores",
         "labels": YARN_NODES_LABELS,
     },
     "nodePhysicalMemoryMB": {
-        "name": "yarn:node:nodePhysicalMemoryMB",
-        "documentation": "",
+        "name": "yarn_node_nodePhysicalMemoryMB",
         "labels": YARN_NODES_LABELS,
     },
-    "nodeVirtualMemoryMB": {"name": "yarn:node:nodeVirtualMemoryMB", "documentation": "", "labels": YARN_NODES_LABELS},
-    "nodeCPUUsage": {"name": "yarn:node:nodeCPUUsage", "documentation": "", "labels": YARN_NODES_LABELS},
-    "containersCPUUsage": {"name": "yarn:node:containersCPUUsage", "documentation": "", "labels": YARN_NODES_LABELS},
+    "nodeVirtualMemoryMB": {
+        "name": "yarn_node_nodeVirtualMemoryMB",
+        "labels": YARN_NODES_LABELS,
+    },
+    "nodeCPUUsage": {"name": "yarn_node_nodeCPUUsage", "labels": YARN_NODES_LABELS},
+    "containersCPUUsage": {
+        "name": "yarn_node_containersCPUUsage",
+        "labels": YARN_NODES_LABELS,
+    },
     "aggregatedContainersPhysicalMemoryMB": {
-        "name": "yarn:node:aggregatedContainersPhysicalMemoryMB",
-        "documentation": "",
+        "name": "yarn_node_aggregatedContainersPhysicalMemoryMB",
         "labels": YARN_NODES_LABELS,
     },
     "aggregatedContainersVirtualMemoryMB": {
-        "name": "yarn:node:aggregatedContainersVirtualMemoryMB",
-        "documentation": "",
+        "name": "yarn_node_aggregatedContainersVirtualMemoryMB",
         "labels": YARN_NODES_LABELS,
     },
 }
 DRIVER_CLUSTER_METRICS = {
-    "appsSubmitted": {"name": "yarn:cluster:appsSubmitted", "documentation": "", "labels": []},
-    "appsCompleted": {"name": "yarn:cluster:appsCompleted", "documentation": "", "labels": []},
-    "appsPending": {"name": "yarn:cluster:appsPending", "documentation": "", "labels": []},
-    "appsRunning": {"name": "yarn:cluster:appsRunning", "documentation": "", "labels": []},
-    "appsFailed": {"name": "yarn:cluster:appsFailed", "documentation": "", "labels": []},
-    "appsKilled": {"name": "yarn:cluster:appsKilled", "documentation": "", "labels": []},
+    "appsSubmitted": {"name": "yarn_cluster_appsSubmitted", "labels": []},
+    "appsCompleted": {"name": "yarn_cluster_appsCompleted", "labels": []},
+    "appsPending": {"name": "yarn_cluster_appsPending", "labels": []},
+    "appsRunning": {"name": "yarn_cluster_appsRunning", "labels": []},
+    "appsFailed": {"name": "yarn_cluster_appsFailed", "labels": []},
+    "appsKilled": {"name": "yarn_cluster_appsKilled", "labels": []},
 }
 SPARK_APPLICATION_GAUGE_METRICS = {
     "numActiveTasks": {
-        "name": "spark:job:num_active_tasks",
+        "name": "spark_job_num_active_tasks",
         "documentation": "Number of currently active tasks",
         "labels": SPARK_APP_LABELS,
     },
     "numActiveStages": {
-        "name": "spark:job:num_active_stages",
+        "name": "spark_job_num_active_stages",
         "documentation": "Number of total active stages",
         "labels": SPARK_APP_LABELS,
     },
 }
 SPARK_APPLICATION_DIFF_METRICS = {
     "numTasks": {
-        "name": "spark:job:diff_num_tasks",
+        "name": "spark_job_diff_num_tasks",
         "documentation": "Diff between queries of total submitted tasks count",
         "labels": SPARK_APP_LABELS,
     },
     "numCompletedTasks": {
-        "name": "spark:job:diff_num_completed_tasks",
+        "name": "spark_job_diff_num_completed_tasks",
         "documentation": "Diff between queries of total completed tasks count",
         "labels": SPARK_APP_LABELS,
     },
     "numSkippedTasks": {
-        "name": "spark:job:diff_num_skipped_tasks",
+        "name": "spark_job_diff_num_skipped_tasks",
         "documentation": "Diff between queries of total skipped tasks count",
         "labels": SPARK_APP_LABELS,
     },
     "numFailedTasks": {
-        "name": "spark:job:diff_num_failed_tasks",
+        "name": "spark_job_diff_num_failed_tasks",
         "documentation": "Diff between queries of total failed tasks count",
         "labels": SPARK_APP_LABELS,
     },
     "numCompletedStages": {
-        "name": "spark:job:diff_num_completed_stages",
+        "name": "spark_job_diff_num_completed_stages",
         "documentation": "Diff between queries of total completed stages count",
         "labels": SPARK_APP_LABELS,
     },
     "numSkippedStages": {
-        "name": "spark:job:diff_num_skipped_stages",
+        "name": "spark_job_diff_num_skipped_stages",
         "documentation": "Diff between queries of total skipped stages count",
         "labels": SPARK_APP_LABELS,
     },
     "numFailedStages": {
-        "name": "spark:job:diff_num_failed_stages",
+        "name": "spark_job_diff_num_failed_stages",
         "documentation": "Diff between queries of total failed stages count",
         "labels": SPARK_APP_LABELS,
     },
 }
 SPARK_STAGE_METRICS = {
-    "numActiveTasks": {"name": "spark:stage:num_active_tasks", "documentation": "", "labels": SPARK_STAGE_LABELS},
-    "numCompleteTasks": {"name": "spark:stage:num_complete_tasks", "documentation": "", "labels": SPARK_STAGE_LABELS},
-    "numFailedTasks": {"name": "spark:stage:num_failed_tasks", "documentation": "", "labels": SPARK_STAGE_LABELS},
-    "executorRunTime": {"name": "spark:stage:executor_run_time", "documentation": "", "labels": SPARK_STAGE_LABELS},
-    "inputBytes": {"name": "spark:stage:input_bytes", "documentation": "", "labels": SPARK_STAGE_LABELS},
-    "inputRecords": {"name": "spark:stage:input_records", "documentation": "", "labels": SPARK_STAGE_LABELS},
-    "outputBytes": {"name": "spark:stage:output_bytes", "documentation": "", "labels": SPARK_STAGE_LABELS},
-    "outputRecords": {"name": "spark:stage:output_records", "documentation": "", "labels": SPARK_STAGE_LABELS},
-    "shuffleReadBytes": {"name": "spark:stage:shuffle_read_bytes", "documentation": "", "labels": SPARK_STAGE_LABELS},
+    "numActiveTasks": {
+        "name": "spark_stage_num_active_tasks",
+        "labels": SPARK_STAGE_LABELS,
+    },
+    "numCompleteTasks": {
+        "name": "spark_stage_num_complete_tasks",
+        "labels": SPARK_STAGE_LABELS,
+    },
+    "numFailedTasks": {
+        "name": "spark_stage_num_failed_tasks",
+        "labels": SPARK_STAGE_LABELS,
+    },
+    "executorRunTime": {
+        "name": "spark_stage_executor_run_time",
+        "labels": SPARK_STAGE_LABELS,
+    },
+    "inputBytes": {"name": "spark_stage_input_bytes", "labels": SPARK_STAGE_LABELS},
+    "inputRecords": {"name": "spark_stage_input_records", "labels": SPARK_STAGE_LABELS},
+    "outputBytes": {"name": "spark_stage_output_bytes", "labels": SPARK_STAGE_LABELS},
+    "outputRecords": {
+        "name": "spark_stage_output_records",
+        "labels": SPARK_STAGE_LABELS,
+    },
+    "shuffleReadBytes": {
+        "name": "spark_stage_shuffle_read_bytes",
+        "labels": SPARK_STAGE_LABELS,
+    },
     "shuffleReadRecords": {
-        "name": "spark:stage:shuffle_read_records",
-        "documentation": "",
+        "name": "spark_stage_shuffle_read_records",
         "labels": SPARK_STAGE_LABELS,
     },
     "shuffleWriteBytes": {
-        "name": "spark:stage:shuffle_write_bytes",
-        "documentation": "",
+        "name": "spark_stage_shuffle_write_bytes",
         "labels": SPARK_STAGE_LABELS,
     },
     "shuffleWriteRecords": {
-        "name": "spark:stage:shuffle_write_records",
-        "documentation": "",
+        "name": "spark_stage_shuffle_write_records",
         "labels": SPARK_STAGE_LABELS,
     },
     "memoryBytesSpilled": {
-        "name": "spark:stage:memory_bytes_spilled",
-        "documentation": "",
+        "name": "spark_stage_memory_bytes_spilled",
         "labels": SPARK_STAGE_LABELS,
     },
     "diskBytesSpilled": {
-        "name": "spark:stage:disk_bytes_spilled",
-        "documentation": "",
+        "name": "spark_stage_disk_bytes_spilled",
         "labels": SPARK_STAGE_LABELS,
     },
 }
 SPARK_RDD_METRICS = {
-    "numPartitions": {"name": "spark:rdd:num_partitions", "documentation": "", "labels": SPARK_RDD_LABELS},
+    "numPartitions": {"name": "spark_rdd_num_partitions", "labels": SPARK_RDD_LABELS},
     "numCachedPartitions": {
-        "name": "spark:rdd:num_cached_partitions",
-        "documentation": "",
+        "name": "spark_rdd_num_cached_partitions",
         "labels": SPARK_RDD_LABELS,
     },
-    "memoryUsed": {"name": "spark:rdd:memory_used", "documentation": "", "labels": SPARK_RDD_LABELS},
-    "diskUsed": {"name": "spark:rdd:disk_used", "documentation": "", "labels": SPARK_RDD_LABELS},
+    "memoryUsed": {"name": "spark_rdd_memory_used", "labels": SPARK_RDD_LABELS},
+    "diskUsed": {"name": "spark_rdd_disk_used", "labels": SPARK_RDD_LABELS},
 }
 SPARK_EXECUTOR_TEMPLATE_METRICS = {
-    "rddBlocks": ("spark:%s:rdd_blocks", ""),
-    "memoryUsed": ("spark:%s:memory_used", ""),
-    "diskUsed": ("spark:%s:disk_used", ""),
-    "activeTasks": ("spark:%s:active_tasks", ""),
-    "failedTasks": ("spark:%s:failed_tasks", ""),
-    "completedTasks": ("spark:%s:completed_tasks", ""),
-    "totalTasks": ("spark:%s:total_tasks", ""),
-    "totalDuration": ("spark:%s:total_duration", ""),
-    "totalInputBytes": ("spark:%s:total_input_bytes", ""),
-    "totalShuffleRead": ("spark:%s:total_shuffle_read", ""),
-    "totalShuffleWrite": ("spark:%s:total_shuffle_write", ""),
-    "maxMemory": ("spark:%s:max_memory", ""),
+    "rddBlocks": ("spark_%s_rdd_blocks", ""),
+    "memoryUsed": ("spark_%s_memory_used", ""),
+    "diskUsed": ("spark_%s_disk_used", ""),
+    "activeTasks": ("spark_%s_active_tasks", ""),
+    "failedTasks": ("spark_%s_failed_tasks", ""),
+    "completedTasks": ("spark_%s_completed_tasks", ""),
+    "totalTasks": ("spark_%s_total_tasks", ""),
+    "totalDuration": ("spark_%s_total_duration", ""),
+    "totalInputBytes": ("spark_%s_total_input_bytes", ""),
+    "totalShuffleRead": ("spark_%s_total_shuffle_read", ""),
+    "totalShuffleWrite": ("spark_%s_total_shuffle_write", ""),
+    "maxMemory": ("spark_%s_max_memory", ""),
 }
 SPARK_DRIVER_METRICS = {
-    key: {"name": value[0] % "driver", "documentation": value[1], "labels": SPARK_DRIVER_LABELS}
+    key: {
+        "name": value[0] % "driver",
+        "documentation": value[1],
+        "labels": SPARK_DRIVER_LABELS,
+    }
     for key, value in SPARK_EXECUTOR_TEMPLATE_METRICS.items()
 }
 SPARK_EXECUTOR_METRICS = {
-    key: {"name": value[0] % "executor", "documentation": value[1], "labels": SPARK_EXECUTORS_LABELS}
+    key: {
+        "name": value[0] % "executor",
+        "documentation": value[1],
+        "labels": SPARK_EXECUTORS_LABELS,
+    }
     for key, value in SPARK_EXECUTOR_TEMPLATE_METRICS.items()
 }
-SPARK_EXECUTOR_METRICS["totalGCTime"] = {
-    "name": "spark:executor:total_gc_time",
-    "documentation": "",
-    "labels": SPARK_EXECUTORS_LABELS,
-}
 SPARK_EXECUTOR_LEVEL_METRICS = {
-    key: {"name": value[0] % "executor_id", "documentation": value[1], "labels": SPARK_EXECUTOR_LABELS}
+    key: {
+        "name": value[0] % "executor_id",
+        "documentation": value[1],
+        "labels": SPARK_EXECUTOR_LABELS,
+    }
     for key, value in SPARK_EXECUTOR_TEMPLATE_METRICS.items()
 }
 SPARK_TASK_SUMMARY_METRICS = {
     "executorDeserializeTime": {
-        "name": "spark:stage:tasks_summary:executor_deserialize_time",
-        "documentation": "",
+        "name": "spark_stage_tasks_summary_executor_deserialize_time",
         "labels": SPARK_TASK_SUMMERY_LABELS,
     },
     "executorDeserializeCpuTime": {
-        "name": "spark:stage:tasks_summary:executor_deserialize_cpu_time",
-        "documentation": "",
+        "name": "spark_stage_tasks_summary_executor_deserialize_cpu_time",
         "labels": SPARK_TASK_SUMMERY_LABELS,
     },
     "executorRunTime": {
-        "name": "spark:stage:tasks_summary:executor_run_time",
-        "documentation": "",
+        "name": "spark_stage_tasks_summary_executor_run_time",
         "labels": SPARK_TASK_SUMMERY_LABELS,
     },
     "executorCpuTime": {
-        "name": "spark:stage:tasks_summary:executor_cpu_time",
-        "documentation": "",
+        "name": "spark_stage_tasks_summary_executor_cpu_time",
         "labels": SPARK_TASK_SUMMERY_LABELS,
     },
     "resultSize": {
-        "name": "spark:stage:tasks_summary:result_size",
-        "documentation": "",
+        "name": "spark_stage_tasks_summary_result_size",
         "labels": SPARK_TASK_SUMMERY_LABELS,
     },
     "jvmGcTime": {
-        "name": "spark:stage:tasks_summary:jvm_gc_time",
-        "documentation": "",
+        "name": "spark_stage_tasks_summary_jvm_gc_time",
         "labels": SPARK_TASK_SUMMERY_LABELS,
     },
     "resultSerializationTime": {
-        "name": "spark:stage:tasks_summary:result_serialization_time",
-        "documentation": "",
+        "name": "spark_stage_tasks_summary_result_serialization_time",
         "labels": SPARK_TASK_SUMMERY_LABELS,
     },
     "gettingResultTime": {
-        "name": "spark:stage:tasks_summary:getting_result_time",
-        "documentation": "",
+        "name": "spark_stage_tasks_summary_getting_result_time",
         "labels": SPARK_TASK_SUMMERY_LABELS,
     },
     "schedulerDelay": {
-        "name": "spark:stage:tasks_summary:scheduler_delay",
-        "documentation": "",
+        "name": "spark_stage_tasks_summary_scheduler_delay",
         "labels": SPARK_TASK_SUMMERY_LABELS,
     },
     "peakExecutionMemory": {
-        "name": "spark:stage:tasks_summary:peak_execution_memory",
-        "documentation": "",
+        "name": "spark_stage_tasks_summary_peak_execution_memory",
         "labels": SPARK_TASK_SUMMERY_LABELS,
     },
     "memoryBytesSpilled": {
-        "name": "spark:stage:tasks_summary:memory_bytes_spilled",
-        "documentation": "",
+        "name": "spark_stage_tasks_summary_memory_bytes_spilled",
         "labels": SPARK_TASK_SUMMERY_LABELS,
     },
     "diskBytesSpilled": {
-        "name": "spark:stage:tasks_summary:disk_bytes_spilled",
-        "documentation": "",
+        "name": "spark_stage_tasks_summary_disk_bytes_spilled",
         "labels": SPARK_TASK_SUMMERY_LABELS,
     },
 }
 SPARK_APPLICATIONS_TIME = {
     "elapsedTime": {
-        "name": "spark:application:completion_time",
-        "documentation": "",
+        "name": "spark_application_completion_time",
         "labels": SPARK_APPS_LABELS,
     },
 }
 SPARK_STREAMING_STATISTICS_METRICS = {
     "avgInputRate": {
-        "name": "spark:streaming:statistics:avg_input_rate",
-        "documentation": "",
+        "name": "spark_streaming_statistics_avg_input_rate",
         "labels": SPARK_APPS_LABELS,
     },
     "avgProcessingTime": {
-        "name": "spark:streaming:statistics:avg_processing_time",
-        "documentation": "",
+        "name": "spark_streaming_statistics_avg_processing_time",
         "labels": SPARK_APPS_LABELS,
     },
     "avgSchedulingDelay": {
-        "name": "spark:streaming:statistics:avg_scheduling_delay",
-        "documentation": "",
+        "name": "spark_streaming_statistics_avg_scheduling_delay",
         "labels": SPARK_APPS_LABELS,
     },
     "avgTotalDelay": {
-        "name": "spark:streaming:statistics:avg_total_delay",
-        "documentation": "",
+        "name": "spark_streaming_statistics_avg_total_delay",
         "labels": SPARK_APPS_LABELS,
     },
     "batchDuration": {
-        "name": "spark:streaming:statistics:batch_duration",
-        "documentation": "",
+        "name": "spark_streaming_statistics_batch_duration",
         "labels": SPARK_APPS_LABELS,
     },
     "numActiveBatches": {
-        "name": "spark:streaming:statistics:num_active_batches",
-        "documentation": "",
+        "name": "spark_streaming_statistics_num_active_batches",
         "labels": SPARK_APPS_LABELS,
     },
     "numActiveReceivers": {
-        "name": "spark:streaming:statistics:num_active_receivers",
-        "documentation": "",
+        "name": "spark_streaming_statistics_num_active_receivers",
         "labels": SPARK_APPS_LABELS,
     },
     "numInactiveReceivers": {
-        "name": "spark:streaming:statistics:num_inactive_receivers",
-        "documentation": "",
+        "name": "spark_streaming_statistics_num_inactive_receivers",
         "labels": SPARK_APPS_LABELS,
     },
     "numProcessedRecords": {
-        "name": "spark:streaming:statistics:num_processed_records",
-        "documentation": "",
+        "name": "spark_streaming_statistics_num_processed_records",
         "labels": SPARK_APPS_LABELS,
     },
     "numReceivedRecords": {
-        "name": "spark:streaming:statistics:num_received_records",
-        "documentation": "",
+        "name": "spark_streaming_statistics_num_received_records",
         "labels": SPARK_APPS_LABELS,
     },
     "numReceivers": {
-        "name": "spark:streaming:statistics:num_receivers",
-        "documentation": "",
+        "name": "spark_streaming_statistics_num_receivers",
         "labels": SPARK_APPS_LABELS,
     },
     "numRetainedCompletedBatches": {
-        "name": "spark:streaming:statistics:num_retained_completed_batches",
-        "documentation": "",
+        "name": "spark_streaming_statistics_num_retained_completed_batches",
         "labels": SPARK_APPS_LABELS,
     },
     "numTotalCompletedBatches": {
-        "name": "spark:streaming:statistics:num_total_completed_batches",
-        "documentation": "",
+        "name": "spark_streaming_statistics_num_total_completed_batches",
         "labels": SPARK_APPS_LABELS,
     },
 }
 SPARK_STRUCTURED_STREAMING_METRICS = {
     "inputRate-total": {
-        "name": "spark:structured_streaming:input_rate",
-        "documentation": "",
+        "name": "spark_structured_streaming_input_rate",
         "labels": SPARK_APPS_LABELS,
     },
-    "latency": {"name": "spark:structured_streaming:latency", "documentation": "", "labels": SPARK_APPS_LABELS},
+    "latency": {
+        "name": "spark_structured_streaming_latency",
+        "labels": SPARK_APPS_LABELS,
+    },
     "processingRate-total": {
-        "name": "spark:structured_streaming:processing_rate",
-        "documentation": "",
+        "name": "spark_structured_streaming_processing_rate",
         "labels": SPARK_APPS_LABELS,
     },
     "states-rowsTotal": {
-        "name": "spark:structured_streaming:rows_count",
-        "documentation": "",
+        "name": "spark_structured_streaming_rows_count",
         "labels": SPARK_APPS_LABELS,
     },
     "states-usedBytes": {
-        "name": "spark:structured_streaming:used_bytes",
-        "documentation": "",
+        "name": "spark_structured_streaming_used_bytes",
         "labels": SPARK_APPS_LABELS,
     },
 }
 SPARK_STREAMING_BATCHES_METRICS = {
     "last_inputSize": {
-        "name": "spark:app:streaming:inputSize:last",
-        "documentation": "",
+        "name": "spark_app_streaming_inputSize_last",
         "labels": SPARK_BATCH_LABELS,
     },
     "last_processingTime": {
-        "name": "spark:app:streaming:processingTime:last",
-        "documentation": "",
+        "name": "spark_app_streaming_processingTime_last",
         "labels": SPARK_BATCH_LABELS,
     },
     "last_totalDelay": {
-        "name": "spark:app:streaming:totalDelay:last",
-        "documentation": "",
+        "name": "spark_app_streaming_totalDelay_last",
         "labels": SPARK_BATCH_LABELS,
     },
     "last_batchDuration": {
-        "name": "spark:app:streaming:batchDuration:last",
-        "documentation": "",
+        "name": "spark_app_streaming_batchDuration_last",
         "labels": SPARK_BATCH_LABELS,
     },
     "avg3_inputSize": {
-        "name": "spark:app:streaming:inputSize:avg3",
-        "documentation": "",
+        "name": "spark_app_streaming_inputSize_avg3",
         "labels": SPARK_BATCH_LABELS,
     },
     "max3_inputSize": {
-        "name": "spark:app:streaming:inputSize:max3",
-        "documentation": "",
+        "name": "spark_app_streaming_inputSize_max3",
         "labels": SPARK_BATCH_LABELS,
     },
     "avg3_processingTime": {
-        "name": "spark:app:streaming:processingTime:avg3",
-        "documentation": "",
+        "name": "spark_app_streaming_processingTime_avg3",
         "labels": SPARK_BATCH_LABELS,
     },
     "max3_processingTime": {
-        "name": "spark:app:streaming:processingTime:max3",
-        "documentation": "",
+        "name": "spark_app_streaming_processingTime_max3",
         "labels": SPARK_BATCH_LABELS,
     },
     "avg3_totalDelay": {
-        "name": "spark:app:streaming:totalDelay:avg3",
-        "documentation": "",
+        "name": "spark_app_streaming_totalDelay_avg3",
         "labels": SPARK_BATCH_LABELS,
     },
     "max3_totalDelay": {
-        "name": "spark:app:streaming:totalDelay:max3",
-        "documentation": "",
+        "name": "spark_app_streaming_totalDelay_max3",
         "labels": SPARK_BATCH_LABELS,
     },
     "avg3_batchDuration": {
-        "name": "spark:app:streaming:batchDuration:avg3",
-        "documentation": "",
+        "name": "spark_app_streaming_batchDuration_avg3",
         "labels": SPARK_BATCH_LABELS,
     },
     "avg10_inputSize": {
-        "name": "spark:app:streaming:inputSize:avg10",
-        "documentation": "",
+        "name": "spark_app_streaming_inputSize_avg10",
         "labels": SPARK_BATCH_LABELS,
     },
     "max10_inputSize": {
-        "name": "spark:app:streaming:inputSize:max10",
-        "documentation": "",
+        "name": "spark_app_streaming_inputSize_max10",
         "labels": SPARK_BATCH_LABELS,
     },
     "avg10_processingTime": {
-        "name": "spark:app:streaming:processingTime:avg10",
-        "documentation": "",
+        "name": "spark_app_streaming_processingTime_avg10",
         "labels": SPARK_BATCH_LABELS,
     },
     "max10_processingTime": {
-        "name": "spark:app:streaming:processingTime:max10",
-        "documentation": "",
+        "name": "spark_app_streaming_processingTime_max10",
         "labels": SPARK_BATCH_LABELS,
     },
     "avg10_totalDelay": {
-        "name": "spark:app:streaming:totalDelay:avg10",
-        "documentation": "",
+        "name": "spark_app_streaming_totalDelay_avg10",
         "labels": SPARK_BATCH_LABELS,
     },
     "max10_totalDelay": {
-        "name": "spark:app:streaming:totalDelay:max10",
-        "documentation": "",
+        "name": "spark_app_streaming_totalDelay_max10",
         "labels": SPARK_BATCH_LABELS,
     },
     "avg10_batchDuration": {
-        "name": "spark:app:streaming:batchDuration:avg10",
-        "documentation": "",
+        "name": "spark_app_streaming_batchDuration_avg10",
         "labels": SPARK_BATCH_LABELS,
     },
     "avg25_inputSize": {
-        "name": "spark:app:streaming:inputSize:avg25",
-        "documentation": "",
+        "name": "spark_app_streaming_inputSize_avg25",
         "labels": SPARK_BATCH_LABELS,
     },
     "max25_inputSize": {
-        "name": "spark:app:streaming:inputSize:max25",
-        "documentation": "",
+        "name": "spark_app_streaming_inputSize_max25",
         "labels": SPARK_BATCH_LABELS,
     },
     "avg25_processingTime": {
-        "name": "spark:app:streaming:processingTime:avg25",
-        "documentation": "",
+        "name": "spark_app_streaming_processingTime_avg25",
         "labels": SPARK_BATCH_LABELS,
     },
     "max25_processingTime": {
-        "name": "spark:app:streaming:processingTime:max25",
-        "documentation": "",
+        "name": "spark_app_streaming_processingTime_max25",
         "labels": SPARK_BATCH_LABELS,
     },
     "avg25_totalDelay": {
-        "name": "spark:app:streaming:totalDelay:avg25",
-        "documentation": "",
+        "name": "spark_app_streaming_totalDelay_avg25",
         "labels": SPARK_BATCH_LABELS,
     },
     "max25_totalDelay": {
-        "name": "spark:app:streaming:totalDelay:max25",
-        "documentation": "",
+        "name": "spark_app_streaming_totalDelay_max25",
         "labels": SPARK_BATCH_LABELS,
     },
     "avg25_batchDuration": {
-        "name": "spark:app:streaming:batchDuration:avg25",
-        "documentation": "",
+        "name": "spark_app_streaming_batchDuration_avg25",
         "labels": SPARK_BATCH_LABELS,
     },
 }
-EXECUTORS_COUNT = {"name": "spark:executors:count", "documentation": "", "labels": ["app_name", "app_id"]}
+EXECUTORS_COUNT = {"name": "spark_executors_count", "labels": ["app_name", "app_id"]}
 ACTIVE_EXECUTORS_COUNT = {
-    "name": "spark:executors:active_count",
-    "documentation": "",
+    "name": "spark_executors_active_count",
     "labels": ["app_name", "app_id"],
 }
-YARN_APPS_ELAPSED_TIME_RANGES = [3, 10, 25]
-YARN_APPLICATIONS_ELAPSED_TIME = {
-    "last_elapsedTime": {
-        "name": "yarn:cluster:appElapsedTime:last",
-        "documentation": "",
-    },
-}
-for n in YARN_APPS_ELAPSED_TIME_RANGES:
-    YARN_APPLICATIONS_ELAPSED_TIME.update(
-        {
-            f"avg{n}_elapsedTime": {"name": f"yarn:cluster:appElapsedTime:avg{n}", "documentation": ""},
-            f"max{n}_elapsedTime": {
-                "name": f"yarn:cluster:appElapsedTime:max{n}",
-                "documentation": "",
-            },
-        }
-    )
