@@ -35,7 +35,7 @@ class BaseAPIClient:
         self._curlify = curlify_requests
         self._init_session()
 
-    def _init_session(self):
+    def _init_session(self) -> None:
         self._session: Session = requests.Session()
 
     def _get_query_params(self) -> List[Tuple[str, str]]:
@@ -218,7 +218,7 @@ class APIClient(BaseAPIClient):
         self._timeout = timeout
         super().__init__(curlify_requests)
 
-    def _init_session(self):
+    def _init_session(self) -> None:
         self._session = requests.Session()
         self._session.headers.update(
             {

@@ -255,7 +255,7 @@ class GProfiler:
         self._stop_event.clear()
         self._system_metrics_monitor.start()
 
-        if not self._spark_sampler.start():
+        if self._spark_sampler and not self._spark_sampler.start():
             logger.error("Unable to start Spark metrics collection")
 
         for prof in list(self.all_profilers):
