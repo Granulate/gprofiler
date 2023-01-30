@@ -18,6 +18,7 @@ from granulate_utils.node import is_node_process
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
+from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import AppMetadata, ProcessToProfileData, ProfileData, StackToSampleCount
 from gprofiler.log import get_logger_adapter
@@ -203,8 +204,11 @@ class SystemProfiler(ProfilerBase):
         perf_inject: bool,
         perf_node_attach: bool,
         perf_restart: bool,
+        container_names_client: Optional[ContainerNamesClient],
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
+        super().__init__(
+            frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode, container_names_client
+        )
         _ = profile_spawned_processes  # Required for mypy unused argument warning
         self._perfs: List[PerfProcess] = []
         self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
@@ -313,7 +317,11 @@ class SystemProfiler(ProfilerBase):
             appid = self._get_appid(pid)
         else:
             appid = None
-        return ProfileData(stacks, appid, metadata)
+        if self._container_names_client:
+            container_name = self._container_names_client.get_container_name(pid)
+        else:
+            container_name = ""
+        return ProfileData(stacks, appid, metadata, container_name)
 
 
 class PerfMetadata(ApplicationMetadata):

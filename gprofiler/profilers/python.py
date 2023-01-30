@@ -23,6 +23,7 @@ from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PR
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
+from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.exceptions import (
     CalledProcessError,
     CalledProcessTimeoutError,
@@ -176,11 +177,19 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         insert_dso_name: bool,
         profiling_mode: str,
         profile_spawned_processes: bool,
+        container_names_client: Optional[ContainerNamesClient],
         *,
         add_versions: bool,
     ):
         super().__init__(
-            frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes, profiling_mode
+            frequency,
+            duration,
+            stop_event,
+            storage_dir,
+            insert_dso_name,
+            profile_spawned_processes,
+            profiling_mode,
+            container_names_client,
         )
         self.add_versions = add_versions
         self._metadata = PythonMetadata(self._stop_event)
@@ -215,6 +224,10 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         )
         appid = application_identifiers.get_python_app_id(process)
         app_metadata = self._metadata.get_metadata(process)
+        if self._container_names_client:
+            container_name = self._container_names_client.get_container_name(process.pid)
+        else:
+            container_name = ""
         comm = process_comm(process)
 
         local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
@@ -248,7 +261,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             parsed = merge.parse_one_collapsed_file(Path(local_output_path), comm)
             if self.add_versions:
                 parsed = _add_versions_to_process_stacks(process, parsed)
-            return ProfileData(parsed, appid, app_metadata)
+            return ProfileData(parsed, appid, app_metadata, container_name)
 
     def _select_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
@@ -341,6 +354,7 @@ class PythonProfiler(ProfilerInterface):
         insert_dso_name: bool,
         profiling_mode: str,
         profile_spawned_processes: bool,
+        container_names_client: Optional[ContainerNamesClient],
         python_mode: str,
         python_add_versions: bool,
         python_pyperf_user_stacks_pages: Optional[int],
@@ -366,6 +380,7 @@ class PythonProfiler(ProfilerInterface):
                 python_add_versions,
                 python_pyperf_user_stacks_pages,
                 profiling_mode,
+                container_names_client,
             )
         else:
             self._ebpf_profiler = None
@@ -379,6 +394,7 @@ class PythonProfiler(ProfilerInterface):
                 insert_dso_name,
                 profiling_mode,
                 profile_spawned_processes,
+                container_names_client=container_names_client,
                 add_versions=python_add_versions,
             )
         else:
@@ -397,6 +413,7 @@ class PythonProfiler(ProfilerInterface):
             add_versions: bool,
             user_stacks_pages: Optional[int],
             profiling_mode: str,
+            container_names_client: Optional[ContainerNamesClient],
         ) -> Optional[PythonEbpfProfiler]:
             try:
                 profiler = PythonEbpfProfiler(
@@ -409,6 +426,7 @@ class PythonProfiler(ProfilerInterface):
                     profiling_mode,
                     add_versions=add_versions,
                     user_stacks_pages=user_stacks_pages,
+                    container_names_client=container_names_client,
                 )
                 profiler.test()
                 return profiler

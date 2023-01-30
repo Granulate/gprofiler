@@ -19,6 +19,7 @@ from granulate_utils.linux.proc_events import register_exec_callback, unregister
 from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process, ZombieProcess
 
+from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, ProfilingErrorStack, StackToSampleCount
 from gprofiler.log import get_logger_adapter
@@ -79,6 +80,7 @@ class ProfilerBase(ProfilerInterface):
         storage_dir: str,
         insert_dso_name: bool,
         profiling_mode: str,
+        container_names_client: Optional[ContainerNamesClient],
     ):
         self._frequency = limit_frequency(
             self.MAX_FREQUENCY, frequency, self.__class__.__name__, logger, profiling_mode
@@ -92,6 +94,7 @@ class ProfilerBase(ProfilerInterface):
         self._stop_event = stop_event or Event()
         self._storage_dir = storage_dir
         self._profiling_mode = profiling_mode
+        self._container_names_client = container_names_client
 
         if profiling_mode == "allocation":
             frequency_str = f"allocation interval: {humanfriendly.format_size(frequency, binary=True)}"
@@ -212,8 +215,11 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         insert_dso_name: bool,
         profile_spawned_processes: bool,
         profiling_mode: str,
+        container_names_client: Optional[ContainerNamesClient],
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
+        super().__init__(
+            frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode, container_names_client
+        )
         self._profile_spawned_processes = profile_spawned_processes
         self._submit_lock = Lock()
         self._threads: Optional[ThreadPoolExecutor] = None

@@ -44,6 +44,7 @@ from packaging.version import Version
 from psutil import Process
 
 from gprofiler import merge
+from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.diagnostics import is_diagnostics
 from gprofiler.exceptions import CalledProcessError, CalledProcessTimeoutError, NoRwExecDirectoryFoundError
 from gprofiler.gprofiler_types import (
@@ -693,6 +694,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         insert_dso_name: bool,
         profile_spawned_processes: bool,
         profiling_mode: str,
+        container_names_client: Optional[ContainerNamesClient],
         java_version_check: bool,
         java_async_profiler_mode: str,
         java_async_profiler_safemode: int,
@@ -706,7 +708,14 @@ class JavaProfiler(SpawningProcessProfilerBase):
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
         super().__init__(
-            frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes, profiling_mode
+            frequency,
+            duration,
+            stop_event,
+            storage_dir,
+            insert_dso_name,
+            profile_spawned_processes,
+            profiling_mode,
+            container_names_client,
         )
         # Alloc interval is passed in frequency in allocation profiling (in bytes, as async-profiler expects)
         self._interval = frequency_to_ap_interval(frequency) if profiling_mode == "cpu" else frequency
@@ -925,6 +934,10 @@ class JavaProfiler(SpawningProcessProfilerBase):
         logger.info(f"Profiling{' spawned' if spawned else ''} process {process.pid} with async-profiler")
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_java_app_id(process, self._collect_spark_app_name)
+        if self._container_names_client:
+            container_name = self._container_names_client.get_container_name(process.pid)
+        else:
+            container_name = ""
 
         if is_diagnostics():
             execfn = (app_metadata or {}).get("execfn")
@@ -945,7 +958,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         ) as ap_proc:
             stackcollapse = self._profile_ap_process(ap_proc, comm, duration)
 
-        return ProfileData(stackcollapse, appid, app_metadata)
+        return ProfileData(stackcollapse, appid, app_metadata, container_name)
 
     @staticmethod
     def _log_mem_usage(ap_log: str, pid: int) -> None:

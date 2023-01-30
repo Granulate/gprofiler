@@ -15,6 +15,7 @@ from granulate_utils.linux.process import get_mapped_dso_elf_id, is_process_base
 from psutil import Process
 
 from gprofiler import merge
+from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import ProfileData
 from gprofiler.log import get_logger_adapter
@@ -76,10 +77,18 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
         insert_dso_name: bool,
         profiling_mode: str,
         profile_spawned_processes: bool,
+        container_names_client: Optional[ContainerNamesClient],
         ruby_mode: str,
     ):
         super().__init__(
-            frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes, profiling_mode
+            frequency,
+            duration,
+            stop_event,
+            storage_dir,
+            insert_dso_name,
+            profile_spawned_processes,
+            profiling_mode,
+            container_names_client,
         )
         assert ruby_mode == "rbspy", "Ruby profiler should not be initialized, wrong ruby_mode value given"
         self._metadata = RubyMetadata(self._stop_event)
@@ -113,6 +122,10 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
         comm = process_comm(process)
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_ruby_app_id(process)
+        if self._container_names_client:
+            container_name = self._container_names_client.get_container_name(process.pid)
+        else:
+            container_name = ""
 
         local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):
@@ -127,7 +140,9 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
                 raise StopEventSetException
 
             logger.info(f"Finished profiling process {process.pid} with rbspy")
-            return ProfileData(merge.parse_one_collapsed_file(Path(local_output_path), comm), appid, app_metadata)
+            return ProfileData(
+                merge.parse_one_collapsed_file(Path(local_output_path), comm), appid, app_metadata, container_name
+            )
 
     def _select_processes_to_profile(self) -> List[Process]:
         return pgrep_maps(self.DETECTED_RUBY_PROCESSES_REGEX)

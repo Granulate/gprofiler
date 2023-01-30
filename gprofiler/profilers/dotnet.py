@@ -13,6 +13,7 @@ from granulate_utils.linux.ns import get_process_nspid
 from granulate_utils.linux.process import is_process_basename_matching
 from psutil import Process
 
+from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import ProfileData
 from gprofiler.log import get_logger_adapter
@@ -69,9 +70,12 @@ class DotnetProfiler(ProcessProfilerBase):
         insert_dso_name: bool,
         profile_spawned_processes: bool,
         profiling_mode: str,
+        container_names_client: Optional[ContainerNamesClient],
         dotnet_mode: str,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
+        super().__init__(
+            frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode, container_names_client
+        )
         assert (
             dotnet_mode == "dotnet-trace"
         ), "Dotnet profiler should not be initialized, wrong dotnet-trace value given"
@@ -104,6 +108,10 @@ class DotnetProfiler(ProcessProfilerBase):
         )
         appid = None
         app_metadata = self._metadata.get_metadata(process)
+        if self._container_names_client:
+            container_name = self._container_names_client.get_container_name(process.pid)
+        else:
+            container_name = ""
         # had to change the dots for minuses because of dotnet-trace removing the last part in other case
         local_output_path = os.path.join(self._storage_dir, f"dotnet-trace-{random_prefix()}-{process.pid}")
         # this causes dotnet-trace to lookup the socket in the mount namespace of the target process
@@ -128,6 +136,7 @@ class DotnetProfiler(ProcessProfilerBase):
                 load_speedscope_as_collapsed(local_output_path, self._frequency, comm, self._DOTNET_FRAME_SUFFIX),
                 appid,
                 app_metadata,
+                container_name,
             )
 
     def _select_processes_to_profile(self) -> List[Process]:

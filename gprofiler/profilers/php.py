@@ -14,6 +14,7 @@ from subprocess import Popen
 from threading import Event
 from typing import List, Optional, Pattern, cast
 
+from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProcessToStackSampleCounters, ProfileData
 from gprofiler.log import get_logger_adapter
@@ -66,9 +67,12 @@ class PHPSpyProfiler(ProfilerBase):
         profile_spawned_processes: bool,
         php_process_filter: str,
         php_mode: str,
+        container_names_client: Optional[ContainerNamesClient],
     ):
         assert php_mode == "phpspy", "PHP profiler should not be initialized, wrong php_mode value given"
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
+        super().__init__(
+            frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode, container_names_client
+        )
         _ = profile_spawned_processes  # Required for mypy unused argument warning
         self._process: Optional[Popen] = None
         self._output_path = Path(self._storage_dir) / f"phpspy.{random_prefix()}.col"
