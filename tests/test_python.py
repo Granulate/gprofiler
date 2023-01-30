@@ -40,7 +40,7 @@ def test_python_select_by_libpython(
     This test runs a Python named "shmython".
     """
     with PythonProfiler(
-        1000, 1, Event(), str(tmp_path), False, CPU_PROFILING_MODE, False, "pyspy", True, None
+        1000, 1, Event(), str(tmp_path), False, CPU_PROFILING_MODE, False, "pyspy", True, None, None
     ) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
     assert_collapsed(process_collapsed)
@@ -142,7 +142,7 @@ def test_dso_name_in_pyperf_profile(
     insert_dso_name: bool,
 ) -> None:
     with PythonProfiler(
-        1000, 2, Event(), str(tmp_path), insert_dso_name, CPU_PROFILING_MODE, False, profiler_type, True, None
+        1000, 2, Event(), str(tmp_path), insert_dso_name, CPU_PROFILING_MODE, False, profiler_type, True, None, None
     ) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
     python_version, _, _ = application_image_tag.split("-")

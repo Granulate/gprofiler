@@ -300,7 +300,7 @@ def _enrich_pid_stacks(
     if profile.container_name:
         container_prefix = profile.container_name + ";"
     else:
-        container_prefix = None
+        container_prefix = ""
     if appid is not None:
         appid = f"appid: {appid}"
 
@@ -318,12 +318,7 @@ def _enrich_pid_stacks(
     # generate container name
     # to maintain compatibility with old profiler versions, we include the container name frame in any case
     # if the protocol version does not "v1, regardless of whether container_names is enabled or not.
-    if enrichment_options.profile_api_version != "v1":
-        if container_prefix is None:
-            container_prefix = (
-                _get_container_name(pid, container_names_client, enrichment_options.container_names) + ";"
-            )
-    else:
+    if enrichment_options.profile_api_version == "v1":
         container_prefix = ""
 
     return PidStackEnrichment(appid, application_prefix, container_prefix)
