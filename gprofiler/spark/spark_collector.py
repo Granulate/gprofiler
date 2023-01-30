@@ -891,9 +891,11 @@ class SparkSampler(object):
             self._stop_event.wait(self._sample_period)
 
     def stop(self) -> None:
-        self._stop_event.set()
-        self._collection_thread.join()
-        self._is_running = False
+        if self._is_running:
+            assert self._collection_thread is not None
+            self._stop_event.set()
+            self._collection_thread.join()
+            self._is_running = False
 
     def is_running(self) -> bool:
         return self._is_running
