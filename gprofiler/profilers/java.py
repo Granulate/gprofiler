@@ -244,7 +244,7 @@ class JvmFlag:
             type=match.group("flag_type"),
             value=match.group("flag_value"),
             origin=flag_origin,
-            kind=flag_kind,
+            kind=sorted(flag_kind),
         )
 
 
@@ -413,7 +413,7 @@ class JavaMetadata(ApplicationMetadata):
 
         vm_flags = []
         vm_flags_pattern = re.compile(
-            r"(?P<flag_type>\S+)\s+(?P<flag_name>\S+)\s+(?P<flag_is_non_default_origin_only_jdk_8>:)?= (?P<flag_value>\S*)\s+{(?P<flag_kind>.+?)}(?:\s*{(?P<flag_origin_jdk_9>.*)})?"  # noqa: E501
+            r"(?P<flag_type>\S+)\s+(?P<flag_name>\S+)\s+(?P<flag_is_non_default_origin_only_jdk_8>:)?= (?P<flag_value>\S+)\s+{(?P<flag_kind>.+?)}(?:\s*{(?P<flag_origin_jdk_9>.*)})?"  # noqa: E501
         )
 
         for line in output.splitlines():
@@ -905,6 +905,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             stop_event=self._stop_event, jattach_timeout=self._jattach_timeout
         )
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
+        application_identifiers.ApplicationIdentifiers.init_java(self._jattach_jcmd_runner)
         self._metadata = JavaMetadata(self._stop_event, self._jattach_jcmd_runner, self._java_jvm_flags_to_retrieve)
         self._insert_dso_name = insert_dso_name
         self._report_meminfo = java_async_profiler_report_meminfo
@@ -1111,9 +1112,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
 
         logger.info(f"Profiling{' spawned' if spawned else ''} process {process.pid} with async-profiler")
         app_metadata = self._metadata.get_metadata(process)
-        appid = application_identifiers.get_java_app_id(
-            process, self._jattach_jcmd_runner, self._collect_spark_app_name
-        )
+        appid = application_identifiers.get_java_app_id(process, self._collect_spark_app_name)
 
         if is_diagnostics():
             execfn = (app_metadata or {}).get("execfn")

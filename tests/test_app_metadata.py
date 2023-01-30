@@ -13,8 +13,7 @@ from docker.models.images import Image
 
 from gprofiler.merge import parse_one_collapsed
 from tests.conftest import AssertInCollapsed
-from tests.helpers import assert_jvm_flags_equal
-from tests.utils import run_gprofiler_in_container_for_one_session
+from tests.utils import assert_jvm_flags_equal, run_gprofiler_in_container_for_one_session
 
 
 @pytest.mark.parametrize(

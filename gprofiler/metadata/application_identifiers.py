@@ -307,21 +307,33 @@ class _RubyModuleApplicationIdentifier(_ApplicationIdentifier):
         return None
 
 
-# Please note that the order matter, because the FIRST matching identifier will be used.
-# so when adding new identifiers pay attention to the order, unless aggregate_all is used.
-_IDENTIFIERS_MAP: Dict[str, List[_ApplicationIdentifier]] = {
-    "python": [
-        _GunicornTitleApplicationIdentifier(),
-        _GunicornApplicationIdentifier(),
-        _UwsgiApplicationIdentifier(),
-        _CeleryApplicationIdentifier(),
-        _PySparkApplicationIdentifier(),
-        _PythonModuleApplicationIdentifier(),
-    ],
-}
+class ApplicationIdentifiers:
+    identifiers_map: Dict[str, List[_ApplicationIdentifier]]
 
-_IDENTIFIERS_MAP["node"] = [_NodeModuleApplicationIdentifier()]
-_IDENTIFIERS_MAP["ruby"] = [_RubyModuleApplicationIdentifier()]
+    @classmethod
+    def init(cls, enrichment_options: EnrichmentOptions) -> None:
+        # Please note that the order matter, because the FIRST matching identifier will be used.
+        # so when adding new identifiers pay attention to the order, unless aggregate_all is used.
+        cls.identifiers_map = {
+            "python": [
+                _GunicornTitleApplicationIdentifier(),
+                _GunicornApplicationIdentifier(),
+                _UwsgiApplicationIdentifier(),
+                _CeleryApplicationIdentifier(),
+                _PySparkApplicationIdentifier(),
+                _PythonModuleApplicationIdentifier(),
+            ],
+            "node": [_NodeModuleApplicationIdentifier()],
+            "ruby": [_RubyModuleApplicationIdentifier()],
+        }
+
+        _ApplicationIdentifier.enrichment_options = enrichment_options
+
+    @classmethod
+    def init_java(cls, jattach_jcmd_runner: JattachJcmdRunner) -> None:
+        if is_linux():
+            cls.identifiers_map["java"] = [_JavaJarApplicationIdentifier(jattach_jcmd_runner)]
+            cls.identifiers_map["java_spark"] = cls.identifiers_map["java"] + [_JavaSparkApplicationIdentifier()]
 
 
 def set_enrichment_options(enrichment_options: EnrichmentOptions) -> None:
@@ -340,7 +352,7 @@ def get_app_id(process: Process, runtime: str, aggregate_all: bool = False) -> O
         return None
 
     appids = []
-    for identifier in _IDENTIFIERS_MAP[runtime]:
+    for identifier in ApplicationIdentifiers.identifiers_map[runtime]:
         try:
             appid = identifier.get_app_id(process)
             if appid is not None:
@@ -365,13 +377,7 @@ def get_python_app_id(process: Process) -> Optional[str]:
     return get_app_id(process, "python")
 
 
-def get_java_app_id(
-    process: Process, jattach_jcmd_runner: JattachJcmdRunner, should_collect_spark_app_name: bool = False
-) -> Optional[str]:
-    if is_linux():
-        _IDENTIFIERS_MAP["java"] = [_JavaJarApplicationIdentifier(jattach_jcmd_runner)]
-        _IDENTIFIERS_MAP["java_spark"] = _IDENTIFIERS_MAP["java"] + [_JavaSparkApplicationIdentifier()]
-
+def get_java_app_id(process: Process, should_collect_spark_app_name: bool = False) -> Optional[str]:
     return get_app_id(process, "java_spark" if should_collect_spark_app_name else "java", aggregate_all=True)
 
 

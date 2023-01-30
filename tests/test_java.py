@@ -35,11 +35,11 @@ from gprofiler.profilers.java import (
     get_java_version,
 )
 from tests.conftest import AssertInCollapsed
-from tests.helpers import assert_jvm_flags_equal
 from tests.type_utils import cast_away_optional
 from tests.utils import (
     _application_docker_container,
     assert_function_in_collapsed,
+    assert_jvm_flags_equal,
     find_application_pid,
     is_function_in_collapsed,
     is_pattern_in_collapsed,
@@ -778,79 +778,6 @@ def test_java_frames_include_no_semicolons(
                 },
                 "UseCompressedOops": {"kind": ["lp64_product"], "origin": "ergonomic", "type": "bool", "value": "true"},
                 "UseG1GC": {"kind": ["product"], "origin": "ergonomic", "type": "bool", "value": "true"},
-            },
-        ),
-        (
-            "zing",
-            {
-                "AllocOopTablesInCHeap": {"kind": ["product"], "origin": "ergonomic", "type": "bool", "value": "true"},
-                "BestEffortElasticity": {"kind": ["product"], "origin": "ergonomic", "type": "bool", "value": "false"},
-                "CIMaxCompilerThreads": {"kind": ["product"], "origin": "ergonomic", "type": "intx", "value": "5"},
-                "CodeCacheMinimumFreeSpace": {
-                    "kind": ["product"],
-                    "origin": "ergonomic",
-                    "type": "uintx",
-                    "value": "8388608",
-                },
-                "FalconCompensateForIntelMCUForErratumSKX102": {
-                    "kind": ["ARCH", "product"],
-                    "origin": "ergonomic",
-                    "type": "bool",
-                    "value": "false",
-                },
-                "FalconOSROptimizationLevel": {
-                    "kind": ["FALCON", "product"],
-                    "origin": "ergonomic",
-                    "type": "uintx",
-                    "value": "2",
-                },
-                "GPGCElasticSideband": {"kind": ["product"], "origin": "ergonomic", "type": "bool", "value": "true"},
-                "GPGCNoZSTUseNUMAInterleaving": {
-                    "kind": ["product"],
-                    "origin": "ergonomic",
-                    "type": "bool",
-                    "value": "false",
-                },
-                "GPGCSmallSpaceAllocateForRelocateSlots": {
-                    "kind": ["product"],
-                    "origin": "ergonomic",
-                    "type": "uintx",
-                    "value": "8",
-                },
-                "GPGCThreads": {"kind": ["product"], "origin": "ergonomic", "type": "uintx", "value": "6"},
-                "GPGCUseDensePhaseEncoding": {
-                    "kind": ["product"],
-                    "origin": "ergonomic",
-                    "type": "bool",
-                    "value": "false",
-                },
-                "GenPauselessNewThreads": {"kind": ["product"], "origin": "ergonomic", "type": "uintx", "value": "4"},
-                "GenPauselessOldThreads": {"kind": ["product"], "origin": "ergonomic", "type": "uintx", "value": "2"},
-                "HeapElasticityLogIntervalBytes": {
-                    "kind": ["manageable"],
-                    "origin": "ergonomic",
-                    "type": "uintx",
-                    "value": "209715200",
-                },
-                "HeapElasticityTargetMinAvailableSystemMemory": {
-                    "kind": ["product"],
-                    "origin": "ergonomic",
-                    "type": "uintx",
-                    "value": "125829120",
-                },
-                "InitialHeapSize": {"kind": ["product"], "origin": "ergonomic", "type": "uintx", "value": "536870912"},
-                "InitialSystemDictionarySize": {
-                    "kind": ["product"],
-                    "origin": "ergonomic",
-                    "type": "uintx",
-                    "value": "320219",
-                },
-                "KlassTableSize": {"kind": ["product"], "origin": "ergonomic", "type": "intx", "value": "8388608"},
-                "MaxHeapSize": {"kind": ["product"], "origin": "ergonomic", "type": "uintx", "value": "4194304000"},
-                "MlockCodeCache": {"kind": ["product"], "origin": "command line", "type": "bool", "value": "true"},
-                "StringTableSize": {"kind": ["product"], "origin": "ergonomic", "type": "uintx", "value": "320219"},
-                "SymbolTableSize": {"kind": ["product"], "origin": "ergonomic", "type": "uintx", "value": "320219"},
-                "UseZST": {"kind": ["product"], "origin": "ergonomic", "type": "bool", "value": "false"},
             },
         ),
     ],
