@@ -19,8 +19,6 @@ from glogger.sender import Sender
 from gprofiler import __version__
 from gprofiler.state import get_state
 
-DEFAULT_API_SERVER_ADDRESS = "https://api.granulate.io"
-
 NO_SERVER_LOG_KEY = "no_server_log"
 NO_SERVER_EXTRA_KEY = "no_extra_to_server"
 CYCLE_ID_KEY = "cycle_id"

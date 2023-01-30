@@ -26,14 +26,20 @@ from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
 
 from gprofiler import __version__
-from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
+from gprofiler.client import (
+    DEFAULT_API_SERVER_ADDRESS,
+    DEFAULT_PROFILER_SERVER_ADDRESS,
+    DEFAULT_UPLOAD_TIMEOUT,
+    APIClient,
+    ProfilerAPIClient,
+)
 from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.databricks_client import DatabricksClient
 from gprofiler.diagnostics import log_diagnostics, set_diagnostics
 from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
-from gprofiler.log import DEFAULT_API_SERVER_ADDRESS, RemoteLogsHandler, initial_root_logger_setup
+from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import concatenate_from_external_file, concatenate_profiles, merge_profiles
 from gprofiler.metadata.application_identifiers import set_enrichment_options
 from gprofiler.metadata.enrichment import EnrichmentOptions
@@ -43,7 +49,6 @@ from gprofiler.platform import is_linux, is_windows
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
-from gprofiler.spark.client import SparkAPIClient
 from gprofiler.spark.spark_collector import SparkSampler
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import Metrics, NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
@@ -97,7 +102,7 @@ class GProfiler:
         output_dir: str,
         flamegraph: bool,
         rotating_output: bool,
-        client: Optional[APIClient],
+        profiler_api_client: Optional[ProfilerAPIClient],
         collect_metrics: bool,
         collect_metadata: bool,
         enrichment_options: EnrichmentOptions,
@@ -110,11 +115,12 @@ class GProfiler:
         profile_spawned_processes: bool = True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         controller_process: Optional[Process] = None,
+        spark_sampler: Optional[SparkSampler] = None,
     ):
         self._output_dir = output_dir
         self._flamegraph = flamegraph
         self._rotating_output = rotating_output
-        self._client = client
+        self._profiler_api_client = profiler_api_client
         self._state = state
         self._remote_logs_handler = remote_logs_handler
         self._profile_api_version = profile_api_version
@@ -154,6 +160,8 @@ class GProfiler:
             self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
+
+        self._spark_sampler = spark_sampler
 
     @property
     def all_profilers(self) -> Iterable[ProfilerInterface]:
@@ -247,6 +255,9 @@ class GProfiler:
         self._stop_event.clear()
         self._system_metrics_monitor.start()
 
+        if not self._spark_sampler.start():
+            logger.error("Unable to start Spark metrics collection")
+
         for prof in list(self.all_profilers):
             try:
                 prof.start()
@@ -264,7 +275,8 @@ class GProfiler:
         logger.info("Stopping ...")
         self._stop_event.set()
         self._system_metrics_monitor.stop()
-
+        if self._spark_sampler is not None and self._spark_sampler.is_running():
+            self._spark_sampler.stop()
         for prof in self.all_profilers:
             prof.stop()
 
@@ -328,9 +340,9 @@ class GProfiler:
         if self._output_dir:
             self._generate_output_files(merged_result, local_start_time, local_end_time)
 
-        if self._client:
+        if self._profiler_api_client:
             self._gpid = _submit_profile_logged(
-                self._client,
+                self._profiler_api_client,
                 local_start_time,
                 local_end_time,
                 merged_result,
@@ -376,7 +388,7 @@ class GProfiler:
 
 
 def _submit_profile_logged(
-    client: APIClient,
+    client: ProfilerAPIClient,
     start_time: datetime.datetime,
     end_time: datetime.datetime,
     profile: str,
@@ -407,7 +419,7 @@ def _submit_profile_logged(
     return ""
 
 
-def send_collapsed_file_only(args: configargparse.Namespace, client: APIClient) -> None:
+def send_collapsed_file_only(args: configargparse.Namespace, client: ProfilerAPIClient) -> None:
     spawn_time = time.time()
     gpid = ""
     metrics = NoopSystemMetricsMonitor().get_metrics()
@@ -510,60 +522,19 @@ def parse_cmd_args() -> configargparse.Namespace:
     _add_profilers_arguments(parser)
 
     spark_options = parser.add_argument_group("Spark")
-    spark_options.add_argument(
-        "--spark-mode",
-        dest="spark_mode",
-        default="unknown",
-        choices=["yarn", "mesos", "driver", "unknown"],
-        help="Spark cluster mode. Possible options are yarn, mesos, driver and unknown",
-    )
-
-    spark_options.add_argument(
-        "--spark-master-address",
-        dest="spark_master_address",
-        type=str,
-        default=None,
-        help="Spark cluster address",
-    )
 
     spark_options.add_argument(
         "--spark-sample-period",
-        dest="spark_sample_period",
         type=int,
-        default=1,
+        default=60,
         help="Time in seconds between each metric collection",
     )
 
     spark_options.add_argument(
-        "--no-spark-app-metrics",
-        dest="disable_spark_app_metrics",
+        "--collect-spark-metrics",
         default=False,
         action="store_true",
-        help="Disable the collection of application metrics from the Spark cluster",
-    )
-
-    spark_options.add_argument(
-        "--no-spark-stream-metrics",
-        dest="disable_spark_stream_metrics",
-        default=False,
-        action="store_true",
-        help="Disable the collection of streaming metrics from the Spark cluster",
-    )
-
-    spark_options.add_argument(
-        "--no-spark-cluster-metrics",
-        dest="disable_spark_cluster_metrics",
-        default=False,
-        action="store_true",
-        help="Disable the collection of cluster metrics from the Spark cluster",
-    )
-
-    spark_options.add_argument(
-        "--no-spark",
-        dest="enable_spark",
-        default=True,
-        action="store_false",
-        help="Disable Spark metrics collection",
+        help="Collect Apache Spark metrics",
     )
 
     nodejs_options = parser.add_argument_group("NodeJS")
@@ -613,7 +584,14 @@ def parse_cmd_args() -> configargparse.Namespace:
     for subparser in [parser, upload_file]:
         connectivity = subparser.add_argument_group("connectivity")
         connectivity.add_argument(
-            "--server-host", default=GRANULATE_SERVER_HOST, help="Server host (default: %(default)s)"
+            "--server-host",
+            default=DEFAULT_PROFILER_SERVER_ADDRESS,
+            help="URL for uploading profiles (default: %(default)s)",
+        )
+        connectivity.add_argument(
+            "--api-server",
+            default=DEFAULT_API_SERVER_ADDRESS,
+            help="URL for reporting logs and metrics (default: %(default)s)",
         )
         connectivity.add_argument(
             "--server-upload-timeout",
@@ -625,11 +603,6 @@ def parse_cmd_args() -> configargparse.Namespace:
         connectivity.add_argument("--service-name", help="Service name")
         connectivity.add_argument(
             "--curlify-requests", help="Log cURL commands for HTTP requests (used for debugging)", action="store_true"
-        )
-        connectivity.add_argument(
-            "--glogger-server",
-            default=DEFAULT_API_SERVER_ADDRESS,
-            help="URL for remote gLogger logs (default: %(default)s)",
         )
 
     upload_file.set_defaults(func=send_collapsed_file_only)
@@ -910,9 +883,7 @@ def main() -> None:
     state = init_state()
 
     remote_logs_handler = (
-        RemoteLogsHandler(args.glogger_server, args.server_token, args.service_name)
-        if _should_send_logs(args)
-        else None
+        RemoteLogsHandler(args.api_server, args.server_token, args.service_name) if _should_send_logs(args) else None
     )
     global logger
     logger = initial_root_logger_setup(
@@ -941,7 +912,6 @@ def main() -> None:
         if databricks_client.job_name is not None:
             args.service_name = f"databricks-{databricks_client.job_name}"
 
-    spark_sampler = None
     try:
         logger.info("Running gProfiler", commandline=" ".join(sys.argv[1:]), arguments=args.__dict__)
 
@@ -976,8 +946,8 @@ def main() -> None:
             client_kwargs = {}
             if "server_upload_timeout" in args:
                 client_kwargs["upload_timeout"] = args.server_upload_timeout
-            client = (
-                APIClient(
+            profiler_api_client = (
+                ProfilerAPIClient(
                     args.server_host,
                     args.server_token,
                     args.service_name,
@@ -1001,9 +971,28 @@ def main() -> None:
             )
             sys.exit(1)
 
+        client_kwargs = {}
+        if args.upload_results:
+            if "server_upload_timeout" in args:
+                client_kwargs["timeout"] = args.server_upload_timeout
+            api_client = APIClient(
+                args.server_token,
+                args.service_name,
+                args.api_server,
+                args.curlify_requests,
+                **client_kwargs,
+            )
+        else:
+            api_client = None
+
+        if args.collect_spark_metrics:
+            spark_sampler = SparkSampler(args.spark_sample_period, args.output_dir, api_client)
+        else:
+            spark_sampler = None
+
         if hasattr(args, "func"):
             assert args.subcommand == "upload-file"
-            args.func(args, client)
+            args.func(args, profiler_api_client)
             return
 
         enrichment_options = EnrichmentOptions(
@@ -1017,55 +1006,11 @@ def main() -> None:
         set_enrichment_options(enrichment_options)
         set_diagnostics(args.diagnostics)
 
-        if args.enable_spark:
-            try:
-                client_kwargs = {}
-                if "server_upload_timeout" in args:
-                    client_kwargs["upload_timeout"] = args.server_upload_timeout
-                spark_client = (
-                    SparkAPIClient(
-                        args.server_host,
-                        args.server_token,
-                        args.service_name,
-                        get_hostname(),
-                        args.curlify_requests,
-                        **client_kwargs,
-                    )
-                    if args.upload_results
-                    else None
-                )
-            except APIError as e:
-                logger.error(f"Server error: {e}")
-                sys.exit(1)
-            except RequestException as e:
-                proxy = get_https_proxy()
-                proxy_str = repr(proxy) if proxy is not None else "none"
-                logger.error(
-                    "Failed to connect to server. It might be blocked by your security rules / firewall,"
-                    " or you might require a proxy to access it from your environment?"
-                    f" Proxy used: {proxy_str}. Error: {e}"
-                )
-                sys.exit(1)
-            spark_sampler = SparkSampler(
-                sample_period=args.spark_sample_period,
-                master_address=args.spark_master_address,
-                spark_mode=args.spark_mode,
-                disable_app_metrics=args.disable_spark_app_metrics,
-                disable_cluster_metrics=args.disable_spark_cluster_metrics,
-                disable_streaming_metrics=args.disable_spark_stream_metrics,
-                storage_dir=args.output_dir,
-                client=spark_client,
-                continuous_mode=args.continuous,
-            )
-
-            if not spark_sampler.start():
-                logger.error("Unable to start Spark metrics collection")
-
         gprofiler = GProfiler(
             args.output_dir,
             args.flamegraph,
             args.rotating_output,
-            client,
+            profiler_api_client,
             args.collect_metrics,
             args.collect_metadata,
             enrichment_options,
@@ -1078,6 +1023,7 @@ def main() -> None:
             args.profile_spawned_processes,
             remote_logs_handler,
             controller_process,
+            spark_sampler,
         )
         logger.info("gProfiler initialized and ready to start profiling")
         if args.continuous:
@@ -1086,16 +1032,11 @@ def main() -> None:
             gprofiler.run_single()
 
     except KeyboardInterrupt:
-        if spark_sampler is not None and spark_sampler.is_running():
-            spark_sampler.stop()
+        pass
     except NoProfilersEnabledError:
-        if spark_sampler is not None and spark_sampler.is_running():
-            spark_sampler.stop()
         logger.error("All profilers are disabled! Please enable at least one of them!")
         sys.exit(1)
     except Exception:
-        if spark_sampler is not None and spark_sampler.is_running():
-            spark_sampler.stop()
         logger.exception("Unexpected error occurred")
         sys.exit(1)
 

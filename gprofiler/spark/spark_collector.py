@@ -2,11 +2,11 @@ import contextlib
 import json
 import os
 import re
-import threading
 import time
 import traceback
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
+from threading import Event, Lock, Thread
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union, cast
 from urllib.parse import urljoin, urlparse
 
@@ -17,10 +17,10 @@ from psutil import AccessDenied, NoSuchProcess, Process, process_iter
 from requests.exceptions import ConnectionError, HTTPError, InvalidURL, Timeout
 
 import gprofiler.spark.metrics as metrics_definition
+from gprofiler.client import APIClient
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_hostname
 from gprofiler.platform import is_windows
-from gprofiler.spark.client import SparkAPIClient
 from gprofiler.utils import get_iso8601_format_time
 
 GMT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fGMT"
@@ -54,7 +54,7 @@ STRUCTURED_STREAMS_METRICS_REGEX = re.compile(
 
 class SparkCollector:
     def __init__(self, **kwargs: Any) -> None:
-        self._lock = threading.Lock()
+        self._lock = Lock()
         self._logger = get_logger_adapter(__name__)
 
         self._last_sample_time = int(time.monotonic() * 1000)
@@ -727,39 +727,22 @@ class SparkSampler(object):
 
     def __init__(
         self,
-        sample_period: Optional[float] = 1.0,
-        master_address: Optional[str] = None,
-        spark_mode: Optional[str] = None,
-        disable_app_metrics: Optional[bool] = False,
-        disable_cluster_metrics: Optional[bool] = False,
-        disable_streaming_metrics: Optional[bool] = False,
-        storage_dir: Optional[str] = None,
-        client: Optional[SparkAPIClient] = None,
-        continuous_mode: Optional[bool] = False,
+        sample_period: float,
+        storage_dir: str,
+        api_client: Optional[APIClient] = None,
     ):
         self._logger = get_logger_adapter(__name__)
-        if spark_mode is not None:
-            assert spark_mode in ("driver", "mesos", "yarn", "unknown"), f"unexpected mode: {spark_mode}"
-        assert not (
-            disable_app_metrics and disable_cluster_metrics and disable_streaming_metrics
-        ), "To use Spark profiler, at least one of application, cluster and streaming metrics must be enabled"
-        self._auto_detect = master_address is None
         self._sample_period = sample_period
-        self._master_address = master_address
-        self._spark_mode = spark_mode
-        self._disable_app_metrics = disable_app_metrics
-        self._disable_cluster_metrics = disable_cluster_metrics
-        self._disable_streaming_metrics = disable_streaming_metrics
+        self._stop_event = Event()
         self._spark_sampler: Optional[SparkCollector] = None
         self._stop_collection = False
         self._is_running = False
-        self._continuous_mode = continuous_mode
         self._storage_dir = storage_dir
         if self._storage_dir is not None:
             assert os.path.exists(self._storage_dir) and os.path.isdir(self._storage_dir)
         else:
             self._logger.debug("output directory is None. Will add metrics to queue")
-        self._client = client
+        self._client = api_client
 
     def _get_yarn_config_path(self, process: psutil.Process) -> str:
         env = process.environ()
@@ -920,32 +903,20 @@ class SparkSampler(object):
 
         return {"master_address": webapp_url, "spark_mode": spark_cluster_mode}
 
-    def _create_collector(
-        self,
-        auto_detect_cluster: bool,
-    ) -> Optional[SparkCollector]:
-        if auto_detect_cluster:
-            spark_cluster_conf = self._find_spark_cluster()
-            if spark_cluster_conf is not None:
-                self._spark_mode = spark_cluster_conf["spark_mode"]
-                self._master_address = spark_cluster_conf["master_address"]
-            else:
-                self._logger.debug("Could not guess spark configuration, probably not master node")
-                return None
-        return SparkCollector(
+    def start(self) -> bool:
+        spark_cluster_conf = self._find_spark_cluster()
+        if spark_cluster_conf is None:
+            self._logger.debug("Could not guess spark configuration, probably not master node")
+            return False
+
+        self._spark_mode = spark_cluster_conf["spark_mode"]
+        self._master_address = spark_cluster_conf["master_address"]
+        self._spark_sampler = SparkCollector(
             spark_mode=self._spark_mode,
             master_address=self._master_address,
-            applications_metrics=not self._disable_app_metrics,
-            cluster_metrics=not self._disable_cluster_metrics,
-            streaming_metrics=not self._disable_streaming_metrics,
         )
-
-    def start(self) -> bool:
-        self._spark_sampler = self._create_collector(self._auto_detect)
-        if self._spark_sampler is None:
-            return False
-        self._collection_thread = threading.Thread(target=self._start_collection)
-        self._status_lock = threading.Lock()
+        self._stop_event.clear()
+        self._collection_thread = Thread(target=self._start_collection)
         self._collection_thread.start()
         self._is_running = True
         return True
@@ -955,35 +926,24 @@ class SparkSampler(object):
         assert (self._client is not None) or (
             self._storage_dir is not None
         ), "A valid API client or storage directory is required"
-        while True:
-            self._status_lock.acquire()
-            if self._stop_collection:
-                self._status_lock.release()
-                return
-            self._status_lock.release()
-            try:
-                metrics = list(self._spark_sampler.collect())
-                results = {METRIC_TIMESTAMP_KEY: self._spark_sampler._last_sample_time, METRICS_DATA_KEY: metrics}
-                if self._storage_dir is not None:
-                    now = get_iso8601_format_time(datetime.now()).replace(":", "-" if is_windows() else ":")
-                    base_filename = os.path.join(self._storage_dir, (METRICS_FILE_PREFIX + now))
-                    with open(base_filename, "w") as f:
-                        json.dump(results, f)
-                if self._client is not None:
-                    timestamp = cast(int, results[METRIC_TIMESTAMP_KEY])
-                    data = cast(List[Dict[str, Any]], results[METRICS_DATA_KEY])
-                    self._logger.debug(f"Original results: {results} \n Submitting spark metrics to API: {data}")
-                    self._client.submit_spark_metrics(timestamp, data)
-                if not self._continuous_mode:
-                    return
-            except StopIteration:
-                pass
-            time.sleep(cast(float, self._sample_period))
+        while not self._stop_event.is_set():
+            metrics = list(self._spark_sampler.collect())
+            results = {METRIC_TIMESTAMP_KEY: self._spark_sampler._last_sample_time, METRICS_DATA_KEY: metrics}
+            if self._storage_dir is not None:
+                now = get_iso8601_format_time(datetime.now()).replace(":", "-" if is_windows() else ":")
+                base_filename = os.path.join(self._storage_dir, (METRICS_FILE_PREFIX + now))
+                with open(base_filename, "w") as f:
+                    json.dump(results, f)
+            if self._client is not None:
+                timestamp = cast(int, results[METRIC_TIMESTAMP_KEY])
+                data = cast(List[Dict[str, Any]], results[METRICS_DATA_KEY])
+                self._logger.debug(f"Original results: {results} \n Submitting spark metrics to API: {data}")
+                self._client.submit_spark_metrics(timestamp, data)
+
+            self._stop_event.wait(self._sample_period)
 
     def stop(self) -> None:
-        self._status_lock.acquire()
-        self._stop_collection = True
-        self._status_lock.release()
+        self._stop_event.set()
         self._collection_thread.join()
         self._is_running = False
 
