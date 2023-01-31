@@ -60,15 +60,13 @@ class PHPSpyProfiler(ProfilerBase):
         frequency: int,
         duration: int,
         profiler_state: ProfilerState,
-        insert_dso_name: bool,
-        profiling_mode: str,
         php_process_filter: str,
         php_mode: str,
     ):
         assert php_mode == "phpspy", "PHP profiler should not be initialized, wrong php_mode value given"
-        super().__init__(frequency, duration, profiler_state, insert_dso_name, profiling_mode)
+        super().__init__(frequency, duration, profiler_state)
         self._process: Optional[Popen] = None
-        self._output_path = Path(self._storage_dir) / f"phpspy.{random_prefix()}.col"
+        self._output_path = Path(self._profiler_state.storage_dir) / f"phpspy.{random_prefix()}.col"
         self._process_filter = php_process_filter
 
     def start(self) -> None:
@@ -100,7 +98,7 @@ class PHPSpyProfiler(ProfilerBase):
         # parsing.
         # If an error occurs after this stage it's probably a spied _process specific and not phpspy general error.
         try:
-            wait_event(self.poll_timeout, self._stop_event, lambda: os.path.exists(self._output_path))
+            wait_event(self.poll_timeout, self._profiler_state.stop_event, lambda: os.path.exists(self._output_path))
         except TimeoutError:
             process.kill()
             assert process.stdout is not None and process.stderr is not None
@@ -130,7 +128,7 @@ class PHPSpyProfiler(ProfilerBase):
             if output_files:
                 break
 
-            if self._stop_event.wait(0.1):
+            if self._profiler_state.stop_event.wait(0.1):
                 raise StopEventSetException()
 
         # All the snapshot samples should be in a single file
@@ -204,7 +202,7 @@ class PHPSpyProfiler(ProfilerBase):
         return profiles
 
     def snapshot(self) -> ProcessToProfileData:
-        if self._stop_event.wait(self._duration):
+        if self._profiler_state.stop_event.wait(self._duration):
             raise StopEventSetException()
         stderr = self._process.stderr.read1().decode()  # type: ignore
         self._process_stderr(stderr)

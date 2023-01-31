@@ -72,13 +72,11 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
         frequency: int,
         duration: int,
         profiler_state: ProfilerState,
-        insert_dso_name: bool,
-        profiling_mode: str,
         ruby_mode: str,
     ):
-        super().__init__(frequency, duration, profiler_state, insert_dso_name, profiling_mode)
+        super().__init__(frequency, duration, profiler_state)
         assert ruby_mode == "rbspy", "Ruby profiler should not be initialized, wrong ruby_mode value given"
-        self._metadata = RubyMetadata(self._stop_event)
+        self._metadata = RubyMetadata(self._profiler_state.stop_event)
 
     def _make_command(self, pid: int, output_path: str, duration: int) -> List[str]:
         return [
@@ -110,12 +108,12 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_ruby_app_id(process)
 
-        local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
+        local_output_path = os.path.join(self._profiler_state.storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):
             try:
                 run_process(
                     self._make_command(process.pid, local_output_path, duration),
-                    stop_event=self._stop_event,
+                    stop_event=self._profiler_state.stop_event,
                     timeout=duration + self._EXTRA_TIMEOUT,
                     kill_signal=signal.SIGKILL,
                 )

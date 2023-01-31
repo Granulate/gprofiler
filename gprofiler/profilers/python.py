@@ -172,14 +172,12 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         frequency: int,
         duration: int,
         profiler_state: ProfilerState,
-        insert_dso_name: bool,
-        profiling_mode: str,
         *,
         add_versions: bool,
     ):
-        super().__init__(frequency, duration, profiler_state, insert_dso_name, profiling_mode)
+        super().__init__(frequency, duration, profiler_state)
         self.add_versions = add_versions
-        self._metadata = PythonMetadata(self._stop_event)
+        self._metadata = PythonMetadata(self._profiler_state.stop_event)
 
     def _make_command(self, pid: int, output_path: str, duration: int) -> List[str]:
         command = [
@@ -213,12 +211,12 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         app_metadata = self._metadata.get_metadata(process)
         comm = process_comm(process)
 
-        local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
+        local_output_path = os.path.join(self._profiler_state.storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):
             try:
                 run_process(
                     self._make_command(process.pid, local_output_path, duration),
-                    stop_event=self._stop_event,
+                    stop_event=self._profiler_state.stop_event,
                     timeout=duration + self._EXTRA_TIMEOUT,
                     kill_signal=signal.SIGTERM if is_windows() else signal.SIGKILL,
                 )
@@ -333,8 +331,6 @@ class PythonProfiler(ProfilerInterface):
         frequency: int,
         duration: int,
         profiler_state: ProfilerState,
-        insert_dso_name: bool,
-        profiling_mode: str,
         python_mode: str,
         python_add_versions: bool,
         python_pyperf_user_stacks_pages: Optional[int],
@@ -354,10 +350,8 @@ class PythonProfiler(ProfilerInterface):
                 frequency,
                 duration,
                 profiler_state,
-                insert_dso_name,
                 python_add_versions,
                 python_pyperf_user_stacks_pages,
-                profiling_mode,
             )
         else:
             self._ebpf_profiler = None
@@ -367,8 +361,6 @@ class PythonProfiler(ProfilerInterface):
                 frequency,
                 duration,
                 profiler_state,
-                insert_dso_name,
-                profiling_mode,
                 add_versions=python_add_versions,
             )
         else:
@@ -381,18 +373,14 @@ class PythonProfiler(ProfilerInterface):
             frequency: int,
             duration: int,
             profiler_state: ProfilerState,
-            insert_dso_name: bool,
             add_versions: bool,
             user_stacks_pages: Optional[int],
-            profiling_mode: str,
         ) -> Optional[PythonEbpfProfiler]:
             try:
                 profiler = PythonEbpfProfiler(
                     frequency,
                     duration,
                     profiler_state,
-                    insert_dso_name,
-                    profiling_mode,
                     add_versions=add_versions,
                     user_stacks_pages=user_stacks_pages,
                 )

@@ -117,7 +117,6 @@ class GProfiler:
         self._state = state
         self._remote_logs_handler = remote_logs_handler
         self._profile_api_version = profile_api_version
-        self._profile_spawned_processes = profile_spawned_processes
         self._collect_metrics = collect_metrics
         self._collect_metadata = collect_metadata
         self._enrichment_options = enrichment_options
@@ -128,7 +127,6 @@ class GProfiler:
         self._gpid = ""
         self._controller_process = controller_process
         self._duration = duration
-        self._profiling_mode = profiling_mode
         if collect_metadata:
             self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
@@ -137,9 +135,13 @@ class GProfiler:
         # 2. accessible only by us.
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
-        self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
+        temp_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
         self._profiler_state = ProfilerState(
-            self._stop_event, self._temp_storage_dir.name, self._profile_spawned_processes
+            Event(),
+            temp_dir.name,
+            profile_spawned_processes,
+            user_args.get("insert_dso_name"),
+            profiling_mode,
         )
         self.system_profiler, self.process_profilers = get_profilers(user_args, profiler_state=self._profiler_state)
         if self._enrichment_options.container_names:
@@ -300,7 +302,7 @@ class GProfiler:
             if self._collect_metadata
             else {"hostname": get_hostname()}
         )
-        metadata.update({"profiling_mode": self._profiling_mode})
+        metadata.update({"profiling_mode": self._profiler_state.profiling_mode})
         metrics = self._system_metrics_monitor.get_metrics()
         if NoopProfiler.is_noop_profiler(self.system_profiler):
             assert system_result == {}, system_result  # should be empty!

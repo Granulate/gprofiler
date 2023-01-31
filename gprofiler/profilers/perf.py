@@ -195,21 +195,18 @@ class SystemProfiler(ProfilerBase):
         frequency: int,
         duration: int,
         profiler_state: ProfilerState,
-        insert_dso_name: bool,
-        profiling_mode: str,
         perf_mode: str,
         perf_dwarf_stack_size: int,
         perf_inject: bool,
         perf_node_attach: bool,
         perf_restart: bool,
     ):
-        super().__init__(frequency, duration, profiler_state, insert_dso_name, profiling_mode)
+        super().__init__(frequency, duration, profiler_state)
         self._perfs: List[PerfProcess] = []
         self._metadata_collectors: List[PerfMetadata] = [
-            GolangPerfMetadata(self._stop_event),
-            NodePerfMetadata(self._stop_event),
+            GolangPerfMetadata(self._profiler_state.stop_event),
+            NodePerfMetadata(self._profiler_state.stop_event),
         ]
-        self._insert_dso_name = insert_dso_name
         self._node_processes: List[Process] = []
         self._node_processes_attached: List[Process] = []
         self._perf_restart = perf_restart
@@ -217,8 +214,8 @@ class SystemProfiler(ProfilerBase):
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
                 self._frequency,
-                self._stop_event,
-                os.path.join(self._storage_dir, "perf.fp"),
+                self._profiler_state.stop_event,
+                os.path.join(self._profiler_state.storage_dir, "perf.fp"),
                 False,
                 perf_inject,
                 [],
@@ -230,8 +227,8 @@ class SystemProfiler(ProfilerBase):
         if perf_mode in ("dwarf", "smart"):
             self._perf_dwarf: Optional[PerfProcess] = PerfProcess(
                 self._frequency,
-                self._stop_event,
-                os.path.join(self._storage_dir, "perf.dwarf"),
+                self._profiler_state.stop_event,
+                os.path.join(self._profiler_state.storage_dir, "perf.dwarf"),
                 True,
                 False,  # no inject in dwarf mode, yet
                 ["--call-graph", f"dwarf,{perf_dwarf_stack_size}"],
@@ -287,7 +284,7 @@ class SystemProfiler(ProfilerBase):
             self._node_processes_attached.extend(generate_map_for_node_processes(new_processes))
             self._node_processes.extend(new_processes)
 
-        if self._stop_event.wait(self._duration):
+        if self._profiler_state.stop_event.wait(self._duration):
             raise StopEventSetException
 
         for perf in self._perfs:
@@ -298,7 +295,7 @@ class SystemProfiler(ProfilerBase):
             for k, v in merge.merge_global_perfs(
                 self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
                 self._perf_dwarf.wait_and_script() if self._perf_dwarf is not None else None,
-                self._insert_dso_name,
+                self._profiler_state.insert_dso_name,
             ).items()
         }
 
