@@ -57,6 +57,7 @@ from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
@@ -310,9 +311,8 @@ class AsyncProfiledProcess:
     def __init__(
         self,
         process: Process,
-        storage_dir: str,
+        profiler_state: ProfilerState,
         insert_dso_name: bool,
-        stop_event: Event,
         mode: str,
         ap_safemode: int,
         ap_args: str,
@@ -321,7 +321,8 @@ class AsyncProfiledProcess:
         collect_meminfo: bool = True,
     ):
         self.process = process
-        self._stop_event = stop_event
+        self._profiler_state = profiler_state
+        self._stop_event = self._profiler_state.stop_event
         self._insert_dso_name = insert_dso_name
         # access the process' root via its topmost parent/ancestor which uses the same mount namespace.
         # this allows us to access the files after the process exits:
@@ -352,7 +353,7 @@ class AsyncProfiledProcess:
         self._libap_path_process = remove_prefix(self._libap_path_host, self._process_root)
 
         # for other purposes - we can use storage_dir.
-        self._storage_dir = storage_dir
+        self._storage_dir = self._profiler_state.storage_dir
         self._storage_dir_host = resolve_proc_root_links(self._process_root, self._storage_dir)
 
         self._output_path_host = os.path.join(self._storage_dir_host, f"async-profiler-{self.process.pid}.output")
@@ -688,10 +689,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self,
         frequency: int,
         duration: int,
-        stop_event: Event,
-        storage_dir: str,
+        profiler_state: ProfilerState,
         insert_dso_name: bool,
-        profile_spawned_processes: bool,
         profiling_mode: str,
         java_version_check: bool,
         java_async_profiler_mode: str,
@@ -705,9 +704,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_async_profiler_report_meminfo: bool,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
-        super().__init__(
-            frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes, profiling_mode
-        )
+        super().__init__(frequency, duration, profiler_state, insert_dso_name, profiling_mode)
         # Alloc interval is passed in frequency in allocation profiling (in bytes, as async-profiler expects)
         self._interval = frequency_to_ap_interval(frequency) if profiling_mode == "cpu" else frequency
         # simple version check, and
@@ -933,9 +930,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
 
         with AsyncProfiledProcess(
             process,
-            self._storage_dir,
+            self._profiler_state,
             self._insert_dso_name,
-            self._stop_event,
             self._mode,
             self._ap_safemode,
             self._ap_args,

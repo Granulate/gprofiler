@@ -11,6 +11,7 @@ import pytest
 from granulate_utils.linux.process import is_musl
 
 from gprofiler.consts import CPU_PROFILING_MODE
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.python import PythonProfiler
 from tests.conftest import AssertInCollapsed
 from tests.utils import (
@@ -39,9 +40,8 @@ def test_python_select_by_libpython(
     We expect to select these because they have "libpython" in their "/proc/pid/maps".
     This test runs a Python named "shmython".
     """
-    with PythonProfiler(
-        1000, 1, Event(), str(tmp_path), False, CPU_PROFILING_MODE, False, "pyspy", True, None
-    ) as profiler:
+    profiler_state = ProfilerState(Event(), str(tmp_path), False)
+    with PythonProfiler(1000, 1, profiler_state, False, CPU_PROFILING_MODE, "pyspy", True, None) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
     assert_collapsed(process_collapsed)
     assert all(stack.startswith("shmython") for stack in process_collapsed.keys())
@@ -87,9 +87,8 @@ def test_python_matrix(
     if python_version == "2.7" and profiler_type == "pyperf" and app == "uwsgi":
         pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/485")
 
-    with PythonProfiler(
-        1000, 2, Event(), str(tmp_path), False, CPU_PROFILING_MODE, False, profiler_type, True, None
-    ) as profiler:
+    profiler_state = ProfilerState(Event(), str(tmp_path), False)
+    with PythonProfiler(1000, 2, profiler_state, False, CPU_PROFILING_MODE, profiler_type, True, None) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
 
     collapsed = profile.stacks
@@ -141,8 +140,9 @@ def test_dso_name_in_pyperf_profile(
     application_image_tag: str,
     insert_dso_name: bool,
 ) -> None:
+    profiler_state = ProfilerState(Event(), str(tmp_path), False)
     with PythonProfiler(
-        1000, 2, Event(), str(tmp_path), insert_dso_name, CPU_PROFILING_MODE, False, profiler_type, True, None
+        1000, 2, profiler_state, insert_dso_name, CPU_PROFILING_MODE, profiler_type, True, None
     ) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
     python_version, _, _ = application_image_tag.split("-")

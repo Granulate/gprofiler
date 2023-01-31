@@ -23,6 +23,7 @@ from gprofiler.gprofiler_types import AppMetadata, ProcessToProfileData, Profile
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
@@ -193,21 +194,21 @@ class SystemProfiler(ProfilerBase):
         self,
         frequency: int,
         duration: int,
-        stop_event: Event,
-        storage_dir: str,
+        profiler_state: ProfilerState,
         insert_dso_name: bool,
         profiling_mode: str,
-        profile_spawned_processes: bool,
         perf_mode: str,
         perf_dwarf_stack_size: int,
         perf_inject: bool,
         perf_node_attach: bool,
         perf_restart: bool,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
-        _ = profile_spawned_processes  # Required for mypy unused argument warning
+        super().__init__(frequency, duration, profiler_state, insert_dso_name, profiling_mode)
         self._perfs: List[PerfProcess] = []
-        self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
+        self._metadata_collectors: List[PerfMetadata] = [
+            GolangPerfMetadata(self._stop_event),
+            NodePerfMetadata(self._stop_event),
+        ]
         self._insert_dso_name = insert_dso_name
         self._node_processes: List[Process] = []
         self._node_processes_attached: List[Process] = []

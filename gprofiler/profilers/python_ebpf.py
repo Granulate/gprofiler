@@ -8,7 +8,6 @@ import resource
 import signal
 from pathlib import Path
 from subprocess import Popen
-from threading import Event
 from typing import Dict, List, NoReturn, Optional
 
 from granulate_utils.linux.ns import is_running_in_init_pid
@@ -19,6 +18,7 @@ from gprofiler.exceptions import CalledProcessError, StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers import python
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.utils import (
@@ -57,17 +57,14 @@ class PythonEbpfProfiler(ProfilerBase):
         self,
         frequency: int,
         duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
+        profiler_state: ProfilerState,
         insert_dso_name: bool,
-        profile_spawned_processes: bool,
         profiling_mode: str,
         *,
         add_versions: bool,
         user_stacks_pages: Optional[int] = None,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
-        _ = profile_spawned_processes  # Required for mypy unused argument warning
+        super().__init__(frequency, duration, profiler_state, insert_dso_name, profiling_mode)
         self.process: Optional[Popen] = None
         self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
         self.add_versions = add_versions

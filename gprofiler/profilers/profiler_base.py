@@ -22,6 +22,7 @@ from psutil import NoSuchProcess, Process, ZombieProcess
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, ProfilingErrorStack, StackToSampleCount
 from gprofiler.log import get_logger_adapter
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.utils import limit_frequency
 from gprofiler.utils.process import process_comm
 
@@ -75,8 +76,7 @@ class ProfilerBase(ProfilerInterface):
         self,
         frequency: int,
         duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
+        profiler_state: ProfilerState,
         insert_dso_name: bool,
         profiling_mode: str,
     ):
@@ -89,8 +89,9 @@ class ProfilerBase(ProfilerInterface):
                 "raise the duration in order to use this profiler"
             )
         self._duration = duration
-        self._stop_event = stop_event or Event()
-        self._storage_dir = storage_dir
+        self._profiler_state = profiler_state
+        self._stop_event = self._profiler_state.stop_event or Event()
+        self._storage_dir = self._profiler_state.storage_dir
         self._profiling_mode = profiling_mode
 
         if profiling_mode == "allocation":
@@ -207,14 +208,12 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         self,
         frequency: int,
         duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
+        profiler_state: ProfilerState,
         insert_dso_name: bool,
-        profile_spawned_processes: bool,
         profiling_mode: str,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
-        self._profile_spawned_processes = profile_spawned_processes
+        super().__init__(frequency, duration, profiler_state, insert_dso_name, profiling_mode)
+        self._profile_spawned_processes = profiler_state.profile_spawned_processes
         self._submit_lock = Lock()
         self._threads: Optional[ThreadPoolExecutor] = None
         self._start_ts: Optional[float] = None

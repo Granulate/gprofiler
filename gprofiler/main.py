@@ -40,6 +40,7 @@ from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
 from gprofiler.platform import is_linux, is_windows
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
@@ -137,12 +138,10 @@ class GProfiler:
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
         self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
-        self.system_profiler, self.process_profilers = get_profilers(
-            user_args,
-            storage_dir=self._temp_storage_dir.name,
-            stop_event=self._stop_event,
-            profile_spawned_processes=self._profile_spawned_processes,
+        self._profiler_state = ProfilerState(
+            self._stop_event, self._temp_storage_dir.name, self._profile_spawned_processes
         )
+        self.system_profiler, self.process_profilers = get_profilers(user_args, profiler_state=self._profiler_state)
         if self._enrichment_options.container_names:
             self._container_names_client: Optional[ContainerNamesClient] = ContainerNamesClient()
         else:

@@ -15,6 +15,7 @@ from docker.models.images import Image
 
 from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.merge import parse_one_collapsed
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.dotnet import DotnetProfiler
 from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.php import PHPSpyProfiler
@@ -61,9 +62,8 @@ def test_pyspy(
     python_version: Optional[str],
 ) -> None:
     _ = assert_app_id  # Required for mypy unused argument warning
-    with PySpyProfiler(
-        1000, 3, Event(), str(tmp_path), False, CPU_PROFILING_MODE, False, add_versions=True
-    ) as profiler:
+    profiler_state = ProfilerState(Event(), str(tmp_path), False)
+    with PySpyProfiler(1000, 3, profiler_state, False, CPU_PROFILING_MODE, add_versions=True) as profiler:
         # not using snapshot_one_collapsed because there are multiple Python processes running usually.
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -83,14 +83,13 @@ def test_phpspy(
     if not in_container:
         pytest.skip("Flaky https://github.com/Granulate/gprofiler/issues/630")
 
+    profiler_state = ProfilerState(Event(), str(tmp_path), False)
     with PHPSpyProfiler(
         1000,
         PHPSPY_DURATION,
-        Event(),
-        str(tmp_path),
+        profiler_state,
         False,
         CPU_PROFILING_MODE,
-        False,
         php_process_filter="php",
         php_mode="phpspy",
     ) as profiler:
@@ -105,7 +104,8 @@ def test_rbspy(
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
 ) -> None:
-    with RbSpyProfiler(1000, 3, Event(), str(tmp_path), False, CPU_PROFILING_MODE, False, "rbspy") as profiler:
+    profiler_state = ProfilerState(Event(), str(tmp_path), False)
+    with RbSpyProfiler(1000, 3, profiler_state, False, CPU_PROFILING_MODE, "rbspy") as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
 
@@ -117,7 +117,8 @@ def test_dotnet_trace(
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
 ) -> None:
-    with DotnetProfiler(1000, 3, Event(), str(tmp_path), False, False, CPU_PROFILING_MODE, "dotnet-trace") as profiler:
+    profiler_state = ProfilerState(Event(), str(tmp_path), False)
+    with DotnetProfiler(1000, 3, profiler_state, False, CPU_PROFILING_MODE, "dotnet-trace") as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
 
@@ -129,14 +130,13 @@ def test_nodejs(
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
 ) -> None:
+    profiler_state = ProfilerState(Event(), str(tmp_path), False)
     with SystemProfiler(
         1000,
         6,
-        Event(),
-        str(tmp_path),
+        profiler_state,
         False,
         CPU_PROFILING_MODE,
-        False,
         perf_mode="fp",
         perf_inject=True,
         perf_dwarf_stack_size=0,
@@ -158,9 +158,8 @@ def test_python_ebpf(
     no_kernel_headers: Any,
 ) -> None:
     _ = assert_app_id  # Required for mypy unused argument warning
-    with PythonEbpfProfiler(
-        1000, 5, Event(), str(tmp_path), False, False, CPU_PROFILING_MODE, add_versions=True
-    ) as profiler:
+    profiler_state = ProfilerState(Event(), str(tmp_path), False)
+    with PythonEbpfProfiler(1000, 5, profiler_state, False, CPU_PROFILING_MODE, add_versions=True) as profiler:
         try:
             process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         except UnicodeDecodeError as e:

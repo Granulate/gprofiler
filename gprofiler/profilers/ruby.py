@@ -7,8 +7,7 @@ import functools
 import os
 import signal
 from pathlib import Path
-from threading import Event
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from granulate_utils.linux.elf import get_elf_id
 from granulate_utils.linux.process import get_mapped_dso_elf_id, is_process_basename_matching
@@ -20,6 +19,7 @@ from gprofiler.gprofiler_types import ProfileData
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
@@ -71,16 +71,12 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
         self,
         frequency: int,
         duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
+        profiler_state: ProfilerState,
         insert_dso_name: bool,
         profiling_mode: str,
-        profile_spawned_processes: bool,
         ruby_mode: str,
     ):
-        super().__init__(
-            frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes, profiling_mode
-        )
+        super().__init__(frequency, duration, profiler_state, insert_dso_name, profiling_mode)
         assert ruby_mode == "rbspy", "Ruby profiler should not be initialized, wrong ruby_mode value given"
         self._metadata = RubyMetadata(self._stop_event)
 

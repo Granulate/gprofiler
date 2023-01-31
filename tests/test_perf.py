@@ -11,6 +11,7 @@ import pytest
 from docker.models.containers import Container
 
 from gprofiler.consts import CPU_PROFILING_MODE
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.perf import DEFAULT_PERF_DWARF_STACK_SIZE, SystemProfiler
 from tests.utils import (
     assert_function_in_collapsed,
@@ -31,14 +32,13 @@ def system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) -> Sy
 
 
 def make_system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) -> SystemProfiler:
+    profiler_state = ProfilerState(Event(), str(tmp_path), False)
     return SystemProfiler(
         99,
         1,
-        Event(),
-        str(tmp_path),
+        profiler_state,
         insert_dso_name,
         CPU_PROFILING_MODE,
-        False,
         perf_mode=perf_mode,
         perf_inject=False,
         perf_dwarf_stack_size=DEFAULT_PERF_DWARF_STACK_SIZE,

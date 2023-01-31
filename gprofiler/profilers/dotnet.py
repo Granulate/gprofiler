@@ -6,8 +6,7 @@ import datetime
 import functools
 import os
 import signal
-from threading import Event
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from granulate_utils.linux.ns import get_process_nspid
 from granulate_utils.linux.process import is_process_basename_matching
@@ -17,6 +16,7 @@ from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import ProfileData
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.application_metadata import ApplicationMetadata
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
@@ -64,14 +64,12 @@ class DotnetProfiler(ProcessProfilerBase):
         self,
         frequency: int,
         duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
+        profiler_state: ProfilerState,
         insert_dso_name: bool,
-        profile_spawned_processes: bool,
         profiling_mode: str,
         dotnet_mode: str,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
+        super().__init__(frequency, duration, profiler_state, insert_dso_name, profiling_mode)
         assert (
             dotnet_mode == "dotnet-trace"
         ), "Dotnet profiler should not be initialized, wrong dotnet-trace value given"

@@ -11,12 +11,12 @@ from collections import Counter, defaultdict
 from functools import lru_cache
 from pathlib import Path
 from subprocess import Popen
-from threading import Event
 from typing import List, Optional, Pattern, cast
 
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProcessToStackSampleCounters, ProfileData
 from gprofiler.log import get_logger_adapter
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import random_prefix, resource_path, start_process, wait_event
@@ -59,17 +59,14 @@ class PHPSpyProfiler(ProfilerBase):
         self,
         frequency: int,
         duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
+        profiler_state: ProfilerState,
         insert_dso_name: bool,
         profiling_mode: str,
-        profile_spawned_processes: bool,
         php_process_filter: str,
         php_mode: str,
     ):
         assert php_mode == "phpspy", "PHP profiler should not be initialized, wrong php_mode value given"
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
-        _ = profile_spawned_processes  # Required for mypy unused argument warning
+        super().__init__(frequency, duration, profiler_state, insert_dso_name, profiling_mode)
         self._process: Optional[Popen] = None
         self._output_path = Path(self._storage_dir) / f"phpspy.{random_prefix()}.col"
         self._process_filter = php_process_filter

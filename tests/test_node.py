@@ -12,6 +12,7 @@ from docker.models.images import Image
 
 from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.merge import parse_one_collapsed
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.perf import SystemProfiler
 from tests import CONTAINERS_DIRECTORY
 from tests.conftest import AssertInCollapsed
@@ -35,14 +36,13 @@ def test_nodejs_attach_maps(
     command_line: List[str],
     runtime_specific_args: List[str],
 ) -> None:
+    profiler_state = ProfilerState(Event(), str(tmp_path), False)
     with SystemProfiler(
         1000,
         6,
-        Event(),
-        str(tmp_path),
+        profiler_state,
         False,
         CPU_PROFILING_MODE,
-        False,
         perf_mode="fp",
         perf_inject=False,
         perf_dwarf_stack_size=0,
@@ -92,14 +92,13 @@ def test_twoprocesses_nodejs_attach_maps(
 ) -> None:
     with application_factory() as pid1:
         with application_factory() as pid2:
+            profiler_state = ProfilerState(Event(), str(tmp_path), False)
             with SystemProfiler(
                 1000,
                 6,
-                Event(),
-                str(tmp_path),
+                profiler_state,
                 False,
                 CPU_PROFILING_MODE,
-                False,
                 perf_mode="fp",
                 perf_inject=False,
                 perf_dwarf_stack_size=0,
@@ -142,14 +141,13 @@ def test_nodejs_matrix(
     profiler_flags: List[str],
     application_image_tag: str,
 ) -> None:
+    profiler_state = ProfilerState(Event(), str(tmp_path), False)
     with SystemProfiler(
         1000,
         6,
-        Event(),
-        str(tmp_path),
+        profiler_state,
         False,
         CPU_PROFILING_MODE,
-        False,
         perf_mode="fp",
         perf_inject=False,
         perf_dwarf_stack_size=0,

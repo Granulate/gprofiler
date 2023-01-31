@@ -8,7 +8,6 @@ import signal
 from collections import Counter, defaultdict
 from pathlib import Path
 from subprocess import CompletedProcess
-from threading import Event
 from typing import Any, Dict, List, Match, Optional, cast
 
 from granulate_utils.linux.elf import get_elf_id
@@ -42,6 +41,7 @@ from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.platform import is_linux, is_windows
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProfilerInterface, SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 
@@ -171,17 +171,13 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         self,
         frequency: int,
         duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
+        profiler_state: ProfilerState,
         insert_dso_name: bool,
         profiling_mode: str,
-        profile_spawned_processes: bool,
         *,
         add_versions: bool,
     ):
-        super().__init__(
-            frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes, profiling_mode
-        )
+        super().__init__(frequency, duration, profiler_state, insert_dso_name, profiling_mode)
         self.add_versions = add_versions
         self._metadata = PythonMetadata(self._stop_event)
 
@@ -336,11 +332,9 @@ class PythonProfiler(ProfilerInterface):
         self,
         frequency: int,
         duration: int,
-        stop_event: Event,
-        storage_dir: str,
+        profiler_state: ProfilerState,
         insert_dso_name: bool,
         profiling_mode: str,
-        profile_spawned_processes: bool,
         python_mode: str,
         python_add_versions: bool,
         python_pyperf_user_stacks_pages: Optional[int],
@@ -359,10 +353,8 @@ class PythonProfiler(ProfilerInterface):
             self._ebpf_profiler = self._create_ebpf_profiler(
                 frequency,
                 duration,
-                stop_event,
-                storage_dir,
+                profiler_state,
                 insert_dso_name,
-                profile_spawned_processes,
                 python_add_versions,
                 python_pyperf_user_stacks_pages,
                 profiling_mode,
@@ -374,11 +366,9 @@ class PythonProfiler(ProfilerInterface):
             self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(
                 frequency,
                 duration,
-                stop_event,
-                storage_dir,
+                profiler_state,
                 insert_dso_name,
                 profiling_mode,
-                profile_spawned_processes,
                 add_versions=python_add_versions,
             )
         else:
@@ -390,10 +380,8 @@ class PythonProfiler(ProfilerInterface):
             self,
             frequency: int,
             duration: int,
-            stop_event: Event,
-            storage_dir: str,
+            profiler_state: ProfilerState,
             insert_dso_name: bool,
-            profile_spawned_processes: bool,
             add_versions: bool,
             user_stacks_pages: Optional[int],
             profiling_mode: str,
@@ -402,10 +390,8 @@ class PythonProfiler(ProfilerInterface):
                 profiler = PythonEbpfProfiler(
                     frequency,
                     duration,
-                    stop_event,
-                    storage_dir,
+                    profiler_state,
                     insert_dso_name,
-                    profile_spawned_processes,
                     profiling_mode,
                     add_versions=add_versions,
                     user_stacks_pages=user_stacks_pages,

@@ -19,6 +19,7 @@ from docker.types import Mount
 
 from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import (
     JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
     JAVA_SAFEMODE_ALL,
@@ -206,13 +207,12 @@ def make_java_profiler(
     profiling_mode: str = CPU_PROFILING_MODE,
 ) -> JavaProfiler:
     assert storage_dir is not None
+    profiler_state = ProfilerState(stop_event, storage_dir, profile_spawned_processes)
     return JavaProfiler(
         frequency=frequency,
         duration=duration,
-        stop_event=stop_event,
-        storage_dir=storage_dir,
+        profiler_state=profiler_state,
         insert_dso_name=insert_dso_name,
-        profile_spawned_processes=profile_spawned_processes,
         java_version_check=java_version_check,
         java_async_profiler_mode=java_async_profiler_mode,
         java_async_profiler_safemode=java_async_profiler_safemode,

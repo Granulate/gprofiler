@@ -97,9 +97,8 @@ def test_async_profiler_already_running(
 
         with AsyncProfiledProcess(
             process=process,
-            storage_dir=profiler._storage_dir,
+            profiler_state=profiler._profiler_state,
             insert_dso_name=False,
-            stop_event=profiler._stop_event,
             mode=profiler._mode,
             ap_safemode=0,
             ap_args="",
@@ -109,9 +108,8 @@ def test_async_profiler_already_running(
         # run "status"
         with AsyncProfiledProcessForTests(
             process=process,
-            storage_dir=profiler._storage_dir,
+            profiler_state=profiler._profiler_state,
             insert_dso_name=False,
-            stop_event=profiler._stop_event,
             mode="itimer",
             ap_safemode=0,
             ap_args="",
