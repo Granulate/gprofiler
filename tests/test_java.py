@@ -17,6 +17,7 @@ from typing import Any, Optional
 
 import docker
 import psutil
+from gprofiler.profiler_state import ProfilerState
 import pytest
 from docker import DockerClient
 from docker.models.containers import Container
@@ -325,11 +326,11 @@ def test_async_profiler_stops_after_given_timeout(
 
     process = psutil.Process(application_pid)
     timeout_s = 5
+    profiler_state = ProfilerState(Event(), str(tmp_path_world_accessible), False)
     with AsyncProfiledProcessForTests(
         process=process,
-        storage_dir=str(tmp_path_world_accessible),
+        profiler_state=profiler_state,
         insert_dso_name=False,
-        stop_event=Event(),
         mode="itimer",
         ap_safemode=0,
         ap_args="",
