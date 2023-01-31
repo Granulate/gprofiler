@@ -141,7 +141,7 @@ def test_nodejs(
         perf_inject=True,
         perf_dwarf_stack_size=0,
         perf_node_attach=False,
-        perf_restart=False,
+        perf_memory_restart=False,
     ) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
