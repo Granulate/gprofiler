@@ -17,7 +17,6 @@ from typing import Any, Optional
 
 import docker
 import psutil
-from gprofiler.profiler_state import ProfilerState
 import pytest
 from docker import DockerClient
 from docker.models.containers import Container
@@ -28,6 +27,7 @@ from granulate_utils.linux.process import is_musl
 from packaging.version import Version
 from pytest import LogCaptureFixture, MonkeyPatch
 
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import (
     JAVA_SAFEMODE_ALL,
     AsyncProfiledProcess,
