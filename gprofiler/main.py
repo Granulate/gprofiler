@@ -163,6 +163,9 @@ class GProfiler:
 
         self._spark_sampler = spark_sampler
 
+        if isinstance(self.system_profiler, NoopProfiler) and not self.process_profilers and not spark_sampler:
+            raise NoProfilersEnabledError()
+
     @property
     def all_profilers(self) -> Iterable[ProfilerInterface]:
         yield from self.process_profilers
