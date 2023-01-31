@@ -135,10 +135,9 @@ class GProfiler:
         # 2. accessible only by us.
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
-        temp_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
         self._profiler_state = ProfilerState(
             Event(),
-            temp_dir.name,
+            TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755),
             profile_spawned_processes,
             user_args.get("insert_dso_name"),
             profiling_mode,
