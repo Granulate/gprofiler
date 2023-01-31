@@ -131,7 +131,7 @@ class PerfProcess:
             logger.warning(f"{self._log_name} not running (unexpectedly), restarting...")
             self.restart()
 
-    def check_if_needs_memory_restart(self) -> None:
+    def restart_if_rss_exceeded(self) -> None:
         """Checks if perf used memory exceeds threshold, and if it does, restarts perf"""
         assert self._process is not None
         perf_rss = Process(self._process.pid).memory_info().rss
@@ -325,7 +325,7 @@ class SystemProfiler(ProfilerBase):
 
         if self._perf_memory_restart:
             for perf in self._perfs:
-                perf.check_if_needs_memory_restart()
+                perf.restart_if_rss_exceeded()
 
         if self._stop_event.wait(self._duration):
             raise StopEventSetException
