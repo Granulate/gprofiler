@@ -13,7 +13,6 @@ import pytest
 from docker import DockerClient
 from docker.models.images import Image
 
-from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.merge import parse_one_collapsed
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.dotnet import DotnetProfiler

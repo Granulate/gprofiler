@@ -5,6 +5,8 @@ from gprofiler.utils import TemporaryDirectoryWithMode
 
 
 class ProfilerState:
+    # Class for storing generic state parameters. These parameters are the same for each profiler.
+    # Thanks to that class adding new state parameters to profilers won't result changing code in every profiler.
     def __init__(
         self,
         stop_event: Event,

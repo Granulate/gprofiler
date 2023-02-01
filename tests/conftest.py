@@ -12,8 +12,6 @@ from threading import Event
 from typing import Any, Callable, Dict, Generator, Iterable, Iterator, List, Mapping, Optional, Tuple, cast
 
 import docker
-from gprofiler.consts import CPU_PROFILING_MODE
-from gprofiler.profiler_state import ProfilerState
 import pytest
 from _pytest.config import Config
 from docker import DockerClient
@@ -22,6 +20,7 @@ from docker.models.images import Image
 from psutil import Process
 from pytest import FixtureRequest, TempPathFactory, fixture
 
+from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.diagnostics import set_diagnostics
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.metadata.application_identifiers import (
@@ -32,6 +31,7 @@ from gprofiler.metadata.application_identifiers import (
     set_enrichment_options,
 )
 from gprofiler.metadata.enrichment import EnrichmentOptions
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.state import init_state
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
 from tests.utils import (

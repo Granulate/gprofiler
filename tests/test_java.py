@@ -12,7 +12,6 @@ import time
 from collections import Counter
 from pathlib import Path
 from subprocess import Popen
-from threading import Event
 from typing import Any, Optional
 
 import docker
