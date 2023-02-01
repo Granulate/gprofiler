@@ -3,7 +3,6 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 from contextlib import _GeneratorContextManager
 from pathlib import Path
-from threading import Event
 from typing import Callable, Container, List
 
 import pytest
@@ -136,7 +135,6 @@ def test_nodejs_matrix(
     application_image_tag: str,
     profiler_state: ProfilerState,
 ) -> None:
-    profiler_state = ProfilerState(Event(), str(tmp_path), False)
     with SystemProfiler(
         1000,
         6,

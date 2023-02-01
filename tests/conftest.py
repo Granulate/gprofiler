@@ -80,7 +80,7 @@ def java_args() -> Tuple[str]:
 
 
 @fixture
-def profiler_state(tmp_path_world_accessible: Path) -> ProfilerState():
+def profiler_state(tmp_path_world_accessible: Path) -> ProfilerState:
     return ProfilerState(Event(), str(tmp_path_world_accessible), False, False, CPU_PROFILING_MODE)
 
 

@@ -139,7 +139,7 @@ class GProfiler:
             Event(),
             TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755),
             profile_spawned_processes,
-            user_args.get("insert_dso_name"),
+            bool(user_args.get("insert_dso_name")),
             profiling_mode,
         )
         self.system_profiler, self.process_profilers = get_profilers(user_args, profiler_state=self._profiler_state)
