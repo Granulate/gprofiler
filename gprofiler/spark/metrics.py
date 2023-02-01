@@ -3,11 +3,8 @@ SPARK_APPS_LABELS = ["app_name", "app_id"]
 SPARK_APP_LABELS = ["app_name", "app_id"]
 SPARK_BATCH_LABELS = ["app_name", "app_id"]
 SPARK_STAGE_LABELS = ["app_name", "app_id", "status", "stage_id"]
-SPARK_TASK_SUMMERY_LABELS = ["app_name", "app_id", "status", "stage_id", "quantile"]
+SPARK_TASK_SUMMARY_LABELS = ["app_name", "app_id", "status", "stage_id", "quantile"]
 SPARK_RDD_LABELS = ["app_name", "app_id"]
-SPARK_DRIVER_LABELS = ["app_name", "app_id"]
-SPARK_EXECUTORS_LABELS = ["app_name", "app_id"]
-SPARK_EXECUTOR_LABELS = ["app_name", "app_id", "executor_id"]
 
 YARN_CLUSTER_METRICS = {
     "appsSubmitted": {"name": "yarn_cluster_appsSubmitted", "labels": []},
@@ -71,14 +68,6 @@ YARN_NODES_METRICS = {
         "name": "yarn_node_aggregatedContainersVirtualMemoryMB",
         "labels": YARN_NODES_LABELS,
     },
-}
-DRIVER_CLUSTER_METRICS = {
-    "appsSubmitted": {"name": "yarn_cluster_appsSubmitted", "labels": []},
-    "appsCompleted": {"name": "yarn_cluster_appsCompleted", "labels": []},
-    "appsPending": {"name": "yarn_cluster_appsPending", "labels": []},
-    "appsRunning": {"name": "yarn_cluster_appsRunning", "labels": []},
-    "appsFailed": {"name": "yarn_cluster_appsFailed", "labels": []},
-    "appsKilled": {"name": "yarn_cluster_appsKilled", "labels": []},
 }
 SPARK_APPLICATION_GAUGE_METRICS = {
     "numActiveTasks": {
@@ -178,95 +167,54 @@ SPARK_RDD_METRICS = {
     "memoryUsed": {"name": "spark_rdd_memory_used", "labels": SPARK_RDD_LABELS},
     "diskUsed": {"name": "spark_rdd_disk_used", "labels": SPARK_RDD_LABELS},
 }
-SPARK_EXECUTOR_TEMPLATE_METRICS = {
-    "rddBlocks": "spark_%s_rdd_blocks",
-    "memoryUsed": "spark_%s_memory_used",
-    "diskUsed": "spark_%s_disk_used",
-    "activeTasks": "spark_%s_active_tasks",
-    "failedTasks": "spark_%s_failed_tasks",
-    "completedTasks": "spark_%s_completed_tasks",
-    "totalTasks": "spark_%s_total_tasks",
-    "totalDuration": "spark_%s_total_duration",
-    "totalInputBytes": "spark_%s_total_input_bytes",
-    "totalShuffleRead": "spark_%s_total_shuffle_read",
-    "totalShuffleWrite": "spark_%s_total_shuffle_write",
-    "maxMemory": "spark_%s_max_memory",
-}
-SPARK_DRIVER_METRICS = {
-    key: {
-        "name": value % "driver",
-        "labels": SPARK_DRIVER_LABELS,
-    }
-    for key, value in SPARK_EXECUTOR_TEMPLATE_METRICS.items()
-}
-SPARK_EXECUTOR_METRICS = {
-    key: {
-        "name": value % "executor",
-        "labels": SPARK_EXECUTORS_LABELS,
-    }
-    for key, value in SPARK_EXECUTOR_TEMPLATE_METRICS.items()
-}
-SPARK_EXECUTOR_LEVEL_METRICS = {
-    key: {
-        "name": value % "executor_id",
-        "labels": SPARK_EXECUTOR_LABELS,
-    }
-    for key, value in SPARK_EXECUTOR_TEMPLATE_METRICS.items()
-}
 SPARK_TASK_SUMMARY_METRICS = {
     "executorDeserializeTime": {
         "name": "spark_stage_tasks_summary_executor_deserialize_time",
-        "labels": SPARK_TASK_SUMMERY_LABELS,
+        "labels": SPARK_TASK_SUMMARY_LABELS,
     },
     "executorDeserializeCpuTime": {
         "name": "spark_stage_tasks_summary_executor_deserialize_cpu_time",
-        "labels": SPARK_TASK_SUMMERY_LABELS,
+        "labels": SPARK_TASK_SUMMARY_LABELS,
     },
     "executorRunTime": {
         "name": "spark_stage_tasks_summary_executor_run_time",
-        "labels": SPARK_TASK_SUMMERY_LABELS,
+        "labels": SPARK_TASK_SUMMARY_LABELS,
     },
     "executorCpuTime": {
         "name": "spark_stage_tasks_summary_executor_cpu_time",
-        "labels": SPARK_TASK_SUMMERY_LABELS,
+        "labels": SPARK_TASK_SUMMARY_LABELS,
     },
     "resultSize": {
         "name": "spark_stage_tasks_summary_result_size",
-        "labels": SPARK_TASK_SUMMERY_LABELS,
+        "labels": SPARK_TASK_SUMMARY_LABELS,
     },
     "jvmGcTime": {
         "name": "spark_stage_tasks_summary_jvm_gc_time",
-        "labels": SPARK_TASK_SUMMERY_LABELS,
+        "labels": SPARK_TASK_SUMMARY_LABELS,
     },
     "resultSerializationTime": {
         "name": "spark_stage_tasks_summary_result_serialization_time",
-        "labels": SPARK_TASK_SUMMERY_LABELS,
+        "labels": SPARK_TASK_SUMMARY_LABELS,
     },
     "gettingResultTime": {
         "name": "spark_stage_tasks_summary_getting_result_time",
-        "labels": SPARK_TASK_SUMMERY_LABELS,
+        "labels": SPARK_TASK_SUMMARY_LABELS,
     },
     "schedulerDelay": {
         "name": "spark_stage_tasks_summary_scheduler_delay",
-        "labels": SPARK_TASK_SUMMERY_LABELS,
+        "labels": SPARK_TASK_SUMMARY_LABELS,
     },
     "peakExecutionMemory": {
         "name": "spark_stage_tasks_summary_peak_execution_memory",
-        "labels": SPARK_TASK_SUMMERY_LABELS,
+        "labels": SPARK_TASK_SUMMARY_LABELS,
     },
     "memoryBytesSpilled": {
         "name": "spark_stage_tasks_summary_memory_bytes_spilled",
-        "labels": SPARK_TASK_SUMMERY_LABELS,
+        "labels": SPARK_TASK_SUMMARY_LABELS,
     },
     "diskBytesSpilled": {
         "name": "spark_stage_tasks_summary_disk_bytes_spilled",
-        "labels": SPARK_TASK_SUMMERY_LABELS,
-    },
-}
-SPARK_APPLICATIONS_TIME = {
-    "elapsedTime": {
-        "name": "spark_application_completion_time",
-        "labels": SPARK_APPS_LABELS,
+        "labels": SPARK_TASK_SUMMARY_LABELS,
     },
 }
 SPARK_STREAMING_STATISTICS_METRICS = {

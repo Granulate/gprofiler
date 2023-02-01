@@ -13,11 +13,24 @@ import psutil
 import requests
 from requests.exceptions import ConnectionError, HTTPError, InvalidURL, Timeout
 
-import gprofiler.spark.metrics as metrics_definition
 from gprofiler.client import APIClient
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_hostname
 from gprofiler.platform import is_windows
+from gprofiler.spark.metrics import (
+    ACTIVE_EXECUTORS_COUNT,
+    EXECUTORS_COUNT,
+    SPARK_APPLICATION_DIFF_METRICS,
+    SPARK_APPLICATION_GAUGE_METRICS,
+    SPARK_RDD_METRICS,
+    SPARK_STAGE_METRICS,
+    SPARK_STREAMING_BATCHES_METRICS,
+    SPARK_STREAMING_STATISTICS_METRICS,
+    SPARK_STRUCTURED_STREAMING_METRICS,
+    SPARK_TASK_SUMMARY_METRICS,
+    YARN_CLUSTER_METRICS,
+    YARN_NODES_METRICS,
+)
 from gprofiler.utils import get_iso8601_format_time
 from gprofiler.utils.process import search_for_process
 
@@ -26,7 +39,6 @@ GMT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fGMT"
 # Application type and states to collect
 YARN_SPARK_APPLICATION_SPECIFIER = "SPARK"
 YARN_RUNNING_APPLICATION_SPECIFIER = "RUNNING"
-YARN_COMPLETED_APPLICATION_SPECIFIER = "FINISHED"
 
 # SPARK modes
 SPARK_DRIVER_MODE = "driver"
@@ -51,19 +63,24 @@ STRUCTURED_STREAMS_METRICS_REGEX = re.compile(
 
 
 class SparkCollector:
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        cluster_mode: str,
+        master_address: str,
+        cluster_metrics: bool = True,
+        applications_metrics: bool = True,
+        streaming_metrics: bool = True,
+    ) -> None:
         self._lock = Lock()
         self._logger = get_logger_adapter(__name__)
 
         self._last_sample_time = int(time.monotonic() * 1000)
-        self._cluster_mode = kwargs["spark_mode"]
-        self._master_address = "http://" + kwargs["master_address"]
-        self._cluster_metrics = kwargs.get("cluster_metrics", True)
-        self._applications_metrics = kwargs.get("applications_metrics", False)
-        self._streaming_metrics = kwargs.get("streaming_metrics", True)
+        self._cluster_mode = cluster_mode
+        self._master_address = f"http://{master_address}"
+        self._cluster_metrics = cluster_metrics
+        self._applications_metrics = applications_metrics
+        self._streaming_metrics = streaming_metrics
         self._task_summary_metrics = True
-        self._metricsservlet_path = "/metrics/json"  # TODO: figure out if need to be treat better
-        self._init_metrics()
         self._last_iteration_app_job_metrics: Dict[str, Dict[str, Any]] = {}
 
     def collect(self) -> Generator[Dict[str, Any], None, None]:
@@ -80,28 +97,6 @@ class SparkCollector:
             self._logger.exception(f"Error while trying to collect f{self.__class__.__name__}")
         finally:
             self._lock.release()
-
-    def _init_metrics(self) -> None:
-        if self._cluster_mode == "yarn":
-            self.CLUSTER_METRICS = metrics_definition.YARN_CLUSTER_METRICS
-            self.NODES_METRICS = metrics_definition.YARN_NODES_METRICS
-        elif self._cluster_mode == "driver":
-            self.CLUSTER_METRICS = metrics_definition.DRIVER_CLUSTER_METRICS
-
-        self.SPARK_APPLICATION_GAUGE_METRICS = metrics_definition.SPARK_APPLICATION_GAUGE_METRICS
-        self.SPARK_APPLICATION_DIFF_METRICS = metrics_definition.SPARK_APPLICATION_DIFF_METRICS
-        self.SPARK_STAGE_METRICS = metrics_definition.SPARK_STAGE_METRICS
-        self.SPARK_RDD_METRICS = metrics_definition.SPARK_RDD_METRICS
-        self.SPARK_DRIVER_METRICS = metrics_definition.SPARK_DRIVER_METRICS
-        self.SPARK_EXECUTOR_METRICS = metrics_definition.SPARK_EXECUTOR_METRICS
-        self.SPARK_EXECUTOR_LEVEL_METRICS = metrics_definition.SPARK_EXECUTOR_LEVEL_METRICS
-        self.SPARK_TASK_SUMMARY_METRICS = metrics_definition.SPARK_TASK_SUMMARY_METRICS
-        self.SPARK_APPLICATIONS_TIME = metrics_definition.SPARK_APPLICATIONS_TIME
-        self.SPARK_STREAMING_STATISTICS_METRICS = metrics_definition.SPARK_STREAMING_STATISTICS_METRICS
-        self.SPARK_STRUCTURED_STREAMING_METRICS = metrics_definition.SPARK_STRUCTURED_STREAMING_METRICS
-        self.SPARK_STREAMING_BATCHES_METRICS = metrics_definition.SPARK_STREAMING_BATCHES_METRICS
-        self.EXECUTORS_COUNT = metrics_definition.EXECUTORS_COUNT
-        self.ACTIVE_EXECUTORS_COUNT = metrics_definition.ACTIVE_EXECUTORS_COUNT
 
     def _collect(self) -> Generator[Dict[str, Any], None, None]:
         try:
@@ -153,7 +148,7 @@ class SparkCollector:
             metrics_json = self._rest_request_to_json(self._master_address, YARN_CLUSTER_PATH)
 
             if metrics_json.get("clusterMetrics") is not None:
-                self._set_metrics_from_json(collected_metrics, [], metrics_json["clusterMetrics"], self.CLUSTER_METRICS)
+                self._set_metrics_from_json(collected_metrics, [], metrics_json["clusterMetrics"], YARN_CLUSTER_METRICS)
 
         except Exception as e:
             self._logger.warning("Could not gather yarn cluster metrics.")
@@ -173,7 +168,7 @@ class SparkCollector:
 
                     tags = [f'node_hostname:{node["nodeHostName"]}']
 
-                    self._set_metrics_from_json(collected_metrics, tags, node, self.NODES_METRICS)
+                    self._set_metrics_from_json(collected_metrics, tags, node, YARN_NODES_METRICS)
 
         except Exception as e:
             self._logger.warning("Could not gather yarn nodes metrics.")
@@ -190,8 +185,8 @@ class SparkCollector:
             try:
                 base_url = self._get_request_url(tracking_url)
                 response = self._rest_request_to_json(base_url, SPARK_APPS_PATH, app_id, "jobs")
-                application_diff_aggregated_metrics = dict.fromkeys(self.SPARK_APPLICATION_DIFF_METRICS.keys(), 0)
-                application_gauge_aggregated_metrics = dict.fromkeys(self.SPARK_APPLICATION_GAUGE_METRICS.keys(), 0)
+                application_diff_aggregated_metrics = dict.fromkeys(SPARK_APPLICATION_DIFF_METRICS.keys(), 0)
+                application_gauge_aggregated_metrics = dict.fromkeys(SPARK_APPLICATION_GAUGE_METRICS.keys(), 0)
                 iteration_metrics[app_id] = {}
                 for job in response:
                     iteration_metrics[app_id][job["jobId"]] = job
@@ -204,7 +199,7 @@ class SparkCollector:
                     # and then the accumulated metric will get lower, and the diff will be negative. In order to solve
                     # that, we only accumulate the value of newly seen jobs or the diff from the last time the value
                     # was seen.
-                    for metric in self.SPARK_APPLICATION_DIFF_METRICS.keys():
+                    for metric in SPARK_APPLICATION_DIFF_METRICS.keys():
                         if first_time_seen_job:
                             application_diff_aggregated_metrics[metric] += int(job[metric])
                         else:
@@ -212,15 +207,15 @@ class SparkCollector:
                                 self._last_iteration_app_job_metrics[app_id][job["jobId"]][metric]
                             )
 
-                    for metric in self.SPARK_APPLICATION_GAUGE_METRICS.keys():
+                    for metric in SPARK_APPLICATION_GAUGE_METRICS.keys():
                         application_gauge_aggregated_metrics[metric] += int(job[metric])
 
                 tags = [f"app_name:{str(app_name)}", f"app_id:{str(app_id)}"]
                 self._set_metrics_from_json(
-                    collected_metrics, tags, application_diff_aggregated_metrics, self.SPARK_APPLICATION_DIFF_METRICS
+                    collected_metrics, tags, application_diff_aggregated_metrics, SPARK_APPLICATION_DIFF_METRICS
                 )
                 self._set_metrics_from_json(
-                    collected_metrics, tags, application_gauge_aggregated_metrics, self.SPARK_APPLICATION_GAUGE_METRICS
+                    collected_metrics, tags, application_gauge_aggregated_metrics, SPARK_APPLICATION_GAUGE_METRICS
                 )
 
             except Exception:
@@ -249,7 +244,7 @@ class SparkCollector:
                         f"stage_id:{str(stage_id)}",
                     ]
 
-                    self._set_metrics_from_json(collected_metrics, tags, stage, self.SPARK_STAGE_METRICS)
+                    self._set_metrics_from_json(collected_metrics, tags, stage, SPARK_STAGE_METRICS)
 
                     if self._task_summary_metrics and status == "ACTIVE":
                         stage_response = self._rest_request_to_json(
@@ -270,7 +265,7 @@ class SparkCollector:
                                 )
 
                                 self._set_task_summary_from_json(
-                                    collected_metrics, tags, tasks_summary_response, self.SPARK_TASK_SUMMARY_METRICS
+                                    collected_metrics, tags, tasks_summary_response, SPARK_TASK_SUMMARY_METRICS
                                 )
                             except Exception:
                                 self._logger.debug("Could not gather spark tasks summary for stage. SKIPPING")
@@ -292,12 +287,12 @@ class SparkCollector:
 
                 tags = [f"app_name:{str(app_name)}", f"app_id:{str(app_id)}"]
 
-                self._set_individual_metric(collected_metrics, tags, len(executors), self.EXECUTORS_COUNT)
+                self._set_individual_metric(collected_metrics, tags, len(executors), EXECUTORS_COUNT)
                 self._set_individual_metric(
                     collected_metrics,
                     tags,
                     len([executor for executor in executors if executor["activeTasks"] > 0]),
-                    self.ACTIVE_EXECUTORS_COUNT,
+                    ACTIVE_EXECUTORS_COUNT,
                 )
 
             except Exception as ex:
@@ -318,7 +313,7 @@ class SparkCollector:
                 tags = [f"app_name:{str(app_name)}", f"app_id:{str(app_id)}"]
 
                 for rdd in response:
-                    self._set_metrics_from_json(collected_metrics, tags, rdd, self.SPARK_RDD_METRICS)
+                    self._set_metrics_from_json(collected_metrics, tags, rdd, SPARK_RDD_METRICS)
             except Exception as e:
                 self._logger.warning("Could not gather spark rdd metrics.")
                 self._logger.debug(e)
@@ -337,7 +332,7 @@ class SparkCollector:
                 tags = [f"app_name:{str(app_name)}", f"app_id:{str(app_id)}"]
 
                 # NOTE: response is a dict
-                self._set_metrics_from_json(collected_metrics, tags, response, self.SPARK_STREAMING_STATISTICS_METRICS)
+                self._set_metrics_from_json(collected_metrics, tags, response, SPARK_STREAMING_STATISTICS_METRICS)
             except Exception as e:
                 self._logger.warning("Could not gather spark streaming metrics.")
                 self._logger.debug(e)
@@ -387,9 +382,7 @@ class SparkCollector:
                     batch_metrics.update(self._get_last_batches_metrics(batches, completed_batches, 3))
                     batch_metrics.update(self._get_last_batches_metrics(batches, completed_batches, 10))
                     batch_metrics.update(self._get_last_batches_metrics(batches, completed_batches, 25))
-                    self._set_metrics_from_json(
-                        collected_metrics, tags, batch_metrics, self.SPARK_STREAMING_BATCHES_METRICS
-                    )
+                    self._set_metrics_from_json(collected_metrics, tags, batch_metrics, SPARK_STREAMING_BATCHES_METRICS)
 
             except Exception as ex:
                 self._logger.debug("Could not gather spark batch metrics for app", exc_info=ex)
@@ -407,7 +400,7 @@ class SparkCollector:
         for app_id, (app_name, tracking_url) in running_apps.items():
             try:
                 base_url = self._get_request_url(tracking_url)
-                response = self._rest_request_to_json(base_url, self._metricsservlet_path)
+                response = self._rest_request_to_json(base_url, "/metrics/json")
 
                 response = {
                     metric_name: v["value"]
@@ -420,14 +413,14 @@ class SparkCollector:
                         continue
                     groups = match.groupdict()
                     metric_name = groups["metric_name"]
-                    if metric_name not in self.SPARK_STRUCTURED_STREAMING_METRICS.keys():
+                    if metric_name not in SPARK_STRUCTURED_STREAMING_METRICS.keys():
                         self._logger.debug("Unknown metric_name encountered: '%s'", str(metric_name))
                         continue
-                    metric_name, submission_type = self.SPARK_STRUCTURED_STREAMING_METRICS[metric_name]
+                    metric_name, submission_type = SPARK_STRUCTURED_STREAMING_METRICS[metric_name]
                     tags = [f"app_name:{str(app_name)}", f"app_id:{str(app_id)}"]
 
                     self._set_individual_metric(
-                        collected_metrics, tags, value, self.SPARK_STRUCTURED_STREAMING_METRICS[metric_name]
+                        collected_metrics, tags, value, SPARK_STRUCTURED_STREAMING_METRICS[metric_name]
                     )
             except Exception as e:
                 self._logger.warning("Could not gather structured streaming metrics.")
@@ -745,12 +738,14 @@ class SparkSampler(object):
 
     def _guess_driver_application_master_address(self, process: psutil.Process) -> str:
         # TODO: handle this situation, when we'll have clients with this mode
-        host_name = get_hostname()
-        return f'{self._master_address if self._master_address != None else host_name + ":4040"}'
+        if self._master_address is not None:
+            return self._master_address
+        else:
+            host_name = get_hostname()
+            return host_name + ":4040"
 
     def _guess_yarn_resource_manager_webapp_address(self, resource_manager_process: psutil.Process) -> str:
         config = self._get_yarn_config(resource_manager_process)
-        host_name = None
 
         if config is not None:
             for config_property in config.iter("property"):
@@ -763,12 +758,18 @@ class SparkSampler(object):
                     value_property = config_property.find("value")
                     if value_property is not None and value_property.text is not None:
                         return value_property.text
-        host_name = self._get_yarn_host_name(resource_manager_process)
-        return f'{self._master_address if self._master_address != None else host_name + ":8088"}'
+        if self._master_address is not None:
+            return self._master_address
+        else:
+            host_name = self._get_yarn_host_name(resource_manager_process)
+            return host_name + ":8088"
 
     def _guess_mesos_master_webapp_address(self, process: psutil.Process) -> str:
-        host_name = get_hostname()
-        return f'{self._master_address if self._master_address else host_name + ":5050"}'
+        if self._master_address:
+            return self._master_address
+        else:
+            host_name = get_hostname()
+            return host_name + ":5050"
 
     def _get_yarn_host_name(self, resource_manager_process: psutil.Process) -> str:
         host_name = self._get_yarn_config_property(resource_manager_process, "yarn.resourcemanager.hostname")
@@ -822,7 +823,8 @@ class SparkSampler(object):
         except StopIteration:
             return None
 
-    def _find_spark_cluster(self) -> Optional[Dict[str, str]]:
+    def _find_spark_cluster(self) -> Optional[Tuple[str, str]]:
+        """:return: (master address, cluster mode)"""
         spark_master_process = self._get_spark_manager_process()
         spark_cluster_mode = "unknown"
         webapp_url = None
@@ -849,7 +851,7 @@ class SparkSampler(object):
 
         self._logger.info("Guessed settings are", extra={"cluster_mode": spark_cluster_mode, "webbapp_url": webapp_url})
 
-        return {"master_address": webapp_url, "spark_mode": spark_cluster_mode}
+        return webapp_url, spark_cluster_mode
 
     def start(self) -> bool:
         spark_cluster_conf = self._find_spark_cluster()
@@ -857,12 +859,8 @@ class SparkSampler(object):
             self._logger.debug("Could not guess spark configuration, probably not master node")
             return False
 
-        self._spark_mode = spark_cluster_conf["spark_mode"]
-        self._master_address = spark_cluster_conf["master_address"]
-        self._spark_sampler = SparkCollector(
-            spark_mode=self._spark_mode,
-            master_address=self._master_address,
-        )
+        master_address, cluster_mode = spark_cluster_conf
+        self._spark_sampler = SparkCollector(cluster_mode, master_address)
         self._stop_event.clear()
         self._collection_thread = Thread(target=self._start_collection)
         self._collection_thread.start()
