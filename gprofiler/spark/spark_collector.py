@@ -111,16 +111,9 @@ class SparkCollector:
 
             if self._applications_metrics:
                 spark_apps = self._get_running_apps()
-
-                # Get the job metrics
                 self._spark_application_metrics(collected_metrics, spark_apps)
-
-                # Get the stage metrics
                 self._spark_stage_metrics(collected_metrics, spark_apps)
-
-                # Get the executor metrics
                 self._spark_executor_metrics(collected_metrics, spark_apps)
-
                 if self._streaming_metrics:
                     self._spark_batches_streams_metrics(collected_metrics, spark_apps)
                     self._spark_streaming_statistics_metrics(collected_metrics, spark_apps)
