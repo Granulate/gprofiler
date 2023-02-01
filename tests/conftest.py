@@ -8,9 +8,12 @@ import subprocess
 from contextlib import _GeneratorContextManager, contextmanager
 from functools import lru_cache, partial
 from pathlib import Path
+from threading import Event
 from typing import Any, Callable, Dict, Generator, Iterable, Iterator, List, Mapping, Optional, Tuple, cast
 
 import docker
+from gprofiler.consts import CPU_PROFILING_MODE
+from gprofiler.profiler_state import ProfilerState
 import pytest
 from _pytest.config import Config
 from docker import DockerClient
@@ -74,6 +77,11 @@ def in_container(request: FixtureRequest) -> bool:
 @fixture
 def java_args() -> Tuple[str]:
     return cast(Tuple[str], ())
+
+
+@fixture
+def profiler_state(tmp_path_world_accessible: Path) -> ProfilerState():
+    return ProfilerState(Event(), str(tmp_path_world_accessible), False, False, CPU_PROFILING_MODE)
 
 
 def make_path_world_accessible(path: Path) -> None:

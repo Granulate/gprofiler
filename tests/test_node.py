@@ -29,20 +29,17 @@ from tests.utils import (
 @pytest.mark.parametrize("application_image_tag", ["without-flags"])
 @pytest.mark.parametrize("command_line", [["node", f"{CONTAINERS_DIRECTORY}/nodejs/fibonacci.js"]])
 def test_nodejs_attach_maps(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     profiler_type: str,
     command_line: List[str],
     runtime_specific_args: List[str],
+    profiler_state: ProfilerState,
 ) -> None:
-    profiler_state = ProfilerState(Event(), str(tmp_path), False)
     with SystemProfiler(
         1000,
         6,
         profiler_state,
-        False,
-        CPU_PROFILING_MODE,
         perf_mode="fp",
         perf_inject=False,
         perf_dwarf_stack_size=0,
@@ -89,16 +86,14 @@ def test_twoprocesses_nodejs_attach_maps(
     profiler_type: str,
     profiler_flags: List[str],
     application_factory: Callable[[], _GeneratorContextManager],
+    profiler_state: ProfilerState,
 ) -> None:
     with application_factory() as pid1:
         with application_factory() as pid2:
-            profiler_state = ProfilerState(Event(), str(tmp_path), False)
             with SystemProfiler(
                 1000,
                 6,
                 profiler_state,
-                False,
-                CPU_PROFILING_MODE,
                 perf_mode="fp",
                 perf_inject=False,
                 perf_dwarf_stack_size=0,
@@ -140,14 +135,13 @@ def test_nodejs_matrix(
     runtime_specific_args: List[str],
     profiler_flags: List[str],
     application_image_tag: str,
+    profiler_state: ProfilerState,
 ) -> None:
     profiler_state = ProfilerState(Event(), str(tmp_path), False)
     with SystemProfiler(
         1000,
         6,
         profiler_state,
-        False,
-        CPU_PROFILING_MODE,
         perf_mode="fp",
         perf_inject=False,
         perf_dwarf_stack_size=0,

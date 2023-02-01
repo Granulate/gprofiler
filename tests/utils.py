@@ -207,12 +207,11 @@ def make_java_profiler(
     profiling_mode: str = CPU_PROFILING_MODE,
 ) -> JavaProfiler:
     assert storage_dir is not None
-    profiler_state = ProfilerState(stop_event, storage_dir, profile_spawned_processes)
+    profiler_state = ProfilerState(stop_event, storage_dir, profile_spawned_processes, insert_dso_name, profiling_mode)
     return JavaProfiler(
         frequency=frequency,
         duration=duration,
         profiler_state=profiler_state,
-        insert_dso_name=insert_dso_name,
         java_version_check=java_version_check,
         java_async_profiler_mode=java_async_profiler_mode,
         java_async_profiler_safemode=java_async_profiler_safemode,
@@ -222,7 +221,6 @@ def make_java_profiler(
         java_async_profiler_mcache=java_async_profiler_mcache,
         java_collect_spark_app_name_as_appid=java_collect_spark_app_name_as_appid,
         java_mode=java_mode,
-        profiling_mode=profiling_mode,
         java_async_profiler_report_meminfo=java_async_profiler_report_meminfo,
     )
 

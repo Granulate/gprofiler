@@ -33,6 +33,7 @@ def test_python_select_by_libpython(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
+    profiler_state: ProfilerState,
 ) -> None:
     """
     Tests that profiling of processes running Python, whose basename(readlink("/proc/pid/exe")) isn't "python"
@@ -40,8 +41,7 @@ def test_python_select_by_libpython(
     We expect to select these because they have "libpython" in their "/proc/pid/maps".
     This test runs a Python named "shmython".
     """
-    profiler_state = ProfilerState(Event(), str(tmp_path), False)
-    with PythonProfiler(1000, 1, profiler_state, False, CPU_PROFILING_MODE, "pyspy", True, None) as profiler:
+    with PythonProfiler(1000, 1, profiler_state, "pyspy", True, None) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
     assert_collapsed(process_collapsed)
     assert all(stack.startswith("shmython") for stack in process_collapsed.keys())
@@ -78,6 +78,7 @@ def test_python_matrix(
     assert_collapsed: AssertInCollapsed,
     profiler_type: str,
     application_image_tag: str,
+    profiler_state: ProfilerState,
 ) -> None:
     python_version, libc, app = application_image_tag.split("-")
 
@@ -87,8 +88,7 @@ def test_python_matrix(
     if python_version == "2.7" and profiler_type == "pyperf" and app == "uwsgi":
         pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/485")
 
-    profiler_state = ProfilerState(Event(), str(tmp_path), False)
-    with PythonProfiler(1000, 2, profiler_state, False, CPU_PROFILING_MODE, profiler_type, True, None) as profiler:
+    with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
 
     collapsed = profile.stacks
@@ -139,10 +139,11 @@ def test_dso_name_in_pyperf_profile(
     profiler_type: str,
     application_image_tag: str,
     insert_dso_name: bool,
+    profiler_state: ProfilerState,
 ) -> None:
-    profiler_state = ProfilerState(Event(), str(tmp_path), False)
+    profiler_state = ProfilerState(Event(), str(tmp_path), False, insert_dso_name, CPU_PROFILING_MODE)
     with PythonProfiler(
-        1000, 2, profiler_state, insert_dso_name, CPU_PROFILING_MODE, profiler_type, True, None
+        1000, 2, profiler_state, profiler_type, True, None
     ) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
     python_version, _, _ = application_image_tag.split("-")

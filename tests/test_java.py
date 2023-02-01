@@ -99,7 +99,6 @@ def test_async_profiler_already_running(
         with AsyncProfiledProcess(
             process=process,
             profiler_state=profiler._profiler_state,
-            insert_dso_name=False,
             mode=profiler._mode,
             ap_safemode=0,
             ap_args="",
@@ -110,7 +109,6 @@ def test_async_profiler_already_running(
         with AsyncProfiledProcessForTests(
             process=process,
             profiler_state=profiler._profiler_state,
-            insert_dso_name=False,
             mode="itimer",
             ap_safemode=0,
             ap_args="",
@@ -321,16 +319,15 @@ def test_async_profiler_stops_after_given_timeout(
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     caplog: LogCaptureFixture,
+    profiler_state: ProfilerState,
 ) -> None:
     caplog.set_level(logging.DEBUG)
 
     process = psutil.Process(application_pid)
     timeout_s = 5
-    profiler_state = ProfilerState(Event(), str(tmp_path_world_accessible), False)
     with AsyncProfiledProcessForTests(
         process=process,
         profiler_state=profiler_state,
-        insert_dso_name=False,
         mode="itimer",
         ap_safemode=0,
         ap_args="",
