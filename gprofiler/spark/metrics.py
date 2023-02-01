@@ -1,3 +1,10 @@
+#
+# Copyright (c) Granulate. All rights reserved.
+# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+#
+# (C) Datadog, Inc. 2018-present. All rights reserved.
+# Licensed under a 3-clause BSD style license (see LICENSE.bsd3).
+#
 YARN_NODES_LABELS = ["node_hostname"]
 SPARK_APPS_LABELS = ["app_name", "app_id"]
 SPARK_APP_LABELS = ["app_name", "app_id"]
