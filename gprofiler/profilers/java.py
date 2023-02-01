@@ -2,7 +2,6 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import dataclasses
 import functools
 import json
 import logging
@@ -15,7 +14,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event, Lock
 from types import TracebackType
-from typing import Any, Dict, List, Match, Optional, Sequence, Set, Type, TypeVar, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Type, TypeVar, Union
 
 import psutil
 from granulate_utils.java import (
@@ -24,10 +23,12 @@ from granulate_utils.java import (
     NATIVE_FRAMES_REGEX,
     SIGINFO_REGEX,
     VM_INFO_REGEX,
+    JvmFlag,
     JvmVersion,
     is_java_fatal_signal,
     java_exit_code_to_signo,
     locate_hotspot_error_file,
+    parse_jvm_flags,
     parse_jvm_version,
 )
 from granulate_utils.linux import proc_events
@@ -215,39 +216,6 @@ class JattachJcmdRunner:
         ).stdout.decode()
 
 
-@dataclasses.dataclass
-class JvmFlag:
-    name: str
-    type: str
-    value: str
-    origin: str
-    kind: List[str]
-
-    @classmethod
-    def from_match(cls, match: Match) -> "JvmFlag":
-        # get the flag origin if jvm 9+, otherwise get is the flag from non default origin as described above
-        flag_is_non_default_origin_only_jdk_8 = match.group("flag_is_non_default_origin_only_jdk_8") == ":"
-        flag_origin_jdk_9 = match.group("flag_origin_jdk_9")
-
-        # split the list of space separated flag_kinds as described above
-        flag_kind = match.group("flag_kind").split()
-
-        if flag_is_non_default_origin_only_jdk_8:
-            flag_origin = "non-default"
-        elif flag_origin_jdk_9:
-            flag_origin = flag_origin_jdk_9
-        else:
-            flag_origin = "default"
-
-        return cls(
-            name=match.group("flag_name"),
-            type=match.group("flag_type"),
-            value=match.group("flag_value"),
-            origin=flag_origin,
-            kind=sorted(flag_kind),
-        )
-
-
 def is_java_basename(process: Process) -> bool:
     return is_process_basename_matching(process, r"^java$")
 
@@ -320,60 +288,54 @@ class JavaMetadata(ApplicationMetadata):
         # that loads other libs.
         libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")
 
-        metadata = {"java_version": version, "libjvm_elfid": libjvm_elfid, "jvm_flags": self.get_jvm_flags(process)}
+        metadata = {
+            "java_version": version,
+            "libjvm_elfid": libjvm_elfid,
+            "jvm_flags": self.get_jvm_flags_serialized(process),
+        }
 
         metadata.update(super().make_application_metadata(process))
         return metadata
 
-    def get_jvm_flags(self, process: Process) -> Optional[Dict[str, Dict[str, Union[str, List[str]]]]]:
+    def get_jvm_flags_serialized(self, process: Process) -> Optional[Dict[str, Any]]:
+        return (
+            functools.reduce(lambda x, y: x | y, [flag.to_dict() for flag in jvm_flags])  # type: ignore
+            if (jvm_flags := self.get_jvm_flags(process)) is not None
+            else None
+        )
+
+    def get_jvm_flags(self, process: Process) -> Optional[List[JvmFlag]]:
         jvm_raw_flags: Optional[List[JvmFlag]] = self.get_jvm_flags_raw(process)
 
         if jvm_raw_flags is None:
             return None
 
         elif self.jvm_flags_to_retrieve == JavaFlagRetrievalOptions.ALL:
-            return self.jvm_flag_list_serialize([flag for flag in jvm_raw_flags])
+            return jvm_raw_flags
         elif self.jvm_flags_to_retrieve == JavaFlagRetrievalOptions.DEFAULT:
-            return self.jvm_flag_list_serialize([flag for flag in jvm_raw_flags if self.filter_jvm_flag(flag)])
+            return [flag for flag in jvm_raw_flags if self.filter_jvm_flag(flag)]
         elif isinstance(self.jvm_flags_to_retrieve, list):
-            flags = self.jvm_flag_list_serialize(jvm_raw_flags)
-            selected_flags = {}
+            requested_flags = [flag for flag in jvm_raw_flags if flag.name in self.jvm_flags_to_retrieve]
+            not_found_requested_flag_names = [
+                flag_name
+                for flag_name in self.jvm_flags_to_retrieve
+                if flag_name not in [flag.name for flag in requested_flags]
+            ]
 
-            for flag_name in self.jvm_flags_to_retrieve:
-                flag = flags.get(flag_name)
-                if flag is None:
-                    logger.error("Flag %s not found", flag_name)
-                else:
-                    selected_flags[flag_name] = flag
+            logger.error("Flags not found in jvm flags: %s", not_found_requested_flag_names)
 
-            return selected_flags
+            return requested_flags
 
         logging.error("Unrecognized jvm_flags_to_retrieve value: %s", self.jvm_flags_to_retrieve)
 
         return None
 
     @staticmethod
-    def jvm_flag_list_serialize(flag_list: List[JvmFlag]) -> Dict[str, Dict[str, Union[str, List[str]]]]:
-        return {
-            flag.name: {"type": flag.type, "value": flag.value, "origin": flag.origin, "kind": flag.kind}
-            for flag in flag_list
-        }
-
-    @staticmethod
     def filter_jvm_flag(flag: JvmFlag) -> bool:
         if flag.origin == "default":
             return False
 
-        if flag.type not in [
-            "bool",
-            "int",
-            "uint",
-            "intx",
-            "uintx",
-            "uint64_t",
-            "size_t",
-            "double",
-        ]:
+        if flag.type in ["ccstr", "ccstrlist"]:
             return False
 
         if set(flag.kind).intersection({"notproduct", "pd", "develop"}):
@@ -383,45 +345,13 @@ class JavaMetadata(ApplicationMetadata):
 
     @functools.lru_cache(maxsize=1024)
     def get_jvm_flags_raw(self, process: Process) -> Optional[List[JvmFlag]]:
-        """
-        The output of VM.flags -all format on jdk 8:
-        bool UseCompressedClassPointers               := true                                {lp64_product}
-        flag_type flag_name                           := flag_value                          {flag_kind}
-        ":=" indicates non default origin for the flag, while "=" indicates default origin
-
-        The output of VM.flags -all format on jdk 9+:
-        bool OptoScheduling                           = false                               {C2 pd product} {default}
-        flag_type flag_name                           = flag_value                          {flag_kind} {flag_origin}
-
-        flag_kind is space separated list of kinds, e.g. "C2 pd product"
-
-        possible flag kinds: "product", "manageable", "diagnostic", "experimental", "notproduct", "develop",
-        "lp64_product", "rw", "pd", "JVMCI", "C1", "C2", "ARCH"
-
-        possible flag types: "bool", "int", "uint", "intx", "uintx", "uint64_t", "size_t", "double", "ccstr",
-        "ccstrlist"
-
-        possible flag origins: default, non-default, command line, environment, config file, management, ergonomic,
-        attach, internal, jimage
-        """
-
         try:
             output = self.jattach_jcmd_runner.run(process, "VM.flags -all")
         except CalledProcessError as e:
             logging.warning("Couldn't get jvm flags for process %d: %s", process.pid, e.stderr)
             return None
 
-        vm_flags = []
-        vm_flags_pattern = re.compile(
-            r"(?P<flag_type>\S+)\s+(?P<flag_name>\S+)\s+(?P<flag_is_non_default_origin_only_jdk_8>:)?= (?P<flag_value>\S+)\s+{(?P<flag_kind>.+?)}(?:\s*{(?P<flag_origin_jdk_9>.*)})?"  # noqa: E501
-        )
-
-        for line in output.splitlines():
-            match = vm_flags_pattern.search(line)
-            if match:
-                vm_flags.append(JvmFlag.from_match(match))
-
-        return vm_flags
+        return parse_jvm_flags(output)
 
 
 @functools.lru_cache(maxsize=1)

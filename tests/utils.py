@@ -373,7 +373,7 @@ def find_application_pid(pid: int) -> int:
 def assert_jvm_flags_equal(actual_jvm_flags: Optional[dict], expected_jvm_flags: dict) -> None:
     assert actual_jvm_flags is not None, "actual_jvm_flags is None"
 
-    assert len(actual_jvm_flags) == len(expected_jvm_flags), f"{len(actual_jvm_flags)} != {len(expected_jvm_flags)}"
+    assert len(actual_jvm_flags) == len(expected_jvm_flags), f"{actual_jvm_flags} != {expected_jvm_flags}"
 
     for actual_flag_name, actual_flag_dict in actual_jvm_flags.items():
         assert actual_flag_name in expected_jvm_flags, f"{actual_flag_name} not in expected_jvm_flags"

@@ -13,7 +13,7 @@ from collections import Counter
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import docker
 import psutil
@@ -786,14 +786,16 @@ def test_get_default_jvm_flags(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
-    expected_flags: dict,
+    expected_flags: Dict[str, Dict[str, Union[str, List[str]]]],
 ) -> None:
     with make_java_profiler(
         frequency=99,
         storage_dir=str(tmp_path),
         java_async_profiler_mode="cpu",
     ) as profiler:
-        assert_jvm_flags_equal(profiler._metadata.get_jvm_flags(psutil.Process(application_pid)), expected_flags)
+        assert_jvm_flags_equal(
+            profiler._metadata.get_jvm_flags_serialized(psutil.Process(application_pid)), expected_flags
+        )
 
 
 @pytest.mark.parametrize(
@@ -839,7 +841,7 @@ def test_get_cmdline_and_env_jvm_flags(
     assert_collapsed: AssertInCollapsed,
     java_cli_flags: str,
     java_env_flags: str,
-    expected_flags: dict,
+    expected_flags: Dict[str, Dict[str, Union[str, List[str]]]],
     application_pid: int,
     application_image_tag: str,
 ) -> None:
@@ -865,7 +867,7 @@ def test_get_cmdline_and_env_jvm_flags(
                 f"export JAVA_TOOL_OPTIONS={java_env_flags}" ";" f"java {java_cli_flags} -jar Fibonacci.jar",
             ],
         ) as container:
-            actual_flags = profiler._metadata.get_jvm_flags(
+            actual_flags = profiler._metadata.get_jvm_flags_serialized(
                 psutil.Process(find_application_pid(container.attrs["State"]["Pid"]))
             )
             assert_jvm_flags_equal(actual_jvm_flags=actual_flags, expected_jvm_flags=expected_flags)
