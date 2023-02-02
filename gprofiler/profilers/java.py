@@ -297,12 +297,12 @@ class JavaMetadata(ApplicationMetadata):
         metadata.update(super().make_application_metadata(process))
         return metadata
 
-    def get_jvm_flags_serialized(self, process: Process) -> Optional[Dict[str, Any]]:
-        return (
-            functools.reduce(lambda x, y: x | y, [flag.to_dict() for flag in jvm_flags])  # type: ignore
-            if (jvm_flags := self.get_jvm_flags(process)) is not None
-            else None
-        )
+    def get_jvm_flags_serialized(self, process: Process) -> Optional[List[Dict]]:
+        jvm_flags = self.get_jvm_flags(process)
+        if jvm_flags is None:
+            return None
+
+        return [flag.to_dict() for flag in sorted(jvm_flags, key=lambda flag: flag.name)]
 
     def get_jvm_flags(self, process: Process) -> Optional[List[JvmFlag]]:
         jvm_raw_flags: Optional[List[JvmFlag]] = self.get_jvm_flags_raw(process)
@@ -754,9 +754,8 @@ class AsyncProfiledProcess:
             "--java-jvm-flags-to-retrieve",
             dest="java_jvm_flags_to_retrieve",
             type=str,
-            const="all",
             nargs="?",
-            default=None,
+            default=JavaFlagRetrievalOptions.DEFAULT,
             help="Comma-separated list of JVM flags to retrieve from the JVM process, or 'all' to retrieve all flags, "
             "default is to retrieve only non-default jvm flags.",
         ),

@@ -55,48 +55,78 @@ from tests.utils import assert_jvm_flags_equal, run_gprofiler_in_container_for_o
                 "OpenJDK Runtime Environment (build 1.8.0_275-b01)\n"
                 "OpenJDK 64-Bit Server VM (build 25.275-b01, mixed mode)",
                 "libjvm_elfid": "buildid:0542486ff00153ca0bcf9f2daea9a36c428d6cde",
-                "jvm_flags": {
-                    "CICompilerCount": {"kind": ["product"], "origin": "non-default", "type": "intx", "value": "4"},
-                    "InitialHeapSize": {
-                        "kind": ["product"],
+                "jvm_flags": [
+                    {
+                        "name": "CICompilerCount",
+                        "type": "intx",
+                        "value": "4",
                         "origin": "non-default",
+                        "kind": ["product"],
+                    },
+                    {
+                        "name": "InitialHeapSize",
                         "type": "uintx",
                         "value": "264241152",
-                    },
-                    "MaxHeapSize": {
-                        "kind": ["product"],
                         "origin": "non-default",
+                        "kind": ["product"],
+                    },
+                    {
+                        "name": "MaxHeapSize",
                         "type": "uintx",
-                        "value": "4196401152",
-                    },
-                    "MaxNewSize": {
-                        "kind": ["product"],
+                        "value": "4198498304",
                         "origin": "non-default",
+                        "kind": ["product"],
+                    },
+                    {
+                        "name": "MaxNewSize",
                         "type": "uintx",
-                        "value": "1398800384",
-                    },
-                    "MinHeapDeltaBytes": {
-                        "kind": ["product"],
+                        "value": "1399324672",
                         "origin": "non-default",
+                        "kind": ["product"],
+                    },
+                    {
+                        "name": "MinHeapDeltaBytes",
                         "type": "uintx",
                         "value": "524288",
-                    },
-                    "NewSize": {"kind": ["product"], "origin": "non-default", "type": "uintx", "value": "88080384"},
-                    "OldSize": {"kind": ["product"], "origin": "non-default", "type": "uintx", "value": "176160768"},
-                    "UseCompressedClassPointers": {
-                        "kind": ["lp64_product"],
                         "origin": "non-default",
+                        "kind": ["product"],
+                    },
+                    {
+                        "name": "NewSize",
+                        "type": "uintx",
+                        "value": "88080384",
+                        "origin": "non-default",
+                        "kind": ["product"],
+                    },
+                    {
+                        "name": "OldSize",
+                        "type": "uintx",
+                        "value": "176160768",
+                        "origin": "non-default",
+                        "kind": ["product"],
+                    },
+                    {
+                        "name": "UseCompressedClassPointers",
                         "type": "bool",
                         "value": "true",
-                    },
-                    "UseCompressedOops": {
-                        "kind": ["lp64_product"],
                         "origin": "non-default",
+                        "kind": ["lp64_product"],
+                    },
+                    {
+                        "name": "UseCompressedOops",
                         "type": "bool",
                         "value": "true",
+                        "origin": "non-default",
+                        "kind": ["lp64_product"],
                     },
-                    "UseParallelGC": {"kind": ["product"], "origin": "non-default", "type": "bool", "value": "true"},
-                },
+                    {
+                        "name": "UseParallelGC",
+                        "type": "bool",
+                        "value": "true",
+                        "origin": "non-default",
+                        "kind": ["product"],
+                    },
+                ],
             },
         ),
         (

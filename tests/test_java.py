@@ -728,57 +728,151 @@ def test_java_frames_include_no_semicolons(
     [
         (
             "hotspot-jdk-8",
-            {
-                "CICompilerCount": {"kind": ["product"], "origin": "non-default", "type": "intx", "value": "4"},
-                "InitialHeapSize": {
-                    "kind": ["product"],
-                    "origin": "non-default",
+            [
+                {"name": "CICompilerCount", "type": "intx", "value": "4", "origin": "non-default", "kind": ["product"]},
+                {
+                    "name": "InitialHeapSize",
                     "type": "uintx",
                     "value": "264241152",
-                },
-                "MaxHeapSize": {"kind": ["product"], "origin": "non-default", "type": "uintx", "value": "4196401152"},
-                "MaxNewSize": {"kind": ["product"], "origin": "non-default", "type": "uintx", "value": "1398800384"},
-                "MinHeapDeltaBytes": {"kind": ["product"], "origin": "non-default", "type": "uintx", "value": "524288"},
-                "NewSize": {"kind": ["product"], "origin": "non-default", "type": "uintx", "value": "88080384"},
-                "OldSize": {"kind": ["product"], "origin": "non-default", "type": "uintx", "value": "176160768"},
-                "UseCompressedClassPointers": {
-                    "kind": ["lp64_product"],
                     "origin": "non-default",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "MaxHeapSize",
+                    "type": "uintx",
+                    "value": "4196401152",
+                    "origin": "non-default",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "MaxNewSize",
+                    "type": "uintx",
+                    "value": "1398800384",
+                    "origin": "non-default",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "MinHeapDeltaBytes",
+                    "type": "uintx",
+                    "value": "524288",
+                    "origin": "non-default",
+                    "kind": ["product"],
+                },
+                {"name": "NewSize", "type": "uintx", "value": "88080384", "origin": "non-default", "kind": ["product"]},
+                {
+                    "name": "OldSize",
+                    "type": "uintx",
+                    "value": "176160768",
+                    "origin": "non-default",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "UseCompressedClassPointers",
                     "type": "bool",
                     "value": "true",
-                },
-                "UseCompressedOops": {
-                    "kind": ["lp64_product"],
                     "origin": "non-default",
+                    "kind": ["lp64_product"],
+                },
+                {
+                    "name": "UseCompressedOops",
                     "type": "bool",
                     "value": "true",
+                    "origin": "non-default",
+                    "kind": ["lp64_product"],
                 },
-                "UseParallelGC": {"kind": ["product"], "origin": "non-default", "type": "bool", "value": "true"},
-            },
+                {
+                    "name": "UseParallelGC",
+                    "type": "bool",
+                    "value": "true",
+                    "origin": "non-default",
+                    "kind": ["product"],
+                },
+            ],
         ),
         (
             "hotspot-jdk-11",
-            {
-                "CICompilerCount": {"kind": ["product"], "origin": "ergonomic", "type": "intx", "value": "4"},
-                "ConcGCThreads": {"kind": ["product"], "origin": "ergonomic", "type": "uint", "value": "2"},
-                "G1ConcRefinementThreads": {"kind": ["product"], "origin": "ergonomic", "type": "uint", "value": "8"},
-                "G1HeapRegionSize": {"kind": ["product"], "origin": "ergonomic", "type": "size_t", "value": "1048576"},
-                "GCDrainStackTargetSize": {"kind": ["product"], "origin": "ergonomic", "type": "uintx", "value": "64"},
-                "InitialHeapSize": {"kind": ["product"], "origin": "ergonomic", "type": "size_t", "value": "264241152"},
-                "MarkStackSize": {"kind": ["product"], "origin": "ergonomic", "type": "size_t", "value": "4194304"},
-                "MaxHeapSize": {"kind": ["product"], "origin": "ergonomic", "type": "size_t", "value": "4196401152"},
-                "MaxNewSize": {"kind": ["product"], "origin": "ergonomic", "type": "size_t", "value": "2517630976"},
-                "MinHeapDeltaBytes": {"kind": ["product"], "origin": "ergonomic", "type": "size_t", "value": "1048576"},
-                "SegmentedCodeCache": {"kind": ["product"], "origin": "ergonomic", "type": "bool", "value": "true"},
-                "UseCompressedClassPointers": {
-                    "kind": ["lp64_product"],
+            [
+                {"name": "CICompilerCount", "type": "intx", "value": "4", "origin": "ergonomic", "kind": ["product"]},
+                {"name": "ConcGCThreads", "type": "uint", "value": "2", "origin": "ergonomic", "kind": ["product"]},
+                {
+                    "name": "G1ConcRefinementThreads",
+                    "type": "uint",
+                    "value": "8",
                     "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "G1HeapRegionSize",
+                    "type": "size_t",
+                    "value": "1048576",
+                    "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "GCDrainStackTargetSize",
+                    "type": "uintx",
+                    "value": "64",
+                    "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "InitialHeapSize",
+                    "type": "size_t",
+                    "value": "264241152",
+                    "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "MarkStackSize",
+                    "type": "size_t",
+                    "value": "4194304",
+                    "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "MaxHeapSize",
+                    "type": "size_t",
+                    "value": "4196401152",
+                    "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "MaxNewSize",
+                    "type": "size_t",
+                    "value": "2517630976",
+                    "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "MinHeapDeltaBytes",
+                    "type": "size_t",
+                    "value": "1048576",
+                    "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "SegmentedCodeCache",
                     "type": "bool",
                     "value": "true",
+                    "origin": "ergonomic",
+                    "kind": ["product"],
                 },
-                "UseCompressedOops": {"kind": ["lp64_product"], "origin": "ergonomic", "type": "bool", "value": "true"},
-                "UseG1GC": {"kind": ["product"], "origin": "ergonomic", "type": "bool", "value": "true"},
-            },
+                {
+                    "name": "UseCompressedClassPointers",
+                    "type": "bool",
+                    "value": "true",
+                    "origin": "ergonomic",
+                    "kind": ["lp64_product"],
+                },
+                {
+                    "name": "UseCompressedOops",
+                    "type": "bool",
+                    "value": "true",
+                    "origin": "ergonomic",
+                    "kind": ["lp64_product"],
+                },
+                {"name": "UseG1GC", "type": "bool", "value": "true", "origin": "ergonomic", "kind": ["product"]},
+            ],
         ),
     ],
 )
@@ -786,7 +880,7 @@ def test_get_default_jvm_flags(
     tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
-    expected_flags: Dict[str, Dict[str, Union[str, List[str]]]],
+    expected_flags: List[Dict[str, Union[str, List[str]]]],
 ) -> None:
     with make_java_profiler(
         frequency=99,
@@ -813,24 +907,60 @@ def test_get_default_jvm_flags(
     [
         (
             "hotspot-jdk-8",
-            {
-                "PrintCodeCache": {"kind": ["product"], "origin": "non-default", "type": "bool", "value": "true"},
-                "SelfDestructTimer": {"kind": ["product"], "origin": "non-default", "type": "intx", "value": "5"},
-            },
+            [
+                {
+                    "name": "PrintCodeCache",
+                    "type": "bool",
+                    "value": "true",
+                    "origin": "non-default",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "SelfDestructTimer",
+                    "type": "intx",
+                    "value": "5",
+                    "origin": "non-default",
+                    "kind": ["product"],
+                },
+            ],
         ),
         (
             "hotspot-jdk-11",
-            {
-                "PrintCodeCache": {"kind": ["product"], "origin": "environment", "type": "bool", "value": "true"},
-                "SelfDestructTimer": {"kind": ["product"], "origin": "command line", "type": "intx", "value": "5"},
-            },
+            [
+                {
+                    "name": "PrintCodeCache",
+                    "type": "bool",
+                    "value": "true",
+                    "origin": "environment",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "SelfDestructTimer",
+                    "type": "intx",
+                    "value": "5",
+                    "origin": "command line",
+                    "kind": ["product"],
+                },
+            ],
         ),
         (
             "zing",
-            {
-                "PrintCodeCache": {"kind": ["product"], "origin": "environment", "type": "bool", "value": "true"},
-                "SelfDestructTimer": {"kind": ["product"], "origin": "command line", "type": "intx", "value": "5"},
-            },
+            [
+                {
+                    "name": "PrintCodeCache",
+                    "type": "bool",
+                    "value": "true",
+                    "origin": "environment",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "SelfDestructTimer",
+                    "type": "intx",
+                    "value": "5",
+                    "origin": "command line",
+                    "kind": ["product"],
+                },
+            ],
         ),
     ],
 )
@@ -841,7 +971,7 @@ def test_get_cmdline_and_env_jvm_flags(
     assert_collapsed: AssertInCollapsed,
     java_cli_flags: str,
     java_env_flags: str,
-    expected_flags: Dict[str, Dict[str, Union[str, List[str]]]],
+    expected_flags: List[Dict[str, Union[str, List[str]]]],
     application_pid: int,
     application_image_tag: str,
 ) -> None:
