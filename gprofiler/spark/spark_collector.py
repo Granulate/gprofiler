@@ -644,9 +644,7 @@ class SparkCollector:
         parsed = urlparse(url)
 
         _url = url
-        if not (
-            parsed.netloc and parsed.scheme
-        ):
+        if not (parsed.netloc and parsed.scheme):
             _url = urljoin(self._master_address, parsed.path)
 
         return _url
