@@ -481,7 +481,7 @@ We recommend going through our [contribution guide](https://github.com/granulate
 * [phpspy](https://github.com/adsr/phpspy) by [Adam Saponara](https://github.com/adsr). See [our fork](https://github.com/Granulate/phpspy).
 * [rbspy](https://github.com/rbspy/rbspy) by the rbspy project. See [our fork](https://github.com/Granulate/rbspy).
 * [dotnet-trace](https://github.com/dotnet/diagnostics/tree/main/src/Tools/dotnet-trace)
-* [Datadog Agent Integrations](https://github.com/DataDog/integrations-core)
+* [Datadog Agent Integrations](https://github.com/DataDog/integrations-core) for the Spark, YARN metrics
 
 # Footnotes
 
