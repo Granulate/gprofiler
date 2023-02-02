@@ -722,38 +722,42 @@ def test_java_frames_include_no_semicolons(
 
 # test that async profiler doesn't print anything to applications stdout, stderr streams
 @pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("flush_ap_output", [False, True])
 def test_no_stray_output_in_stdout_stderr(
     tmp_path: Path,
     application_pid: int,
     application_docker_container: Container,
     monkeypatch: MonkeyPatch,
+    assert_collapsed: AssertInCollapsed,
+    flush_ap_output: bool,
 ) -> None:
     # save original stop function
     stop_async_profiler = AsyncProfiledProcess.stop_async_profiler
 
-    # replace async profiler stop routine to trigger flushing standard streams
-    def flush_output_and_stop_async_profiler(self: AsyncProfiledProcess, *args, **kwargs) -> str:
-        # Call 'version' and 'check' actions on async-profiler to make sure writes to stdout, stderr are flushed
+    # replace async profiler stop routine to trigger flushing standard output
+    def flush_output_and_stop_async_profiler(self: AsyncProfiledProcess, *args: Any, **kwargs: Any) -> str:
+        # Call 'version' action on async-profiler to make sure writes to stdout are flushed
         self._run_async_profiler(
             self._get_base_cmd() + [f"version" f",log={self._log_path_process}"],
-        )
-        self._run_async_profiler(
-            self._get_base_cmd() + [f"check" f",log={self._log_path_process}"],
         )
         result = stop_async_profiler(self, *args, **kwargs)
         return result
 
-    monkeypatch.setattr(AsyncProfiledProcess, "stop_async_profiler", flush_output_and_stop_async_profiler)
+    if flush_ap_output:
+        monkeypatch.setattr(AsyncProfiledProcess, "stop_async_profiler", flush_output_and_stop_async_profiler)
 
     with make_java_profiler(
         storage_dir=str(tmp_path),
         duration=3,
         frequency=999,
     ) as profiler:
-        snapshot_pid_profile(profiler, application_pid)
-        textout = application_docker_container.logs(stdout=True, stderr=False).decode()
-        texterr = application_docker_container.logs(stdout=False, stderr=True).decode()
-        # output from Fibonacci should be the only output in stdout
-        assert textout.splitlines() == ["Fibonacci thread starting"]
-        # output from Fibonacci should be the only expected output in stderr
-        assert texterr.splitlines() == ["Fibonacci loop starting"]
+        collapsed = snapshot_pid_collapsed(profiler, application_pid)
+        assert_collapsed(collapsed)
+        application_docker_container.stop(timeout=3)
+        application_docker_container.wait(timeout=3)
+    textout = application_docker_container.logs(stdout=True, stderr=False).decode()
+    texterr = application_docker_container.logs(stdout=False, stderr=True).decode()
+    # output from Fibonacci should be the only output in stdout
+    assert textout.strip() == "Fibonacci thread starting"
+    # output from Fibonacci should be the only expected output in stderr
+    assert texterr.strip() == "Fibonacci loop starting"
