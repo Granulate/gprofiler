@@ -336,10 +336,6 @@ class ApplicationIdentifiers:
             cls.identifiers_map["java_spark"] = cls.identifiers_map["java"] + [_JavaSparkApplicationIdentifier()]
 
 
-def set_enrichment_options(enrichment_options: EnrichmentOptions) -> None:
-    _ApplicationIdentifier.enrichment_options = enrichment_options
-
-
 @functools.lru_cache(4096)  # NOTE: arbitrary cache size
 def get_app_id(process: Process, runtime: str, aggregate_all: bool = False) -> Optional[str]:
     """
