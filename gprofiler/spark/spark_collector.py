@@ -228,7 +228,6 @@ class SparkCollector:
         """
         Get metrics for each Spark stage.
         """
-        # TODO: This method is currently not used. If you plan on using it, please make sure to tale a look at PR #8961.
         for app_id, (app_name, tracking_url) in running_apps.items():
             try:
                 base_url = self._get_request_url(tracking_url)
@@ -615,7 +614,7 @@ class SparkCollector:
 
         try:
             self._logger.debug(f"Spark check URL: {url}")
-            response = requests.get(url, timeout=3)  # TODO: cookies=self.proxy_redirect_cookies)
+            response = requests.get(url, timeout=3)
             response.raise_for_status()
 
             return response
@@ -647,7 +646,7 @@ class SparkCollector:
         _url = url
         if not (
             parsed.netloc and parsed.scheme
-        ):  # TODO: understand if needed and is_affirmative(self.instance.get('spark_proxy_enabled', False)):
+        ):
             _url = urljoin(self._master_address, parsed.path)
 
         return _url
@@ -725,7 +724,6 @@ class SparkSampler(object):
     def _get_yarn_config_property(
         self, process: psutil.Process, requested_property: str, default: Any = None
     ) -> Optional[str]:
-        # TODO: when it will be needed this should be run inside the process container context.
         config = self._get_yarn_config(process)
         if config is not None:
             for config_property in config.iter("property"):
@@ -737,7 +735,6 @@ class SparkSampler(object):
         return default
 
     def _guess_driver_application_master_address(self, process: psutil.Process) -> str:
-        # TODO: handle this situation, when we'll have clients with this mode
         if self._master_address is not None:
             return self._master_address
         else:
