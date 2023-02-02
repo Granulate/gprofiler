@@ -589,12 +589,12 @@ def parse_cmd_args() -> configargparse.Namespace:
         connectivity.add_argument(
             "--server-host",
             default=DEFAULT_PROFILER_SERVER_ADDRESS,
-            help="URL for uploading profiles (default: %(default)s)",
+            help="Server address for uploading profiles (default: %(default)s)",
         )
         connectivity.add_argument(
             "--api-server",
             default=DEFAULT_API_SERVER_ADDRESS,
-            help="URL for reporting logs and metrics (default: %(default)s)",
+            help="Server address for reporting logs and metrics (default: %(default)s)",
         )
         connectivity.add_argument(
             "--server-upload-timeout",
