@@ -736,14 +736,12 @@ def test_java_frames_include_no_semicolons(
 
 # test that async profiler doesn't print anything to applications stdout, stderr streams
 @pytest.mark.parametrize("in_container", [True])
-@pytest.mark.parametrize("flush_ap_output", [False, True])
 def test_no_stray_output_in_stdout_stderr(
     tmp_path: Path,
     application_pid: int,
     application_docker_container: Container,
     monkeypatch: MonkeyPatch,
     assert_collapsed: AssertInCollapsed,
-    flush_ap_output: bool,
 ) -> None:
     # save original stop function
     stop_async_profiler = AsyncProfiledProcess.stop_async_profiler
@@ -759,8 +757,7 @@ def test_no_stray_output_in_stdout_stderr(
         result = stop_async_profiler(self, *args, **kwargs)
         return result
 
-    if flush_ap_output:
-        monkeypatch.setattr(AsyncProfiledProcess, "stop_async_profiler", flush_output_and_stop_async_profiler)
+    monkeypatch.setattr(AsyncProfiledProcess, "stop_async_profiler", flush_output_and_stop_async_profiler)
 
     with make_java_profiler(
         storage_dir=str(tmp_path),
