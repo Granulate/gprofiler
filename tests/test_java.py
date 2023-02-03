@@ -736,7 +736,9 @@ def test_no_stray_output_in_stdout_stderr(
 
     # replace async profiler stop routine to trigger flushing standard output
     def flush_output_and_stop_async_profiler(self: AsyncProfiledProcess, *args: Any, **kwargs: Any) -> str:
-        # Call 'version' action on async-profiler to make sure writes to stdout are flushed
+        # Call 'version' action on async-profiler to make sure writes to stdout are flushed. Handling of 'version'
+        # action involves calling flush on output stream:
+        # (https://github.com/Granulate/async-profiler/blob/58c62fe4e816b60907ca84e315936834fc1cbae4/src/profiler.cpp#L1548)
         self._run_async_profiler(
             self._get_base_cmd() + [f"version" f",log={self._log_path_process}"],
         )
@@ -753,8 +755,8 @@ def test_no_stray_output_in_stdout_stderr(
     ) as profiler:
         collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(collapsed)
-        application_docker_container.stop(timeout=3)
-        application_docker_container.wait(timeout=3)
+    application_docker_container.stop(timeout=3)
+    application_docker_container.wait(timeout=3)
     textout = application_docker_container.logs(stdout=True, stderr=False).decode()
     texterr = application_docker_container.logs(stdout=False, stderr=True).decode()
     # output from Fibonacci should be the only output in stdout
