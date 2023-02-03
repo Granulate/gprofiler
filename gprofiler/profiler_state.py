@@ -22,6 +22,5 @@ class ProfilerState:
         if type(storage_dir) == TemporaryDirectoryWithMode:
             self._temporary_dir = storage_dir
             self.storage_dir = storage_dir.name
-            print(type(self.storage_dir))
         else:
             self.storage_dir = storage_dir
