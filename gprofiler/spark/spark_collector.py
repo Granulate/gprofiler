@@ -68,6 +68,8 @@ STRUCTURED_STREAMS_METRICS_REGEX = re.compile(
     r"^[\w-]+\.driver\.spark\.streaming\.(?P<query_name>[\w-]+)\.(?P<metric_name>[\w-]+)$"
 )
 
+logger = get_logger_adapter(__name__)
+
 
 class SparkCollector:
     def __init__(
@@ -720,7 +722,7 @@ class SparkSampler(object):
             return None
 
     def _get_yarn_config_property(
-        self, process: psutil.Process, requested_property: str, default: Any = None
+        self, process: psutil.Process, requested_property: str, default: Optional[str] = None
     ) -> Optional[str]:
         config = self._get_yarn_config(process)
         if config is not None:
@@ -733,6 +735,10 @@ class SparkSampler(object):
         return default
 
     def _guess_driver_application_master_address(self, process: psutil.Process) -> str:
+        """
+        Selects the master address for a org.apache.spark.deploy.master.Master running on this node.
+        Uses master_address if given, or defaults to my hostname.
+        """
         if self._master_address is not None:
             return self._master_address
         else:
@@ -761,6 +767,10 @@ class SparkSampler(object):
             return host_name + ":8088"
 
     def _guess_mesos_master_webapp_address(self, process: psutil.Process) -> str:
+        """
+        Selects the master address for a mesos-master running on this node. Uses master_address if given, or defaults
+        to my hostname.
+        """
         if self._master_address:
             return self._master_address
         else:
@@ -768,8 +778,19 @@ class SparkSampler(object):
             return host_name + ":5050"
 
     def _get_yarn_host_name(self, resource_manager_process: psutil.Process) -> str:
-        host_name = self._get_yarn_config_property(resource_manager_process, "yarn.resourcemanager.hostname")
-        return host_name if host_name is not None else get_hostname()
+        """
+        Selects the master adderss for a ResourceManager running on this node - this parses the YARN config to get the hostname,
+        and if not found, defaults to my hostname.
+        """
+        hostname = self._get_yarn_config_property(resource_manager_process, "yarn.resourcemanager.hostname")
+        if hostname is not None:
+            logger.debug(
+                "Selected hostname from yarn.resourcemanager.hostname config", resourcemanager_hostname=hostname
+            )
+        else:
+            hostname = get_hostname()
+            logger.debug("Selected hostname from my hostname", resourcemanager_hostname=hostname)
+        return hostname
 
     def _is_yarn_master_collector(self, resource_manager_process: psutil.Process) -> bool:
         """
