@@ -787,24 +787,22 @@ class SparkSampler(object):
 
         if rm1_address is None:
             self._logger.info(
-                "yarn.resourcemanager.address.rm1 is not defined in config, so it's a single master deployment,\
-                     enabling spark collector..."
+                "yarn.resourcemanager.address.rm1 is not defined in config, so it's a single master deployment,"
+                " enabling Spark collector"
             )
             return True
-
-        is_collection_master = rm1_address.startswith(host_name)
-        if is_collection_master:
+        elif rm1_address.startswith(host_name):
             self._logger.info(
-                f"this is the collector master, because rm1: {rm1_address} \
-                    starts with the host name: {host_name}, enabling spark collector..."
+                f"This is the collector master, because rm1: {rm1_address!r}"
+                f" starts with the host name: {host_name!r}, enabling Spark collector"
             )
+            return True
         else:
             self._logger.info(
-                f"this is not the collector master, because rm1: {rm1_address}\
-                     does not starts with the host name: {host_name}, skipping spark\
-                         collection on this yarn master..."
+                f"This is not the collector master, because rm1: {rm1_address!r}"
+                f" does not start with the host name: {host_name!r}, skipping Spark collector on this YARN master"
             )
-        return is_collection_master
+            return False
 
     def _get_spark_manager_process(self) -> Optional[psutil.Process]:
         try:
