@@ -10,6 +10,7 @@ public class Fibonacci {
     }
 
     public static void main(final String[] args) {
+        System.out.println("Fibonacci thread starting");
         Thread thread = new Thread() {
             public void run() {
                 while (true) {
@@ -21,7 +22,7 @@ public class Fibonacci {
             }
         };
         thread.start();
-
+        System.err.println("Fibonacci loop starting");
         while (true) {
             fibonacci(30);
         }

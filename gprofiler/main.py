@@ -310,7 +310,6 @@ class GProfiler:
         except Exception:
             logger.critical(
                 "Running perf failed; consider running gProfiler with '--perf-mode disabled' to avoid using perf",
-                exc_info=True,
             )
             raise
         metadata = (
