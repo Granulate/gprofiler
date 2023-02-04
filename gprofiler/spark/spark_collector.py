@@ -753,6 +753,7 @@ class SparkSampler(object):
                     value_property = config_property.find("value")
                     if value_property is not None and value_property.text is not None:
                         return value_property.text
+
         if self._master_address is not None:
             return self._master_address
         else:
@@ -839,10 +840,10 @@ class SparkSampler(object):
             webapp_url = self._guess_mesos_master_webapp_address(spark_master_process)
 
         if spark_master_process is None or webapp_url is None or spark_cluster_mode == "unknown":
-            self._logger.warning("Could not get proper spark cluster configuration")
+            self._logger.warning("Could not get proper Spark cluster configuration")
             return None
 
-        self._logger.info("Guessed settings are", extra={"cluster_mode": spark_cluster_mode, "webbapp_url": webapp_url})
+        self._logger.info("Guessed settings are", cluster_mode=spark_cluster_mode, webapp_url=webapp_url)
 
         return webapp_url, spark_cluster_mode
 
