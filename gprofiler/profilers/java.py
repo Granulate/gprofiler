@@ -348,7 +348,7 @@ class JavaMetadata(ApplicationMetadata):
         try:
             output = self.jattach_jcmd_runner.run(process, "VM.flags -all")
         except CalledProcessError as e:
-            logging.warning("Couldn't get jvm flags for process %d: %s", process.pid, e.stderr)
+            logger.warning("Couldn't get jvm flags for process", pid=process.pid, stderr=e.stderr)
             return None
 
         return parse_jvm_flags(output)
@@ -755,9 +755,9 @@ class AsyncProfiledProcess:
             dest="java_jvm_flags_to_retrieve",
             type=str,
             nargs="?",
-            default=JavaFlagRetrievalOptions.DEFAULT,
-            help="Comma-separated list of JVM flags to retrieve from the JVM process, or 'all' to retrieve all flags, "
-            "default is to retrieve only non-default jvm flags.",
+            default=JavaFlagRetrievalOptions.DEFAULT.value,
+            help="Comma-separated list of JVM flags to retrieve from the JVM process, 'all' to retrieve all flags, "
+            "or 'default' to retrieve only non-default jvm flags. Defaults to '%(default)s'",
         ),
     ],
     supported_profiling_modes=["cpu", "allocation"],
