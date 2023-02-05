@@ -107,19 +107,19 @@ class ProfilerAPIClient(BaseAPIClient):
 
     def __init__(
         self,
-        host: str,
-        key: str,
-        service: str,
+        token: str,
+        service_name: str,
+        server_address: str,
         curlify_requests: bool,
         hostname: str,
         upload_timeout: int,
         version: str = "v1",
     ):
-        self._host = host.rstrip("/")
+        self._server_address = server_address.rstrip("/")
         self._upload_timeout = upload_timeout
         self._version: str = version
-        self._key = key
-        self._service = service
+        self._key = token
+        self._service = service_name
         self._hostname = hostname
         super().__init__(curlify_requests)
 
@@ -133,7 +133,7 @@ class ProfilerAPIClient(BaseAPIClient):
 
     def get_base_url(self, api_version: str = None) -> str:
         version = api_version if api_version is not None else self._version
-        return "{}/{}/{}".format(self._host.rstrip("/"), self.BASE_PATH, version)
+        return "{}/{}/{}".format(self._server_address.rstrip("/"), self.BASE_PATH, version)
 
     def _get_query_params(self) -> List[Tuple[str, str]]:
         return [
@@ -206,13 +206,13 @@ class ProfilerAPIClient(BaseAPIClient):
 class APIClient(BaseAPIClient):
     def __init__(
         self,
-        key: str,
+        token: str,
         service_name: str,
         server_address: str = DEFAULT_API_SERVER_ADDRESS,
         curlify_requests: bool = False,
         timeout: int = DEFAULT_UPLOAD_TIMEOUT,
     ):
-        self._key = key
+        self._token = token
         self._service_name = service_name
         self._server_address = server_address
         self._timeout = timeout
@@ -222,7 +222,7 @@ class APIClient(BaseAPIClient):
         self._session = requests.Session()
         self._session.headers.update(
             {
-                "Authorization": f"Bearer {self._key}",
+                "Authorization": f"Bearer {self._token}",
                 "X-Gprofiler-Service": self._service_name,
             }
         )

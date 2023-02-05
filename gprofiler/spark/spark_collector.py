@@ -9,10 +9,9 @@ import json
 import os
 import re
 import time
-import traceback
 import xml.etree.ElementTree as ET
 from datetime import datetime
-from threading import Event, Lock, Thread
+from threading import Event, Thread
 from typing import Any, Dict, Generator, List, Optional, Tuple, Union, cast
 from urllib.parse import urljoin, urlparse
 
@@ -40,8 +39,6 @@ from gprofiler.spark.metrics import (
 )
 from gprofiler.utils import get_iso8601_format_time
 from gprofiler.utils.process import search_for_process
-
-GMT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fGMT"
 
 # Application type and states to collect
 YARN_SPARK_APPLICATION_SPECIFIER = "SPARK"
@@ -74,14 +71,13 @@ class SparkCollector:
         self,
         cluster_mode: str,
         master_address: str,
+        *,
         cluster_metrics: bool = True,
         applications_metrics: bool = True,
         streaming_metrics: bool = True,
     ) -> None:
-        self._lock = Lock()
         self._logger = get_logger_adapter(__name__)
-
-        self._last_sample_time = int(time.monotonic() * 1000)
+        self._last_sample_time_ms = 0
         self._cluster_mode = cluster_mode
         self._master_address = f"http://{master_address}"
         self._cluster_metrics = cluster_metrics
@@ -91,21 +87,6 @@ class SparkCollector:
         self._last_iteration_app_job_metrics: Dict[str, Dict[str, Any]] = {}
 
     def collect(self) -> Generator[Dict[str, Any], None, None]:
-        if not self._lock.acquire(False):
-            self._logger.warning(
-                "Could not acquire collector's mutex, increasing scrape interval should solve this",
-                extra={"collector": self.__class__.__name__},
-            )
-            return
-        try:
-            for data in self._collect():
-                yield data
-        except Exception:
-            self._logger.exception(f"Error while trying to collect f{self.__class__.__name__}")
-        finally:
-            self._lock.release()
-
-    def _collect(self) -> Generator[Dict[str, Any], None, None]:
         try:
             collected_metrics: Dict[str, Dict[str, Any]] = {}
 
@@ -133,15 +114,11 @@ class SparkCollector:
                 yield metric
 
             self._logger.debug("Succeeded gathering spark metrics")
-
         except Exception:
-            self._logger.warning("Error while trying collect spark metrics")
-            self._logger.debug(
-                traceback.format_exc()
-            )  # spark collector exceptions tend to be very verbose, so print only in debug
-
+            # spark collector exceptions tend to be very verbose, so print only in debug
+            self._logger.exception("Error while trying collect spark metrics")
         finally:
-            self._last_sample_time = int(time.time() * 1000)  # need to be in ms
+            self._last_sample_time_ms = int(time.monotonic() * 1000)  # need to be in ms
 
     def _yarn_cluster_metrics(self, collected_metrics: Dict[str, Dict[str, Any]]) -> None:
         try:
@@ -149,10 +126,8 @@ class SparkCollector:
 
             if metrics_json.get("clusterMetrics") is not None:
                 self._set_metrics_from_json(collected_metrics, [], metrics_json["clusterMetrics"], YARN_CLUSTER_METRICS)
-
-        except Exception as e:
-            self._logger.warning("Could not gather yarn cluster metrics.")
-            self._logger.debug(e)
+        except Exception:
+            self._logger.exception("Could not gather yarn cluster metrics")
 
     def _yarn_nodes_metrics(self, collected_metrics: Dict[str, Dict[str, Any]]) -> None:
         nodes_state = {"states": "RUNNING"}
@@ -170,9 +145,8 @@ class SparkCollector:
 
                     self._set_metrics_from_json(collected_metrics, tags, node, YARN_NODES_METRICS)
 
-        except Exception as e:
-            self._logger.warning("Could not gather yarn nodes metrics.")
-            self._logger.debug(e)
+        except Exception:
+            self._logger.exception("Could not gather yarn nodes metrics")
 
     def _spark_application_metrics(
         self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
@@ -219,7 +193,7 @@ class SparkCollector:
                 )
 
             except Exception:
-                self._logger.exception("Could not gather spark jobs metrics.")
+                self._logger.exception("Could not gather spark jobs metrics")
         self._last_iteration_app_job_metrics = iteration_metrics
 
     def _spark_stage_metrics(
@@ -869,7 +843,7 @@ class SparkSampler(object):
         ), "A valid API client or storage directory is required"
         while not self._stop_event.is_set():
             metrics = list(self._spark_sampler.collect())
-            results = {METRIC_TIMESTAMP_KEY: self._spark_sampler._last_sample_time, METRICS_DATA_KEY: metrics}
+            results = {METRIC_TIMESTAMP_KEY: self._spark_sampler._last_sample_time_ms, METRICS_DATA_KEY: metrics}
             if self._storage_dir is not None:
                 now = get_iso8601_format_time(datetime.now()).replace(":", "-" if is_windows() else ":")
                 base_filename = os.path.join(self._storage_dir, (METRICS_FILE_PREFIX + now))

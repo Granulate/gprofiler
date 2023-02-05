@@ -529,7 +529,7 @@ def parse_cmd_args() -> configargparse.Namespace:
     spark_options.add_argument(
         "--spark-sample-period",
         type=int,
-        default=60,
+        default=120,
         help="Time in seconds between each metric collection",
     )
 
@@ -951,9 +951,9 @@ def main() -> None:
                 client_kwargs["upload_timeout"] = args.server_upload_timeout
             profiler_api_client = (
                 ProfilerAPIClient(
-                    args.server_host,
                     args.server_token,
                     args.service_name,
+                    args.server_host,
                     args.curlify_requests,
                     get_hostname(),
                     **client_kwargs,
@@ -974,21 +974,20 @@ def main() -> None:
             )
             sys.exit(1)
 
-        client_kwargs = {}
-        if args.upload_results:
-            if "server_upload_timeout" in args:
-                client_kwargs["timeout"] = args.server_upload_timeout
-            api_client = APIClient(
-                args.server_token,
-                args.service_name,
-                args.api_server,
-                args.curlify_requests,
-                **client_kwargs,
-            )
-        else:
-            api_client = None
-
         if args.collect_spark_metrics:
+            if args.upload_results:
+                client_kwargs = {}
+                if "server_upload_timeout" in args:
+                    client_kwargs["timeout"] = args.server_upload_timeout
+                api_client = APIClient(
+                    args.server_token,
+                    args.service_name,
+                    args.api_server,
+                    args.curlify_requests,
+                    **client_kwargs,
+                )
+            else:
+                api_client = None
             spark_sampler = SparkSampler(args.spark_sample_period, args.output_dir, api_client)
         else:
             spark_sampler = None
