@@ -78,7 +78,6 @@ class SparkCollector:
         applications_metrics: bool = True,
         streaming_metrics: bool = True,
     ) -> None:
-        self._logger = get_logger_adapter(__name__)
         self._last_sample_time_ms = 0
         self._cluster_mode = cluster_mode
         self._master_address = f"http://{master_address}"
@@ -117,8 +116,7 @@ class SparkCollector:
 
             logger.debug("Succeeded gathering spark metrics")
         except Exception:
-            # spark collector exceptions tend to be very verbose, so print only in debug
-            self._logger.exception("Error while trying collect spark metrics")
+            logger.exception("Error while trying collect spark metrics")
         finally:
             self._last_sample_time_ms = int(time.monotonic() * 1000)  # need to be in ms
 
@@ -129,7 +127,7 @@ class SparkCollector:
             if metrics_json.get("clusterMetrics") is not None:
                 self._set_metrics_from_json(collected_metrics, [], metrics_json["clusterMetrics"], YARN_CLUSTER_METRICS)
         except Exception:
-            self._logger.exception("Could not gather yarn cluster metrics")
+            logger.exception("Could not gather yarn cluster metrics")
 
     def _yarn_nodes_metrics(self, collected_metrics: Dict[str, Dict[str, Any]]) -> None:
         nodes_state = {"states": "RUNNING"}
@@ -148,7 +146,7 @@ class SparkCollector:
                     self._set_metrics_from_json(collected_metrics, tags, node, YARN_NODES_METRICS)
 
         except Exception:
-            self._logger.exception("Could not gather yarn nodes metrics")
+            logger.exception("Could not gather yarn nodes metrics")
 
     def _spark_application_metrics(
         self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
@@ -243,10 +241,9 @@ class SparkCollector:
                                     collected_metrics, tags, tasks_summary_response, SPARK_TASK_SUMMARY_METRICS
                                 )
                             except Exception:
-                                logger.debug("Could not gather spark tasks summary for stage. SKIPPING")
-            except Exception as e:
-                logger.warning("Could not gather spark stages metrics.")
-                logger.debug(e)  # spark collector exceptions tend to be very verbose, so print only in debug
+                                logger.exception("Could not gather spark tasks summary for stage. Skipped.")
+            except Exception:
+                logger.exception("Could not gather spark stages metrics")
 
     def _spark_executor_metrics(
         self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
@@ -270,8 +267,8 @@ class SparkCollector:
                     ACTIVE_EXECUTORS_COUNT,
                 )
 
-            except Exception as ex:
-                logger.debug("Could not gather spark executors metrics.", exc_info=ex)
+            except Exception:
+                logger.exception("Could not gather spark executors metrics")
 
     def _spark_rdd_metrics(
         self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
@@ -289,9 +286,8 @@ class SparkCollector:
 
                 for rdd in response:
                     self._set_metrics_from_json(collected_metrics, tags, rdd, SPARK_RDD_METRICS)
-            except Exception as e:
-                logger.warning("Could not gather spark rdd metrics.")
-                logger.debug(e)
+            except Exception:
+                logger.exception("Could not gather Spark RDD metrics")
 
     def _spark_streaming_statistics_metrics(
         self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
@@ -308,9 +304,8 @@ class SparkCollector:
 
                 # NOTE: response is a dict
                 self._set_metrics_from_json(collected_metrics, tags, response, SPARK_STREAMING_STATISTICS_METRICS)
-            except Exception as e:
-                logger.warning("Could not gather spark streaming metrics.")
-                logger.debug(e)
+            except Exception:
+                logger.exception("Could not gather Spark streaming metrics")
 
     @staticmethod
     def _get_last_batches_metrics(
@@ -359,8 +354,8 @@ class SparkCollector:
                     batch_metrics.update(self._get_last_batches_metrics(batches, completed_batches, 25))
                     self._set_metrics_from_json(collected_metrics, tags, batch_metrics, SPARK_STREAMING_BATCHES_METRICS)
 
-            except Exception as ex:
-                logger.debug("Could not gather spark batch metrics for app", exc_info=ex)
+            except Exception:
+                logger.exception("Could not gather Spark batch metrics for application")
 
     def _spark_structured_streams_metrics(
         self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
@@ -397,9 +392,8 @@ class SparkCollector:
                     self._set_individual_metric(
                         collected_metrics, tags, value, SPARK_STRUCTURED_STREAMING_METRICS[metric_name]
                     )
-            except Exception as e:
-                logger.warning("Could not gather structured streaming metrics.")
-                logger.debug(e)
+            except Exception:
+                logger.exception("Could not gather structured streaming metrics for application")
 
     def _set_task_summary_from_json(
         self,
@@ -542,9 +536,8 @@ class SparkCollector:
 
                     if app_id and app_name:
                         spark_apps[app_id] = (app_name, tracking_url)
-            except Exception as e:
-                logger.warning("Could not fetch data from url.", extra={"url": tracking_url})
-                logger.debug(e)
+            except Exception:
+                logger.exception("Could not fetch data from url", url=tracking_url)
 
         return spark_apps
 
@@ -660,7 +653,7 @@ class SparkSampler(object):
         if self._storage_dir is not None:
             assert os.path.exists(self._storage_dir) and os.path.isdir(self._storage_dir)
         else:
-            logger.debug("output directory is None. Will add metrics to queue")
+            logger.debug("Output directory is None. Will add metrics to queue")
         self._client = api_client
 
     def _get_yarn_config_path(self, process: psutil.Process) -> str:
