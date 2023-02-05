@@ -125,19 +125,16 @@ class SparkCollector:
             logger.exception("Could not gather yarn cluster metrics")
 
     def _yarn_nodes_metrics(self, collected_metrics: Dict[str, Dict[str, Any]]) -> None:
-        nodes_state = {"states": "RUNNING"}
         try:
-            metrics_json = self._rest_request_to_json(self._master_address, YARN_NODES_PATH, **nodes_state)
+            metrics_json = self._rest_request_to_json(self._master_address, YARN_NODES_PATH, states="RUNNING")
 
             running_nodes = metrics_json.get("nodes", {}).get("node", {})
+            for node in running_nodes:
+                for metric, value in node.get("resourceUtilization", {}).items():
+                    node[metric] = value  # this will create all relevant metrics under same dictionary
 
-            if running_nodes:
-                for node in running_nodes:
-                    for metric, value in node.get("resourceUtilization", {}).items():
-                        node[metric] = value  # this will create all relevant metrics under same dictionary
-
-                    labels = {"node_hostname": node["nodeHostName"]}
-                    self._set_metrics_from_json(collected_metrics, labels, node, YARN_NODES_METRICS)
+                labels = {"node_hostname": node["nodeHostName"]}
+                self._set_metrics_from_json(collected_metrics, labels, node, YARN_NODES_METRICS)
 
         except Exception:
             logger.exception("Could not gather yarn nodes metrics")
