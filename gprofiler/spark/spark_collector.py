@@ -87,10 +87,10 @@ class SparkCollector:
             collected_metrics: Dict[str, Dict[str, Any]] = {}
 
             if self._cluster_metrics:
-                if self._cluster_mode == "yarn":
+                if self._cluster_mode == SPARK_YARN_MODE:
                     self._yarn_cluster_metrics(collected_metrics)
                     self._yarn_nodes_metrics(collected_metrics)
-                elif self._cluster_mode == "driver":
+                elif self._cluster_mode == SPARK_DRIVER_MODE:
                     pass
 
             if self._applications_metrics:
@@ -788,12 +788,12 @@ class SparkSampler(object):
         master_address, cluster_mode = spark_cluster_conf
         self._spark_sampler = SparkCollector(cluster_mode, master_address)
         self._stop_event.clear()
-        self._collection_thread = Thread(target=self._start_collection)
+        self._collection_thread = Thread(target=self._collect_loop)
         self._collection_thread.start()
         self._is_running = True
         return True
 
-    def _start_collection(self) -> None:
+    def _collect_loop(self) -> None:
         assert self._spark_sampler is not None, "No valid SparkSampler was created. Unable to start collection."
         assert (self._client is not None) or (
             self._storage_dir is not None
