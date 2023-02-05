@@ -41,7 +41,6 @@ from tests.utils import (
     _application_docker_container,
     assert_function_in_collapsed,
     assert_jvm_flags_equal,
-    find_application_pid,
     is_function_in_collapsed,
     is_pattern_in_collapsed,
     make_java_profiler,
@@ -946,14 +945,9 @@ def test_no_stray_output_in_stdout_stderr(
 def test_get_default_jvm_flags(
     tmp_path: Path,
     application_pid: int,
-    assert_collapsed: AssertInCollapsed,
     expected_flags: List[Dict[str, Union[str, List[str]]]],
 ) -> None:
-    with make_java_profiler(
-        frequency=99,
-        storage_dir=str(tmp_path),
-        java_async_profiler_mode="cpu",
-    ) as profiler:
+    with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
         assert_jvm_flags_equal(
             profiler._metadata.get_jvm_flags_serialized(psutil.Process(application_pid)), expected_flags
         )
@@ -1043,16 +1037,14 @@ def test_get_cmdline_and_env_jvm_flags(
     application_image_tag: str,
 ) -> None:
     """
-    Tests that we can profile a Java app that runs with non-java "comm", by reading the argv0 instead.
+    1. Tests collections jvm flags from env & commandline origins and reporting the correct origin
+    2. Tests collecting only specific flags
     """
     with make_java_profiler(
-        frequency=99,
-        storage_dir=str(tmp_path),
-        java_async_profiler_mode="cpu",
-        java_jvm_flags_to_retrieve="SelfDestructTimer,PrintCodeCache",
+        storage_dir=str(tmp_path), java_jvm_flags_to_collect="SelfDestructTimer,PrintCodeCache"
     ) as profiler:
         # When running a container manually we can't use application_pid fixture as it will come from the fixture
-        # container and not from the manully started one
+        # container and not from the manually started one
         with _application_docker_container(
             docker_client,
             application_docker_image,
@@ -1061,10 +1053,8 @@ def test_get_cmdline_and_env_jvm_flags(
             application_docker_command=[
                 "bash",
                 "-c",
-                f"export JAVA_TOOL_OPTIONS={java_env_flags}" ";" f"java {java_cli_flags} -jar Fibonacci.jar",
+                f"export JAVA_TOOL_OPTIONS={java_env_flags}; exec java {java_cli_flags} -jar Fibonacci.jar",
             ],
         ) as container:
-            actual_flags = profiler._metadata.get_jvm_flags_serialized(
-                psutil.Process(find_application_pid(container.attrs["State"]["Pid"]))
-            )
+            actual_flags = profiler._metadata.get_jvm_flags_serialized(psutil.Process(container.attrs["State"]["Pid"]))
             assert_jvm_flags_equal(actual_jvm_flags=actual_flags, expected_jvm_flags=expected_flags)

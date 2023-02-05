@@ -43,7 +43,7 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
             if java_command:
                 return f"java: {java_command}{' (' + ' '.join(java_args) + ')' if java_args else ''}"
         except CalledProcessError as e:
-            _logger.warning("Couldn't get Java properties for process %d: %s", process.pid, e.stderr)
+            _logger.warning("Couldn't get Java properties for process", pid=process.pid, stderr=e.stderr)
 
         return None
 

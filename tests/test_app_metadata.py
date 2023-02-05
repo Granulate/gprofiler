@@ -198,7 +198,7 @@ def test_app_metadata(
     idx = int(stack.split(";")[0])
 
     if runtime == "java":
-        # dont check the jvm flags, they have different values on different machines
+        # don't check JVM flags in direct comparison, as they might change a bit across machines due to ergonomics
         actual_jvm_flags = metadata["application_metadata"][idx].pop("jvm_flags")
         expected_jvm_flags = expected_metadata.pop("jvm_flags")
         assert_jvm_flags_equal(actual_jvm_flags=actual_jvm_flags, expected_jvm_flags=expected_jvm_flags)

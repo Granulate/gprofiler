@@ -24,7 +24,7 @@ from gprofiler.profilers.java import (
     JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
     JAVA_SAFEMODE_ALL,
     AsyncProfiledProcess,
-    JavaFlagRetrievalOptions,
+    JavaFlagCollectionOptions,
     JavaProfiler,
 )
 from gprofiler.profilers.profiler_base import ProfilerInterface
@@ -206,7 +206,7 @@ def make_java_profiler(
     java_collect_spark_app_name_as_appid: bool = False,
     java_mode: str = "ap",
     profiling_mode: str = CPU_PROFILING_MODE,
-    java_jvm_flags_to_retrieve: str = JavaFlagRetrievalOptions.DEFAULT,
+    java_jvm_flags_to_collect: str = JavaFlagCollectionOptions.DEFAULT,
 ) -> JavaProfiler:
     assert storage_dir is not None
     return JavaProfiler(
@@ -227,7 +227,7 @@ def make_java_profiler(
         java_mode=java_mode,
         profiling_mode=profiling_mode,
         java_async_profiler_report_meminfo=java_async_profiler_report_meminfo,
-        java_jvm_flags_to_retrieve=java_jvm_flags_to_retrieve,
+        java_jvm_flags_to_collect=java_jvm_flags_to_collect,
     )
 
 
@@ -371,7 +371,11 @@ def find_application_pid(pid: int) -> int:
 
 
 def assert_jvm_flags_equal(actual_jvm_flags: Optional[List], expected_jvm_flags: List) -> None:
-    assert actual_jvm_flags is not None, "actual_jvm_flags is None"
+    """
+    When comparing JVM flags, we want to ignore the "value" field
+    as it might change in the CI due to ergonomic set flags
+    """
+    assert actual_jvm_flags is not None, f"{actual_jvm_flags} != {expected_jvm_flags}"
 
     assert len(actual_jvm_flags) == len(expected_jvm_flags), f"{actual_jvm_flags} != {expected_jvm_flags}"
 
@@ -379,4 +383,4 @@ def assert_jvm_flags_equal(actual_jvm_flags: Optional[List], expected_jvm_flags:
         actual_flag_dict.pop("value")
         expected_flag_dict.pop("value")
 
-        assert actual_flag_dict == expected_flag_dict, f"{actual_flag_dict} != {expected_flag_dict}"
+        assert actual_flag_dict == expected_flag_dict
