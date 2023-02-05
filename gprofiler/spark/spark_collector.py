@@ -17,17 +17,16 @@ from urllib.parse import urljoin, urlparse
 
 import psutil
 import requests
-from requests.exceptions import ConnectionError, HTTPError, InvalidURL, Timeout
+from granulate_utils.linux.ns import resolve_host_path
 
 from gprofiler.client import APIClient
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_hostname
 from gprofiler.platform import is_windows
 from gprofiler.spark.metrics import (
-    ACTIVE_EXECUTORS_COUNT,
-    EXECUTORS_COUNT,
     SPARK_APPLICATION_DIFF_METRICS,
     SPARK_APPLICATION_GAUGE_METRICS,
+    SPARK_EXECUTORS_METRICS,
     SPARK_RDD_METRICS,
     SPARK_STAGE_METRICS,
     SPARK_STREAMING_BATCHES_METRICS,
@@ -125,7 +124,7 @@ class SparkCollector:
             metrics_json = self._rest_request_to_json(self._master_address, YARN_CLUSTER_PATH)
 
             if metrics_json.get("clusterMetrics") is not None:
-                self._set_metrics_from_json(collected_metrics, [], metrics_json["clusterMetrics"], YARN_CLUSTER_METRICS)
+                self._set_metrics_from_json(collected_metrics, {}, metrics_json["clusterMetrics"], YARN_CLUSTER_METRICS)
         except Exception:
             logger.exception("Could not gather yarn cluster metrics")
 
@@ -141,9 +140,8 @@ class SparkCollector:
                     for metric, value in node.get("resourceUtilization", {}).items():
                         node[metric] = value  # this will create all relevant metrics under same dictionary
 
-                    tags = [f'node_hostname:{node["nodeHostName"]}']
-
-                    self._set_metrics_from_json(collected_metrics, tags, node, YARN_NODES_METRICS)
+                    labels = {"node_hostname": node["nodeHostName"]}
+                    self._set_metrics_from_json(collected_metrics, labels, node, YARN_NODES_METRICS)
 
         except Exception:
             logger.exception("Could not gather yarn nodes metrics")
@@ -184,12 +182,12 @@ class SparkCollector:
                     for metric in SPARK_APPLICATION_GAUGE_METRICS.keys():
                         application_gauge_aggregated_metrics[metric] += int(job[metric])
 
-                tags = [f"app_name:{str(app_name)}", f"app_id:{str(app_id)}"]
+                labels = {"app_name": app_name, "app_id": app_id}
                 self._set_metrics_from_json(
-                    collected_metrics, tags, application_diff_aggregated_metrics, SPARK_APPLICATION_DIFF_METRICS
+                    collected_metrics, labels, application_diff_aggregated_metrics, SPARK_APPLICATION_DIFF_METRICS
                 )
                 self._set_metrics_from_json(
-                    collected_metrics, tags, application_gauge_aggregated_metrics, SPARK_APPLICATION_GAUGE_METRICS
+                    collected_metrics, labels, application_gauge_aggregated_metrics, SPARK_APPLICATION_GAUGE_METRICS
                 )
 
             except Exception:
@@ -210,14 +208,14 @@ class SparkCollector:
                 for stage in response:
                     status = stage.get("status")
                     stage_id = stage.get("stageId")
-                    tags = [
-                        f"app_name:{str(app_name)}",
-                        f"app_id:{str(app_id)}",
-                        f"status:{str(status).lower()}",
-                        f"stage_id:{str(stage_id)}",
-                    ]
+                    labels = {
+                        "app_name": app_name,
+                        "app_id": app_id,
+                        "status": status.lower(),
+                        "stage_id": stage_id,
+                    }
 
-                    self._set_metrics_from_json(collected_metrics, tags, stage, SPARK_STAGE_METRICS)
+                    self._set_metrics_from_json(collected_metrics, labels, stage, SPARK_STAGE_METRICS)
 
                     if self._task_summary_metrics and status == "ACTIVE":
                         stage_response = self._rest_request_to_json(
@@ -238,7 +236,7 @@ class SparkCollector:
                                 )
 
                                 self._set_task_summary_from_json(
-                                    collected_metrics, tags, tasks_summary_response, SPARK_TASK_SUMMARY_METRICS
+                                    collected_metrics, labels, tasks_summary_response, SPARK_TASK_SUMMARY_METRICS
                                 )
                             except Exception:
                                 logger.exception("Could not gather spark tasks summary for stage. Skipped.")
@@ -251,22 +249,20 @@ class SparkCollector:
         """
         Get metrics for each Spark executor.
         """
-
         for app_id, (app_name, tracking_url) in running_apps.items():
             try:
                 base_url = self._get_request_url(tracking_url)
                 executors = self._rest_request_to_json(base_url, SPARK_APPS_PATH, app_id, "executors")
-
-                tags = [f"app_name:{str(app_name)}", f"app_id:{str(app_id)}"]
-
-                self._set_individual_metric(collected_metrics, tags, len(executors), EXECUTORS_COUNT)
-                self._set_individual_metric(
+                labels = {"app_name": app_name, "app_id": app_id}
+                self._set_metrics_from_json(
                     collected_metrics,
-                    tags,
-                    len([executor for executor in executors if executor["activeTasks"] > 0]),
-                    ACTIVE_EXECUTORS_COUNT,
+                    labels,
+                    {
+                        "count": len(executors),
+                        "activeCount": len([executor for executor in executors if executor["activeTasks"] > 0]),
+                    },
+                    SPARK_EXECUTORS_METRICS,
                 )
-
             except Exception:
                 logger.exception("Could not gather spark executors metrics")
 
@@ -282,10 +278,10 @@ class SparkCollector:
                 base_url = self._get_request_url(tracking_url)
                 response = self._rest_request_to_json(base_url, SPARK_APPS_PATH, app_id, "storage/rdd")
 
-                tags = [f"app_name:{str(app_name)}", f"app_id:{str(app_id)}"]
+                labels = {"app_name": app_name, "app_id": app_id}
 
                 for rdd in response:
-                    self._set_metrics_from_json(collected_metrics, tags, rdd, SPARK_RDD_METRICS)
+                    self._set_metrics_from_json(collected_metrics, labels, rdd, SPARK_RDD_METRICS)
             except Exception:
                 logger.exception("Could not gather Spark RDD metrics")
 
@@ -300,10 +296,10 @@ class SparkCollector:
                 base_url = self._get_request_url(tracking_url)
                 response = self._rest_request_to_json(base_url, SPARK_APPS_PATH, app_id, "streaming/statistics")
 
-                tags = [f"app_name:{str(app_name)}", f"app_id:{str(app_id)}"]
+                labels = {"app_name": app_name, "app_id": app_id}
 
                 # NOTE: response is a dict
-                self._set_metrics_from_json(collected_metrics, tags, response, SPARK_STREAMING_STATISTICS_METRICS)
+                self._set_metrics_from_json(collected_metrics, labels, response, SPARK_STREAMING_STATISTICS_METRICS)
             except Exception:
                 logger.exception("Could not gather Spark streaming metrics")
 
@@ -338,11 +334,11 @@ class SparkCollector:
                     )
                 )
                 if batches:
-                    tags = [
-                        f"app_name:{str(app_name)}",
-                        f"app_id:{str(app_id)}",
-                        f'batch_duration:{str(batches[0].get("batchDuration"))}',
-                    ]
+                    labels = {
+                        "app_name": app_name,
+                        "app_id": app_id,
+                        "batch_duration": batches[0].get("batchDuration"),
+                    }
                     batch_metrics = {
                         "last_inputSize": batches[0].get("inputSize"),
                         "last_processingTime": completed_batches[0].get("processingTime"),
@@ -352,7 +348,9 @@ class SparkCollector:
                     batch_metrics.update(self._get_last_batches_metrics(batches, completed_batches, 3))
                     batch_metrics.update(self._get_last_batches_metrics(batches, completed_batches, 10))
                     batch_metrics.update(self._get_last_batches_metrics(batches, completed_batches, 25))
-                    self._set_metrics_from_json(collected_metrics, tags, batch_metrics, SPARK_STREAMING_BATCHES_METRICS)
+                    self._set_metrics_from_json(
+                        collected_metrics, labels, batch_metrics, SPARK_STREAMING_BATCHES_METRICS
+                    )
 
             except Exception:
                 logger.exception("Could not gather Spark batch metrics for application")
@@ -366,7 +364,6 @@ class SparkCollector:
         - The Metric Servlet to be enabled to path <APP_URL>/metrics/json (enabled by default)
         - `SET spark.sql.streaming.metricsEnabled=true` in the app
         """
-
         for app_id, (app_name, tracking_url) in running_apps.items():
             try:
                 base_url = self._get_request_url(tracking_url)
@@ -383,14 +380,14 @@ class SparkCollector:
                         continue
                     groups = match.groupdict()
                     metric_name = groups["metric_name"]
-                    if metric_name not in SPARK_STRUCTURED_STREAMING_METRICS.keys():
+                    if metric_name not in SPARK_STRUCTURED_STREAMING_METRICS:
                         logger.debug("Unknown metric_name encountered: '%s'", str(metric_name))
                         continue
-                    metric_name, submission_type = SPARK_STRUCTURED_STREAMING_METRICS[metric_name]
-                    tags = [f"app_name:{str(app_name)}", f"app_id:{str(app_id)}"]
-
                     self._set_individual_metric(
-                        collected_metrics, tags, value, SPARK_STRUCTURED_STREAMING_METRICS[metric_name]
+                        collected_metrics,
+                        SPARK_STRUCTURED_STREAMING_METRICS[metric_name],
+                        value,
+                        {"app_name": app_name, "app_id": app_id},
                     )
             except Exception:
                 logger.exception("Could not gather structured streaming metrics for application")
@@ -398,9 +395,9 @@ class SparkCollector:
     def _set_task_summary_from_json(
         self,
         collected_metrics: Dict[str, Dict[str, Any]],
-        tags: List[str],
+        labels: Dict[str, str],
         metrics_json: Dict[str, List[int]],
-        metrics: Dict[str, Dict[str, Any]],
+        metrics: Dict[str, str],
     ) -> None:
         quantile_index = 0
         if metrics_json is None:
@@ -410,38 +407,32 @@ class SparkCollector:
             return
 
         for quantile in quantiles_list:
-            quantile_tags = tags + [f"quantile:{quantile}"]
-
             for status, metric in metrics.items():
                 metric_status = metrics_json.get(status)
                 if not metric_status:
                     continue
-
                 if metric_status[quantile_index] is not None:
-                    self._set_individual_metric(collected_metrics, quantile_tags, metric_status[quantile_index], metric)
-
+                    self._set_individual_metric(
+                        collected_metrics, metric, metric_status[quantile_index], {**labels, "quantile": str(quantile)}
+                    )
             quantile_index += 1
 
     def _set_individual_metric(
-        self, collected_metrics: Dict[str, Dict[str, Any]], tags: List[str], value: Any, metric_props: Dict[str, Any]
+        self, collected_metrics: Dict[str, Dict[str, Any]], name: str, value: Any, labels: Dict[str, str]
     ) -> None:
-        if value is not None:
-            metric = collected_metrics.get(metric_props["name"])
-            if not metric:
-                labels = {}
-                for tag in tags:
-                    label = tag.split(":")[0]
-                    if label in metric_props["labels"]:
-                        labels[label] = tag.split(":")[1]
-                metric = {"metric_name": metric_props["name"], "labels": labels, "value": value}
-                collected_metrics[metric_props["name"]] = metric
+        if name not in collected_metrics and value is not None:
+            collected_metrics[name] = {
+                "name": name,
+                "value": value,
+                "labels": labels,
+            }
 
     def _set_metrics_from_json(
         self,
         collected_metrics: Dict[str, Dict[str, Any]],
-        tags: List[str],
+        labels: Dict[str, str],
         metrics_json: Dict[Any, Any],
-        metrics: Dict[str, Dict[str, Any]],
+        metrics: Dict[str, str],
     ) -> None:
         """
         Parse the JSON response and set the metrics
@@ -449,10 +440,9 @@ class SparkCollector:
         if metrics_json is None:
             return
 
-        for field_name, metric_props in metrics.items():
+        for field_name, metric_name in metrics.items():
             metric_value = metrics_json.get(field_name)
-
-            self._set_individual_metric(collected_metrics, tags, metric_value, metric_props)
+            self._set_individual_metric(collected_metrics, metric_name, metric_value, labels)
 
     def _get_running_apps(self) -> Dict[str, Tuple[str, str]]:
         """
@@ -466,16 +456,13 @@ class SparkCollector:
         elif self._cluster_mode == SPARK_MESOS_MODE:
             return self._mesos_init()
         else:
-            raise Exception(f"Invalid setting for cluster mode. Received {self._cluster_mode}.")
+            raise ValueError(f"Invalid cluster mode {self._cluster_mode!r}")
 
     def _driver_init(self) -> Dict[str, Tuple[str, str]]:
         """
         Return a dictionary of {app_id: (app_name, tracking_url)} for the running Spark applications
         """
-        running_apps = self._driver_get_apps(status=YARN_RUNNING_APPLICATION_SPECIFIER)
-        logger.debug(f"Returning running apps {running_apps}")
-
-        return running_apps
+        return self._driver_get_apps(status=YARN_RUNNING_APPLICATION_SPECIFIER)
 
     def _driver_get_apps(self, *args: Any, **kwargs: Any) -> Dict[str, Tuple[str, str]]:
         """
@@ -489,18 +476,15 @@ class SparkCollector:
             app_name = str(app_json.get("name"))
             app_list[app_id] = (app_name, self._master_address)
 
-        logger.debug(f"Returning apps list {app_list}")
         return app_list
 
     def _yarn_init(self) -> Dict[str, Tuple[str, str]]:
         """
         Return a dictionary of {app_id: (app_name, tracking_url)} for running Spark applications.
         """
-        running_apps = self._yarn_get_spark_apps(
+        return self._yarn_get_spark_apps(
             states=YARN_RUNNING_APPLICATION_SPECIFIER, applicationTypes=YARN_SPARK_APPLICATION_SPECIFIER
         )
-        logger.debug(f"Returning running apps {running_apps}")
-        return running_apps
 
     def _yarn_get_spark_apps(self, *args: Any, **kwargs: Any) -> Dict[str, Tuple[str, str]]:
         metrics_json = self._rest_request_to_json(self._master_address, YARN_APPS_PATH, *args, **kwargs)
@@ -542,26 +526,14 @@ class SparkCollector:
         return spark_apps
 
     def _mesos_init(self) -> Dict[str, Tuple[str, str]]:
-
         running_apps = {}
-
         metrics_json = self._rest_request_to_json(self._master_address, MESOS_MASTER_APP_PATH)
-
         for app_json in metrics_json.get("frameworks", []):
             app_id = app_json.get("id")
             tracking_url = app_json.get("webui_url")
             app_name = app_json.get("name")
-
             if app_id and tracking_url and app_name:
-                # spark_ports = self.instance.get('spark_ui_ports')
-                # if spark_ports is None:
-                #     # No filtering by port, just return all the frameworks
                 running_apps[app_id] = (app_name, tracking_url)
-                # else:
-                #     # Only return the frameworks running on the correct port
-                #     tracking_url_port = urlparse(tracking_url).port
-                #     if tracking_url_port in spark_ports:
-                #         running_apps[app_id] = (app_name, tracking_url)
         return running_apps
 
     def _rest_request(self, url: str, object_path: str, *args: Any, **kwargs: Any) -> requests.Response:
@@ -576,35 +548,16 @@ class SparkCollector:
             for directory in args:
                 url = self._join_url_dir(url, directory)
 
-        # Add kwargs as arguments
-        if kwargs:
-            query = "&".join(["{0}={1}".format(key, value) for key, value in kwargs.items() if value is not None])
-            url = urljoin(url, "?" + query)
-
-        try:
-            logger.debug(f"Spark check URL: {url}")
-            response = requests.get(url, timeout=3)
-            response.raise_for_status()
-
-            return response
-
-        except (HTTPError, InvalidURL, ConnectionError, ConnectionRefusedError, Timeout, ValueError):
-            raise
+        logger.debug(f"Spark check URL: {url}")
+        response = requests.get(url, params={k: v for k, v in kwargs.items() if v is not None}, timeout=3)
+        response.raise_for_status()
+        return response
 
     def _rest_request_to_json(self, address: str, object_path: str, *args: Any, **kwargs: Any) -> Any:
         """
         Query the given URL and return the JSON response
         """
-
-        response = self._rest_request(address, object_path, *args, **kwargs)
-
-        try:
-            response_json = response.json()
-        except json.decoder.JSONDecodeError:
-            logger.exception("JSON Parse failed.")
-            raise
-
-        return response_json
+        return self._rest_request(address, object_path, *args, **kwargs).json()
 
     def _get_request_url(self, url: str) -> str:
         """
@@ -659,28 +612,20 @@ class SparkSampler(object):
     def _get_yarn_config_path(self, process: psutil.Process) -> str:
         env = process.environ()
         if "HADOOP_CONF_DIR" in env:
-            logger.debug("Found HADOOP_CONF_DIR variable.", extra={"hadoop_conf_dir": env["HADOOP_CONF_DIR"]})
-            return os.path.join(env["HADOOP_CONF_DIR"], "yarn-site.xml")
+            path = env["HADOOP_CONF_DIR"]
+            logger.debug("Found HADOOP_CONF_DIR variable", hadoop_conf_dir=path)
         else:
-            logger.info(
-                "Could not find HADOOP_CONF_DIR variable, using default path",
-                extra={"hadoop_conf_dir": os.path.join("/etc/hadoop/conf/", "yarn-site.xml")},
-            )
-            return os.path.join("/etc/hadoop/conf/", "yarn-site.xml")
-
-    @staticmethod
-    def _get_process_root_relative_path(process: psutil.Process, absolute_path: str) -> str:
-        return os.path.join(f"/proc/{process.pid}/root", absolute_path.lstrip(os.sep))
+            path = "/etc/hadoop/conf/"
+            logger.info("Could not find HADOOP_CONF_DIR variable, using default path", hadoop_conf_dir=path)
+        return os.path.join(path, "yarn-site.xml")
 
     def _get_yarn_config(self, process: psutil.Process) -> Optional[ET.Element]:
         config_path = self._get_yarn_config_path(process)
 
-        logger.debug("Trying to open yarn config file for reading", extra={"config_path": config_path})
+        logger.debug("Trying to open yarn config file for reading", config_path=config_path)
         try:
             # resolve config path against process' filesystem root
-            process_relative_config_path = self._get_process_root_relative_path(
-                process, self._get_yarn_config_path(process)
-            )
+            process_relative_config_path = resolve_host_path(process, self._get_yarn_config_path(process))
             with open(process_relative_config_path, "rb") as conf_file:
                 config_xml_string = conf_file.read()
             return ET.fromstring(config_xml_string)
