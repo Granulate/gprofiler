@@ -12,7 +12,7 @@ import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from threading import Event, Thread
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 from urllib.parse import urljoin, urlparse
 
 import psutil
@@ -55,11 +55,6 @@ YARN_CLUSTER_PATH = "ws/v1/cluster/metrics"
 YARN_NODES_PATH = "ws/v1/cluster/nodes"
 SPARK_APPS_PATH = "api/v1/applications"
 MESOS_MASTER_APP_PATH = "/frameworks"
-
-# METRIC keys
-METRIC_TIMESTAMP_KEY = "timestamp"
-METRICS_DATA_KEY = "metrics"
-METRICS_FILE_PREFIX = "spark_metric_"
 
 STRUCTURED_STREAMS_METRICS_REGEX = re.compile(
     r"^[\w-]+\.driver\.spark\.streaming\.(?P<query_name>[\w-]+)\.(?P<metric_name>[\w-]+)$"
@@ -805,16 +800,14 @@ class SparkSampler(object):
         ), "A valid API client or storage directory is required"
         while not self._stop_event.is_set():
             metrics = list(self._spark_sampler.collect())
-            results = {METRIC_TIMESTAMP_KEY: self._spark_sampler._last_sample_time_ms, METRICS_DATA_KEY: metrics}
+            timestamp = self._spark_sampler._last_sample_time_ms
             if self._storage_dir is not None:
                 now = get_iso8601_format_time(datetime.now())
-                base_filename = os.path.join(self._storage_dir, (METRICS_FILE_PREFIX + escape_filename(now)))
+                base_filename = os.path.join(self._storage_dir, f"spark_metric_{escape_filename(now)}")
                 with open(base_filename, "w") as f:
-                    json.dump(results, f)
+                    json.dump({"timestamp": timestamp, "metrics": metrics}, f)
             if self._client is not None:
-                timestamp = cast(int, results[METRIC_TIMESTAMP_KEY])
-                data = cast(List[Dict[str, Any]], results[METRICS_DATA_KEY])
-                self._client.submit_spark_metrics(timestamp, data)
+                self._client.submit_spark_metrics(timestamp, metrics)
 
             self._stop_event.wait(self._sample_period)
 
