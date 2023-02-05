@@ -18,11 +18,11 @@ from urllib.parse import urljoin, urlparse
 import psutil
 import requests
 from granulate_utils.linux.ns import resolve_host_path
+from granulate_utils.linux.process import process_exe
 
 from gprofiler.client import APIClient
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_hostname
-from gprofiler.platform import is_windows
 from gprofiler.spark.metrics import (
     SPARK_APPLICATION_DIFF_METRICS,
     SPARK_APPLICATION_GAUGE_METRICS,
@@ -37,6 +37,7 @@ from gprofiler.spark.metrics import (
     YARN_NODES_METRICS,
 )
 from gprofiler.utils import get_iso8601_format_time
+from gprofiler.utils.fs import escape_filename
 from gprofiler.utils.process import search_for_process
 
 # Application type and states to collect
@@ -707,13 +708,17 @@ class SparkSampler(object):
         """
         yarn lists the addresses of the other masters in order communicate with
         other masters, so we can choose one of them (like rm1) and run the
-        collection only on him so we won't get the same metrics for the cluster
-        multiple times the rm1 hostname is in both EMR and Azure us the internal
-        dns and it's starts with the host name for examplem in EMR:
-        rm1 = 'ip-10-79-63-183.us-east-2.compute.internal:8025' where the host
-        name is 'ip-10-79-63-183' for example in
-        azure: 'rm1 = hn0-nrt-hb.3e3rqto3nr5evmsjbqz0pkrj4g.tx.internal.cloudapp.net:8050'
-        where the host name is 'hn0-nrt-hb.3e3rqto3nr5evmsjbqz0pkrj4g'
+        collection only on it so we won't get the same metrics for the cluster
+        multiple times the rm1 hostname is in both EMR and Azure using the internal
+        DNS and it's starts with the host name.
+
+        For example, in AWS EMR:
+        rm1 = 'ip-10-79-63-183.us-east-2.compute.internal:8025'
+        where the hostname is 'ip-10-79-63-183'.
+
+        In Azure:
+        'rm1 = hn0-nrt-hb.3e3rqto3nr5evmsjbqz0pkrj4g.tx.internal.cloudapp.net:8050'
+        where the hostname is 'hn0-nrt-hb.3e3rqto3nr5evmsjbqz0pkrj4g'
         """
         rm1_address = self._get_yarn_config_property(resource_manager_process, "yarn.resourcemanager.address.rm1", None)
         host_name = self._get_yarn_host_name(resource_manager_process)
@@ -743,7 +748,7 @@ class SparkSampler(object):
                 search_for_process(
                     lambda process: "org.apache.hadoop.yarn.server.resourcemanager.ResourceManager" in process.cmdline()
                     or "org.apache.spark.deploy.master.Master" in process.cmdline()
-                    or "mesos-master" in process.exe()
+                    or "mesos-master" in process_exe(process)
                 )
             )
         except StopIteration:
@@ -767,7 +772,7 @@ class SparkSampler(object):
         elif "org.apache.spark.deploy.master.Master" in spark_master_process.cmdline():
             spark_cluster_mode = SPARK_DRIVER_MODE
             webapp_url = self._guess_driver_application_master_address(spark_master_process)
-        elif "mesos-master" in spark_master_process.exe():
+        elif "mesos-master" in process_exe(spark_master_process):
             spark_cluster_mode = SPARK_MESOS_MODE
             webapp_url = self._guess_mesos_master_webapp_address(spark_master_process)
 
@@ -802,14 +807,13 @@ class SparkSampler(object):
             metrics = list(self._spark_sampler.collect())
             results = {METRIC_TIMESTAMP_KEY: self._spark_sampler._last_sample_time_ms, METRICS_DATA_KEY: metrics}
             if self._storage_dir is not None:
-                now = get_iso8601_format_time(datetime.now()).replace(":", "-" if is_windows() else ":")
-                base_filename = os.path.join(self._storage_dir, (METRICS_FILE_PREFIX + now))
+                now = get_iso8601_format_time(datetime.now())
+                base_filename = os.path.join(self._storage_dir, (METRICS_FILE_PREFIX + escape_filename(now)))
                 with open(base_filename, "w") as f:
                     json.dump(results, f)
             if self._client is not None:
                 timestamp = cast(int, results[METRIC_TIMESTAMP_KEY])
                 data = cast(List[Dict[str, Any]], results[METRICS_DATA_KEY])
-                logger.debug(f"Original results: {results} \n Submitting spark metrics to API: {data}")
                 self._client.submit_spark_metrics(timestamp, data)
 
             self._stop_event.wait(self._sample_period)
