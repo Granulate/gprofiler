@@ -10,7 +10,7 @@ import sched
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures._base import Future
-from threading import Event, Lock, Thread
+from threading import Lock, Thread
 from types import TracebackType
 from typing import Dict, List, Optional, Tuple, Type, TypeVar
 

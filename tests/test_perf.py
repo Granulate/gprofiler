@@ -12,7 +12,6 @@ import pytest
 from docker.models.containers import Container
 from pytest import LogCaptureFixture
 
-from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.perf import DEFAULT_PERF_DWARF_STACK_SIZE, SystemProfiler
 from gprofiler.utils import wait_event
@@ -30,7 +29,9 @@ def insert_dso_name() -> bool:
 
 
 @pytest.fixture
-def system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool, profiler_state: ProfilerState) -> SystemProfiler:
+def system_profiler(
+    tmp_path: Path, perf_mode: str, insert_dso_name: bool, profiler_state: ProfilerState
+) -> SystemProfiler:
     return make_system_profiler(perf_mode, profiler_state)
 
 

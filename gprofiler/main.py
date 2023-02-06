@@ -49,7 +49,6 @@ from gprofiler.system_metrics import Metrics, NoopSystemMetricsMonitor, SystemMe
 from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLoggerInterface
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
-    TemporaryDirectoryWithMode,
     atomically_symlink,
     get_iso8601_format_time,
     grab_gprofiler_mutex,
@@ -148,7 +147,9 @@ class GProfiler:
             self._container_names_client = None
         self._usage_logger = usage_logger
         if collect_metrics:
-            self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._profiler_state.stop_event)
+            self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(
+                self._profiler_state.stop_event
+            )
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
 

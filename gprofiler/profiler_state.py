@@ -1,5 +1,4 @@
 from threading import Event
-from typing import Union
 
 from gprofiler.utils import TemporaryDirectoryWithMode
 

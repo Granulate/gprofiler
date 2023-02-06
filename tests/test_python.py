@@ -4,13 +4,11 @@
 #
 import os
 from pathlib import Path
-from threading import Event
 
 import psutil
 import pytest
 from granulate_utils.linux.process import is_musl
 
-from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.python import PythonProfiler
 from tests.conftest import AssertInCollapsed
