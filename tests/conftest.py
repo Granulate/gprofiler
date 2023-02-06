@@ -79,9 +79,9 @@ def java_args() -> Tuple[str]:
     return cast(Tuple[str], ())
 
 
-@fixture
-def profiler_state(tmp_path_world_accessible: Path) -> ProfilerState:
-    return ProfilerState(Event(), str(tmp_path_world_accessible), False, False, CPU_PROFILING_MODE)
+@fixture()
+def profiler_state(tmp_path: Path, insert_dso_name: bool) -> ProfilerState:
+    return ProfilerState(Event(), str(tmp_path), False, insert_dso_name, CPU_PROFILING_MODE)
 
 
 def make_path_world_accessible(path: Path) -> None:

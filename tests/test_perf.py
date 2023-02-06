@@ -30,12 +30,11 @@ def insert_dso_name() -> bool:
 
 
 @pytest.fixture
-def system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) -> SystemProfiler:
-    return make_system_profiler(tmp_path, perf_mode, insert_dso_name)
+def system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool, profiler_state: ProfilerState) -> SystemProfiler:
+    return make_system_profiler(perf_mode, profiler_state)
 
 
-def make_system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) -> SystemProfiler:
-    profiler_state = ProfilerState(Event(), str(tmp_path), False, insert_dso_name, CPU_PROFILING_MODE)
+def make_system_profiler(perf_mode: str, profiler_state: ProfilerState) -> SystemProfiler:
     return SystemProfiler(
         99,
         1,

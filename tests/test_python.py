@@ -141,7 +141,6 @@ def test_dso_name_in_pyperf_profile(
     insert_dso_name: bool,
     profiler_state: ProfilerState,
 ) -> None:
-    profiler_state = ProfilerState(Event(), str(tmp_path), False, insert_dso_name, CPU_PROFILING_MODE)
     with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
     python_version, _, _ = application_image_tag.split("-")
