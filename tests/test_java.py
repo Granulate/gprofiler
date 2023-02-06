@@ -1058,3 +1058,60 @@ def test_get_cmdline_and_env_jvm_flags(
         ) as container:
             actual_flags = profiler._metadata.get_jvm_flags_serialized(psutil.Process(container.attrs["State"]["Pid"]))
             assert_jvm_flags_equal(actual_jvm_flags=actual_flags, expected_jvm_flags=expected_flags)
+
+
+@pytest.mark.parametrize(
+    "java_cli_flags",
+    [
+        "-XX:MinHeapFreeRatio=5 -XX:MaxHeapFreeRatio=95",
+    ],
+)
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize(
+    "application_image_tag,expected_flags",
+    [
+        (
+            "hotspot-jdk-8",
+            [],
+        ),
+        (
+            "hotspot-jdk-11",
+            [],
+        ),
+        (
+            "zing",
+            [],
+        ),
+    ],
+)
+def test_get_flags_unsupported_filtered_out(
+    tmp_path: Path,
+    docker_client: DockerClient,
+    application_docker_image: Image,
+    assert_collapsed: AssertInCollapsed,
+    java_cli_flags: str,
+    expected_flags: List[Dict[str, Union[str, List[str]]]],
+    application_pid: int,
+    application_image_tag: str,
+) -> None:
+    """
+    Tests filtering of jvm flags we don't support collecting
+    """
+    with make_java_profiler(
+        storage_dir=str(tmp_path), java_jvm_flags_to_collect="MaxHeapFreeRatio, MinHeapFreeRatio"
+    ) as profiler:
+        # When running a container manually we can't use application_pid fixture as it will come from the fixture
+        # container and not from the manually started one
+        with _application_docker_container(
+            docker_client,
+            application_docker_image,
+            [],
+            [],
+            application_docker_command=[
+                "bash",
+                "-c",
+                f"exec java {java_cli_flags} -jar Fibonacci.jar",
+            ],
+        ) as container:
+            actual_flags = profiler._metadata.get_jvm_flags_serialized(psutil.Process(container.attrs["State"]["Pid"]))
+            assert_jvm_flags_equal(actual_jvm_flags=actual_flags, expected_jvm_flags=expected_flags)

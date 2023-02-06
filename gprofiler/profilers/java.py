@@ -303,44 +303,53 @@ class JavaMetadata(ApplicationMetadata):
 
         return [flag.to_dict() for flag in sorted(jvm_flags, key=lambda flag: flag.name)]
 
-    def get_jvm_flags(self, process: Process) -> Optional[List[JvmFlag]]:
-        jvm_raw_flags: Optional[List[JvmFlag]] = self.get_jvm_flags_raw(process)
+    def get_jvm_flags(self, process: Process) -> Union[None, List[JvmFlag], filter]:
+        jvm_raw_flags: Union[None, List[JvmFlag], filter] = self.get_jvm_flags_raw(process)
 
         if jvm_raw_flags is None:
             return None
 
-        elif self.jvm_flags_to_collect == JavaFlagCollectionOptions.ALL:
+        jvm_raw_flags = filter(self.filter_jvm_flag, jvm_raw_flags)
+
+        if self.jvm_flags_to_collect == JavaFlagCollectionOptions.ALL:
             return jvm_raw_flags
         elif self.jvm_flags_to_collect == JavaFlagCollectionOptions.DEFAULT:
-            return [flag for flag in jvm_raw_flags if self.filter_jvm_flag(flag)]
+            return filter(self.default_collection_filter_jvm_flag, jvm_raw_flags)
         elif isinstance(self.jvm_flags_to_collect, list):
             requested_flags = [flag for flag in jvm_raw_flags if flag.name in self.jvm_flags_to_collect]
-            not_found_flags = [
-                flag_name
-                for flag_name in self.jvm_flags_to_collect
-                if flag_name not in [flag.name for flag in requested_flags]
-            ]
+            not_found_flags = set(self.jvm_flags_to_collect) - {flag.name for flag in requested_flags}
 
+            # log if the set is not empty
             if not_found_flags:
                 logger.error("Flags not found in jvm flags:", not_found_flags=not_found_flags)
 
             return requested_flags
         else:
-            logger.error("Unrecognized jvm_flags_to_collect value:", jvm_flags_to_collect=self.jvm_flags_to_collect)
-            return None
+            assert False, f"Unrecognized jvm_flags_to_collect value: {self.jvm_flags_to_collect}"
 
     @staticmethod
     def filter_jvm_flag(flag: JvmFlag) -> bool:
         """
         Filter out flags that are:
-        1. Default flags (origin=default), that are constant for the JDK version
-        2. Flags that are of ccstr or ccstrlist type (type=ccstr, type=ccstrlist) - we have problems parsing them correctly # noqa: E501
-        3. Flags that are not production (kind=notproduct), platform dependent (kind=pd), or in development (kind=develop) # noqa: E501
+        1. Flags that are of ccstr or ccstrlist type (type=ccstr, type=ccstrlist) - we have problems parsing them correctly # noqa: E501
+        2. Flags that are manageable (kind=manageable) - they might change during execution
         """
-        if flag.origin == "default":
+        if flag.type in ["ccstr", "ccstrlist"]:
             return False
 
-        if flag.type in ["ccstr", "ccstrlist"]:
+        if "manageable" in flag.kind:
+            return False
+
+        return True
+
+    @staticmethod
+    def default_collection_filter_jvm_flag(flag: JvmFlag) -> bool:
+        """
+        Filter out flags that are:
+        1. Default flags (origin=default), that are constant for the JDK version
+        2. Flags that are non-production (kind=notproduct), platform dependent (kind=pd), or in development (kind=develop) # noqa: E501
+        """
+        if flag.origin == "default":
             return False
 
         if set(flag.kind).intersection({"notproduct", "pd", "develop"}):
@@ -762,7 +771,8 @@ class AsyncProfiledProcess:
             nargs="?",
             default=JavaFlagCollectionOptions.DEFAULT.value,
             help="Comma-separated list of JVM flags to collect from the JVM process, 'all' to collect all flags,"
-            "or 'default' for default flag filtering settings; see filter_jvm_flag(). Defaults to '%(default)s'",
+            " or 'default' for default flag filtering settings; see default_collection_filter_jvm_flag()."
+            " Defaults to '%(default)s'",
         ),
     ],
     supported_profiling_modes=["cpu", "allocation"],
@@ -880,12 +890,9 @@ class JavaProfiler(SpawningProcessProfilerBase):
     def _init_java_flag_collection(self, java_jvm_flags_to_collect: str) -> Union[JavaFlagCollectionOptions, List[str]]:
         if java_jvm_flags_to_collect is None or java_jvm_flags_to_collect == "":
             return JavaFlagCollectionOptions.DEFAULT
-        if any(
-            [
-                java_jvm_flags_to_collect == java_flag_collection_option.value
-                for java_flag_collection_option in JavaFlagCollectionOptions
-            ]
-        ):
+        if java_jvm_flags_to_collect in [
+            java_flag_collection_option.value for java_flag_collection_option in JavaFlagCollectionOptions
+        ]:
             return JavaFlagCollectionOptions(java_jvm_flags_to_collect)
         else:
             return java_jvm_flags_to_collect.split(",")
