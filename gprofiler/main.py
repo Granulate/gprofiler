@@ -120,7 +120,6 @@ class GProfiler:
         self._collect_metrics = collect_metrics
         self._collect_metadata = collect_metadata
         self._enrichment_options = enrichment_options
-        self._stop_event = Event()
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
         self._last_diagnostics = 0.0
@@ -137,7 +136,7 @@ class GProfiler:
         # files unnecessarily.
         self._profiler_state = ProfilerState(
             Event(),
-            TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755),
+            TEMPORARY_STORAGE_PATH,
             profile_spawned_processes,
             bool(user_args.get("insert_dso_name")),
             profiling_mode,
@@ -149,7 +148,7 @@ class GProfiler:
             self._container_names_client = None
         self._usage_logger = usage_logger
         if collect_metrics:
-            self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
+            self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._profiler_state.stop_event)
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
 
@@ -214,7 +213,7 @@ class GProfiler:
                         [resource_path("burn"), "convert", "--type=folded"],
                         suppress_log=True,
                         stdin=stripped_collapsed_data.encode(),
-                        stop_event=self._stop_event,
+                        stop_event=self._profiler_state.stop_event,
                         timeout=10,
                     ).stdout,
                 )
@@ -242,7 +241,7 @@ class GProfiler:
         return "\n".join(lines)
 
     def start(self) -> None:
-        self._stop_event.clear()
+        self._profiler_state.stop_event.clear()
         self._system_metrics_monitor.start()
 
         for prof in list(self.all_profilers):
@@ -260,7 +259,7 @@ class GProfiler:
 
     def stop(self) -> None:
         logger.info("Stopping ...")
-        self._stop_event.set()
+        self._profiler_state.stop_event.set()
         self._system_metrics_monitor.stop()
 
         for prof in self.all_profilers:
@@ -352,7 +351,7 @@ class GProfiler:
         with self:
             self._usage_logger.init_cycles()
 
-            while not self._stop_event.is_set():
+            while not self._profiler_state.stop_event.is_set():
                 self._state.init_new_cycle()
 
                 snapshot_start = time.monotonic()
@@ -363,7 +362,7 @@ class GProfiler:
                 self._usage_logger.log_cycle()
 
                 # wait for one duration
-                self._stop_event.wait(max(self._duration - (time.monotonic() - snapshot_start), 0))
+                self._profiler_state.stop_event.wait(max(self._duration - (time.monotonic() - snapshot_start), 0))
 
                 if self._controller_process is not None and not is_process_running(self._controller_process):
                     logger.info(f"Controller process {self._controller_process.pid} has exited; gProfiler stopping...")

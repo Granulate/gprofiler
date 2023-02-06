@@ -10,17 +10,34 @@ class ProfilerState:
     def __init__(
         self,
         stop_event: Event,
-        storage_dir: Union[TemporaryDirectoryWithMode, str],
+        storage_dir: str,
         profile_spawned_processes: bool,
         insert_dso_name: bool,
         profiling_mode: str,
     ) -> None:
-        self.stop_event = stop_event
-        self.profile_spawned_processes = profile_spawned_processes
-        self.insert_dso_name = insert_dso_name
-        self.profiling_mode = profiling_mode
-        if type(storage_dir) == TemporaryDirectoryWithMode:
-            self._temporary_dir = storage_dir
-            self.storage_dir = storage_dir.name
-        else:
-            self.storage_dir = storage_dir
+        self._stop_event = stop_event
+        self._profile_spawned_processes = profile_spawned_processes
+        self._insert_dso_name = insert_dso_name
+        self._profiling_mode = profiling_mode
+        self._temporary_dir = TemporaryDirectoryWithMode(dir=storage_dir, mode=0o755)
+        self._storage_dir = self._temporary_dir.name
+
+    @property
+    def stop_event(self) -> Event:
+        return self._stop_event
+
+    @property
+    def storage_dir(self) -> str:
+        return self._storage_dir
+
+    @property
+    def profile_spawned_processes(self) -> bool:
+        return self._profile_spawned_processes
+
+    @property
+    def insert_dso_name(self) -> bool:
+        return self._insert_dso_name
+
+    @property
+    def profiling_mode(self) -> str:
+        return self._profiling_mode
