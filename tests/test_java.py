@@ -200,7 +200,7 @@ def test_java_safemode_version_check(
 
     with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
         process = profiler._select_processes_to_profile()[0]
-        jvm_version = parse_jvm_version(get_java_version(process, profiler._stop_event))
+        jvm_version = parse_jvm_version(get_java_version(process, profiler._profiler_state.stop_event))
         collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
@@ -219,7 +219,7 @@ def test_java_safemode_build_number_check(
 ) -> None:
     with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
         process = profiler._select_processes_to_profile()[0]
-        jvm_version = parse_jvm_version(get_java_version(process, profiler._stop_event))
+        jvm_version = parse_jvm_version(get_java_version(process, profiler._profiler_state.stop_event))
         monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (jvm_version.version, 999))
         collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
@@ -370,7 +370,7 @@ def test_sanity_other_jvms(
         storage_dir=str(tmp_path),
         java_async_profiler_mode="cpu",
     ) as profiler:
-        assert search_for in get_java_version(psutil.Process(application_pid), profiler._stop_event)
+        assert search_for in get_java_version(psutil.Process(application_pid), profiler._profiler_state.stop_event)
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
 
@@ -762,9 +762,7 @@ def test_no_stray_output_in_stdout_stderr(
         # read ap-version from test ap-process to match the proper output against it
         with AsyncProfiledProcessForTests(
             process=Process(application_pid),
-            storage_dir=profiler._storage_dir,
-            insert_dso_name=False,
-            stop_event=profiler._stop_event,
+            profiler_state=profiler._profiler_state,
             mode="itimer",
             ap_safemode=0,
             ap_args="",

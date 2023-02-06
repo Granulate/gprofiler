@@ -88,7 +88,6 @@ class ProfilerBase(ProfilerInterface):
             )
         self._duration = duration
         self._profiler_state = profiler_state
-        self._stop_event = self._profiler_state.stop_event
 
         if profiler_state.profiling_mode == "allocation":
             frequency_str = f"allocation interval: {humanfriendly.format_size(frequency, binary=True)}"

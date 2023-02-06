@@ -27,7 +27,7 @@ class ProfilerState:
 
     @property
     def storage_dir(self) -> str:
-        return self._storage_dir
+        return str(self._storage_dir)
 
     @property
     def profile_spawned_processes(self) -> bool:
