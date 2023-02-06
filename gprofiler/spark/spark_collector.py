@@ -17,6 +17,7 @@ from urllib.parse import urljoin, urlparse
 
 import psutil
 import requests
+from granulate_utils.exceptions import MissingExePath
 from granulate_utils.linux.ns import resolve_host_path
 from granulate_utils.linux.process import process_exe
 
@@ -733,14 +734,18 @@ class SparkSampler(object):
             return False
 
     def _get_spark_manager_process(self) -> Optional[psutil.Process]:
-        try:
-            return next(
-                search_for_process(
-                    lambda process: "org.apache.hadoop.yarn.server.resourcemanager.ResourceManager" in process.cmdline()
+        def is_master_process(process: psutil.Process) -> bool:
+            try:
+                return (
+                    "org.apache.hadoop.yarn.server.resourcemanager.ResourceManager" in process.cmdline()
                     or "org.apache.spark.deploy.master.Master" in process.cmdline()
                     or "mesos-master" in process_exe(process)
                 )
-            )
+            except MissingExePath:
+                return False
+
+        try:
+            return next(search_for_process(is_master_process))
         except StopIteration:
             return None
 
