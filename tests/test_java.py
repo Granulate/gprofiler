@@ -24,6 +24,7 @@ from granulate_utils.java import parse_jvm_version
 from granulate_utils.linux.ns import get_process_nspid
 from granulate_utils.linux.process import is_musl
 from packaging.version import Version
+from psutil import Process
 from pytest import LogCaptureFixture, MonkeyPatch
 
 from gprofiler.profiler_state import ProfilerState
@@ -80,6 +81,19 @@ class AsyncProfiledProcessForTests(AsyncProfiledProcess):
         self._run_async_profiler(
             self._get_base_cmd() + [f"status,log={self._log_path_process},file={self._output_path_process}"],
         )
+
+    def read_ap_version(self: AsyncProfiledProcess) -> str:
+        # call async-profiler 'version' action to discover its version number
+        # read output from AsyncProfiledProcess, which should be empty
+        output_without_version = cast_away_optional(self.read_output())
+        assert output_without_version == ""
+        self._run_async_profiler(
+            self._get_base_cmd() + [f"version" f"{self._get_ap_output_args()}" f",log={self._log_path_process}"]
+        )
+        # async-profiler emits version number compiled into itself
+        output_with_version = cast_away_optional(self.read_output())
+        version = output_with_version.strip()
+        return version
 
 
 def test_async_profiler_already_running(
@@ -713,3 +727,56 @@ def test_java_frames_include_no_semicolons(
         assert not is_pattern_in_collapsed(r"\([^);]+;[^)]*\)", collapsed)
         # only a pipe can occur within arguments
         assert is_pattern_in_collapsed(r"\([^);|]+\|[^)]*\)", collapsed)
+
+
+# test that async profiler doesn't print anything to applications stdout, stderr streams
+@pytest.mark.parametrize("in_container", [True])
+def test_no_stray_output_in_stdout_stderr(
+    tmp_path: Path,
+    application_pid: int,
+    application_docker_container: Container,
+    monkeypatch: MonkeyPatch,
+    assert_collapsed: AssertInCollapsed,
+) -> None:
+    # save original stop function
+    stop_async_profiler = AsyncProfiledProcess.stop_async_profiler
+
+    # replace async profiler stop routine to trigger flushing standard output
+    def flush_output_and_stop_async_profiler(self: AsyncProfiledProcess, *args: Any, **kwargs: Any) -> str:
+        # Call 'version' action on async-profiler to make sure writes to stdout are flushed. Handling of 'version'
+        # action involves calling flush on output stream:
+        # (https://github.com/Granulate/async-profiler/blob/58c62fe4e816b60907ca84e315936834fc1cbae4/src/profiler.cpp#L1548)
+        self._run_async_profiler(
+            self._get_base_cmd() + [f"version" f",log={self._log_path_process}"],
+        )
+        result = stop_async_profiler(self, *args, **kwargs)
+        return result
+
+    monkeypatch.setattr(AsyncProfiledProcess, "stop_async_profiler", flush_output_and_stop_async_profiler)
+
+    with make_java_profiler(
+        storage_dir=str(tmp_path),
+        duration=3,
+        frequency=999,
+    ) as profiler:
+        # read ap-version from test ap-process to match the proper output against it
+        with AsyncProfiledProcessForTests(
+            process=Process(application_pid),
+            storage_dir=profiler._storage_dir,
+            insert_dso_name=False,
+            stop_event=profiler._stop_event,
+            mode="itimer",
+            ap_safemode=0,
+            ap_args="",
+        ) as ap_proc:
+            ap_version = ap_proc.read_ap_version()
+        collapsed = snapshot_pid_collapsed(profiler, application_pid)
+        assert_collapsed(collapsed)
+    application_docker_container.stop(timeout=3)
+    application_docker_container.wait(timeout=3)
+    textout = application_docker_container.logs(stdout=True, stderr=False).decode()
+    texterr = application_docker_container.logs(stdout=False, stderr=True).decode()
+    # output from Fibonacci and async-profiler version should be the only lines  in stdout
+    assert textout.splitlines() == ["Fibonacci thread starting", ap_version]
+    # output from Fibonacci should be the only expected output in stderr
+    assert texterr.strip() == "Fibonacci loop starting"
