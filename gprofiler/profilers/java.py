@@ -13,7 +13,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event, Lock
 from types import TracebackType
-from typing import Any, Dict, List, Optional, Sequence, Set, Type, TypeVar, Union
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Type, TypeVar, Union
 
 import psutil
 from granulate_utils.java import (
@@ -303,8 +303,8 @@ class JavaMetadata(ApplicationMetadata):
 
         return [flag.to_dict() for flag in sorted(jvm_flags, key=lambda flag: flag.name)]
 
-    def get_jvm_flags(self, process: Process) -> Union[None, List[JvmFlag], filter]:
-        jvm_raw_flags: Union[None, List[JvmFlag], filter] = self.get_jvm_flags_raw(process)
+    def get_jvm_flags(self, process: Process) -> Optional[Iterable[JvmFlag]]:
+        jvm_raw_flags: Optional[Iterable[JvmFlag]] = self.get_jvm_flags_raw(process)
 
         if jvm_raw_flags is None:
             return None
@@ -890,9 +890,9 @@ class JavaProfiler(SpawningProcessProfilerBase):
     def _init_java_flag_collection(self, java_jvm_flags_to_collect: str) -> Union[JavaFlagCollectionOptions, List[str]]:
         if java_jvm_flags_to_collect is None or java_jvm_flags_to_collect == "":
             return JavaFlagCollectionOptions.DEFAULT
-        if java_jvm_flags_to_collect in [
+        if java_jvm_flags_to_collect in (
             java_flag_collection_option.value for java_flag_collection_option in JavaFlagCollectionOptions
-        ]:
+        ):
             return JavaFlagCollectionOptions(java_jvm_flags_to_collect)
         else:
             return java_jvm_flags_to_collect.split(",")
