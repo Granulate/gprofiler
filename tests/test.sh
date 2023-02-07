@@ -8,8 +8,13 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"  # https://stackoverflow.com/a/246128
 
 if [ -z ${NO_APT_INSTALL+x} ]; then
- sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update
- sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io php ruby2.7 dotnet-sdk-6.0
+  if [ "$(uname -m)" = "aarch64" ]; then
+    sudo DEBIAN_FRONTEND=noninteractive apt-get update
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io php ruby
+  else
+    sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io php ruby2.7 dotnet-sdk-6.0
+  fi
 fi
 
 # we'll check 1 file, perf. not if --executable is passed - these are the executable tests, and they don't
