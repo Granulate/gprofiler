@@ -17,7 +17,6 @@ from docker.models.containers import Container
 from docker.models.images import Image
 from docker.types import Mount
 
-from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import (
@@ -188,12 +187,9 @@ def snapshot_pid_collapsed(profiler: ProfilerInterface, pid: int) -> StackToSamp
 
 
 def make_java_profiler(
+    profiler_state: ProfilerState,
     frequency: int = 11,
     duration: int = 1,
-    stop_event: Event = Event(),
-    insert_dso_name: bool = False,
-    storage_dir: str = None,
-    profile_spawned_processes: bool = False,
     java_version_check: bool = True,
     java_async_profiler_mode: str = "cpu",
     java_async_profiler_safemode: int = JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
@@ -204,10 +200,7 @@ def make_java_profiler(
     java_async_profiler_report_meminfo: bool = True,
     java_collect_spark_app_name_as_appid: bool = False,
     java_mode: str = "ap",
-    profiling_mode: str = CPU_PROFILING_MODE,
 ) -> JavaProfiler:
-    assert storage_dir is not None
-    profiler_state = ProfilerState(stop_event, storage_dir, profile_spawned_processes, insert_dso_name, profiling_mode)
     return JavaProfiler(
         frequency=frequency,
         duration=duration,

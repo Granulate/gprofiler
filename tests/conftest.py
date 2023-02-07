@@ -75,6 +75,11 @@ def in_container(request: FixtureRequest) -> bool:
 
 
 @fixture
+def insert_dso_name() -> bool:
+    return False
+
+
+@fixture
 def java_args() -> Tuple[str]:
     return cast(Tuple[str], ())
 

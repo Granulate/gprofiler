@@ -41,10 +41,11 @@ def test_java_from_host(
     application_pid: int,
     assert_app_id: Callable,
     assert_collapsed: AssertInCollapsed,
+    profiler_state: ProfilerState,
 ) -> None:
     with make_java_profiler(
+        profiler_state,
         frequency=99,
-        storage_dir=str(tmp_path_world_accessible),
         java_async_profiler_mode="itimer",
     ) as profiler:
         _ = assert_app_id  # Required for mypy unused argument warning
