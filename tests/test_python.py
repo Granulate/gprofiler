@@ -3,7 +3,6 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
-from pathlib import Path
 
 import psutil
 import pytest

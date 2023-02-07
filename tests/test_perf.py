@@ -4,7 +4,6 @@
 #
 
 import logging
-from pathlib import Path
 from threading import Event
 from typing import cast
 
@@ -24,9 +23,7 @@ from tests.utils import (
 
 
 @pytest.fixture
-def system_profiler(
-    perf_mode: str, insert_dso_name: bool, profiler_state: ProfilerState
-) -> SystemProfiler:
+def system_profiler(perf_mode: str, insert_dso_name: bool, profiler_state: ProfilerState) -> SystemProfiler:
     return make_system_profiler(perf_mode, profiler_state)
 
 
