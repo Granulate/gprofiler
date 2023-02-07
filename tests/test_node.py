@@ -79,7 +79,6 @@ def test_nodejs_attach_maps_from_container(
 @pytest.mark.parametrize("runtime", ["nodejs"])
 @pytest.mark.parametrize("application_image_tag", ["without-flags"])
 def test_twoprocesses_nodejs_attach_maps(
-    tmp_path: Path,
     assert_collapsed: AssertInCollapsed,
     profiler_type: str,
     profiler_flags: List[str],
@@ -126,7 +125,6 @@ def test_twoprocesses_nodejs_attach_maps(
 @pytest.mark.parametrize("profiler_type", ["attach-maps"])
 @pytest.mark.parametrize("runtime", ["nodejs"])
 def test_nodejs_matrix(
-    tmp_path: Path,
     application_pid: int,
     application_docker_container: Container,
     assert_collapsed: AssertInCollapsed,

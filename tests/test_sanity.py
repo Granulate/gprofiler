@@ -55,7 +55,6 @@ def test_java_from_host(
 
 @pytest.mark.parametrize("runtime", ["python"])
 def test_pyspy(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     assert_app_id: Callable,
@@ -75,7 +74,6 @@ def test_pyspy(
 
 @pytest.mark.parametrize("runtime", ["php"])
 def test_phpspy(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     in_container: bool,
@@ -97,7 +95,6 @@ def test_phpspy(
 
 @pytest.mark.parametrize("runtime", ["ruby"])
 def test_rbspy(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
@@ -110,7 +107,6 @@ def test_rbspy(
 
 @pytest.mark.parametrize("runtime", ["dotnet"])
 def test_dotnet_trace(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
@@ -123,7 +119,6 @@ def test_dotnet_trace(
 
 @pytest.mark.parametrize("runtime", ["nodejs"])
 def test_nodejs(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
@@ -145,7 +140,6 @@ def test_nodejs(
 
 @pytest.mark.parametrize("runtime", ["python"])
 def test_python_ebpf(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     assert_app_id: Callable,

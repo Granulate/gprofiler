@@ -25,7 +25,7 @@ from tests.utils import (
 
 @pytest.fixture
 def system_profiler(
-    tmp_path: Path, perf_mode: str, insert_dso_name: bool, profiler_state: ProfilerState
+    perf_mode: str, insert_dso_name: bool, profiler_state: ProfilerState
 ) -> SystemProfiler:
     return make_system_profiler(perf_mode, profiler_state)
 

@@ -28,7 +28,6 @@ def runtime() -> str:
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("application_image_tag", ["libpython"])
 def test_python_select_by_libpython(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     profiler_state: ProfilerState,
@@ -71,7 +70,6 @@ def test_python_select_by_libpython(
 )
 @pytest.mark.parametrize("profiler_type", ["py-spy", "pyperf"])
 def test_python_matrix(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     profiler_type: str,
@@ -131,7 +129,6 @@ def test_python_matrix(
     ],
 )
 def test_dso_name_in_pyperf_profile(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     profiler_type: str,

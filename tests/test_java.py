@@ -140,7 +140,6 @@ def test_async_profiler_already_running(
 
 @pytest.mark.parametrize("in_container", [True])
 def test_java_async_profiler_cpu_mode(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     profiler_state: ProfilerState,
@@ -162,7 +161,6 @@ def test_java_async_profiler_cpu_mode(
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("application_image_tag", ["musl"])
 def test_java_async_profiler_musl_and_cpu(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     profiler_state: ProfilerState,
@@ -185,14 +183,13 @@ def test_java_async_profiler_musl_and_cpu(
         assert "/libgcc_s.so" not in maps
 
 
-def test_java_safemode_parameters(tmp_path: Path, profiler_state: ProfilerState) -> None:
+def test_java_safemode_parameters(profiler_state: ProfilerState) -> None:
     with pytest.raises(AssertionError) as excinfo:
         make_java_profiler(profiler_state, java_version_check=False)
     assert "Java version checks are mandatory in --java-safemode" in str(excinfo.value)
 
 
 def test_java_safemode_version_check(
-    tmp_path: Path,
     monkeypatch: MonkeyPatch,
     caplog: LogCaptureFixture,
     application_pid: int,
@@ -214,7 +211,6 @@ def test_java_safemode_version_check(
 
 
 def test_java_safemode_build_number_check(
-    tmp_path: Path,
     monkeypatch: MonkeyPatch,
     caplog: LogCaptureFixture,
     application_pid: int,
@@ -244,7 +240,6 @@ def test_java_safemode_build_number_check(
 )
 def test_hotspot_error_file(
     application_pid: int,
-    tmp_path: Path,
     monkeypatch: MonkeyPatch,
     caplog: LogCaptureFixture,
     profiler_state: ProfilerState,
@@ -275,7 +270,6 @@ def test_hotspot_error_file(
 
 def test_disable_java_profiling(
     application_pid: int,
-    tmp_path: Path,
     monkeypatch: MonkeyPatch,
     caplog: LogCaptureFixture,
     profiler_state: ProfilerState,
@@ -293,7 +287,6 @@ def test_disable_java_profiling(
 
 
 def test_already_loaded_async_profiler_profiling_failure(
-    tmp_path: Path,
     monkeypatch: MonkeyPatch,
     caplog: LogCaptureFixture,
     application_pid: int,
@@ -378,7 +371,6 @@ def test_async_profiler_stops_after_given_timeout(
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("application_image_tag,search_for", [("j9", "OpenJ9"), ("zing", "Zing")])
 def test_sanity_other_jvms(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     search_for: str,
@@ -397,7 +389,6 @@ def test_sanity_other_jvms(
 # test only once. in a container, so that we don't mess up the environment :)
 @pytest.mark.parametrize("in_container", [True])
 def test_java_deleted_libjvm(
-    tmp_path: Path,
     application_pid: int,
     application_docker_container: Container,
     assert_collapsed: AssertInCollapsed,
@@ -463,7 +454,6 @@ def test_java_noexec_dirs(
 
 @pytest.mark.parametrize("in_container", [True])
 def test_java_symlinks_in_paths(
-    tmp_path: Path,
     application_pid: int,
     application_docker_container: Container,
     assert_collapsed: AssertInCollapsed,
@@ -508,7 +498,6 @@ def test_java_symlinks_in_paths(
 
 @pytest.mark.parametrize("in_container", [True])  # only in container is enough
 def test_java_appid_and_metadata_before_process_exits(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     monkeypatch: MonkeyPatch,
@@ -550,7 +539,6 @@ def test_java_appid_and_metadata_before_process_exits(
 
 @pytest.mark.parametrize("in_container", [True])  # only in container is enough
 def test_java_attach_socket_missing(
-    tmp_path: Path,
     application_pid: int,
     profiler_state: ProfilerState,
 ) -> None:
@@ -575,7 +563,6 @@ def test_java_attach_socket_missing(
 # we know what messages to expect when in container, not on the host Java
 @pytest.mark.parametrize("in_container", [True])
 def test_java_jattach_async_profiler_log_output(
-    tmp_path: Path,
     application_pid: int,
     caplog: LogCaptureFixture,
     profiler_state: ProfilerState,
@@ -614,7 +601,6 @@ def test_java_jattach_async_profiler_log_output(
     ],
 )
 def test_java_different_basename(
-    tmp_path: Path,
     docker_client: DockerClient,
     application_docker_image: Image,
     assert_collapsed: AssertInCollapsed,
@@ -680,7 +666,6 @@ def test_java_different_basename(
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("insert_dso_name", [False, True])
 def test_dso_name_in_ap_profile(
-    tmp_path: Path,
     application_pid: int,
     insert_dso_name: bool,
     profiler_state: ProfilerState,
@@ -700,7 +685,6 @@ def test_dso_name_in_ap_profile(
 @pytest.mark.parametrize("insert_dso_name", [False, True])
 @pytest.mark.parametrize("libc_pattern", [r"(^|;)\(/.*/libc-.*\.so\)($|;)"])
 def test_handling_missing_symbol_in_profile(
-    tmp_path: Path,
     application_pid: int,
     insert_dso_name: bool,
     libc_pattern: str,
@@ -717,7 +701,6 @@ def test_handling_missing_symbol_in_profile(
 
 @pytest.mark.parametrize("in_container", [True])
 def test_meminfo_logged(
-    tmp_path: Path,
     application_pid: int,
     caplog: LogCaptureFixture,
     profiler_state: ProfilerState,
@@ -735,7 +718,6 @@ def test_meminfo_logged(
 # test that java frames include no semicolon but use a pipe '|' character instead, as implemented by AP
 @pytest.mark.parametrize("in_container", [True])
 def test_java_frames_include_no_semicolons(
-    tmp_path: Path,
     application_pid: int,
     profiler_state: ProfilerState,
 ) -> None:
@@ -763,7 +745,6 @@ def test_java_frames_include_no_semicolons(
 # test that async profiler doesn't print anything to applications stdout, stderr streams
 @pytest.mark.parametrize("in_container", [True])
 def test_no_stray_output_in_stdout_stderr(
-    tmp_path: Path,
     application_pid: int,
     application_docker_container: Container,
     monkeypatch: MonkeyPatch,
