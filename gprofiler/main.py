@@ -502,7 +502,7 @@ def parse_cmd_args() -> configargparse.Namespace:
     parser.add_argument(
         "--mode",
         dest="profiling_mode",
-        choices=["cpu", "allocation"],
+        choices=["cpu", "allocation", "none"],
         default="cpu",
         help="Select gProfiler's profiling mode, default is %(default)s, available options are "
         "%(choices)s; allocation will profile only Java processes",

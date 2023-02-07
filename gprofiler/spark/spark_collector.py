@@ -590,6 +590,7 @@ class SparkSampler(object):
         self._spark_mode: Optional[str] = None
         self._collection_thread: Optional[Thread] = None
         self._sample_period = sample_period
+        # not the same instance as GProfiler._stop_event
         self._stop_event = Event()
         self._spark_sampler: Optional[SparkCollector] = None
         self._stop_collection = False
