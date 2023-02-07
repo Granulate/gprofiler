@@ -780,11 +780,11 @@ class SparkSampler(object):
 
         return webapp_url, spark_cluster_mode
 
-    def start(self) -> bool:
+    def start(self) -> None:
         spark_cluster_conf = self._find_spark_cluster()
         if spark_cluster_conf is None:
             logger.debug("Could not guess spark configuration, probably not master node")
-            return False
+            return
 
         master_address, cluster_mode = spark_cluster_conf
         self._spark_sampler = SparkCollector(cluster_mode, master_address)
@@ -792,7 +792,6 @@ class SparkSampler(object):
         self._collection_thread = Thread(target=self._collect_loop)
         self._collection_thread.start()
         self._is_running = True
-        return True
 
     def _collect_loop(self) -> None:
         assert self._spark_sampler is not None, "No valid SparkSampler was created. Unable to start collection."
