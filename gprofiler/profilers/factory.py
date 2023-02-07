@@ -32,14 +32,17 @@ def get_profilers(
             if profiler_mode in ("none", "disabled"):
                 continue
 
-            if arch not in (
-            profiler_config.supported_windows_archs if is_windows() else profiler_config.supported_archs):
+            supported_archs = (
+                profiler_config.supported_windows_archs if is_windows() else profiler_config.supported_archs
+            )
+            if arch not in supported_archs:
                 logger.warning(f"Disabling {profiler_name} because it doesn't support this architecture ({arch})")
                 continue
 
             if profiling_mode not in profiler_config.supported_profiling_modes:
                 logger.warning(
-                    f"Disabling {profiler_name} because it doesn't support profiling mode {profiling_mode!r}")
+                    f"Disabling {profiler_name} because it doesn't support profiling mode {profiling_mode!r}"
+                )
                 continue
 
             profiler_kwargs = profiler_init_kwargs.copy()
