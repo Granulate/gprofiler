@@ -4,10 +4,10 @@
 #
 
 import re
+import time
 from contextlib import _GeneratorContextManager
 from pathlib import Path
 from threading import Event
-import time
 from typing import Any, Callable, List, Optional
 
 import pytest
@@ -285,4 +285,3 @@ def test_container_name_when_stopped(
     application_docker_container.kill()
     collapsed_text = wait_for_gprofiler_container(container, output_collapsed)
     assert f";{application_container_name};node" in collapsed_text
-    
