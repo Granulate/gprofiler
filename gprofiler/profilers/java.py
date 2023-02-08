@@ -129,7 +129,8 @@ JAVA_SAFEMODE_DEFAULT_OPTIONS = [
     JavaSafemodeOptions.HSERR.value,
 ]
 
-JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 64  # StackRecovery.JAVA_STATE
+# https://github.com/jvm-profiling-tools/async-profiler/blob/63799a6055363cbd7ca8ef951e2393db0d0ba7dd/src/profiler.cpp#L77
+JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 256  # StackRecovery.PROBE_SP
 
 SUPPORTED_AP_MODES = ["cpu", "itimer", "alloc"]
 
@@ -616,8 +617,8 @@ class AsyncProfiledProcess:
             "--java-async-profiler-safemode",
             dest="java_async_profiler_safemode",
             default=JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
-            type=integer_range(0, 128),
-            metavar="[0-127]",
+            type=integer_range(0, 0x200),
+            metavar="[0-511]",
             help="Controls the 'safemode' parameter passed to async-profiler. This is parameter denotes multiple"
             " bits that describe different stack recovery techniques which async-profiler uses (see StackRecovery"
             " enum in async-profiler's code, in profiler.cpp)."
@@ -787,18 +788,10 @@ class JavaProfiler(SpawningProcessProfilerBase):
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
 
     def _is_zing_vm_supported(self, jvm_version: JvmVersion) -> bool:
-        # name is e.g Zing 64-Bit Tiered VM Zing22.04.1.0+1
-        m = re.search(r"Zing(\d+)\.", jvm_version.name)
-        if m is None:
-            return False  # unknown
-
-        major = m.group(1)
-        if int(major) < 18:
-            return False
-
-        # Zing > 18 is assumed to support AsyncGetCallTrace per
+        # Zing >= 18 is assumed to support AsyncGetCallTrace per
         # https://github.com/jvm-profiling-tools/async-profiler/issues/153#issuecomment-452038960
-        return True
+        assert jvm_version.zing_major is not None  # it's Zing so should be non-None.
+        return jvm_version.zing_major >= 18
 
     def _check_jvm_supported_extended(self, jvm_version: JvmVersion) -> bool:
         if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
@@ -821,13 +814,13 @@ class JavaProfiler(SpawningProcessProfilerBase):
             return False
 
         # Zing checks
-        if jvm_version.name.startswith("Zing"):
+        if jvm_version.vm_type == "Zing":
             if not self._is_zing_vm_supported(jvm_version):
                 logger.warning("Unsupported Zing VM version", jvm_version=repr(jvm_version))
                 return False
 
         # HS checks
-        if jvm_version.name.startswith("OpenJDK"):
+        if jvm_version.vm_type == "HotSpot":
             if not jvm_version.version.major > 6:
                 logger.warning("Unsupported HotSpot version", jvm_version=repr(jvm_version))
                 return False

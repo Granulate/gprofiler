@@ -261,6 +261,8 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             try:
                 if not self._should_skip_process(process):
                     filtered_procs.append(process)
+            except NoSuchProcess:
+                pass
             except Exception:
                 logger.exception(f"Couldn't add pid {process.pid} to list")
 
@@ -426,7 +428,13 @@ class PythonProfiler(ProfilerInterface):
             try:
                 return self._ebpf_profiler.snapshot()
             except PythonEbpfError as e:
-                logger.warning("Python eBPF profiler failed, restarting PyPerf...", exit_code=e.returncode)
+                assert not self._ebpf_profiler.is_running()
+                logger.warning(
+                    "Python eBPF profiler failed, restarting PyPerf...",
+                    pyperf_exit_code=e.returncode,
+                    pyperf_stdout=e.stdout,
+                    pyperf_stderr=e.stderr,
+                )
                 self._ebpf_profiler.start()
                 return {}  # empty this round
         else:

@@ -94,7 +94,7 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
             "-d",
             str(duration),
             "--nonblocking",  # Don’t pause the ruby process when collecting stack samples.
-            "--on-cpu",  # only record when CPU is active
+            "--oncpu",  # only record when CPU is active
             "--format=collapsed",
             "--file",
             output_path,

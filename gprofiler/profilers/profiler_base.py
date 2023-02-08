@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Tuple, Type, TypeVar
 import humanfriendly
 from granulate_utils.linux.proc_events import register_exec_callback, unregister_exec_callback
 from granulate_utils.linux.process import is_process_running
-from psutil import NoSuchProcess, Process
+from psutil import NoSuchProcess, Process, ZombieProcess
 
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, ProfilingErrorStack, StackToSampleCount
@@ -137,7 +137,7 @@ class ProcessProfilerBase(ProfilerBase):
                 assert result is not None
             except StopEventSetException:
                 raise
-            except NoSuchProcess:
+            except (NoSuchProcess, ZombieProcess):
                 logger.debug(
                     f"{self.__class__.__name__}: process went down during profiling {pid} ({comm})",
                     exc_info=True,
@@ -185,7 +185,7 @@ class ProcessProfilerBase(ProfilerBase):
             for process in processes_to_profile:
                 try:
                     comm = process_comm(process)
-                except NoSuchProcess:
+                except (NoSuchProcess, ZombieProcess):
                     continue
 
                 futures[executor.submit(self._profile_process, process, self._duration, False)] = (process.pid, comm)

@@ -281,6 +281,13 @@ def get_hostname() -> str:
     return hostname
 
 
+def get_hostname_or_none() -> Optional[str]:
+    """
+    Can be used early, possibly before hostname was initialized, and will return None if not initialized.
+    """
+    return hostname
+
+
 def _initialize_system_info_windows() -> Any:
     global hostname
     hostname = f"<{UNKNOWN_VALUE}>"
