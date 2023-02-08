@@ -14,7 +14,7 @@ readonly GPROFILER_SERVICE
 ENABLE_STDOUT=$(/usr/share/google/get_metadata_value attributes/enable-stdout)
 readonly ENABLE_STDOUT
 
-SPARK_METRICS=$(/usr/share/google/get_metadata_value attributes/spark-metrics)
+SPARK_METRICS=$(/usr/share/google/get_metadata_value attributes/spark-metrics || true)
 readonly SPARK_METRICS
 
 OUTPUT_REDIRECTION=""
