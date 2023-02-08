@@ -315,6 +315,7 @@ def _enrich_pid_stacks(
         application_prefix = f"{idx};"
     else:
         application_prefix = ""
+
     # generate container name
     # to maintain compatibility with old profiler versions, we include the container name frame in any case
     # if the protocol version does not "v1, regardless of whether container_names is enabled or not.

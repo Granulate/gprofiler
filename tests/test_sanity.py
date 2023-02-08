@@ -7,10 +7,12 @@ import re
 from contextlib import _GeneratorContextManager
 from pathlib import Path
 from threading import Event
+import time
 from typing import Any, Callable, List, Optional
 
 import pytest
 from docker import DockerClient
+from docker.models.containers import Container
 from docker.models.images import Image
 
 from gprofiler.consts import CPU_PROFILING_MODE
@@ -253,3 +255,34 @@ def test_from_container_spawned_process(
         assert_collapsed(collapsed)
 
     assert b"Profiling spawned process" in container.logs()
+
+
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("profiler_type", ["attach-maps"])
+@pytest.mark.parametrize("runtime", ["nodejs"])
+@pytest.mark.parametrize("application_image_tag", ["without-flags"])
+def test_container_name_when_stopped(
+    docker_client: DockerClient,
+    gprofiler_docker_image: Image,
+    output_directory: Path,
+    output_collapsed: Path,
+    runtime_specific_args: List[str],
+    profiler_type: str,
+    profiler_flags: List[str],
+    application_docker_container: Container,
+) -> None:
+    profiler_flags.extend(["-d", "20"])
+    container = start_gprofiler_in_container_for_one_session(
+        docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags
+    )
+    try:
+        wait_event(20, Event(), lambda: re.search(rb"Started perf", container.logs()) is not None)
+    except TimeoutError:
+        print(container.logs())
+        raise
+    time.sleep(5)
+    application_container_name = application_docker_container.name
+    application_docker_container.kill()
+    collapsed_text = wait_for_gprofiler_container(container, output_collapsed)
+    assert f";{application_container_name};node" in collapsed_text
+    
