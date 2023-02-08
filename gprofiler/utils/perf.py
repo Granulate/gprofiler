@@ -37,3 +37,11 @@ def can_i_use_perf_events() -> bool:
     else:
         # all good
         return True
+
+
+def valid_perf_pid(pid: int) -> bool:
+    """
+    perf, in some cases, reports PID 0 / -1. These are not real PIDs and we don't want to
+    try and look up the processes related to them.
+    """
+    return pid not in (0, -1)

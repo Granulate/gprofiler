@@ -9,6 +9,7 @@ import shutil
 from pathlib import Path
 from secrets import token_hex
 
+from gprofiler.platform import is_windows
 from gprofiler.utils import remove_path, run_process
 
 
@@ -51,3 +52,7 @@ def is_rw_exec_dir(path: str) -> bool:
         test_script.unlink()
 
     return True
+
+
+def escape_filename(filename: str) -> str:
+    return filename.replace(":", "-" if is_windows() else ":")
