@@ -261,6 +261,8 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             try:
                 if not self._should_skip_process(process):
                     filtered_procs.append(process)
+            except NoSuchProcess:
+                pass
             except Exception:
                 logger.exception(f"Couldn't add pid {process.pid} to list")
 

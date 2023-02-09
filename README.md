@@ -42,6 +42,10 @@ gProfiler can produce output in two ways:
 Note: both flags can be used simultaneously, in which case gProfiler will create the local files *and* upload
 the results.
 
+### Network requirements
+
+When `--upload-results` is used, gProfiler will communicate with `https://profiles.granulate.io` and `https://api.granulate.io`. Make sure those domains are accessible for HTTPS access. If you [require an HTTPS proxy](#Using-HTTP-proxies), make sure the proxy has those domains whitelisted.
+
 ## Profiling options
 * `--profiling-frequency`: The sampling frequency of the profiling, in *hertz*.
 * `--profiling-duration`: The duration of the each profiling session, in *seconds*.
@@ -481,6 +485,7 @@ We recommend going through our [contribution guide](https://github.com/granulate
 * [phpspy](https://github.com/adsr/phpspy) by [Adam Saponara](https://github.com/adsr). See [our fork](https://github.com/Granulate/phpspy).
 * [rbspy](https://github.com/rbspy/rbspy) by the rbspy project. See [our fork](https://github.com/Granulate/rbspy).
 * [dotnet-trace](https://github.com/dotnet/diagnostics/tree/main/src/Tools/dotnet-trace)
+* [Datadog Agent Integrations](https://github.com/DataDog/integrations-core) for the Spark, YARN metrics
 
 # Footnotes
 
