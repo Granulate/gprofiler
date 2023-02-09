@@ -71,8 +71,8 @@ class SparkCollector:
         master_address: str,
         *,
         cluster_metrics: bool = True,
-        applications_metrics: bool = True,
-        streaming_metrics: bool = True,
+        applications_metrics: bool = False,
+        streaming_metrics: bool = False,
     ) -> None:
         self._last_sample_time_ms = 0
         self._cluster_mode = cluster_mode
