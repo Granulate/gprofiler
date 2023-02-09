@@ -14,7 +14,7 @@ from logging import LogRecord
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 import docker
 import psutil
@@ -404,6 +404,19 @@ def test_java_deleted_libjvm(
         assert_collapsed(process_collapsed)
 
 
+def filter_jattach_load_records(records: List[LogRecord]) -> List[LogRecord]:
+    def _filter_record(r: LogRecord) -> bool:
+        # find the log record of
+        # Running command (command=['/app/gprofiler/resources/java/jattach', 'xxx', 'load', ....])
+        return (
+            r.message == "Running command"
+            and "/jattach" in log_record_extra(r)["command"][0]
+            and "load" in log_record_extra(r)["command"][2]
+        )
+
+    return list(filter(_filter_record, records))
+
+
 @pytest.mark.parametrize(
     "extra_application_docker_mounts",
     [
@@ -439,7 +452,14 @@ def test_java_noexec_dirs(
         assert_collapsed(snapshot_pid_collapsed(profiler, application_pid))
 
     # should use this path instead of /tmp/gprofiler_tmp/...
-    assert "/run/gprofiler_tmp/async-profiler-" in caplog.text
+
+    jattach_loads = filter_jattach_load_records(caplog.records)
+    # 2 entries - start and stop
+    assert len(jattach_loads) == 2
+    # 3rd part of commandline to AP - shall begin with non-default directory
+    assert all(
+        log_record_extra(jl)["command"][3].startswith("/run/gprofiler_tmp/async-profiler-") for jl in jattach_loads
+    )
 
 
 @pytest.mark.parametrize("in_container", [True])
@@ -482,16 +502,7 @@ def test_java_symlinks_in_paths(
     with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
         assert_collapsed(snapshot_pid_collapsed(profiler, application_pid))
 
-    def _filter_record(r: LogRecord) -> bool:
-        # find the log record of
-        # Running command (command=['/app/gprofiler/resources/java/jattach', 'xxx', 'load', ....])
-        return (
-            r.message == "Running command"
-            and "/jattach" in log_record_extra(r)["command"][0]
-            and "load" in log_record_extra(r)["command"][2]
-        )
-
-    jattach_loads = list(filter(_filter_record, caplog.records))
+    jattach_loads = filter_jattach_load_records(caplog.records)
     # 2 entries - start and stop
     assert len(jattach_loads) == 2
     # 3rd part of commandline to AP - shall begin with the final, resolved path.
