@@ -169,20 +169,26 @@ class PerfProcess:
             assert self._process is not None and self._process.stderr is not None
             logger.debug(f"{self._log_name} run output", perf_stderr=self._process.stderr.read1())  # type: ignore
 
-        if self._inject_jit:
+        try:
             inject_data = Path(f"{str(perf_data)}.inject")
-            run_process(
-                [perf_path(), "inject", "--jit", "-o", str(inject_data), "-i", str(perf_data)],
-            )
-            perf_data.unlink()
-            perf_data = inject_data
+            if self._inject_jit:
+                run_process(
+                    [perf_path(), "inject", "--jit", "-o", str(inject_data), "-i", str(perf_data)],
+                )
+                perf_data.unlink()
+                perf_data = inject_data
 
-        perf_script_proc = run_process(
-            [perf_path(), "script", "-F", "+pid", "-i", str(perf_data)],
-            suppress_log=True,
-        )
-        perf_data.unlink()
-        return perf_script_proc.stdout.decode("utf8")
+            perf_script_proc = run_process(
+                [perf_path(), "script", "-F", "+pid", "-i", str(perf_data)],
+                suppress_log=True,
+            )
+            return perf_script_proc.stdout.decode("utf8")
+        finally:
+            perf_data.unlink()
+            if self._inject_jit:
+                # might be missing if it's already removed.
+                # might be existing if "perf inject" itself fails
+                remove_path(inject_data, missing_ok=True)
 
 
 @register_profiler(
