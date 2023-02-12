@@ -74,6 +74,10 @@ Profiling using eBPF incurs lower overhead & provides kernel & native stacks.
 * `--no-php` or `--php-mode disabled`: Disable profilers for PHP.
 * `--php-proc-filter`: Process filter (`pgrep`) to select PHP processes for profiling (this is phpspy's `-P` option)
 
+### .NET profiling options
+* `--dotnet-mode=dotnet-trace`: Enable .NET profiling with dotnet-trace
+* `--no-dotnet` or `--dotnet-mode=disabled`: Disable profilers for .NET.
+
 ### Ruby profiling options
 * `--no-ruby` or `--ruby-mode disabled`: Disable profilers for Ruby.
 
