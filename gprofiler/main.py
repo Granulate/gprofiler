@@ -46,6 +46,7 @@ from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
 from gprofiler.platform import is_linux, is_windows
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
@@ -55,7 +56,6 @@ from gprofiler.system_metrics import Metrics, NoopSystemMetricsMonitor, SystemMe
 from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLoggerInterface
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
-    TemporaryDirectoryWithMode,
     atomically_symlink,
     get_iso8601_format_time,
     grab_gprofiler_mutex,
@@ -125,18 +125,15 @@ class GProfiler:
         self._state = state
         self._remote_logs_handler = remote_logs_handler
         self._profile_api_version = profile_api_version
-        self._profile_spawned_processes = profile_spawned_processes
         self._collect_metrics = collect_metrics
         self._collect_metadata = collect_metadata
         self._enrichment_options = enrichment_options
-        self._stop_event = Event()
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
         self._last_diagnostics = 0.0
         self._gpid = ""
         self._controller_process = controller_process
         self._duration = duration
-        self._profiling_mode = profiling_mode
         if collect_metadata:
             self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
@@ -145,20 +142,23 @@ class GProfiler:
         # 2. accessible only by us.
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
-        self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
-        self.system_profiler, self.process_profilers = get_profilers(
-            user_args,
-            storage_dir=self._temp_storage_dir.name,
-            stop_event=self._stop_event,
-            profile_spawned_processes=self._profile_spawned_processes,
+        self._profiler_state = ProfilerState(
+            Event(),
+            TEMPORARY_STORAGE_PATH,
+            profile_spawned_processes,
+            bool(user_args.get("insert_dso_name")),
+            profiling_mode,
         )
+        self.system_profiler, self.process_profilers = get_profilers(user_args, profiler_state=self._profiler_state)
         if self._enrichment_options.container_names:
             self._container_names_client: Optional[ContainerNamesClient] = ContainerNamesClient()
         else:
             self._container_names_client = None
         self._usage_logger = usage_logger
         if collect_metrics:
-            self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
+            self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(
+                self._profiler_state.stop_event
+            )
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
 
@@ -226,7 +226,7 @@ class GProfiler:
                         [resource_path("burn"), "convert", "--type=folded"],
                         suppress_log=True,
                         stdin=stripped_collapsed_data.encode(),
-                        stop_event=self._stop_event,
+                        stop_event=self._profiler_state.stop_event,
                         timeout=10,
                     ).stdout,
                 )
@@ -254,7 +254,7 @@ class GProfiler:
         return "\n".join(lines)
 
     def start(self) -> None:
-        self._stop_event.clear()
+        self._profiler_state.stop_event.clear()
         self._system_metrics_monitor.start()
 
         if self._spark_sampler:
@@ -275,7 +275,7 @@ class GProfiler:
 
     def stop(self) -> None:
         logger.info("Stopping ...")
-        self._stop_event.set()
+        self._profiler_state.stop_event.set()
         self._system_metrics_monitor.stop()
         if self._spark_sampler is not None and self._spark_sampler.is_running():
             self._spark_sampler.stop()
@@ -316,7 +316,7 @@ class GProfiler:
             if self._collect_metadata
             else {"hostname": get_hostname()}
         )
-        metadata.update({"profiling_mode": self._profiling_mode})
+        metadata.update({"profiling_mode": self._profiler_state.profiling_mode})
         metrics = self._system_metrics_monitor.get_metrics()
         if NoopProfiler.is_noop_profiler(self.system_profiler):
             assert system_result == {}, system_result  # should be empty!
@@ -368,7 +368,7 @@ class GProfiler:
         with self:
             self._usage_logger.init_cycles()
 
-            while not self._stop_event.is_set():
+            while not self._profiler_state.stop_event.is_set():
                 self._state.init_new_cycle()
 
                 snapshot_start = time.monotonic()
@@ -379,7 +379,7 @@ class GProfiler:
                 self._usage_logger.log_cycle()
 
                 # wait for one duration
-                self._stop_event.wait(max(self._duration - (time.monotonic() - snapshot_start), 0))
+                self._profiler_state.stop_event.wait(max(self._duration - (time.monotonic() - snapshot_start), 0))
 
                 if self._controller_process is not None and not is_process_running(self._controller_process):
                     logger.info(f"Controller process {self._controller_process.pid} has exited; gProfiler stopping...")
