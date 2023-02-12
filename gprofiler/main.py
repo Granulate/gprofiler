@@ -595,6 +595,12 @@ def parse_cmd_args() -> configargparse.Namespace:
             help="Server address for reporting logs and metrics (default: %(default)s)",
         )
         connectivity.add_argument(
+            "--glogger-server",
+            default=DEFAULT_API_SERVER_ADDRESS,
+            dest="api_server",
+            help="Deprecated alias for --api-server.",
+        )
+        connectivity.add_argument(
             "--server-upload-timeout",
             type=positive_integer,
             default=DEFAULT_UPLOAD_TIMEOUT,
