@@ -20,6 +20,7 @@ from docker.models.images import Image
 from psutil import Process
 from pytest import FixtureRequest, TempPathFactory, fixture
 
+from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.diagnostics import set_diagnostics
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.metadata.application_identifiers import (
@@ -30,6 +31,7 @@ from gprofiler.metadata.application_identifiers import (
     get_ruby_app_id,
 )
 from gprofiler.metadata.enrichment import EnrichmentOptions
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import AsyncProfiledProcess, JattachJcmdRunner
 from gprofiler.state import init_state
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
@@ -75,8 +77,18 @@ def in_container(request: FixtureRequest) -> bool:
 
 
 @fixture
+def insert_dso_name() -> bool:
+    return False
+
+
+@fixture
 def java_args() -> Tuple[str]:
     return cast(Tuple[str], ())
+
+
+@fixture()
+def profiler_state(tmp_path: Path, insert_dso_name: bool) -> ProfilerState:
+    return ProfilerState(Event(), str(tmp_path), False, insert_dso_name, CPU_PROFILING_MODE)
 
 
 def make_path_world_accessible(path: Path) -> None:
