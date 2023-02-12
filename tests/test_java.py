@@ -10,9 +10,10 @@ import subprocess
 import threading
 import time
 from collections import Counter
+from logging import LogRecord
 from pathlib import Path
 from subprocess import Popen
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 import docker
 import psutil
@@ -42,6 +43,7 @@ from tests.utils import (
     assert_function_in_collapsed,
     is_function_in_collapsed,
     is_pattern_in_collapsed,
+    log_record_extra,
     make_java_profiler,
     snapshot_pid_collapsed,
     snapshot_pid_profile,
@@ -206,8 +208,7 @@ def test_java_safemode_version_check(
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
     log_record = next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records))
-    log_extra = log_record.extra  # type: ignore  # our logging adapter adds "extra"
-    assert log_extra["jvm_version"] == repr(jvm_version)
+    assert log_record_extra(log_record)["jvm_version"] == repr(jvm_version)
 
 
 def test_java_safemode_build_number_check(
@@ -226,8 +227,7 @@ def test_java_safemode_build_number_check(
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
     log_record = next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records))
-    log_extra = log_record.extra  # type: ignore  # our logging adapter adds "extra"
-    assert log_extra["jvm_version"] == repr(jvm_version)
+    assert log_record_extra(log_record)["jvm_version"] == repr(jvm_version)
 
 
 @pytest.mark.parametrize(
@@ -413,6 +413,19 @@ def test_java_deleted_libjvm(
         assert_collapsed(process_collapsed)
 
 
+def filter_jattach_load_records(records: List[LogRecord]) -> List[LogRecord]:
+    def _filter_record(r: LogRecord) -> bool:
+        # find the log record of
+        # Running command (command=['/app/gprofiler/resources/java/jattach', 'xxx', 'load', ....])
+        return (
+            r.message == "Running command"
+            and "/jattach" in log_record_extra(r)["command"][0]
+            and "load" in log_record_extra(r)["command"][2]
+        )
+
+    return list(filter(_filter_record, records))
+
+
 @pytest.mark.parametrize(
     "extra_application_docker_mounts",
     [
@@ -449,7 +462,14 @@ def test_java_noexec_dirs(
         assert_collapsed(snapshot_pid_collapsed(profiler, application_pid))
 
     # should use this path instead of /tmp/gprofiler_tmp/...
-    assert "/run/gprofiler_tmp/async-profiler-" in caplog.text
+
+    jattach_loads = filter_jattach_load_records(caplog.records)
+    # 2 entries - start and stop
+    assert len(jattach_loads) == 2
+    # 3rd part of commandline to AP - shall begin with non-default directory
+    assert all(
+        log_record_extra(jl)["command"][3].startswith("/run/gprofiler_tmp/async-profiler-") for jl in jattach_loads
+    )
 
 
 @pytest.mark.parametrize("in_container", [True])
@@ -492,8 +512,11 @@ def test_java_symlinks_in_paths(
     with make_java_profiler(profiler_state) as profiler:
         assert_collapsed(snapshot_pid_collapsed(profiler, application_pid))
 
-    # part of the commandline to AP - which shall include the final, resolved path.
-    assert "load /run/final_tmp/gprofiler_tmp/" in caplog.text
+    jattach_loads = filter_jattach_load_records(caplog.records)
+    # 2 entries - start and stop
+    assert len(jattach_loads) == 2
+    # 3rd part of commandline to AP - shall begin with the final, resolved path.
+    assert all(log_record_extra(jl)["command"][3].startswith("/run/final_tmp/gprofiler_tmp/") for jl in jattach_loads)
 
 
 @pytest.mark.parametrize("in_container", [True])  # only in container is enough
@@ -585,11 +608,11 @@ def test_java_jattach_async_profiler_log_output(
         assert len(log_records) == 2  # start,stop
         # start
         assert (
-            log_records[0].extra["ap_log"]  # type: ignore  # our logging adapter adds "extra"
+            log_record_extra(log_records[0])["ap_log"]
             == "[WARN] Install JVM debug symbols to improve profile accuracy\n"
         )
         # stop
-        assert log_records[1].extra["ap_log"] == ""  # type: ignore  # our logging adapter adds "extra"
+        assert log_record_extra(log_records[1])["ap_log"] == ""
 
 
 @pytest.mark.parametrize(
@@ -657,10 +680,7 @@ def test_java_different_basename(
                     )
                 )
                 assert len(log_records) == 1
-                assert (
-                    os.path.basename(log_records[0].extra["exe"])  # type: ignore  # our logging adapter adds "extra"
-                    == java_notjava_basename
-                )
+                assert os.path.basename(log_record_extra(log_records[0])["exe"]) == java_notjava_basename
 
 
 @pytest.mark.parametrize("in_container", [True])

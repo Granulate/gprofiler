@@ -6,6 +6,7 @@ import os
 import re
 import subprocess
 from contextlib import contextmanager
+from logging import LogRecord
 from pathlib import Path
 from threading import Event
 from time import sleep
@@ -342,3 +343,10 @@ def _application_docker_container(
         container.reload()
     yield container
     container.remove(force=True)
+
+
+def log_record_extra(r: LogRecord) -> Dict[Any, Any]:
+    """
+    Gets the "extra" attached to a LogRecord
+    """
+    return getattr(r, "extra", {})
