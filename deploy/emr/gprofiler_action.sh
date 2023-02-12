@@ -9,4 +9,4 @@ arch=$(uname -m)
 wget https://github.com/Granulate/gprofiler/releases/$version/download/gprofiler_$arch -O gprofiler
 chmod +x gprofiler
 # Must supply --token=... and --service-name=... arguments when creating cluster
-setsid ./gprofiler -cu "$@" >/dev/null 2>&1
+setsid ./gprofiler -cu "$@" >/dev/null 2>&1 &
