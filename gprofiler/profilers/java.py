@@ -150,6 +150,7 @@ Example:
 class JavaFlagCollectionOptions(str, Enum):
     ALL = "all"
     DEFAULT = "default"
+    NONE = "none"
 
 
 class JattachExceptionBase(CalledProcessError):
@@ -286,11 +287,11 @@ class JavaMetadata(ApplicationMetadata):
         self,
         stop_event: Event,
         jattach_jcmd_runner: JattachJcmdRunner,
-        jvm_flags_to_collect: Union[JavaFlagCollectionOptions, List[str]],
+        java_collect_jvm_flags: Union[JavaFlagCollectionOptions, List[str]],
     ):
         super().__init__(stop_event)
         self.jattach_jcmd_runner = jattach_jcmd_runner
-        self.jvm_flags_to_collect = jvm_flags_to_collect
+        self.java_collect_jvm_flags = java_collect_jvm_flags
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         if is_java_basename(process):
@@ -301,10 +302,16 @@ class JavaMetadata(ApplicationMetadata):
         # that loads other libs.
         libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")
 
+        try:
+            jvm_flags = self.get_jvm_flags_serialized(process)
+        except Exception:
+            logger.exception("Failed to collect JVM flags", pid=process.pid)
+            jvm_flags = None
+
         metadata = {
             "java_version": version,
             "libjvm_elfid": libjvm_elfid,
-            "jvm_flags": self.get_jvm_flags_serialized(process),
+            "jvm_flags": jvm_flags,
         }
 
         metadata.update(super().make_application_metadata(process))
@@ -318,6 +325,9 @@ class JavaMetadata(ApplicationMetadata):
         return [flag.to_dict() for flag in sorted(jvm_flags, key=lambda flag: flag.name)]
 
     def get_jvm_flags(self, process: Process) -> Optional[Iterable[JvmFlag]]:
+        if self.java_collect_jvm_flags == JavaFlagCollectionOptions.NONE:
+            return None
+
         jvm_raw_flags: Optional[Iterable[JvmFlag]] = self.get_jvm_flags_raw(process)
 
         if jvm_raw_flags is None:
@@ -325,21 +335,20 @@ class JavaMetadata(ApplicationMetadata):
 
         jvm_raw_flags = filter(self.filter_jvm_flag, jvm_raw_flags)
 
-        if self.jvm_flags_to_collect == JavaFlagCollectionOptions.ALL:
+        if self.java_collect_jvm_flags == JavaFlagCollectionOptions.ALL:
             return jvm_raw_flags
-        elif self.jvm_flags_to_collect == JavaFlagCollectionOptions.DEFAULT:
+        elif self.java_collect_jvm_flags == JavaFlagCollectionOptions.DEFAULT:
             return filter(self.default_collection_filter_jvm_flag, jvm_raw_flags)
-        elif isinstance(self.jvm_flags_to_collect, list):
-            requested_flags = [flag for flag in jvm_raw_flags if flag.name in self.jvm_flags_to_collect]
-            not_found_flags = set(self.jvm_flags_to_collect) - {flag.name for flag in requested_flags}
+        else:
+            assert isinstance(self.java_collect_jvm_flags, list), f"Unrecognized value: {self.java_collect_jvm_flags}"
+            requested_flags = [flag for flag in jvm_raw_flags if flag.name in self.java_collect_jvm_flags]
+            not_found_flags = set(self.java_collect_jvm_flags) - {flag.name for flag in requested_flags}
 
             # log if the set is not empty
             if not_found_flags:
-                logger.error("Flags not found in jvm flags:", not_found_flags=not_found_flags)
+                logger.warning("Flags not found in jvm flags:", not_found_flags=not_found_flags)
 
             return requested_flags
-        else:
-            assert False, f"Unrecognized jvm_flags_to_collect value: {self.jvm_flags_to_collect}"
 
     @staticmethod
     def filter_jvm_flag(flag: JvmFlag) -> bool:
@@ -785,8 +794,8 @@ class AsyncProfiledProcess:
             help="Disable collection of async-profiler meminfo at the end of each cycle (collected by default)",
         ),
         ProfilerArgument(
-            "--java-jvm-flags-to-collect",
-            dest="java_jvm_flags_to_collect",
+            "--java-collect-jvm-flags",
+            dest="java_collect_jvm_flags",
             type=str,
             nargs="?",
             default=JavaFlagCollectionOptions.DEFAULT.value,
@@ -832,7 +841,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_collect_spark_app_name_as_appid: bool,
         java_mode: str,
         java_async_profiler_report_meminfo: bool,
-        java_jvm_flags_to_collect: str,
+        java_collect_jvm_flags: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
         super().__init__(frequency, duration, profiler_state)
@@ -860,14 +869,14 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._pid_to_java_version: Dict[int, Optional[str]] = {}
         self._kernel_messages_provider = get_kernel_messages_provider()
         self._enabled_proc_events_java = False
-        self._java_jvm_flags_to_collect = self._init_java_flag_collection(java_jvm_flags_to_collect)
+        self._java_collect_jvm_flags = self._init_java_flag_collection(java_collect_jvm_flags)
         self._jattach_jcmd_runner = JattachJcmdRunner(
             stop_event=self._profiler_state.stop_event, jattach_timeout=self._jattach_timeout
         )
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
         application_identifiers.ApplicationIdentifiers.init_java(self._jattach_jcmd_runner)
         self._metadata = JavaMetadata(
-            self._profiler_state.stop_event, self._jattach_jcmd_runner, self._java_jvm_flags_to_collect
+            self._profiler_state.stop_event, self._jattach_jcmd_runner, self._java_collect_jvm_flags
         )
         self._report_meminfo = java_async_profiler_report_meminfo
 
@@ -904,15 +913,15 @@ class JavaProfiler(SpawningProcessProfilerBase):
                 f" --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS}"
             )
 
-    def _init_java_flag_collection(self, java_jvm_flags_to_collect: str) -> Union[JavaFlagCollectionOptions, List[str]]:
-        if java_jvm_flags_to_collect is None or java_jvm_flags_to_collect == "":
+    def _init_java_flag_collection(self, java_collect_jvm_flags: str) -> Union[JavaFlagCollectionOptions, List[str]]:
+        if java_collect_jvm_flags == "":
             return JavaFlagCollectionOptions.DEFAULT
-        if java_jvm_flags_to_collect in (
+        if java_collect_jvm_flags in (
             java_flag_collection_option.value for java_flag_collection_option in JavaFlagCollectionOptions
         ):
-            return JavaFlagCollectionOptions(java_jvm_flags_to_collect)
+            return JavaFlagCollectionOptions(java_collect_jvm_flags)
         else:
-            return java_jvm_flags_to_collect.split(",")
+            return java_collect_jvm_flags.split(",")
 
     def _disable_profiling(self, cause: str) -> None:
         if self._safemode_disable_reason is None and cause in self._java_safemode:

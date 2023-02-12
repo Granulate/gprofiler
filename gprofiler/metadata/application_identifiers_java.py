@@ -18,10 +18,10 @@ _logger = get_logger_adapter(__name__)
 
 class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
     def __init__(self, jattach_jcmd_runner: JattachJcmdRunner):
+        super().__init__()
         self.jattach_jcmd_runner = jattach_jcmd_runner
 
     def get_app_id(self, process: Process) -> Optional[str]:
-        assert self.jattach_jcmd_runner is not None
         try:
             java_properties = self.jattach_jcmd_runner.run(process, "VM.command_line")
             java_command = None

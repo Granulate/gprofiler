@@ -203,7 +203,7 @@ def make_java_profiler(
     java_async_profiler_report_meminfo: bool = True,
     java_collect_spark_app_name_as_appid: bool = False,
     java_mode: str = "ap",
-    java_jvm_flags_to_collect: str = JavaFlagCollectionOptions.DEFAULT,
+    java_collect_jvm_flags: str = JavaFlagCollectionOptions.DEFAULT,
 ) -> JavaProfiler:
     return JavaProfiler(
         frequency=frequency,
@@ -219,7 +219,7 @@ def make_java_profiler(
         java_collect_spark_app_name_as_appid=java_collect_spark_app_name_as_appid,
         java_mode=java_mode,
         java_async_profiler_report_meminfo=java_async_profiler_report_meminfo,
-        java_jvm_flags_to_collect=java_jvm_flags_to_collect,
+        java_collect_jvm_flags=java_collect_jvm_flags,
     )
 
 
@@ -372,8 +372,11 @@ def assert_jvm_flags_equal(actual_jvm_flags: Optional[List], expected_jvm_flags:
     assert len(actual_jvm_flags) == len(expected_jvm_flags), f"{actual_jvm_flags} != {expected_jvm_flags}"
 
     for actual_flag_dict, expected_flag_dict in zip(actual_jvm_flags, expected_jvm_flags):
-        actual_flag_dict.pop("value")
-        expected_flag_dict.pop("value")
+        actual_flag_value = actual_flag_dict.pop("value")
+        expected_flag_value = expected_flag_dict.pop("value")
+
+        if expected_flag_value is not None:
+            assert actual_flag_value == expected_flag_value, f"{actual_jvm_flags} != {expected_jvm_flags}"
 
         assert actual_flag_dict == expected_flag_dict
 
