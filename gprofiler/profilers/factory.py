@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 logger = get_logger_adapter(__name__)
-COMMON_PROFILER_ARGUMENT_NAMES = ["frequency", "duration", "insert_dso_name", "profiling_mode"]
+COMMON_PROFILER_ARGUMENT_NAMES = ["frequency", "duration"]
 
 
 def get_profilers(
