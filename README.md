@@ -86,7 +86,7 @@ Profiling using eBPF incurs lower overhead & provides kernel & native stacks.
 ## attach-maps
 In this mode, gProfiler will automatically load a library based on [node-linux-perf module](https://github.com/mmarchini-oss/node-linux-perf) to all target NodeJS processes. This library enables `perf-pid.map` files generation in runtime, without requiring the app to be started with the `--perf-prof` flag, and from that point `perf` is able to symbolicate the compiled JavaScript functions, and we get JavaScript symbols properly.
 
-gProfiler uses the inspector protocol (documented [here](https://nodejs.org/en/docs/guides/debugging-getting-started/#enable-inspector)) to connect to target processes. gProfiler will send `SIGUSR1`, connect to the process and request to it load the library matching its NodeJS version (gProfiler comes built-in with arsenal of libraries for common NodeJS versions). After the library is loaded, gProfiler invokes the `perf-pid.map` generation. This is done to all running NodeJS processes - those running before gProfiler started, and done starting during gProfiler's run. Upon stopping, gProfiler stops the functionality, so processes no longer continue to write those file.
+gProfiler uses the inspector protocol (documented [here](https://nodejs.org/en/docs/guides/debugging-getting-started/#enable-inspector)) to connect to target processes. gProfiler will send `SIGUSR1`, connect to the process and request to it load the library matching its NodeJS version (gProfiler comes built-in with arsenal of libraries for common NodeJS versions). After the library is loaded, gProfiler invokes the `perf-pid.map` generation. This is done to all running NodeJS processes - those running before gProfiler started, and done starting during gProfiler's run. Upon stopping, gProfiler stops the functionality, so processes no longer continue to write those file.  
 This requires the entrypoint of application to be CommonJS script. (Doesn't work for ES modules)
 
 ### System profiling options
@@ -419,16 +419,16 @@ This section describes the data format output by the profiler. Some of it is rel
 
 ### Collapsed files
 
-The collapsed file (`.col`) is a [collapsed/folded stacks file](https://github.com/brendangregg/FlameGraph#2-fold-stacks) that'll be written locally per profiling session if gProfiler was invoked with the `-o` switch.
-The file begins with a "comment line", starting with `#`, which contains a JSON of metadata about the profile. Following lines are *stacks* - they consist of *frames* separated by `;`, with the ending of each line being a space followed by a number - how many *samples* were collected with this stack.
-The first frame of each stack is an index in the application metadata array (which is part of the aforementioned JSON), for the process recorded in this sample.
-The second frame is the container name that the process recorded in this sample runs in; if the process is not running in a container, this frame will be empty.
-The third frame is the process name - essentially the process `comm` in Linux.
+The collapsed file (`.col`) is a [collapsed/folded stacks file](https://github.com/brendangregg/FlameGraph#2-fold-stacks) that'll be written locally per profiling session if gProfiler was invoked with the `-o` switch.  
+The file begins with a "comment line", starting with `#`, which contains a JSON of metadata about the profile. Following lines are *stacks* - they consist of *frames* separated by `;`, with the ending of each line being a space followed by a number - how many *samples* were collected with this stack.  
+The first frame of each stack is an index in the application metadata array (which is part of the aforementioned JSON), for the process recorded in this sample.  
+The second frame is the container name that the process recorded in this sample runs in; if the process is not running in a container, this frame will be empty.  
+The third frame is the process name - essentially the process `comm` in Linux.  
 All following frames are the output of the profiler which emitted the sample (usually - function names). Frames are described in [frame format](#frame-format).
 
 ### Application identifiers
 
-An application identifier ("appid" for short) is an optional frame that follows the process name frame. This frame has the format `appid: ...`. Per profiled process, gProfiler attempts to extract its appid, and "inject" it into the profile collected for that process - the purpose is to give the user more context about the source application of the proceeding frames.
+An application identifier ("appid" for short) is an optional frame that follows the process name frame. This frame has the format `appid: ...`. Per profiled process, gProfiler attempts to extract its appid, and "inject" it into the profile collected for that process - the purpose is to give the user more context about the source application of the proceeding frames.  
 For example, a Python application invoked as `cd /path/to/my/app && python myscript.py` will have the following appid: `appid: python: myscript.py (/path/to/my/app/myscript.py)` - this appid tells us it's a Python application running `myscript.py` and gives in parenthesis the absolute path of the executed script.
 
 gProfiler currently supports appids for Java, Python, NodeJS & Ruby, with each runtime having possibly more than one implementation (e.g in Python, the appid of a Gunicorn-based application is decided differently, because the app doesn't specify a "Python script" to invoke, but instead specifies a WSGI application spec). You can see the various implementations in [application_identifiers.py](./gprofiler/metadata/application_identifiers.py)
