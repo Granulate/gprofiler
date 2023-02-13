@@ -318,33 +318,35 @@ By default, gProfiler's output is written to the Dataproc initialization script 
 If you wish to disable this behaviour, change the `enable-stdout` metadata variable value to "0" (the default is "1").
 
 ## Running on AWS EMR
-To run gProfiler on your AWS EMR cluster, you should create a bootstrap action that will launch the gProfiler on each
-node upon bootstrap. The full process should be:
-1. Create a bootstrap script (bash script) that will launch the gProfiler upon bootstrap, the script
-can look like this:
-```bash
-#!/bin/bash
-wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler_$(uname -m) -O gprofiler
-sudo chmod +x gprofiler
-sudo sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE NAME>\" > /dev/null 2>&1 &"
-```
-  Make sure to:
-  - Replace `<TOKEN>` with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
-  - Replace `<SERVICE>` with the service name you wish to use.
-2. Upload the script to an S3 bucket, for example: `s3://my-s3-bucket/gprofiler-bootstrap.sh`
-3. Create the EMR cluster with bootstrap-action to run the bootstrap script, this can be done both from the AWS Console and AWS CLI.
-   - AWS Console Example:
-     - Create an EMR Cluster from the AWS Console
-     - Select `Go to advanced options`
-     - Proceed to Step 3 - *General Cluster Settings*
-     - Expand *Bootstrap Actions* section
-     - Add Action of type *Custom Action*
-     - Fill in script location with the appropriate script location on your S3, for example `s3://my-s3-bucket/gprofiler-bootstrap.sh`
-     ![img](https://user-images.githubusercontent.com/33522503/153876647-5f844c46-8d62-4d89-b612-9616043f1825.png)
-   - AWS CLI Example:
-     ```bash
-     aws emr create-cluster --name MY-Cluster ... --bootstrap-actions "Path=s3://my-s3-bucket/gprofiler-bootstrap.sh"
+To run gProfiler on your AWS EMR cluster, add a bootstrap action that will launch gProfiler on each
+node when the cluster is provisioned. You will need to provide the token and service name as described below.
+
+1. Upload the [gProfiler bootstrap action file](./deploy/emr/gprofiler_action.sh) to an S3 bucket:
+
+   ```sh
+   aws s3 cp gprofiler_action.sh s3://<BUCKET>/gprofiler_action.sh
+   ```
+
+2. Add the bootstrap action when creating the cluster. You can do this with [the AWS Console or with the AWS CLI](https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-bootstrap.html?icmpid=docs_emr_help_panel_cluster-bootstrap#custom-bootstrap):
+
+   In the steps below, make sure to:
+     - Replace `<BUCKET>` with the bucket where `gprofiler_action.sh` was uploaded.
+     - Replace `<TOKEN>` with the token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
+     - Replace `<SERVICE>` with the service name you wish to use.
+
+   With AWS CLI:
+     ```sh
+     aws emr create-cluster --name "My cluster" ... --bootstrap-actions Path="s3://<BUCKET>/gprofiler_action.sh",Args="[--token=<TOKEN>,--service-name=<SERVICE>]"
      ```
+
+   With new AWS Console:
+     - Create a new cluster.
+     - Under **Bootstrap actions**, choose **Add**, and fill in the fields:
+       - **Name**: gProfiler
+       - **Script location**: `s3://<BUCKET>/gprofiler_action.sh`
+       - **Arguments**: `--token=<TOKEN> --service-name=<SERVICE>`
+       - Example: ![Add bootstrap action](./deploy/emr/add_bootstrap_action.png)
+     - Final result should look similar to this: ![Bootstrap actions](./deploy/emr/bootstrap_actions.png)
 
 ## Running via an Ansible playbook
 Download the [playbook](./deploy/ansible/gprofiler_playbook.yml) and run it this way:
