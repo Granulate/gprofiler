@@ -8,7 +8,6 @@ import resource
 import signal
 from pathlib import Path
 from subprocess import Popen
-from threading import Event
 from typing import Dict, List, NoReturn, Optional
 
 from granulate_utils.linux.ns import is_running_in_init_pid
@@ -20,6 +19,7 @@ from gprofiler.exceptions import CalledProcessError, StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers import python
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.utils import (
@@ -58,25 +58,27 @@ class PythonEbpfProfiler(ProfilerBase):
         self,
         frequency: int,
         duration: int,
+<<<<<<< HEAD
         stop_event: Optional[Event],
         storage_dir: str,
         insert_dso_name: bool,
         profile_spawned_processes: bool,
         profiling_mode: str,
         container_names_client: Optional[ContainerNamesClient],
+=======
+        profiler_state: ProfilerState,
+>>>>>>> origin/master
         *,
         add_versions: bool,
         user_stacks_pages: Optional[int] = None,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
-        _ = profile_spawned_processes  # Required for mypy unused argument warning
+        super().__init__(frequency, duration, profiler_state)
         self.process: Optional[Popen] = None
-        self.output_path = Path(self._storage_dir) / f"pyperf.{random_prefix()}.col"
+        self.output_path = Path(self._profiler_state.storage_dir) / f"pyperf.{random_prefix()}.col"
         self.add_versions = add_versions
         self.user_stacks_pages = user_stacks_pages
         self._kernel_offsets: Dict[str, int] = {}
-        self._metadata = python.PythonMetadata(self._stop_event)
-        self._insert_dso_name = insert_dso_name
+        self._metadata = python.PythonMetadata(self._profiler_state.stop_event)
 
     @classmethod
     def _pyperf_error(cls, process: Popen) -> NoReturn:
@@ -115,7 +117,7 @@ class PythonEbpfProfiler(ProfilerBase):
     def _get_offset(self, prog: str) -> int:
         return int(
             run_process(
-                resource_path(prog), stop_event=self._stop_event, timeout=self._GET_OFFSETS_TIMEOUT
+                resource_path(prog), stop_event=self._profiler_state.stop_event, timeout=self._GET_OFFSETS_TIMEOUT
             ).stdout.strip()
         )
 
@@ -161,7 +163,7 @@ class PythonEbpfProfiler(ProfilerBase):
         ] + self._offset_args()
         process = start_process(cmd, via_staticx=True)
         try:
-            poll_process(process, self._POLL_TIMEOUT, self._stop_event)
+            poll_process(process, self._POLL_TIMEOUT, self._profiler_state.stop_event)
         except TimeoutError:
             process.kill()
             raise
@@ -182,7 +184,7 @@ class PythonEbpfProfiler(ProfilerBase):
             str(self._SYMBOLS_MAP_SIZE),
             # Duration is irrelevant here, we want to run continuously.
         ] + self._offset_args()
-        if self._insert_dso_name:
+        if self._profiler_state.insert_dso_name:
             cmd.extend(["--insert-dso-name"])
 
         if self.user_stacks_pages is not None:
@@ -195,7 +197,7 @@ class PythonEbpfProfiler(ProfilerBase):
         # wait until the transient data file appears - because once returning from here, PyPerf may
         # be polled via snapshot() and we need it to finish installing its signal handler.
         try:
-            wait_event(self._POLL_TIMEOUT, self._stop_event, lambda: os.path.exists(self.output_path))
+            wait_event(self._POLL_TIMEOUT, self._profiler_state.stop_event, lambda: os.path.exists(self.output_path))
         except TimeoutError:
             process.kill()
             assert process.stdout is not None and process.stderr is not None
@@ -213,7 +215,9 @@ class PythonEbpfProfiler(ProfilerBase):
 
         try:
             # important to not grab the transient data file - hence the following '.'
-            output = wait_for_file_by_prefix(f"{self.output_path}.", self._DUMP_TIMEOUT, self._stop_event)
+            output = wait_for_file_by_prefix(
+                f"{self.output_path}.", self._DUMP_TIMEOUT, self._profiler_state.stop_event
+            )
             # PyPerf outputs sampling & error counters every interval (after writing the output file), print them.
             # also, makes sure its output pipe doesn't fill up.
             # using read1() which performs just a single read() call and doesn't read until EOF
@@ -228,7 +232,7 @@ class PythonEbpfProfiler(ProfilerBase):
             self._pyperf_error(process)
 
     def snapshot(self) -> ProcessToProfileData:
-        if self._stop_event.wait(self._duration):
+        if self._profiler_state.stop_event.wait(self._duration):
             raise StopEventSetException()
         collapsed_path = self._dump()
         try:

@@ -8,7 +8,6 @@ import signal
 from collections import Counter, defaultdict
 from pathlib import Path
 from subprocess import CompletedProcess
-from threading import Event
 from typing import Any, Dict, List, Match, Optional, cast
 
 from granulate_utils.linux.elf import get_elf_id
@@ -43,6 +42,7 @@ from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.platform import is_linux, is_windows
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProfilerInterface, SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 
@@ -172,6 +172,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         self,
         frequency: int,
         duration: int,
+<<<<<<< HEAD
         stop_event: Optional[Event],
         storage_dir: str,
         insert_dso_name: bool,
@@ -191,8 +192,15 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             profiling_mode,
             container_names_client,
         )
+=======
+        profiler_state: ProfilerState,
+        *,
+        add_versions: bool,
+    ):
+        super().__init__(frequency, duration, profiler_state)
+>>>>>>> origin/master
         self.add_versions = add_versions
-        self._metadata = PythonMetadata(self._stop_event)
+        self._metadata = PythonMetadata(self._profiler_state.stop_event)
 
     def _make_command(self, pid: int, output_path: str, duration: int) -> List[str]:
         command = [
@@ -230,12 +238,12 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             container_name = ""
         comm = process_comm(process)
 
-        local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
+        local_output_path = os.path.join(self._profiler_state.storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):
             try:
                 run_process(
                     self._make_command(process.pid, local_output_path, duration),
-                    stop_event=self._stop_event,
+                    stop_event=self._profiler_state.stop_event,
                     timeout=duration + self._EXTRA_TIMEOUT,
                     kill_signal=signal.SIGTERM if is_windows() else signal.SIGKILL,
                 )
@@ -349,12 +357,16 @@ class PythonProfiler(ProfilerInterface):
         self,
         frequency: int,
         duration: int,
+<<<<<<< HEAD
         stop_event: Event,
         storage_dir: str,
         insert_dso_name: bool,
         profiling_mode: str,
         profile_spawned_processes: bool,
         container_names_client: Optional[ContainerNamesClient],
+=======
+        profiler_state: ProfilerState,
+>>>>>>> origin/master
         python_mode: str,
         python_add_versions: bool,
         python_pyperf_user_stacks_pages: Optional[int],
@@ -373,14 +385,14 @@ class PythonProfiler(ProfilerInterface):
             self._ebpf_profiler = self._create_ebpf_profiler(
                 frequency,
                 duration,
-                stop_event,
-                storage_dir,
-                insert_dso_name,
-                profile_spawned_processes,
+                profiler_state,
                 python_add_versions,
                 python_pyperf_user_stacks_pages,
+<<<<<<< HEAD
                 profiling_mode,
                 container_names_client,
+=======
+>>>>>>> origin/master
             )
         else:
             self._ebpf_profiler = None
@@ -389,12 +401,16 @@ class PythonProfiler(ProfilerInterface):
             self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(
                 frequency,
                 duration,
+<<<<<<< HEAD
                 stop_event,
                 storage_dir,
                 insert_dso_name,
                 profiling_mode,
                 profile_spawned_processes,
                 container_names_client=container_names_client,
+=======
+                profiler_state,
+>>>>>>> origin/master
                 add_versions=python_add_versions,
             )
         else:
@@ -406,24 +422,20 @@ class PythonProfiler(ProfilerInterface):
             self,
             frequency: int,
             duration: int,
-            stop_event: Event,
-            storage_dir: str,
-            insert_dso_name: bool,
-            profile_spawned_processes: bool,
+            profiler_state: ProfilerState,
             add_versions: bool,
             user_stacks_pages: Optional[int],
+<<<<<<< HEAD
             profiling_mode: str,
             container_names_client: Optional[ContainerNamesClient],
+=======
+>>>>>>> origin/master
         ) -> Optional[PythonEbpfProfiler]:
             try:
                 profiler = PythonEbpfProfiler(
                     frequency,
                     duration,
-                    stop_event,
-                    storage_dir,
-                    insert_dso_name,
-                    profile_spawned_processes,
-                    profiling_mode,
+                    profiler_state,
                     add_versions=add_versions,
                     user_stacks_pages=user_stacks_pages,
                     container_names_client=container_names_client,

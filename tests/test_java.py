@@ -10,10 +10,10 @@ import subprocess
 import threading
 import time
 from collections import Counter
+from logging import LogRecord
 from pathlib import Path
 from subprocess import Popen
-from threading import Event
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 import docker
 import psutil
@@ -25,8 +25,10 @@ from granulate_utils.java import parse_jvm_version
 from granulate_utils.linux.ns import get_process_nspid
 from granulate_utils.linux.process import is_musl
 from packaging.version import Version
+from psutil import Process
 from pytest import LogCaptureFixture, MonkeyPatch
 
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import (
     JAVA_SAFEMODE_ALL,
     AsyncProfiledProcess,
@@ -41,6 +43,7 @@ from tests.utils import (
     assert_function_in_collapsed,
     is_function_in_collapsed,
     is_pattern_in_collapsed,
+    log_record_extra,
     make_java_profiler,
     snapshot_pid_collapsed,
     snapshot_pid_profile,
@@ -81,9 +84,23 @@ class AsyncProfiledProcessForTests(AsyncProfiledProcess):
             self._get_base_cmd() + [f"status,log={self._log_path_process},file={self._output_path_process}"],
         )
 
+    def read_ap_version(self: AsyncProfiledProcess) -> str:
+        # call async-profiler 'version' action to discover its version number
+        # read output from AsyncProfiledProcess, which should be empty
+        output_without_version = cast_away_optional(self.read_output())
+        assert output_without_version == ""
+        self._run_async_profiler(
+            self._get_base_cmd() + [f"version" f"{self._get_ap_output_args()}" f",log={self._log_path_process}"]
+        )
+        # async-profiler emits version number compiled into itself
+        output_with_version = cast_away_optional(self.read_output())
+        version = output_with_version.strip()
+        return version
+
 
 def test_async_profiler_already_running(
     application_pid: int,
+    profiler_state: ProfilerState,
     assert_collapsed: AssertInCollapsed,
     tmp_path_world_accessible: Path,
     caplog: LogCaptureFixture,
@@ -92,14 +109,12 @@ def test_async_profiler_already_running(
     Test we're able to restart async-profiler in case it's already running in the process and get results normally.
     """
     caplog.set_level(logging.INFO)
-    with make_java_profiler(storage_dir=str(tmp_path_world_accessible)) as profiler:
+    with make_java_profiler(profiler_state) as profiler:
         process = profiler._select_processes_to_profile()[0]
 
         with AsyncProfiledProcess(
             process=process,
-            storage_dir=profiler._storage_dir,
-            insert_dso_name=False,
-            stop_event=profiler._stop_event,
+            profiler_state=profiler._profiler_state,
             mode=profiler._mode,
             ap_safemode=0,
             ap_args="",
@@ -109,9 +124,7 @@ def test_async_profiler_already_running(
         # run "status"
         with AsyncProfiledProcessForTests(
             process=process,
-            storage_dir=profiler._storage_dir,
-            insert_dso_name=False,
-            stop_event=profiler._stop_event,
+            profiler_state=profiler._profiler_state,
             mode="itimer",
             ap_safemode=0,
             ap_args="",
@@ -129,15 +142,15 @@ def test_async_profiler_already_running(
 
 @pytest.mark.parametrize("in_container", [True])
 def test_java_async_profiler_cpu_mode(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
+    profiler_state: ProfilerState,
 ) -> None:
     """
     Run Java in a container and enable async-profiler in CPU mode, make sure we get kernel stacks.
     """
     with make_java_profiler(
-        storage_dir=str(tmp_path),
+        profiler_state,
         frequency=999,
         # this ensures auto selection picks CPU by default, if possible.
         java_async_profiler_mode="auto",
@@ -150,15 +163,15 @@ def test_java_async_profiler_cpu_mode(
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("application_image_tag", ["musl"])
 def test_java_async_profiler_musl_and_cpu(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
+    profiler_state: ProfilerState,
 ) -> None:
     """
     Run Java in an Alpine-based container and enable async-profiler in CPU mode, make sure that musl profiling
     works and that we get kernel stacks.
     """
-    with make_java_profiler(storage_dir=str(tmp_path), frequency=999) as profiler:
+    with make_java_profiler(profiler_state, frequency=999) as profiler:
         assert is_musl(psutil.Process(application_pid))
 
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
@@ -172,51 +185,49 @@ def test_java_async_profiler_musl_and_cpu(
         assert "/libgcc_s.so" not in maps
 
 
-def test_java_safemode_parameters(tmp_path: Path) -> None:
+def test_java_safemode_parameters(profiler_state: ProfilerState) -> None:
     with pytest.raises(AssertionError) as excinfo:
-        make_java_profiler(storage_dir=str(tmp_path), java_version_check=False)
+        make_java_profiler(profiler_state, java_version_check=False)
     assert "Java version checks are mandatory in --java-safemode" in str(excinfo.value)
 
 
 def test_java_safemode_version_check(
-    tmp_path: Path,
     monkeypatch: MonkeyPatch,
     caplog: LogCaptureFixture,
     application_pid: int,
     application_docker_container: Container,
     application_process: Optional[Popen],
+    profiler_state: ProfilerState,
 ) -> None:
     monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (Version("8.999"), 0))
 
-    with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
+    with make_java_profiler(profiler_state) as profiler:
         process = profiler._select_processes_to_profile()[0]
-        jvm_version = parse_jvm_version(get_java_version(process, profiler._stop_event))
+        jvm_version = parse_jvm_version(get_java_version(process, profiler._profiler_state.stop_event))
         collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
     log_record = next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records))
-    log_extra = log_record.extra  # type: ignore  # our logging adapter adds "extra"
-    assert log_extra["jvm_version"] == repr(jvm_version)
+    assert log_record_extra(log_record)["jvm_version"] == repr(jvm_version)
 
 
 def test_java_safemode_build_number_check(
-    tmp_path: Path,
     monkeypatch: MonkeyPatch,
     caplog: LogCaptureFixture,
     application_pid: int,
     application_docker_container: Container,
     application_process: Optional[Popen],
+    profiler_state: ProfilerState,
 ) -> None:
-    with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
+    with make_java_profiler(profiler_state) as profiler:
         process = profiler._select_processes_to_profile()[0]
-        jvm_version = parse_jvm_version(get_java_version(process, profiler._stop_event))
+        jvm_version = parse_jvm_version(get_java_version(process, profiler._profiler_state.stop_event))
         monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (jvm_version.version, 999))
         collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
     log_record = next(filter(lambda r: r.message == "Unsupported JVM version", caplog.records))
-    log_extra = log_record.extra  # type: ignore  # our logging adapter adds "extra"
-    assert log_extra["jvm_version"] == repr(jvm_version)
+    assert log_record_extra(log_record)["jvm_version"] == repr(jvm_version)
 
 
 @pytest.mark.parametrize(
@@ -228,7 +239,10 @@ def test_java_safemode_build_number_check(
     ],
 )
 def test_hotspot_error_file(
-    application_pid: int, tmp_path: Path, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
+    application_pid: int,
+    monkeypatch: MonkeyPatch,
+    caplog: LogCaptureFixture,
+    profiler_state: ProfilerState,
 ) -> None:
     start_async_profiler = AsyncProfiledProcess.start_async_profiler
 
@@ -241,7 +255,7 @@ def test_hotspot_error_file(
     monkeypatch.setattr(AsyncProfiledProcess, "start_async_profiler", start_async_profiler_and_crash)
 
     # increased duration - give the JVM some time to write the hs_err file.
-    profiler = make_java_profiler(storage_dir=str(tmp_path), duration=10)
+    profiler = make_java_profiler(profiler_state, duration=10)
     with profiler:
         profiler.snapshot()
 
@@ -255,11 +269,14 @@ def test_hotspot_error_file(
 
 
 def test_disable_java_profiling(
-    application_pid: int, tmp_path: Path, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
+    application_pid: int,
+    monkeypatch: MonkeyPatch,
+    caplog: LogCaptureFixture,
+    profiler_state: ProfilerState,
 ) -> None:
     caplog.set_level(logging.DEBUG)
 
-    profiler = make_java_profiler(storage_dir=str(tmp_path))
+    profiler = make_java_profiler(profiler_state)
     dummy_reason = "dummy reason"
     monkeypatch.setattr(profiler, "_safemode_disable_reason", dummy_reason)
     with profiler:
@@ -270,16 +287,19 @@ def test_disable_java_profiling(
 
 
 def test_already_loaded_async_profiler_profiling_failure(
-    tmp_path: Path, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture, application_pid: int
+    monkeypatch: MonkeyPatch,
+    caplog: LogCaptureFixture,
+    application_pid: int,
+    profiler_state: ProfilerState,
 ) -> None:
     with monkeypatch.context() as m:
         import gprofiler.profilers.java
 
         m.setattr(gprofiler.profilers.java, "POSSIBLE_AP_DIRS", ("/tmp/fake_gprofiler_tmp",))
-        with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
+        with make_java_profiler(profiler_state) as profiler:
             profiler.snapshot()
 
-    with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
+    with make_java_profiler(profiler_state) as profiler:
         process = profiler._select_processes_to_profile()[0]
         assert any("/tmp/fake_gprofiler_tmp" in mmap.path for mmap in process.memory_maps())
         collapsed = snapshot_pid_collapsed(profiler, application_pid)
@@ -295,13 +315,14 @@ def test_async_profiler_output_written_upon_jvm_exit(
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     caplog: LogCaptureFixture,
+    profiler_state: ProfilerState,
 ) -> None:
     """
     Make sure async-profiler writes output upon process exit (and we manage to read it correctly)
     """
     caplog.set_level(logging.DEBUG)
 
-    with make_java_profiler(storage_dir=str(tmp_path_world_accessible), duration=10) as profiler:
+    with make_java_profiler(profiler_state, duration=10) as profiler:
 
         def delayed_kill() -> None:
             time.sleep(3)
@@ -322,6 +343,7 @@ def test_async_profiler_stops_after_given_timeout(
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     caplog: LogCaptureFixture,
+    profiler_state: ProfilerState,
 ) -> None:
     caplog.set_level(logging.DEBUG)
 
@@ -329,9 +351,7 @@ def test_async_profiler_stops_after_given_timeout(
     timeout_s = 5
     with AsyncProfiledProcessForTests(
         process=process,
-        storage_dir=str(tmp_path_world_accessible),
-        insert_dso_name=False,
-        stop_event=Event(),
+        profiler_state=profiler_state,
         mode="itimer",
         ap_safemode=0,
         ap_args="",
@@ -351,17 +371,17 @@ def test_async_profiler_stops_after_given_timeout(
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("application_image_tag,search_for", [("j9", "OpenJ9"), ("zing", "Zing")])
 def test_sanity_other_jvms(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     search_for: str,
+    profiler_state: ProfilerState,
 ) -> None:
     with make_java_profiler(
+        profiler_state,
         frequency=99,
-        storage_dir=str(tmp_path),
         java_async_profiler_mode="cpu",
     ) as profiler:
-        assert search_for in get_java_version(psutil.Process(application_pid), profiler._stop_event)
+        assert search_for in get_java_version(psutil.Process(application_pid), profiler._profiler_state.stop_event)
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
 
@@ -369,7 +389,10 @@ def test_sanity_other_jvms(
 # test only once. in a container, so that we don't mess up the environment :)
 @pytest.mark.parametrize("in_container", [True])
 def test_java_deleted_libjvm(
-    tmp_path: Path, application_pid: int, application_docker_container: Container, assert_collapsed: AssertInCollapsed
+    application_pid: int,
+    application_docker_container: Container,
+    assert_collapsed: AssertInCollapsed,
+    profiler_state: ProfilerState,
 ) -> None:
     """
     Tests that we can profile processes whose libjvm was deleted, e.g because Java was upgraded.
@@ -385,9 +408,22 @@ def test_java_deleted_libjvm(
         application_pid
     ), f"Not (deleted) after deleting? libjvm={libjvm} maps={_read_pid_maps(application_pid)}"
 
-    with make_java_profiler(storage_dir=str(tmp_path), duration=3) as profiler:
+    with make_java_profiler(profiler_state, duration=3) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
+
+
+def filter_jattach_load_records(records: List[LogRecord]) -> List[LogRecord]:
+    def _filter_record(r: LogRecord) -> bool:
+        # find the log record of
+        # Running command (command=['/app/gprofiler/resources/java/jattach', 'xxx', 'load', ....])
+        return (
+            r.message == "Running command"
+            and "/jattach" in log_record_extra(r)["command"][0]
+            and "load" in log_record_extra(r)["command"][2]
+        )
+
+    return list(filter(_filter_record, records))
 
 
 @pytest.mark.parametrize(
@@ -404,6 +440,7 @@ def test_java_noexec_dirs(
     noexec_tmp_dir: str,
     in_container: bool,
     monkeypatch: MonkeyPatch,
+    profiler_state: ProfilerState,
 ) -> None:
     """
     Tests that gProfiler is able to select a non-default directory for libasyncProfiler if the default one
@@ -421,20 +458,27 @@ def test_java_noexec_dirs(
         # mount because /tmp is not necessarily tmpfs; and that'll hide all current files in /tmp).
         monkeypatch.setattr(gprofiler.profilers.java, "POSSIBLE_AP_DIRS", (noexec_tmp_dir, run_dir))
 
-    with make_java_profiler(storage_dir=str(tmp_path_world_accessible)) as profiler:
+    with make_java_profiler(profiler_state) as profiler:
         assert_collapsed(snapshot_pid_collapsed(profiler, application_pid))
 
     # should use this path instead of /tmp/gprofiler_tmp/...
-    assert "/run/gprofiler_tmp/async-profiler-" in caplog.text
+
+    jattach_loads = filter_jattach_load_records(caplog.records)
+    # 2 entries - start and stop
+    assert len(jattach_loads) == 2
+    # 3rd part of commandline to AP - shall begin with non-default directory
+    assert all(
+        log_record_extra(jl)["command"][3].startswith("/run/gprofiler_tmp/async-profiler-") for jl in jattach_loads
+    )
 
 
 @pytest.mark.parametrize("in_container", [True])
 def test_java_symlinks_in_paths(
-    tmp_path: Path,
     application_pid: int,
     application_docker_container: Container,
     assert_collapsed: AssertInCollapsed,
     caplog: LogCaptureFixture,
+    profiler_state: ProfilerState,
 ) -> None:
     """
     Tests that gProfiler correctly reads through symlinks in other namespaces (i.e where special
@@ -465,20 +509,23 @@ def test_java_symlinks_in_paths(
         user="root",
     )
 
-    with make_java_profiler(storage_dir=str(tmp_path)) as profiler:
+    with make_java_profiler(profiler_state) as profiler:
         assert_collapsed(snapshot_pid_collapsed(profiler, application_pid))
 
-    # part of the commandline to AP - which shall include the final, resolved path.
-    assert "load /run/final_tmp/gprofiler_tmp/" in caplog.text
+    jattach_loads = filter_jattach_load_records(caplog.records)
+    # 2 entries - start and stop
+    assert len(jattach_loads) == 2
+    # 3rd part of commandline to AP - shall begin with the final, resolved path.
+    assert all(log_record_extra(jl)["command"][3].startswith("/run/final_tmp/gprofiler_tmp/") for jl in jattach_loads)
 
 
 @pytest.mark.parametrize("in_container", [True])  # only in container is enough
 def test_java_appid_and_metadata_before_process_exits(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     monkeypatch: MonkeyPatch,
     caplog: LogCaptureFixture,
+    profiler_state: ProfilerState,
 ) -> None:
     """
     Tests that an appid is generated also for a process that exits during profiling
@@ -498,7 +545,7 @@ def test_java_appid_and_metadata_before_process_exits(
     monkeypatch.setattr(AsyncProfiledProcess, "start_async_profiler", start_async_profiler_and_interrupt)
 
     with make_java_profiler(
-        storage_dir=str(tmp_path),
+        profiler_state,
         duration=10,
     ) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
@@ -515,15 +562,15 @@ def test_java_appid_and_metadata_before_process_exits(
 
 @pytest.mark.parametrize("in_container", [True])  # only in container is enough
 def test_java_attach_socket_missing(
-    tmp_path: Path,
     application_pid: int,
+    profiler_state: ProfilerState,
 ) -> None:
     """
     Tests that we get the proper JattachMissingSocketException when the attach socket is deleted.
     """
 
     with make_java_profiler(
-        storage_dir=str(tmp_path),
+        profiler_state,
         duration=1,
     ) as profiler:
         snapshot_pid_profile(profiler, application_pid)
@@ -539,16 +586,16 @@ def test_java_attach_socket_missing(
 # we know what messages to expect when in container, not on the host Java
 @pytest.mark.parametrize("in_container", [True])
 def test_java_jattach_async_profiler_log_output(
-    tmp_path: Path,
     application_pid: int,
     caplog: LogCaptureFixture,
+    profiler_state: ProfilerState,
 ) -> None:
     """
     Tests that AP log is collected and logged in gProfiler's log.
     """
     caplog.set_level(logging.DEBUG)
     with make_java_profiler(
-        storage_dir=str(tmp_path),
+        profiler_state,
         duration=1,
     ) as profiler:
         # strip the container's libvjm, so we get the AP log message about missing debug
@@ -561,11 +608,11 @@ def test_java_jattach_async_profiler_log_output(
         assert len(log_records) == 2  # start,stop
         # start
         assert (
-            log_records[0].extra["ap_log"]  # type: ignore  # our logging adapter adds "extra"
+            log_record_extra(log_records[0])["ap_log"]
             == "[WARN] Install JVM debug symbols to improve profile accuracy\n"
         )
         # stop
-        assert log_records[1].extra["ap_log"] == ""  # type: ignore  # our logging adapter adds "extra"
+        assert log_record_extra(log_records[1])["ap_log"] == ""
 
 
 @pytest.mark.parametrize(
@@ -577,13 +624,13 @@ def test_java_jattach_async_profiler_log_output(
     ],
 )
 def test_java_different_basename(
-    tmp_path: Path,
     docker_client: DockerClient,
     application_docker_image: Image,
     assert_collapsed: AssertInCollapsed,
     caplog: LogCaptureFixture,
     change_argv0: bool,
     java_path: Optional[str],
+    profiler_state: ProfilerState,
 ) -> None:
     """
     Tests that we can profile a Java app that runs with non-java "comm", by reading the argv0 instead.
@@ -591,7 +638,7 @@ def test_java_different_basename(
     java_notjava_basename = "java-notjava"
 
     with make_java_profiler(
-        storage_dir=str(tmp_path),
+        profiler_state,
         duration=1,
         java_safemode=JAVA_SAFEMODE_ALL,  # explicitly enable, for basename checks
     ) as profiler:
@@ -633,22 +680,18 @@ def test_java_different_basename(
                     )
                 )
                 assert len(log_records) == 1
-                assert (
-                    os.path.basename(log_records[0].extra["exe"])  # type: ignore  # our logging adapter adds "extra"
-                    == java_notjava_basename
-                )
+                assert os.path.basename(log_record_extra(log_records[0])["exe"]) == java_notjava_basename
 
 
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("insert_dso_name", [False, True])
 def test_dso_name_in_ap_profile(
-    tmp_path: Path,
     application_pid: int,
     insert_dso_name: bool,
+    profiler_state: ProfilerState,
 ) -> None:
     with make_java_profiler(
-        storage_dir=str(tmp_path),
-        insert_dso_name=insert_dso_name,
+        profiler_state,
         duration=3,
         frequency=999,
     ) as profiler:
@@ -662,14 +705,13 @@ def test_dso_name_in_ap_profile(
 @pytest.mark.parametrize("insert_dso_name", [False, True])
 @pytest.mark.parametrize("libc_pattern", [r"(^|;)\(/.*/libc-.*\.so\)($|;)"])
 def test_handling_missing_symbol_in_profile(
-    tmp_path: Path,
     application_pid: int,
     insert_dso_name: bool,
     libc_pattern: str,
+    profiler_state: ProfilerState,
 ) -> None:
     with make_java_profiler(
-        storage_dir=str(tmp_path),
-        insert_dso_name=insert_dso_name,
+        profiler_state,
         duration=3,
         frequency=999,
     ) as profiler:
@@ -679,13 +721,13 @@ def test_handling_missing_symbol_in_profile(
 
 @pytest.mark.parametrize("in_container", [True])
 def test_meminfo_logged(
-    tmp_path: Path,
     application_pid: int,
     caplog: LogCaptureFixture,
+    profiler_state: ProfilerState,
 ) -> None:
     caplog.set_level(logging.DEBUG)
     with make_java_profiler(
-        storage_dir=str(tmp_path),
+        profiler_state,
         duration=3,
         frequency=999,
     ) as profiler:
@@ -696,11 +738,11 @@ def test_meminfo_logged(
 # test that java frames include no semicolon but use a pipe '|' character instead, as implemented by AP
 @pytest.mark.parametrize("in_container", [True])
 def test_java_frames_include_no_semicolons(
-    tmp_path: Path,
     application_pid: int,
+    profiler_state: ProfilerState,
 ) -> None:
     with make_java_profiler(
-        storage_dir=str(tmp_path),
+        profiler_state,
         duration=3,
         frequency=999,
     ) as profiler:
@@ -718,3 +760,54 @@ def test_java_frames_include_no_semicolons(
         assert not is_pattern_in_collapsed(r"\([^);]+;[^)]*\)", collapsed)
         # only a pipe can occur within arguments
         assert is_pattern_in_collapsed(r"\([^);|]+\|[^)]*\)", collapsed)
+
+
+# test that async profiler doesn't print anything to applications stdout, stderr streams
+@pytest.mark.parametrize("in_container", [True])
+def test_no_stray_output_in_stdout_stderr(
+    application_pid: int,
+    application_docker_container: Container,
+    monkeypatch: MonkeyPatch,
+    assert_collapsed: AssertInCollapsed,
+    profiler_state: ProfilerState,
+) -> None:
+    # save original stop function
+    stop_async_profiler = AsyncProfiledProcess.stop_async_profiler
+
+    # replace async profiler stop routine to trigger flushing standard output
+    def flush_output_and_stop_async_profiler(self: AsyncProfiledProcess, *args: Any, **kwargs: Any) -> str:
+        # Call 'version' action on async-profiler to make sure writes to stdout are flushed. Handling of 'version'
+        # action involves calling flush on output stream:
+        # (https://github.com/Granulate/async-profiler/blob/58c62fe4e816b60907ca84e315936834fc1cbae4/src/profiler.cpp#L1548)
+        self._run_async_profiler(
+            self._get_base_cmd() + [f"version" f",log={self._log_path_process}"],
+        )
+        result = stop_async_profiler(self, *args, **kwargs)
+        return result
+
+    monkeypatch.setattr(AsyncProfiledProcess, "stop_async_profiler", flush_output_and_stop_async_profiler)
+
+    with make_java_profiler(
+        profiler_state,
+        duration=3,
+        frequency=999,
+    ) as profiler:
+        # read ap-version from test ap-process to match the proper output against it
+        with AsyncProfiledProcessForTests(
+            process=Process(application_pid),
+            profiler_state=profiler._profiler_state,
+            mode="itimer",
+            ap_safemode=0,
+            ap_args="",
+        ) as ap_proc:
+            ap_version = ap_proc.read_ap_version()
+        collapsed = snapshot_pid_collapsed(profiler, application_pid)
+        assert_collapsed(collapsed)
+    application_docker_container.stop(timeout=3)
+    application_docker_container.wait(timeout=3)
+    textout = application_docker_container.logs(stdout=True, stderr=False).decode()
+    texterr = application_docker_container.logs(stdout=False, stderr=True).decode()
+    # output from Fibonacci and async-profiler version should be the only lines  in stdout
+    assert textout.splitlines() == ["Fibonacci thread starting", ap_version]
+    # output from Fibonacci should be the only expected output in stderr
+    assert texterr.strip() == "Fibonacci loop starting"

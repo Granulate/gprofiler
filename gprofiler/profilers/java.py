@@ -38,10 +38,11 @@ from granulate_utils.linux.process import (
     is_process_basename_matching,
     is_process_running,
     process_exe,
+    read_proc_file,
 )
 from granulate_utils.linux.signals import get_signal_entry
 from packaging.version import Version
-from psutil import Process
+from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
 from gprofiler.containers_client import ContainerNamesClient
@@ -58,6 +59,7 @@ from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
@@ -135,25 +137,37 @@ JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 256  # StackRecovery.PROBE_SP
 
 SUPPORTED_AP_MODES = ["cpu", "itimer", "alloc"]
 
+PROBLEMATIC_FRAME_REGEX = re.compile(r"^# Problematic frame:\n# (.*?)\n#\n", re.MULTILINE | re.DOTALL)
+"""
+See VMError::report.
+Example:
+    # Problematic frame:
+    # C  [libasyncProfiler.so+0x218a0]  Profiler::getJavaTraceAsync(void*, ASGCT_CallFrame*, int)+0xe0
+"""
+
 
 class JattachExceptionBase(CalledProcessError):
     def __init__(
-        self, returncode: int, cmd: Any, stdout: Any, stderr: Any, target_pid: int, ap_log: str, is_loaded: bool
+        self, returncode: int, cmd: Any, stdout: Any, stderr: Any, target_pid: int, ap_log: str, ap_loaded: str
     ):
         super().__init__(returncode, cmd, stdout, stderr)
         self._target_pid = target_pid
         self._ap_log = ap_log
-        self.is_loaded = is_loaded
+        self._ap_loaded = ap_loaded
 
     def __str__(self) -> str:
         ap_log = self._ap_log.strip()
         if not ap_log:
             ap_log = "(empty)"
-        loaded_msg = f"async-profiler DSO was{'' if self.is_loaded else ' not'} loaded"
+        loaded_msg = f"async-profiler DSO loaded: {self._ap_loaded}"
         return super().__str__() + f"\nJava PID: {self._target_pid}\n{loaded_msg}\nasync-profiler log:\n{ap_log}"
 
     def get_ap_log(self) -> str:
         return self._ap_log
+
+    @property
+    def is_ap_loaded(self) -> bool:
+        return self._ap_loaded == "yes"
 
 
 class JattachException(JattachExceptionBase):
@@ -171,10 +185,10 @@ class JattachTimeout(JattachExceptionBase):
         stderr: Any,
         target_pid: int,
         ap_log: str,
-        is_loaded: bool,
+        ap_loaded: str,
         timeout: int,
     ):
-        super().__init__(returncode, cmd, stdout, stderr, target_pid, ap_log, is_loaded)
+        super().__init__(returncode, cmd, stdout, stderr, target_pid, ap_log, ap_loaded)
         self._timeout = timeout
 
     def __str__(self) -> str:
@@ -311,9 +325,7 @@ class AsyncProfiledProcess:
     def __init__(
         self,
         process: Process,
-        storage_dir: str,
-        insert_dso_name: bool,
-        stop_event: Event,
+        profiler_state: ProfilerState,
         mode: str,
         ap_safemode: int,
         ap_args: str,
@@ -322,8 +334,7 @@ class AsyncProfiledProcess:
         collect_meminfo: bool = True,
     ):
         self.process = process
-        self._stop_event = stop_event
-        self._insert_dso_name = insert_dso_name
+        self._profiler_state = profiler_state
         # access the process' root via its topmost parent/ancestor which uses the same mount namespace.
         # this allows us to access the files after the process exits:
         # * for processes that run in host mount NS - their ancestor is always available (it's going to be PID 1)
@@ -353,8 +364,7 @@ class AsyncProfiledProcess:
         self._libap_path_process = remove_prefix(self._libap_path_host, self._process_root)
 
         # for other purposes - we can use storage_dir.
-        self._storage_dir = storage_dir
-        self._storage_dir_host = resolve_proc_root_links(self._process_root, self._storage_dir)
+        self._storage_dir_host = resolve_proc_root_links(self._process_root, self._profiler_state.storage_dir)
 
         self._output_path_host = os.path.join(self._storage_dir_host, f"async-profiler-{self.process.pid}.output")
         self._output_path_process = remove_prefix(self._output_path_host, self._process_root)
@@ -491,14 +501,14 @@ class AsyncProfiledProcess:
             f"log={self._log_path_process}"
             f"{f',fdtransfer={self._fdtransfer_path}' if self._mode == 'cpu' else ''}"
             f",safemode={self._ap_safemode},timeout={ap_timeout}"
-            f"{',lib' if self._insert_dso_name else ''}{self._get_extra_ap_args()}"
+            f"{',lib' if self._profiler_state.insert_dso_name else ''}{self._get_extra_ap_args()}"
         ]
 
     def _get_stop_cmd(self, with_output: bool) -> List[str]:
         return self._get_base_cmd() + [
             f"stop,log={self._log_path_process},mcache={self._mcache}"
             f"{self._get_ap_output_args() if with_output else ''}"
-            f"{',lib' if self._insert_dso_name else ''}{',meminfolog' if self._collect_meminfo else ''}"
+            f"{',lib' if self._profiler_state.insert_dso_name else ''}{',meminfolog' if self._collect_meminfo else ''}"
             f"{self._get_extra_ap_args()}"
         ]
 
@@ -517,12 +527,22 @@ class AsyncProfiledProcess:
     def _run_async_profiler(self, cmd: List[str]) -> str:
         try:
             # kill jattach with SIGTERM if it hangs. it will go down
-            run_process(cmd, stop_event=self._stop_event, timeout=self._jattach_timeout, kill_signal=signal.SIGTERM)
+            run_process(
+                cmd,
+                stop_event=self._profiler_state.stop_event,
+                timeout=self._jattach_timeout,
+                kill_signal=signal.SIGTERM,
+            )
         except CalledProcessError as e:  # catches CalledProcessTimeoutError as well
             ap_log = self._read_ap_log()
-            is_loaded = f" {self._libap_path_process}\n" in Path(f"/proc/{self.process.pid}/maps").read_text()
+            try:
+                ap_loaded = (
+                    "yes" if f" {self._libap_path_process}\n" in read_proc_file(self.process, "maps").decode() else "no"
+                )
+            except NoSuchProcess:
+                ap_loaded = "not sure, process exited"
 
-            args = e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, is_loaded
+            args = e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, ap_loaded
             if isinstance(e, CalledProcessTimeoutError):
                 raise JattachTimeout(*args, timeout=self._jattach_timeout) from None
             elif e.stderr == b"Could not start attach mechanism: No such file or directory\n":
@@ -546,7 +566,7 @@ class AsyncProfiledProcess:
             # sure that fdtransfer is still around for the full duration of jattach, in case the application
             # takes a while to accept & handle the connection.
             [fdtransfer_path(), self._fdtransfer_path, str(self.process.pid), str(self._jattach_timeout + 5)],
-            stop_event=self._stop_event,
+            stop_event=self._profiler_state.stop_event,
             timeout=self._FDTRANSFER_TIMEOUT,
         )
 
@@ -563,7 +583,7 @@ class AsyncProfiledProcess:
             self._run_async_profiler(start_cmd)
             return True
         except JattachException as e:
-            if e.is_loaded:
+            if e.is_ap_loaded:
                 if (
                     e.returncode == 200  # 200 == AP's COMMAND_ERROR
                     and e.get_ap_log() == "[ERROR] Profiler already started\n"
@@ -689,12 +709,16 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self,
         frequency: int,
         duration: int,
+<<<<<<< HEAD
         stop_event: Event,
         storage_dir: str,
         insert_dso_name: bool,
         profile_spawned_processes: bool,
         profiling_mode: str,
         container_names_client: Optional[ContainerNamesClient],
+=======
+        profiler_state: ProfilerState,
+>>>>>>> origin/master
         java_version_check: bool,
         java_async_profiler_mode: str,
         java_async_profiler_safemode: int,
@@ -707,6 +731,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_async_profiler_report_meminfo: bool,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
+<<<<<<< HEAD
         super().__init__(
             frequency,
             duration,
@@ -717,13 +742,18 @@ class JavaProfiler(SpawningProcessProfilerBase):
             profiling_mode,
             container_names_client,
         )
+=======
+        super().__init__(frequency, duration, profiler_state)
+>>>>>>> origin/master
         # Alloc interval is passed in frequency in allocation profiling (in bytes, as async-profiler expects)
-        self._interval = frequency_to_ap_interval(frequency) if profiling_mode == "cpu" else frequency
+        self._interval = (
+            frequency_to_ap_interval(frequency) if self._profiler_state.profiling_mode == "cpu" else frequency
+        )
         # simple version check, and
         self._simple_version_check = java_version_check
         if not self._simple_version_check:
             logger.warning("Java version checks are disabled")
-        self._init_ap_mode(profiling_mode, java_async_profiler_mode)
+        self._init_ap_mode(self._profiler_state.profiling_mode, java_async_profiler_mode)
         self._ap_safemode = java_async_profiler_safemode
         self._ap_args = java_async_profiler_args
         self._jattach_timeout = java_jattach_timeout
@@ -740,8 +770,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._kernel_messages_provider = get_kernel_messages_provider()
         self._enabled_proc_events_java = False
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
-        self._metadata = JavaMetadata(self._stop_event)
-        self._insert_dso_name = insert_dso_name
+        self._metadata = JavaMetadata(self._profiler_state.stop_event)
         self._report_meminfo = java_async_profiler_report_meminfo
 
     def _init_ap_mode(self, profiling_mode: str, ap_mode: str) -> None:
@@ -901,7 +930,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         # TODO we can get the "java" binary by extracting the java home from the libjvm path,
         # then check with that instead (if exe isn't java)
         if is_java_basename(process):
-            java_version_output: Optional[str] = get_java_version_logged(process, self._stop_event)
+            java_version_output: Optional[str] = get_java_version_logged(process, self._profiler_state.stop_event)
         else:
             java_version_output = None
 
@@ -946,9 +975,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
 
         with AsyncProfiledProcess(
             process,
-            self._storage_dir,
-            self._insert_dso_name,
-            self._stop_event,
+            self._profiler_state,
             self._mode,
             self._ap_safemode,
             self._ap_args,
@@ -994,7 +1021,9 @@ class JavaProfiler(SpawningProcessProfilerBase):
                 )
 
         try:
-            wait_event(duration, self._stop_event, lambda: not is_process_running(ap_proc.process), interval=1)
+            wait_event(
+                duration, self._profiler_state.stop_event, lambda: not is_process_running(ap_proc.process), interval=1
+            )
         except TimeoutError:
             # Process still running. We will stop the profiler in finally block.
             pass
@@ -1029,6 +1058,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
         vm_info = m[1] if m else ""
         m = SIGINFO_REGEX.search(contents)
         siginfo = m[1] if m else ""
+        m = PROBLEMATIC_FRAME_REGEX.search(contents)
+        problematic_frame = m[1] if m else ""
         m = NATIVE_FRAMES_REGEX.search(contents)
         native_frames = m[1] if m else ""
         m = CONTAINER_INFO_REGEX.search(contents)
@@ -1037,6 +1068,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             f"Found Hotspot error log for pid {pid} at {error_file}:\n"
             f"VM info: {vm_info}\n"
             f"siginfo: {siginfo}\n"
+            f"Problematic frame: {problematic_frame}\n"
             f"native frames:\n{native_frames}\n"
             f"container info:\n{container_info}"
         )

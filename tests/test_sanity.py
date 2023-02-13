@@ -15,8 +15,8 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 
-from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.merge import parse_one_collapsed
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.dotnet import DotnetProfiler
 from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.php import PHPSpyProfiler
@@ -43,10 +43,11 @@ def test_java_from_host(
     application_pid: int,
     assert_app_id: Callable,
     assert_collapsed: AssertInCollapsed,
+    profiler_state: ProfilerState,
 ) -> None:
     with make_java_profiler(
+        profiler_state,
         frequency=99,
-        storage_dir=str(tmp_path_world_accessible),
         java_async_profiler_mode="itimer",
     ) as profiler:
         _ = assert_app_id  # Required for mypy unused argument warning
@@ -56,16 +57,14 @@ def test_java_from_host(
 
 @pytest.mark.parametrize("runtime", ["python"])
 def test_pyspy(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     assert_app_id: Callable,
     python_version: Optional[str],
+    profiler_state: ProfilerState,
 ) -> None:
     _ = assert_app_id  # Required for mypy unused argument warning
-    with PySpyProfiler(
-        1000, 3, Event(), str(tmp_path), False, CPU_PROFILING_MODE, False, add_versions=True
-    ) as profiler:
+    with PySpyProfiler(1000, 3, profiler_state, add_versions=True) as profiler:
         # not using snapshot_one_collapsed because there are multiple Python processes running usually.
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -77,10 +76,10 @@ def test_pyspy(
 
 @pytest.mark.parametrize("runtime", ["php"])
 def test_phpspy(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     in_container: bool,
+    profiler_state: ProfilerState,
 ) -> None:
     if not in_container:
         pytest.skip("Flaky https://github.com/Granulate/gprofiler/issues/630")
@@ -88,11 +87,7 @@ def test_phpspy(
     with PHPSpyProfiler(
         1000,
         PHPSPY_DURATION,
-        Event(),
-        str(tmp_path),
-        False,
-        CPU_PROFILING_MODE,
-        False,
+        profiler_state,
         php_process_filter="php",
         php_mode="phpspy",
     ) as profiler:
@@ -102,49 +97,49 @@ def test_phpspy(
 
 @pytest.mark.parametrize("runtime", ["ruby"])
 def test_rbspy(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
+    profiler_state: ProfilerState,
 ) -> None:
-    with RbSpyProfiler(1000, 3, Event(), str(tmp_path), False, CPU_PROFILING_MODE, False, "rbspy") as profiler:
+    with RbSpyProfiler(1000, 3, profiler_state, "rbspy") as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
 
 
 @pytest.mark.parametrize("runtime", ["dotnet"])
 def test_dotnet_trace(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
+    profiler_state: ProfilerState,
 ) -> None:
-    with DotnetProfiler(1000, 3, Event(), str(tmp_path), False, False, CPU_PROFILING_MODE, "dotnet-trace") as profiler:
+    with DotnetProfiler(1000, 3, profiler_state, "dotnet-trace") as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
 
 
 @pytest.mark.parametrize("runtime", ["nodejs"])
 def test_nodejs(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
+    profiler_state: ProfilerState,
 ) -> None:
     with SystemProfiler(
         1000,
         6,
-        Event(),
-        str(tmp_path),
-        False,
-        CPU_PROFILING_MODE,
-        False,
+        profiler_state,
         perf_mode="fp",
         perf_inject=True,
         perf_dwarf_stack_size=0,
         perf_node_attach=False,
+<<<<<<< HEAD
         perf_restart=False,
         container_names_client=None,
+=======
+        perf_memory_restart=False,
+>>>>>>> origin/master
     ) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -152,18 +147,16 @@ def test_nodejs(
 
 @pytest.mark.parametrize("runtime", ["python"])
 def test_python_ebpf(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     assert_app_id: Callable,
     gprofiler_docker_image: Image,
     python_version: Optional[str],
     no_kernel_headers: Any,
+    profiler_state: ProfilerState,
 ) -> None:
     _ = assert_app_id  # Required for mypy unused argument warning
-    with PythonEbpfProfiler(
-        1000, 5, Event(), str(tmp_path), False, False, CPU_PROFILING_MODE, add_versions=True
-    ) as profiler:
+    with PythonEbpfProfiler(1000, 5, profiler_state, add_versions=True) as profiler:
         try:
             process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         except UnicodeDecodeError as e:

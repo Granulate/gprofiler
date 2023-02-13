@@ -3,15 +3,17 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
-from pathlib import Path
+import logging
 from threading import Event
 from typing import cast
 
 import pytest
 from docker.models.containers import Container
+from pytest import LogCaptureFixture
 
-from gprofiler.consts import CPU_PROFILING_MODE
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.perf import DEFAULT_PERF_DWARF_STACK_SIZE, SystemProfiler
+from gprofiler.utils import wait_event
 from tests.utils import (
     assert_function_in_collapsed,
     is_function_in_collapsed,
@@ -21,30 +23,25 @@ from tests.utils import (
 
 
 @pytest.fixture
-def insert_dso_name() -> bool:
-    return False
+def system_profiler(perf_mode: str, insert_dso_name: bool, profiler_state: ProfilerState) -> SystemProfiler:
+    return make_system_profiler(perf_mode, profiler_state)
 
 
-@pytest.fixture
-def system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) -> SystemProfiler:
-    return make_system_profiler(tmp_path, perf_mode, insert_dso_name)
-
-
-def make_system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) -> SystemProfiler:
+def make_system_profiler(perf_mode: str, profiler_state: ProfilerState) -> SystemProfiler:
     return SystemProfiler(
         99,
         1,
-        Event(),
-        str(tmp_path),
-        insert_dso_name,
-        CPU_PROFILING_MODE,
-        False,
+        profiler_state,
         perf_mode=perf_mode,
         perf_inject=False,
         perf_dwarf_stack_size=DEFAULT_PERF_DWARF_STACK_SIZE,
         perf_node_attach=False,
+<<<<<<< HEAD
         perf_restart=True,
         container_names_client=None,
+=======
+        perf_memory_restart=True,
+>>>>>>> origin/master
     )
 
 
@@ -186,3 +183,57 @@ def test_dso_name_in_perf_profile(
         collapsed = snapshot_pid_profile(profiler, application_pid).stacks
         assert is_function_in_collapsed("recursive", collapsed)
         assert insert_dso_name == is_function_in_collapsed("recursive (/native)", collapsed)
+
+
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("perf_mode", ["smart"])
+def test_perf_restarted_if_killed(
+    system_profiler: SystemProfiler,
+    caplog: LogCaptureFixture,
+    in_container: bool,
+) -> None:
+    caplog.set_level(logging.DEBUG)
+    with system_profiler as profiler:
+        # both perfs started
+        assert len(profiler._perfs) == 2
+        assert len(list(filter(lambda r: r.message == "Starting perf (fp mode)", caplog.records))) == 1
+        assert len(list(filter(lambda r: r.message == "Starting perf (dwarf mode)", caplog.records))) == 1
+
+        # kill both
+        for perf in profiler._perfs:
+            assert perf._process is not None
+            perf._process.terminate()
+
+        # wait for them to exit
+        wait_event(20, Event(), lambda: all(not perf.is_running() for perf in profiler._perfs))
+
+        # snapshot - perfs are restarted after a cycle
+        profiler.snapshot()
+
+        # they should restart
+        assert all(perf.is_running() for perf in profiler._perfs)
+        assert (
+            len(
+                list(
+                    filter(
+                        lambda r: r.message == "perf (fp mode) not running (unexpectedly), restarting...",
+                        caplog.records,
+                    )
+                )
+            )
+            == 1
+        )
+        assert (
+            len(
+                list(
+                    filter(
+                        lambda r: r.message == "perf (dwarf mode) not running (unexpectedly), restarting...",
+                        caplog.records,
+                    )
+                )
+            )
+            == 1
+        )
+        # starting message again (now appears twice)
+        assert len(list(filter(lambda r: r.message == "Starting perf (fp mode)", caplog.records))) == 2
+        assert len(list(filter(lambda r: r.message == "Starting perf (dwarf mode)", caplog.records))) == 2

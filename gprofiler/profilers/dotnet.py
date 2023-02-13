@@ -6,8 +6,7 @@ import datetime
 import functools
 import os
 import signal
-from threading import Event
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from granulate_utils.linux.ns import get_process_nspid
 from granulate_utils.linux.process import is_process_basename_matching
@@ -18,6 +17,7 @@ from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import ProfileData
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.application_metadata import ApplicationMetadata
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
@@ -65,21 +65,14 @@ class DotnetProfiler(ProcessProfilerBase):
         self,
         frequency: int,
         duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
-        insert_dso_name: bool,
-        profile_spawned_processes: bool,
-        profiling_mode: str,
-        container_names_client: Optional[ContainerNamesClient],
+        profiler_state: ProfilerState,
         dotnet_mode: str,
     ):
-        super().__init__(
-            frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode, container_names_client
-        )
+        super().__init__(frequency, duration, profiler_state)
         assert (
             dotnet_mode == "dotnet-trace"
         ), "Dotnet profiler should not be initialized, wrong dotnet-trace value given"
-        self._metadata = DotnetMetadata(self._stop_event)
+        self._metadata = DotnetMetadata(self._profiler_state.stop_event)
 
     def _make_command(self, process: Process, duration: int, output_path: str) -> List[str]:
         if duration > 3600 * 24:
@@ -113,7 +106,9 @@ class DotnetProfiler(ProcessProfilerBase):
         else:
             container_name = ""
         # had to change the dots for minuses because of dotnet-trace removing the last part in other case
-        local_output_path = os.path.join(self._storage_dir, f"dotnet-trace-{random_prefix()}-{process.pid}")
+        local_output_path = os.path.join(
+            self._profiler_state.storage_dir, f"dotnet-trace-{random_prefix()}-{process.pid}"
+        )
         # this causes dotnet-trace to lookup the socket in the mount namespace of the target process
         tempdir = f"/proc/{process.pid}/root/tmp"
         # go up two levels from the dotnet-trace binary location
@@ -123,7 +118,7 @@ class DotnetProfiler(ProcessProfilerBase):
                 run_process(
                     self._make_command(process, duration, local_output_path),
                     env={"TMPDIR": tempdir, "DOTNET_ROOT": dotnet_root},
-                    stop_event=self._stop_event,
+                    stop_event=self._profiler_state.stop_event,
                     timeout=self._duration + self._EXTRA_TIMEOUT,
                     kill_signal=signal.SIGKILL,
                 )

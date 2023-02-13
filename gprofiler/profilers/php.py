@@ -11,13 +11,13 @@ from collections import Counter, defaultdict
 from functools import lru_cache
 from pathlib import Path
 from subprocess import Popen
-from threading import Event
 from typing import List, Optional, Pattern, cast
 
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProcessToStackSampleCounters, ProfileData
 from gprofiler.log import get_logger_adapter
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import random_prefix, resource_path, start_process, wait_event
@@ -60,22 +60,22 @@ class PHPSpyProfiler(ProfilerBase):
         self,
         frequency: int,
         duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
-        insert_dso_name: bool,
-        profiling_mode: str,
-        profile_spawned_processes: bool,
+        profiler_state: ProfilerState,
         php_process_filter: str,
         php_mode: str,
         container_names_client: Optional[ContainerNamesClient],
     ):
         assert php_mode == "phpspy", "PHP profiler should not be initialized, wrong php_mode value given"
+<<<<<<< HEAD
         super().__init__(
             frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode, container_names_client
         )
         _ = profile_spawned_processes  # Required for mypy unused argument warning
+=======
+        super().__init__(frequency, duration, profiler_state)
+>>>>>>> origin/master
         self._process: Optional[Popen] = None
-        self._output_path = Path(self._storage_dir) / f"phpspy.{random_prefix()}.col"
+        self._output_path = Path(self._profiler_state.storage_dir) / f"phpspy.{random_prefix()}.col"
         self._process_filter = php_process_filter
 
     def start(self) -> None:
@@ -107,7 +107,7 @@ class PHPSpyProfiler(ProfilerBase):
         # parsing.
         # If an error occurs after this stage it's probably a spied _process specific and not phpspy general error.
         try:
-            wait_event(self.poll_timeout, self._stop_event, lambda: os.path.exists(self._output_path))
+            wait_event(self.poll_timeout, self._profiler_state.stop_event, lambda: os.path.exists(self._output_path))
         except TimeoutError:
             process.kill()
             assert process.stdout is not None and process.stderr is not None
@@ -137,7 +137,7 @@ class PHPSpyProfiler(ProfilerBase):
             if output_files:
                 break
 
-            if self._stop_event.wait(0.1):
+            if self._profiler_state.stop_event.wait(0.1):
                 raise StopEventSetException()
 
         # All the snapshot samples should be in a single file
@@ -211,7 +211,7 @@ class PHPSpyProfiler(ProfilerBase):
         return profiles
 
     def snapshot(self) -> ProcessToProfileData:
-        if self._stop_event.wait(self._duration):
+        if self._profiler_state.stop_event.wait(self._duration):
             raise StopEventSetException()
         stderr = self._process.stderr.read1().decode()  # type: ignore
         self._process_stderr(stderr)
