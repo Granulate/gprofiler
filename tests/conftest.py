@@ -574,12 +574,12 @@ def pytest_collection_modifyitems(session: pytest.Session, config: Config, items
 @fixture
 def python_version(in_container: bool, application_docker_container: Container) -> Optional[str]:
     if in_container:
-        exit_code, output = application_docker_container.exec_run(cmd="python --version")
+        exit_code, output = application_docker_container.exec_run(cmd="python3 --version")
         if exit_code != 0:
             return None
     else:
         # If not running in a container the test application runs on host
-        output = subprocess.check_output("python --version", stderr=subprocess.STDOUT, shell=True)
+        output = subprocess.check_output("python3 --version", stderr=subprocess.STDOUT, shell=True)
 
     # Output is expected to look like e.g. "Python 3.9.7"
     return cast(str, output.decode().strip().split()[-1])
