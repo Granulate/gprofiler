@@ -273,10 +273,8 @@ class PidStackEnrichment:
 
 
 def _enrich_pid_stacks(
-    pid: int,
     profile: ProfileData,
     enrichment_options: EnrichmentOptions,
-    container_names_client: Optional[ContainerNamesClient],
     application_metadata: List[Optional[Dict]],
 ) -> PidStackEnrichment:
     """
@@ -288,9 +286,10 @@ def _enrich_pid_stacks(
     # generate application name
     appid = profile.appid
     if profile.container_name:
-        container_prefix = profile.container_name + ";"
+        container_prefix = profile.container_name
     else:
         container_prefix = ""
+    container_prefix = f"{container_prefix};"
     if appid is not None:
         appid = f"appid: {appid}"
 
@@ -385,7 +384,7 @@ def concatenate_profiles(
     application_metadata: List[Optional[Dict]] = [None]
 
     for pid, profile in process_profiles.items():
-        enrich_data = _enrich_pid_stacks(pid, profile, enrichment_options, container_names_client, application_metadata)
+        enrich_data = _enrich_pid_stacks(profile, enrichment_options, application_metadata)
         for stack, count in profile.stacks.items():
             lines.append(_enrich_and_finalize_stack(stack, count, enrichment_options, enrich_data))
 

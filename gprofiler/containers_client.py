@@ -49,6 +49,7 @@ class ContainerNamesClient:
             return ""
 
         if pid in self._pid_to_container_name_cache:
+            self._current_container_names.add(self._pid_to_container_name_cache[pid])
             return self._pid_to_container_name_cache[pid]
 
         container_name: Optional[str] = self._safely_get_process_container_name(pid)
@@ -92,6 +93,7 @@ class ContainerNamesClient:
     def refresh_container_names_cache(self) -> None:
         # We re-fetch all of the currently running containers, so in order to keep the cache small we clear it
         self._container_id_to_name_cache.clear()
+        self._pid_to_container_name_cache.clear()
         for container in self._containers_client.list_containers() if self._containers_client is not None else []:
             self._container_id_to_name_cache[container.id] = container.name
             if container.pid:
