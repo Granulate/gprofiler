@@ -15,6 +15,9 @@ if [ -z ${NO_APT_INSTALL+x} ]; then
     sudo ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
     sudo DEBIAN_FRONTEND=noninteractive apt-get update
     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io php ruby
+    mkdir -vp ~/.docker/cli-plugins/
+    curl --silent -L "https://github.com/docker/buildx/releases/download/v0.10.2/buildx-v0.10.2.linux-arm64" > ~/.docker/cli-plugins/docker-buildx
+    chmod a+x ~/.docker/cli-plugins/docker-buildx
   else
     sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update
     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io php ruby2.7 dotnet-sdk-6.0
