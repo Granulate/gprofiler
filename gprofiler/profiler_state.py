@@ -24,8 +24,6 @@ class ProfilerState:
         self._temporary_dir = TemporaryDirectoryWithMode(dir=storage_dir, mode=0o755)
         self._storage_dir = self._temporary_dir.name
         self._container_names_client = container_names_client
-        if self._container_names_client:
-            self._container_names_client.refresh_container_names_cache()
 
     @property
     def stop_event(self) -> Event:
@@ -50,6 +48,10 @@ class ProfilerState:
     @property
     def container_names_client(self) -> Optional[ContainerNamesClient]:
         return self._container_names_client
+
+    def refresh_container_cache(self) -> None:
+        if self._container_names_client:
+            self._container_names_client.refresh_container_names_cache()
 
     def get_container_name(self, pid: int) -> str:
         if self._container_names_client:
