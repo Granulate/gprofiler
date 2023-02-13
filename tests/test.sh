@@ -9,6 +9,10 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"  # h
 
 if [ -z ${NO_APT_INSTALL+x} ]; then
   if [ "$(uname -m)" = "aarch64" ]; then
+    curl -SL -o dotnet.tar.gz https://dotnetcli.blob.core.windows.net/dotnet/Sdk/master/dotnet-sdk-latest-linux-arm64.tar.gz
+    sudo mkdir -p /usr/share/dotnet
+    sudo tar -zxf dotnet.tar.gz -C /usr/share/dotnet
+    sudo ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
     sudo DEBIAN_FRONTEND=noninteractive apt-get update
     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io php ruby
   else
