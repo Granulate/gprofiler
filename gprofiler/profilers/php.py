@@ -13,7 +13,6 @@ from pathlib import Path
 from subprocess import Popen
 from typing import List, Optional, Pattern, cast
 
-from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProcessToStackSampleCounters, ProfileData
 from gprofiler.log import get_logger_adapter
@@ -63,7 +62,6 @@ class PHPSpyProfiler(ProfilerBase):
         profiler_state: ProfilerState,
         php_process_filter: str,
         php_mode: str,
-        container_names_client: Optional[ContainerNamesClient],
     ):
         assert php_mode == "phpspy", "PHP profiler should not be initialized, wrong php_mode value given"
         super().__init__(frequency, duration, profiler_state)
@@ -157,7 +155,7 @@ class PHPSpyProfiler(ProfilerBase):
         return ";".join(reversed(parsed_frames))
 
     @classmethod
-    def _parse_phpspy_output(cls, phpspy_output: str) -> ProcessToProfileData:
+    def _parse_phpspy_output(cls, phpspy_output: str, profiler_state: ProfilerState) -> ProcessToProfileData:
         def extract_metadata_section(re_expr: Pattern, metadata_line: str) -> str:
             match = re_expr.match(metadata_line)
             if not match:
@@ -199,7 +197,7 @@ class PHPSpyProfiler(ProfilerBase):
             # TODO: appid & app metadata for php!
             appid = None
             app_metadata = None
-            profiles[pid] = ProfileData(results[pid], appid, app_metadata)
+            profiles[pid] = ProfileData(results[pid], appid, app_metadata, profiler_state.get_container_name(pid))
 
         return profiles
 
@@ -212,7 +210,7 @@ class PHPSpyProfiler(ProfilerBase):
         phpspy_output_path = self._dump()
         phpspy_output_text = phpspy_output_path.read_text()
         phpspy_output_path.unlink()
-        return self._parse_phpspy_output(phpspy_output_text)
+        return self._parse_phpspy_output(phpspy_output_text, self._profiler_state)
 
     def _terminate(self) -> Optional[int]:
         code = None

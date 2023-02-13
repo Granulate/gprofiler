@@ -18,7 +18,6 @@ from granulate_utils.node import is_node_process
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
-from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import AppMetadata, ProcessToProfileData, ProfileData, StackToSampleCount
 from gprofiler.log import get_logger_adapter
@@ -355,10 +354,7 @@ class SystemProfiler(ProfilerBase):
             appid = self._get_appid(pid)
         else:
             appid = None
-        if self._profiler_state.container_names_client:
-            container_name = self._profiler_state.container_names_client.get_container_name(pid)
-        else:
-            container_name = ""
+        container_name = self._profiler_state.get_container_name(pid)
         return ProfileData(stacks, appid, metadata, container_name)
 
 

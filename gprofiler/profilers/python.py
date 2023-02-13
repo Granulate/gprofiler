@@ -22,7 +22,6 @@ from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PR
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
-from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.exceptions import (
     CalledProcessError,
     CalledProcessTimeoutError,
@@ -210,10 +209,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         )
         appid = application_identifiers.get_python_app_id(process)
         app_metadata = self._metadata.get_metadata(process)
-        if self._profiler_state.container_names_client:
-            container_name = self._profiler_state.container_names_client.get_container_name(process.pid)
-        else:
-            container_name = ""
+        container_name = self._profiler_state.get_container_name(process.pid)
         comm = process_comm(process)
 
         local_output_path = os.path.join(self._profiler_state.storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
@@ -240,6 +236,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
                         self._profiling_error_stack("error", comm, "process exited before py-spy started"),
                         appid,
                         app_metadata,
+                        container_name,
                     )
                 raise
 
@@ -388,7 +385,6 @@ class PythonProfiler(ProfilerInterface):
                     profiler_state,
                     add_versions=add_versions,
                     user_stacks_pages=user_stacks_pages,
-                    container_names_client=container_names_client,
                 )
                 profiler.test()
                 return profiler

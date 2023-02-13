@@ -14,7 +14,6 @@ from granulate_utils.linux.ns import is_running_in_init_pid
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
-from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.exceptions import CalledProcessError, StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData
 from gprofiler.log import get_logger_adapter
@@ -240,10 +239,7 @@ class PythonEbpfProfiler(ProfilerBase):
                 process = Process(pid)
                 appid = application_identifiers.get_python_app_id(process)
                 app_metadata = self._metadata.get_metadata(process)
-                if self._profiler_state.container_names_client:
-                    container_name = self._profiler_state.container_names_client.get_container_name(pid)
-                else:
-                    container_name = ""
+                container_name = self._profiler_state.get_container_name(pid)
             except NoSuchProcess:
                 appid = None
                 app_metadata = None

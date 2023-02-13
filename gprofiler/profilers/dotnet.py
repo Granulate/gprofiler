@@ -12,7 +12,6 @@ from granulate_utils.linux.ns import get_process_nspid
 from granulate_utils.linux.process import is_process_basename_matching
 from psutil import Process
 
-from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import ProfileData
 from gprofiler.log import get_logger_adapter
@@ -101,10 +100,7 @@ class DotnetProfiler(ProcessProfilerBase):
         )
         appid = None
         app_metadata = self._metadata.get_metadata(process)
-        if self._profiler_state.container_names_client:
-            container_name = self._profiler_state.container_names_client.get_container_name(process.pid)
-        else:
-            container_name = ""
+        container_name = self._profiler_state.get_container_name(process.pid)
         # had to change the dots for minuses because of dotnet-trace removing the last part in other case
         local_output_path = os.path.join(
             self._profiler_state.storage_dir, f"dotnet-trace-{random_prefix()}-{process.pid}"

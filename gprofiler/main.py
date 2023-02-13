@@ -284,7 +284,6 @@ class GProfiler:
             prof.stop()
 
     def _snapshot(self) -> None:
-        self._container_names_client.refresh_container_names_cache()
         local_start_time = datetime.datetime.utcnow()
         monotonic_start_time = time.monotonic()
         process_profilers_futures = []
@@ -324,7 +323,7 @@ class GProfiler:
             assert system_result == {}, system_result  # should be empty!
             merged_result = concatenate_profiles(
                 process_profiles,
-                self._container_names_client,
+                self._profiler_state.container_names_client,
                 self._enrichment_options,
                 metadata,
                 metrics,
@@ -334,7 +333,7 @@ class GProfiler:
             merged_result = merge_profiles(
                 system_result,
                 process_profiles,
-                self._container_names_client,
+                self._profiler_state.container_names_client,
                 self._enrichment_options,
                 metadata,
                 metrics,

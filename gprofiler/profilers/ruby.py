@@ -14,7 +14,6 @@ from granulate_utils.linux.process import get_mapped_dso_elf_id, is_process_base
 from psutil import Process
 
 from gprofiler import merge
-from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import ProfileData
 from gprofiler.log import get_logger_adapter
@@ -108,10 +107,7 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
         comm = process_comm(process)
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_ruby_app_id(process)
-        if self._profiler_state.container_names_client:
-            container_name = self._profiler_state.container_names_client.get_container_name(process.pid)
-        else:
-            container_name = ""
+        container_name = self._profiler_state.get_container_name(process.pid)
 
         local_output_path = os.path.join(self._profiler_state.storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):

@@ -45,7 +45,6 @@ from packaging.version import Version
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
-from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.diagnostics import is_diagnostics
 from gprofiler.exceptions import CalledProcessError, CalledProcessTimeoutError, NoRwExecDirectoryFoundError
 from gprofiler.gprofiler_types import (
@@ -790,7 +789,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._safemode_disable_reason = cause
 
     def _profiling_skipped_profile(self, reason: str, comm: str) -> ProfileData:
-        return ProfileData(self._profiling_error_stack("skipped", reason, comm), None, None)
+        return ProfileData(self._profiling_error_stack("skipped", reason, comm), None, None, None)
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -941,10 +940,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         logger.info(f"Profiling{' spawned' if spawned else ''} process {process.pid} with async-profiler")
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_java_app_id(process, self._collect_spark_app_name)
-        if self._profiler_state.container_names_client:
-            container_name = self._profiler_state.container_names_client.get_container_name(process.pid)
-        else:
-            container_name = ""
+        container_name = self._profiler_state.get_container_name(process.pid)
 
         if is_diagnostics():
             execfn = (app_metadata or {}).get("execfn")

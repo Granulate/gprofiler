@@ -94,4 +94,5 @@ class ContainerNamesClient:
         self._container_id_to_name_cache.clear()
         for container in self._containers_client.list_containers() if self._containers_client is not None else []:
             self._container_id_to_name_cache[container.id] = container.name
-            self._pid_to_container_name_cache[container.pid] = container.name
+            if container.pid:
+                self._pid_to_container_name_cache[container.pid] = container.name

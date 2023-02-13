@@ -21,6 +21,7 @@ from psutil import Process
 from pytest import FixtureRequest, TempPathFactory, fixture
 
 from gprofiler.consts import CPU_PROFILING_MODE
+from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.diagnostics import set_diagnostics
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.metadata.application_identifiers import (
@@ -86,7 +87,7 @@ def java_args() -> Tuple[str]:
 
 @fixture()
 def profiler_state(tmp_path: Path, insert_dso_name: bool) -> ProfilerState:
-    return ProfilerState(Event(), str(tmp_path), False, insert_dso_name, CPU_PROFILING_MODE)
+    return ProfilerState(Event(), str(tmp_path), False, insert_dso_name, CPU_PROFILING_MODE, ContainerNamesClient())
 
 
 def make_path_world_accessible(path: Path) -> None:

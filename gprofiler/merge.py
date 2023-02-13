@@ -265,16 +265,6 @@ def _make_profile_metadata(
     return "# " + json.dumps(profile_metadata)
 
 
-def _get_container_name(
-    pid: int, container_names_client: Optional[ContainerNamesClient], add_container_names: bool
-) -> str:
-    return (
-        container_names_client.get_container_name(pid)
-        if add_container_names and container_names_client is not None
-        else ""
-    )
-
-
 @dataclass
 class PidStackEnrichment:
     appid: Optional[str]

@@ -1,7 +1,7 @@
 from threading import Event
 from typing import Optional
-from gprofiler.containers_client import ContainerNamesClient
 
+from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.utils import TemporaryDirectoryWithMode
 
 
@@ -24,6 +24,8 @@ class ProfilerState:
         self._temporary_dir = TemporaryDirectoryWithMode(dir=storage_dir, mode=0o755)
         self._storage_dir = self._temporary_dir.name
         self._container_names_client = container_names_client
+        if self._container_names_client:
+            self._container_names_client.refresh_container_names_cache()
 
     @property
     def stop_event(self) -> Event:
@@ -46,5 +48,11 @@ class ProfilerState:
         return self._profiling_mode
 
     @property
-    def container_names_client(self) -> ContainerNamesClient:
+    def container_names_client(self) -> Optional[ContainerNamesClient]:
         return self._container_names_client
+
+    def get_container_name(self, pid: int) -> str:
+        if self._container_names_client:
+            return self._container_names_client.get_container_name(pid)
+        else:
+            return ""
