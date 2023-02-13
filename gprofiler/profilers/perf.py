@@ -239,19 +239,9 @@ class SystemProfiler(ProfilerBase):
         perf_dwarf_stack_size: int,
         perf_inject: bool,
         perf_node_attach: bool,
-<<<<<<< HEAD
-        perf_restart: bool,
-        container_names_client: Optional[ContainerNamesClient],
-    ):
-        super().__init__(
-            frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode, container_names_client
-        )
-        _ = profile_spawned_processes  # Required for mypy unused argument warning
-=======
         perf_memory_restart: bool,
     ):
         super().__init__(frequency, duration, profiler_state)
->>>>>>> origin/master
         self._perfs: List[PerfProcess] = []
         self._metadata_collectors: List[PerfMetadata] = [
             GolangPerfMetadata(self._profiler_state.stop_event),
@@ -365,8 +355,8 @@ class SystemProfiler(ProfilerBase):
             appid = self._get_appid(pid)
         else:
             appid = None
-        if self._container_names_client:
-            container_name = self._container_names_client.get_container_name(pid)
+        if self._profiler_state.container_names_client:
+            container_name = self._profiler_state.container_names_client.get_container_name(pid)
         else:
             container_name = ""
         return ProfileData(stacks, appid, metadata, container_name)

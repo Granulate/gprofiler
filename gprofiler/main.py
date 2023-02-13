@@ -142,33 +142,19 @@ class GProfiler:
         # 2. accessible only by us.
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
-<<<<<<< HEAD
-        self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
         if self._enrichment_options.container_names:
-            self._container_names_client: Optional[ContainerNamesClient] = ContainerNamesClient()
+            container_names_client: Optional[ContainerNamesClient] = ContainerNamesClient()
         else:
-            self._container_names_client = None
-        self.system_profiler, self.process_profilers = get_profilers(
-            user_args,
-            storage_dir=self._temp_storage_dir.name,
-            stop_event=self._stop_event,
-            profile_spawned_processes=self._profile_spawned_processes,
-            container_names_client=self._container_names_client,
-        )
-=======
+            container_names_client = None
         self._profiler_state = ProfilerState(
             Event(),
             TEMPORARY_STORAGE_PATH,
             profile_spawned_processes,
             bool(user_args.get("insert_dso_name")),
             profiling_mode,
+            container_names_client,
         )
         self.system_profiler, self.process_profilers = get_profilers(user_args, profiler_state=self._profiler_state)
-        if self._enrichment_options.container_names:
-            self._container_names_client: Optional[ContainerNamesClient] = ContainerNamesClient()
-        else:
-            self._container_names_client = None
->>>>>>> origin/master
         self._usage_logger = usage_logger
         if collect_metrics:
             self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(

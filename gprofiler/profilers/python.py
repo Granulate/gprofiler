@@ -172,33 +172,11 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         self,
         frequency: int,
         duration: int,
-<<<<<<< HEAD
-        stop_event: Optional[Event],
-        storage_dir: str,
-        insert_dso_name: bool,
-        profiling_mode: str,
-        profile_spawned_processes: bool,
-        container_names_client: Optional[ContainerNamesClient],
-        *,
-        add_versions: bool,
-    ):
-        super().__init__(
-            frequency,
-            duration,
-            stop_event,
-            storage_dir,
-            insert_dso_name,
-            profile_spawned_processes,
-            profiling_mode,
-            container_names_client,
-        )
-=======
         profiler_state: ProfilerState,
         *,
         add_versions: bool,
     ):
         super().__init__(frequency, duration, profiler_state)
->>>>>>> origin/master
         self.add_versions = add_versions
         self._metadata = PythonMetadata(self._profiler_state.stop_event)
 
@@ -232,8 +210,8 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         )
         appid = application_identifiers.get_python_app_id(process)
         app_metadata = self._metadata.get_metadata(process)
-        if self._container_names_client:
-            container_name = self._container_names_client.get_container_name(process.pid)
+        if self._profiler_state.container_names_client:
+            container_name = self._profiler_state.container_names_client.get_container_name(process.pid)
         else:
             container_name = ""
         comm = process_comm(process)
@@ -357,16 +335,7 @@ class PythonProfiler(ProfilerInterface):
         self,
         frequency: int,
         duration: int,
-<<<<<<< HEAD
-        stop_event: Event,
-        storage_dir: str,
-        insert_dso_name: bool,
-        profiling_mode: str,
-        profile_spawned_processes: bool,
-        container_names_client: Optional[ContainerNamesClient],
-=======
         profiler_state: ProfilerState,
->>>>>>> origin/master
         python_mode: str,
         python_add_versions: bool,
         python_pyperf_user_stacks_pages: Optional[int],
@@ -388,11 +357,6 @@ class PythonProfiler(ProfilerInterface):
                 profiler_state,
                 python_add_versions,
                 python_pyperf_user_stacks_pages,
-<<<<<<< HEAD
-                profiling_mode,
-                container_names_client,
-=======
->>>>>>> origin/master
             )
         else:
             self._ebpf_profiler = None
@@ -401,16 +365,7 @@ class PythonProfiler(ProfilerInterface):
             self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(
                 frequency,
                 duration,
-<<<<<<< HEAD
-                stop_event,
-                storage_dir,
-                insert_dso_name,
-                profiling_mode,
-                profile_spawned_processes,
-                container_names_client=container_names_client,
-=======
                 profiler_state,
->>>>>>> origin/master
                 add_versions=python_add_versions,
             )
         else:
@@ -425,11 +380,6 @@ class PythonProfiler(ProfilerInterface):
             profiler_state: ProfilerState,
             add_versions: bool,
             user_stacks_pages: Optional[int],
-<<<<<<< HEAD
-            profiling_mode: str,
-            container_names_client: Optional[ContainerNamesClient],
-=======
->>>>>>> origin/master
         ) -> Optional[PythonEbpfProfiler]:
             try:
                 profiler = PythonEbpfProfiler(

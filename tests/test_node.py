@@ -42,12 +42,7 @@ def test_nodejs_attach_maps(
         perf_inject=False,
         perf_dwarf_stack_size=0,
         perf_node_attach=True,
-<<<<<<< HEAD
-        perf_restart=False,
-        container_names_client=None,
-=======
         perf_memory_restart=False,
->>>>>>> origin/master
     ) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -100,12 +95,7 @@ def test_twoprocesses_nodejs_attach_maps(
                 perf_inject=False,
                 perf_dwarf_stack_size=0,
                 perf_node_attach=True,
-<<<<<<< HEAD
-                perf_restart=False,
-                container_names_client=None,
-=======
                 perf_memory_restart=False,
->>>>>>> origin/master
             ) as profiler:
                 results = profiler.snapshot()
                 assert_collapsed(results[pid1].stacks)
@@ -151,12 +141,7 @@ def test_nodejs_matrix(
         perf_inject=False,
         perf_dwarf_stack_size=0,
         perf_node_attach=True,
-<<<<<<< HEAD
-        perf_restart=False,
-        container_names_client=None,
-=======
         perf_memory_restart=False,
->>>>>>> origin/master
     ) as profiler:
         node_version, libc = application_image_tag.split("-")
         if node_version == "12" and libc == "glibc":

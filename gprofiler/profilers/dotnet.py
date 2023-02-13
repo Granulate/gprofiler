@@ -101,8 +101,8 @@ class DotnetProfiler(ProcessProfilerBase):
         )
         appid = None
         app_metadata = self._metadata.get_metadata(process)
-        if self._container_names_client:
-            container_name = self._container_names_client.get_container_name(process.pid)
+        if self._profiler_state.container_names_client:
+            container_name = self._profiler_state.container_names_client.get_container_name(process.pid)
         else:
             container_name = ""
         # had to change the dots for minuses because of dotnet-trace removing the last part in other case

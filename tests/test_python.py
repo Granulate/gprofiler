@@ -37,13 +37,7 @@ def test_python_select_by_libpython(
     We expect to select these because they have "libpython" in their "/proc/pid/maps".
     This test runs a Python named "shmython".
     """
-<<<<<<< HEAD
-    with PythonProfiler(
-        1000, 1, Event(), str(tmp_path), False, CPU_PROFILING_MODE, False, "pyspy", True, None, None
-    ) as profiler:
-=======
     with PythonProfiler(1000, 1, profiler_state, "pyspy", True, None) as profiler:
->>>>>>> origin/master
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
     assert_collapsed(process_collapsed)
     assert all(stack.startswith("shmython") for stack in process_collapsed.keys())
@@ -141,13 +135,7 @@ def test_dso_name_in_pyperf_profile(
     insert_dso_name: bool,
     profiler_state: ProfilerState,
 ) -> None:
-<<<<<<< HEAD
-    with PythonProfiler(
-        1000, 2, Event(), str(tmp_path), insert_dso_name, CPU_PROFILING_MODE, False, profiler_type, True, None, None
-    ) as profiler:
-=======
     with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None) as profiler:
->>>>>>> origin/master
         profile = snapshot_pid_profile(profiler, application_pid)
     python_version, _, _ = application_image_tag.split("-")
     interpreter_frame = "PyEval_EvalFrameEx" if python_version == "2.7" else "_PyEval_EvalFrameDefault"

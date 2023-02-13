@@ -709,16 +709,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self,
         frequency: int,
         duration: int,
-<<<<<<< HEAD
-        stop_event: Event,
-        storage_dir: str,
-        insert_dso_name: bool,
-        profile_spawned_processes: bool,
-        profiling_mode: str,
-        container_names_client: Optional[ContainerNamesClient],
-=======
         profiler_state: ProfilerState,
->>>>>>> origin/master
         java_version_check: bool,
         java_async_profiler_mode: str,
         java_async_profiler_safemode: int,
@@ -731,20 +722,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_async_profiler_report_meminfo: bool,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
-<<<<<<< HEAD
-        super().__init__(
-            frequency,
-            duration,
-            stop_event,
-            storage_dir,
-            insert_dso_name,
-            profile_spawned_processes,
-            profiling_mode,
-            container_names_client,
-        )
-=======
         super().__init__(frequency, duration, profiler_state)
->>>>>>> origin/master
         # Alloc interval is passed in frequency in allocation profiling (in bytes, as async-profiler expects)
         self._interval = (
             frequency_to_ap_interval(frequency) if self._profiler_state.profiling_mode == "cpu" else frequency
@@ -963,8 +941,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
         logger.info(f"Profiling{' spawned' if spawned else ''} process {process.pid} with async-profiler")
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_java_app_id(process, self._collect_spark_app_name)
-        if self._container_names_client:
-            container_name = self._container_names_client.get_container_name(process.pid)
+        if self._profiler_state.container_names_client:
+            container_name = self._profiler_state.container_names_client.get_container_name(process.pid)
         else:
             container_name = ""
 

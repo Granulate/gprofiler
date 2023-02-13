@@ -72,31 +72,10 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
         self,
         frequency: int,
         duration: int,
-<<<<<<< HEAD
-        stop_event: Optional[Event],
-        storage_dir: str,
-        insert_dso_name: bool,
-        profiling_mode: str,
-        profile_spawned_processes: bool,
-        container_names_client: Optional[ContainerNamesClient],
-        ruby_mode: str,
-    ):
-        super().__init__(
-            frequency,
-            duration,
-            stop_event,
-            storage_dir,
-            insert_dso_name,
-            profile_spawned_processes,
-            profiling_mode,
-            container_names_client,
-        )
-=======
         profiler_state: ProfilerState,
         ruby_mode: str,
     ):
         super().__init__(frequency, duration, profiler_state)
->>>>>>> origin/master
         assert ruby_mode == "rbspy", "Ruby profiler should not be initialized, wrong ruby_mode value given"
         self._metadata = RubyMetadata(self._profiler_state.stop_event)
 
@@ -129,8 +108,8 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
         comm = process_comm(process)
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_ruby_app_id(process)
-        if self._container_names_client:
-            container_name = self._container_names_client.get_container_name(process.pid)
+        if self._profiler_state.container_names_client:
+            container_name = self._profiler_state.container_names_client.get_container_name(process.pid)
         else:
             container_name = ""
 

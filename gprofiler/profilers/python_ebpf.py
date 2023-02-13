@@ -58,16 +58,7 @@ class PythonEbpfProfiler(ProfilerBase):
         self,
         frequency: int,
         duration: int,
-<<<<<<< HEAD
-        stop_event: Optional[Event],
-        storage_dir: str,
-        insert_dso_name: bool,
-        profile_spawned_processes: bool,
-        profiling_mode: str,
-        container_names_client: Optional[ContainerNamesClient],
-=======
         profiler_state: ProfilerState,
->>>>>>> origin/master
         *,
         add_versions: bool,
         user_stacks_pages: Optional[int] = None,
@@ -249,8 +240,8 @@ class PythonEbpfProfiler(ProfilerBase):
                 process = Process(pid)
                 appid = application_identifiers.get_python_app_id(process)
                 app_metadata = self._metadata.get_metadata(process)
-                if self._container_names_client:
-                    container_name = self._container_names_client.get_container_name(pid)
+                if self._profiler_state.container_names_client:
+                    container_name = self._profiler_state.container_names_client.get_container_name(pid)
                 else:
                     container_name = ""
             except NoSuchProcess:

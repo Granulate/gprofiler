@@ -36,12 +36,7 @@ def make_system_profiler(perf_mode: str, profiler_state: ProfilerState) -> Syste
         perf_inject=False,
         perf_dwarf_stack_size=DEFAULT_PERF_DWARF_STACK_SIZE,
         perf_node_attach=False,
-<<<<<<< HEAD
-        perf_restart=True,
-        container_names_client=None,
-=======
         perf_memory_restart=True,
->>>>>>> origin/master
     )
 
 
