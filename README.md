@@ -231,6 +231,19 @@ helm show values .
 
 At the time of this writing, Fargate does not support `DAEMON` tasks (see [this](https://github.com/aws/containers-roadmap/issues/971) tracking issue).
 
+Since Fargate containers don't run with the full set of Linux capabilities, some of the profilers are not supported at all, and others require modifying the Fargate container definition to add the `SYS_PTRACE` capability, which is not included by default.
+
+| Runtime                    | Supported               |
+|----------------------------|-------------------------|
+| perf (native, Golang, ...) | No                      |
+| Java (async-profiler)      | Yes                     |
+| Python (py-spy)            | Yes (with `SYS_PTRACE`) |
+| Python (PyPerf eBPF)       | No                      |
+| Ruby (rbspy)               | Yes (with `SYS_PTRACE`) |
+| PHP (phpspy)               | Yes (with `SYS_PTRACE`) |
+| NodeJS (perf)              | No                      |
+| .NET (dotnet-trace)        | Yes                     |
+
 Furthermore, Fargate does not allow using `"pidMode": "host"` in the task definition (see documentation of `pidMode` [here](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_TaskDefinition.html)). Host PID is required for gProfiler to be able to profile processes running in other containers (in case of Fargate, other containers under the same `containerDefinition`).
 
 So in order to deploy gProfiler, we need to modify a container definition to include running gProfiler alongside the actual application. This can be done with the following steps:
@@ -251,7 +264,7 @@ So in order to deploy gProfiler, we need to modify a container definition to inc
     gProfiler and its installation process will send the outputs to your container's stdout & stderr. After verifying that everything works, you can append `> /dev/null 2>&1` to the gProfiler command parenthesis (in this example, before the `& python ...`) to prevent it from spamming your container logs.
 
     This requires your image to have `wget` installed - you can make sure `wget` is installed, or substitute the `wget` command with `curl -SL https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler --output /tmp/gprofiler`, or any other HTTP-downloader you wish.
-2. Add `linuxParameters` to the container definition (this goes directly in your entry in `containerDefinitinos`):
+2. This step is **required** if you wish to profile a runtime environment that requires `SYS_PTRACE` per the table mentioned above, in the beginning of the Fargate section. If you need to add `SYS_PTRACE` for your runtime environment - currently that's for Python, Ruby and PHP - please `linuxParameters` to the container definition (this goes directly in your entry in `containerDefinitinos`):
    ```
    "linuxParameters": {
      "capabilities": {
@@ -261,7 +274,6 @@ So in order to deploy gProfiler, we need to modify a container definition to inc
      },
    },
    ```
-   `SYS_PTRACE` is required by  various profilers, and Fargate by default denies it for containers.
 
 Alternatively, you can download gProfiler in your `Dockerfile` to avoid having to download it every time in run-time. Then you just need to invoke it upon container start-up.
 
