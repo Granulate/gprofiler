@@ -264,7 +264,7 @@ So in order to deploy gProfiler, we need to modify a container definition to inc
     gProfiler and its installation process will send the outputs to your container's stdout & stderr. After verifying that everything works, you can append `> /dev/null 2>&1` to the gProfiler command parenthesis (in this example, before the `& python ...`) to prevent it from spamming your container logs.
 
     This requires your image to have `wget` installed - you can make sure `wget` is installed, or substitute the `wget` command with `curl -SL https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler --output /tmp/gprofiler`, or any other HTTP-downloader you wish.
-2. This step is **required** if you wish to profile a runtime environment that requires `SYS_PTRACE` per the table mentioned above, in the beginning of the Fargate section. If you need to add `SYS_PTRACE` for your runtime environment - currently that's for Python, Ruby and PHP - please `linuxParameters` to the container definition (this goes directly in your entry in `containerDefinitinos`):
+2. This step is **required** if you wish to profile a runtime environment that requires `SYS_PTRACE` per the table mentioned above, in the beginning of the Fargate section. If you need to add `SYS_PTRACE` for your runtime environment - currently that's for Python, Ruby and PHP - add `linuxParameters` to the container definition (this goes directly in your entry in `containerDefinitinos`):
    ```
    "linuxParameters": {
      "capabilities": {
