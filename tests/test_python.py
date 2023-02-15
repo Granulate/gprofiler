@@ -82,11 +82,12 @@ def test_python_matrix(
 ) -> None:
     python_version, libc, app = application_image_tag.split("-")
 
-    if python_version == "3.5" and profiler_type == "pyperf":
-        pytest.skip("PyPerf doesn't support Python 3.5!")
-
+    # pyperf now working on aarch right now https://github.com/Granulate/gprofiler/issues/499
     if platform.machine() == "aarch64" and profiler_type == "pyperf":
         pytest.skip("PyPerf doesn't support aarch64 architecture!")
+    
+    if python_version == "3.5" and profiler_type == "pyperf":
+        pytest.skip("PyPerf doesn't support Python 3.5!")
 
     if python_version == "2.7" and profiler_type == "pyperf" and app == "uwsgi":
         pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/485")
