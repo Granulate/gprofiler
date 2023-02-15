@@ -304,9 +304,11 @@ class JavaMetadata(ApplicationMetadata):
 
         try:
             jvm_flags = self.get_jvm_flags_serialized(process)
-        except Exception:
+        except CalledProcessError as e:
+            jvm_flags = [{"error": e.stderr}]
+        except Exception as e:
             logger.exception("Failed to collect JVM flags", pid=process.pid)
-            jvm_flags = None
+            jvm_flags = [{"error": type(e).__name__}]
 
         metadata = {
             "java_version": version,
@@ -328,12 +330,7 @@ class JavaMetadata(ApplicationMetadata):
         if self.java_collect_jvm_flags == JavaFlagCollectionOptions.NONE:
             return None
 
-        jvm_raw_flags: Optional[Iterable[JvmFlag]] = self.get_jvm_flags_raw(process)
-
-        if jvm_raw_flags is None:
-            return None
-
-        jvm_raw_flags = filter(self.filter_jvm_flag, jvm_raw_flags)
+        jvm_raw_flags: Iterable[JvmFlag] = filter(self.filter_jvm_flag, self.get_jvm_flags_raw(process))
 
         if self.java_collect_jvm_flags == JavaFlagCollectionOptions.ALL:
             return jvm_raw_flags
@@ -381,12 +378,12 @@ class JavaMetadata(ApplicationMetadata):
         return True
 
     @functools.lru_cache(maxsize=1024)
-    def get_jvm_flags_raw(self, process: Process) -> Optional[List[JvmFlag]]:
+    def get_jvm_flags_raw(self, process: Process) -> List[JvmFlag]:
         try:
             output = self.jattach_jcmd_runner.run(process, "VM.flags -all")
-        except CalledProcessError as e:
-            logger.warning("Couldn't get jvm flags for process", pid=process.pid, stderr=e.stderr)
-            return None
+        except CalledProcessError as error:
+            logger.warning("Couldn't get jvm flags for process", pid=process.pid, stderr=error.stderr)
+            raise error
 
         return parse_jvm_flags(output)
 
