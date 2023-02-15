@@ -902,6 +902,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         return False
 
     def _profile_process(self, process: Process, duration: int, spawned: bool) -> ProfileData:
+        container_name = self._profiler_state.get_container_name(process.pid)
         comm = process_comm(process)
         exe = process_exe(process)
         # TODO we can get the "java" binary by extracting the java home from the libjvm path,
@@ -940,7 +941,6 @@ class JavaProfiler(SpawningProcessProfilerBase):
         logger.info(f"Profiling{' spawned' if spawned else ''} process {process.pid} with async-profiler")
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_java_app_id(process, self._collect_spark_app_name)
-        container_name = self._profiler_state.get_container_name(process.pid)
 
         if is_diagnostics():
             execfn = (app_metadata or {}).get("execfn")
@@ -958,7 +958,6 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._report_meminfo,
         ) as ap_proc:
             stackcollapse = self._profile_ap_process(ap_proc, comm, duration)
-
         return ProfileData(stackcollapse, appid, app_metadata, container_name)
 
     @staticmethod

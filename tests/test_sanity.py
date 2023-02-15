@@ -246,9 +246,9 @@ def test_from_container_spawned_process(
 
 
 @pytest.mark.parametrize("in_container", [True])
-@pytest.mark.parametrize("profiler_type", ["attach-maps"])
-@pytest.mark.parametrize("runtime", ["nodejs"])
-@pytest.mark.parametrize("application_image_tag", ["without-flags"])
+@pytest.mark.parametrize("profiler_type", ["ap"])
+@pytest.mark.parametrize("runtime", ["java"])
+@pytest.mark.parametrize("application_image_tag", ["musl"])
 def test_container_name_when_stopped(
     docker_client: DockerClient,
     gprofiler_docker_image: Image,
@@ -259,6 +259,9 @@ def test_container_name_when_stopped(
     profiler_flags: List[str],
     application_docker_container: Container,
 ) -> None:
+    """
+    Tests that container name is added to data even when container stops during profiling.
+    """
     profiler_flags.extend(["-d", "20"])
     container = start_gprofiler_in_container_for_one_session(
         docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags
@@ -272,4 +275,5 @@ def test_container_name_when_stopped(
     application_container_name = application_docker_container.name
     application_docker_container.kill()
     collapsed_text = wait_for_gprofiler_container(container, output_collapsed)
-    assert f";{application_container_name};node" in collapsed_text
+    print(collapsed_text)
+    assert f";{application_container_name};java" in collapsed_text

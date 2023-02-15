@@ -49,8 +49,9 @@ class ContainerNamesClient:
             return ""
 
         if pid in self._pid_to_container_name_cache:
-            self._current_container_names.add(self._pid_to_container_name_cache[pid])
-            return self._pid_to_container_name_cache[pid]
+            name = self._pid_to_container_name_cache[pid]
+            self._current_container_names.add(name)
+            return name
 
         container_name: Optional[str] = self._safely_get_process_container_name(pid)
         if container_name is None:
@@ -96,5 +97,5 @@ class ContainerNamesClient:
         self._pid_to_container_name_cache.clear()
         for container in self._containers_client.list_containers() if self._containers_client is not None else []:
             self._container_id_to_name_cache[container.id] = container.name
-            if container.pid:
+            if container.pid is not None:
                 self._pid_to_container_name_cache[container.pid] = container.name

@@ -142,10 +142,7 @@ class GProfiler:
         # 2. accessible only by us.
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
-        if self._enrichment_options.container_names:
-            container_names_client: Optional[ContainerNamesClient] = ContainerNamesClient()
-        else:
-            container_names_client = None
+        container_names_client = ContainerNamesClient() if self._enrichment_options.container_names else None
         self._profiler_state = ProfilerState(
             Event(),
             TEMPORARY_STORAGE_PATH,

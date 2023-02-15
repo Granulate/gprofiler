@@ -50,11 +50,11 @@ class ProfilerState:
         return self._container_names_client
 
     def refresh_container_cache(self) -> None:
-        if self._container_names_client:
+        if self._container_names_client is not None:
             self._container_names_client.refresh_container_names_cache()
 
     def get_container_name(self, pid: int) -> str:
-        if self._container_names_client:
+        if self._container_names_client is not None:
             return self._container_names_client.get_container_name(pid)
         else:
             return ""

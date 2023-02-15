@@ -272,6 +272,14 @@ class PidStackEnrichment:
     container_prefix: str
 
 
+def _get_container_name_from_profile(profile: ProfileData) -> str:
+    if profile.container_name is not None:
+        container_prefix = profile.container_name
+    else:
+        container_prefix = ""
+    return f"{container_prefix};"
+
+
 def _enrich_pid_stacks(
     profile: ProfileData,
     enrichment_options: EnrichmentOptions,
@@ -285,11 +293,6 @@ def _enrich_pid_stacks(
     """
     # generate application name
     appid = profile.appid
-    if profile.container_name:
-        container_prefix = profile.container_name
-    else:
-        container_prefix = ""
-    container_prefix = f"{container_prefix};"
     if appid is not None:
         appid = f"appid: {appid}"
 
@@ -308,7 +311,9 @@ def _enrich_pid_stacks(
     # generate container name
     # to maintain compatibility with old profiler versions, we include the container name frame in any case
     # if the protocol version does not "v1, regardless of whether container_names is enabled or not.
-    if enrichment_options.profile_api_version == "v1":
+    if enrichment_options.profile_api_version != "v1":
+        container_prefix = _get_container_name_from_profile(profile)
+    else:
         container_prefix = ""
 
     return PidStackEnrichment(appid, application_prefix, container_prefix)
@@ -435,6 +440,10 @@ def merge_profiles(
             # divided by samples we received from the runtime profiler of this process.
             ratio = perf_samples_count / profile_samples_count
             profile.stacks = scale_sample_counts(profile.stacks, ratio)
+
+        if profile.container_name in [None, '']:
+            if process_perf.container_name is not None:
+                profile.container_name = process_perf.container_name
 
         # swap them: use the processed (scaled or extended) samples from the runtime profiler.
         perf_pid_to_profiles[pid] = profile
