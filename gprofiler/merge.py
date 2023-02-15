@@ -441,7 +441,7 @@ def merge_profiles(
             ratio = perf_samples_count / profile_samples_count
             profile.stacks = scale_sample_counts(profile.stacks, ratio)
 
-        if profile.container_name in [None, '']:
+        if profile.container_name in [None, ""]:
             if process_perf.container_name is not None:
                 profile.container_name = process_perf.container_name
 

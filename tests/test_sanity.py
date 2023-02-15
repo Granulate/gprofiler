@@ -267,7 +267,11 @@ def test_container_name_when_stopped(
         docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags
     )
     try:
-        wait_event(20, Event(), lambda: re.search(rb"Profiling .*process \d* with async-profiler", container.logs()) is not None)
+        wait_event(
+            20,
+            Event(),
+            lambda: re.search(rb"Profiling .*process \d* with async-profiler", container.logs()) is not None,
+        )
     except TimeoutError:
         print(container.logs())
         raise
@@ -275,5 +279,5 @@ def test_container_name_when_stopped(
     application_container_name = application_docker_container.name
     application_docker_container.kill()
     collapsed_text = wait_for_gprofiler_container(container, output_collapsed)
-    assert f"exited before stopping async-profiler" in container.logs().decode()
+    assert "exited before stopping async-profiler" in container.logs().decode()
     assert f";{application_container_name};java" in collapsed_text
