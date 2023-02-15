@@ -52,7 +52,7 @@ class DotnetMetadata(ApplicationMetadata):
     "dotnet",
     possible_modes=["dotnet-trace", "disabled"],
     supported_archs=["x86_64", "aarch64"],
-    default_mode="dotnet-trace",
+    default_mode="disabled",
     supported_profiling_modes=["cpu"],
 )
 class DotnetProfiler(ProcessProfilerBase):
