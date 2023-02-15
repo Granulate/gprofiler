@@ -281,7 +281,6 @@ class GProfiler:
             prof.stop()
 
     def _snapshot(self) -> None:
-        self._profiler_state.refresh_container_cache()
         local_start_time = datetime.datetime.utcnow()
         monotonic_start_time = time.monotonic()
         process_profilers_futures = []

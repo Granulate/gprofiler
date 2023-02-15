@@ -82,7 +82,7 @@ class ContainerNamesClient:
                 self._current_container_names.add(container_name)
             return container_name
 
-        self.refresh_container_names_cache()
+        self._refresh_container_names_cache()
         if container_id not in self._container_id_to_name_cache:
             self._container_id_to_name_cache[container_id] = None
             return None
@@ -91,11 +91,8 @@ class ContainerNamesClient:
             self._current_container_names.add(container_name)
         return container_name
 
-    def refresh_container_names_cache(self) -> None:
+    def _refresh_container_names_cache(self) -> None:
         # We re-fetch all of the currently running containers, so in order to keep the cache small we clear it
         self._container_id_to_name_cache.clear()
-        self._pid_to_container_name_cache.clear()
         for container in self._containers_client.list_containers() if self._containers_client is not None else []:
             self._container_id_to_name_cache[container.id] = container.name
-            if container.pid is not None:
-                self._pid_to_container_name_cache[container.pid] = container.name

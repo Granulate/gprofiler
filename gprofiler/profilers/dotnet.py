@@ -93,6 +93,7 @@ class DotnetProfiler(ProcessProfilerBase):
         ]
 
     def _profile_process(self, process: Process, duration: int, spawned: bool) -> ProfileData:
+        container_name = self._profiler_state.get_container_name(process.pid)
         logger.info(
             f"Profiling{' spawned' if spawned else ''} process {process.pid} with dotnet-trace",
             cmdline=" ".join(process.cmdline()),
@@ -100,7 +101,6 @@ class DotnetProfiler(ProcessProfilerBase):
         )
         appid = None
         app_metadata = self._metadata.get_metadata(process)
-        container_name = self._profiler_state.get_container_name(process.pid)
         # had to change the dots for minuses because of dotnet-trace removing the last part in other case
         local_output_path = os.path.join(
             self._profiler_state.storage_dir, f"dotnet-trace-{random_prefix()}-{process.pid}"

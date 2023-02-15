@@ -99,6 +99,7 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
         ]
 
     def _profile_process(self, process: Process, duration: int, spawned: bool) -> ProfileData:
+        container_name = self._profiler_state.get_container_name(process.pid)
         logger.info(
             f"Profiling{' spawned' if spawned else ''} process {process.pid} with rbspy",
             cmdline=" ".join(process.cmdline()),
@@ -107,7 +108,6 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
         comm = process_comm(process)
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_ruby_app_id(process)
-        container_name = self._profiler_state.get_container_name(process.pid)
 
         local_output_path = os.path.join(self._profiler_state.storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):
