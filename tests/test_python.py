@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from threading import Event
 
+import platform
 import psutil
 import pytest
 from granulate_utils.linux.process import is_musl
@@ -83,6 +84,9 @@ def test_python_matrix(
 
     if python_version == "3.5" and profiler_type == "pyperf":
         pytest.skip("PyPerf doesn't support Python 3.5!")
+
+    if platform.machine() == "aarch64" and profiler_type == "pyperf":
+        pytest.skip("PyPerf doesn't support aarch64 architecture!")
 
     if python_version == "2.7" and profiler_type == "pyperf" and app == "uwsgi":
         pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/485")
