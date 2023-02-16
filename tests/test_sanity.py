@@ -261,6 +261,7 @@ def test_container_name_when_stopped(
 ) -> None:
     """
     Tests that container name is added to data even when container stops during profiling.
+    Related issue: https://github.com/Granulate/gprofiler/issues/640
     """
     profiler_flags.extend(["-d", "20"])
     container = start_gprofiler_in_container_for_one_session(
