@@ -283,6 +283,7 @@ class GProfiler:
     def _snapshot(self) -> None:
         local_start_time = datetime.datetime.utcnow()
         monotonic_start_time = time.monotonic()
+        self._profiler_state.start_time = monotonic_start_time
         process_profilers_futures = []
         for prof in self.process_profilers:
             prof_future = self._executor.submit(prof.snapshot)

@@ -41,17 +41,27 @@ class ContainerNamesClient:
     def container_names(self) -> List[str]:
         return list(self._current_container_names)
 
-    def get_container_name(self, pid: int) -> str:
+    def get_container_name(self, pid: int, profiling_start_time: float) -> str:
         if self._containers_client is None:
             return ""
 
         if not valid_perf_pid(pid):
             return ""
 
-        if pid in self._pid_to_container_name_cache:
-            name = self._pid_to_container_name_cache[pid]
-            self._current_container_names.add(name)
-            return name
+        try:
+            process_create_time = Process(pid).create_time()
+            process_exists = True
+        except NoSuchProcess:
+            process_create_time = 0
+            process_exists = False
+
+        # If process started after profiling start time then don't take container_name 
+        # from cache to avoid wrong container name that might be caused by PID reuse
+        if not process_exists or process_create_time < profiling_start_time:
+            if pid in self._pid_to_container_name_cache:
+                name = self._pid_to_container_name_cache[pid]
+                self._current_container_names.add(name)
+                return name
 
         container_name: Optional[str] = self._safely_get_process_container_name(pid)
         if container_name is None:

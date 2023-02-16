@@ -27,7 +27,7 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils import remove_path, run_process, start_process, wait_event, wait_for_file_by_prefix
+from gprofiler.utils import pgrep_exe, remove_path, run_process, start_process, wait_event, wait_for_file_by_prefix
 from gprofiler.utils.perf import perf_path, valid_perf_pid
 
 logger = get_logger_adapter(__name__)
@@ -317,6 +317,8 @@ class SystemProfiler(ProfilerBase):
         return None
 
     def snapshot(self) -> ProcessToProfileData:
+        for process in pgrep_exe(r".*"):
+            self._profiler_state.get_container_name(process.pid)
         if self.perf_node_attach:
             self._node_processes = [process for process in self._node_processes if is_process_running(process)]
             new_processes = [process for process in get_node_processes() if process not in self._node_processes]
