@@ -1,21 +1,21 @@
-@echo off
+@ECHO OFF
 MKDIR app dep 2>NUL
 
-SET ERRORLEVEL=
+CALL :clear_error
 WHERE /Q python
 IF ERRORLEVEL 1 (
 	ECHO python 3.8.10 and above is required to proceed. Exiting...
 	EXIT /B -1
 )
 
-SET ERRORLEVEL=
+CALL :clear_error
 WHERE /Q git
 IF ERRORLEVEL 1 (
 	ECHO git is required to proceed. Exiting...
 	EXIT /B -1
 )
 
-SET ERRORLEVEL=
+CALL :clear_error
 WHERE /Q wget
 IF ERRORLEVEL 1 (
 	ECHO wget is required to proceed. Exiting...
@@ -35,14 +35,14 @@ FOR /f "tokens=1-2" %%i in ('python --version') do (
 )
 @echo Installed python version: %PYTHON_VERSION%
 
-SET ERRORLEVEL=
+CALL :clear_error
 WHERE /Q pip
 IF ERRORLEVEL 1 (
         ECHO pip wasn't found. Attempting to install...
         wget -O .\dep\get-pip.py https://bootstrap.pypa.io/get-pip.py
         python  .\dep\get-pip.py
-	SET ERRORLEVEL=
-	WHERE /Q pip
+		CALL :clear_error
+		WHERE /Q pip
         IF ERRORLEVEL 1 (
                 ECHO Unable to install pip. See errors above. Error: %ERRORLEVEL% Exiting...
                 EXIT /B 1
@@ -56,11 +56,23 @@ IF EXIST .\py-spy\py-spy.exe (
 	ECHO Found py-spy.exe
 ) ELSE (
 	ECHO Building py-spy executable...
-	SET ERRORLEVEL=
+	CALL :clear_error
 	CALL .\scripts\windows\build-pyspy.bat
 	IF ERRORLEVEL 1 (
 		ECHO Building py-spy failed. See Errors above.
 		EXIT /B 1 
+	)
+)
+
+IF EXIST .\burn\burn.exe (
+	ECHO Found burn.exe
+) ELSE (
+	ECHO Building burn executable...
+	CALL :clear_error
+	CALL .\scripts\windows\burn_build.bat
+	IF ERRORLEVEL 1 (
+		ECHO Building burn failed. See Errors above.
+		EXIT /B 1
 	)
 )
 
@@ -72,13 +84,18 @@ MKDIR granulate-utils 2> NUL
 COPY ..\requirements.txt requirements.txt
 FOR %%i in ("..\granulate-utils\setup.py" "..\granulate-utils\requirements.txt" "..\granulate-utils\README.md") do COPY "%%i" granulate-utils
 ECHO D | XCOPY ..\granulate-utils\granulate_utils .\granulate-utils\granulate_utils /E
+ECHO D | XCOPY ..\granulate-utils\glogger .\granulate-utils\glogger /E
 python -m pip install --no-cache-dir -r requirements.txt
 
 COPY ..\exe-requirements.txt exe-requirements.txt
 python -m pip install --no-cache-dir -r exe-requirements.txt
 MKDIR gprofiler\resources\python
 COPY ..\py-spy\py-spy.exe gprofiler\resources\python
+COPY ..\burn\burn.exe gprofiler\resources
 
 ECHO D | XCOPY ..\gprofiler .\gprofiler /E
 FOR %%i in ("..\pyi_build.py" "..\pyinstaller.spec") do COPY "%%i" .
 pyinstaller pyinstaller.spec
+
+:clear_error
+EXIT /B 0
