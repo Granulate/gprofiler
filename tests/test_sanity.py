@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
+import platform
 import re
 from contextlib import _GeneratorContextManager
 from pathlib import Path
@@ -157,6 +158,9 @@ def test_python_ebpf(
     python_version: Optional[str],
     no_kernel_headers: Any,
 ) -> None:
+    if platform.machine() == "aarch64":
+        pytest.skip("This test doesn't support aarch64 architecture!")
+
     _ = assert_app_id  # Required for mypy unused argument warning
     with PythonEbpfProfiler(
         1000, 5, Event(), str(tmp_path), False, False, CPU_PROFILING_MODE, add_versions=True
