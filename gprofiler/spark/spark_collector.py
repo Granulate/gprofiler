@@ -781,33 +781,32 @@ class SparkSampler(object):
         return webapp_url, spark_cluster_mode
 
     def start(self) -> None:
-        spark_cluster_conf = self._find_spark_cluster()
-        if spark_cluster_conf is None:
-            logger.debug("Could not guess spark configuration, probably not master node")
-            return
-
-        master_address, cluster_mode = spark_cluster_conf
-        self._spark_sampler = SparkCollector(cluster_mode, master_address)
         self._stop_event.clear()
         self._collection_thread = Thread(target=self._collect_loop)
         self._collection_thread.start()
         self._is_running = True
 
     def _collect_loop(self) -> None:
-        assert self._spark_sampler is not None, "No valid SparkSampler was created. Unable to start collection."
-        assert (self._client is not None) or (
-            self._storage_dir is not None
+        assert (
+            self._client is not None or self._storage_dir is not None
         ), "A valid API client or storage directory is required"
         while not self._stop_event.is_set():
-            metrics = list(self._spark_sampler.collect())
-            timestamp = self._spark_sampler._last_sample_time_ms
-            if self._storage_dir is not None:
-                now = get_iso8601_format_time(datetime.now())
-                base_filename = os.path.join(self._storage_dir, f"spark_metric_{escape_filename(now)}")
-                with open(base_filename, "w") as f:
-                    json.dump({"timestamp": timestamp, "metrics": metrics}, f)
-            if self._client is not None:
-                self._client.submit_spark_metrics(timestamp, metrics)
+            if self._spark_sampler is None:
+                spark_cluster_conf = self._find_spark_cluster()
+                if spark_cluster_conf is not None:
+                    master_address, cluster_mode = spark_cluster_conf
+                    self._spark_sampler = SparkCollector(cluster_mode, master_address)
+
+            if self._spark_sampler is not None:
+                metrics = list(self._spark_sampler.collect())
+                timestamp = self._spark_sampler._last_sample_time_ms
+                if self._storage_dir is not None:
+                    now = get_iso8601_format_time(datetime.now())
+                    base_filename = os.path.join(self._storage_dir, f"spark_metric_{escape_filename(now)}")
+                    with open(base_filename, "w") as f:
+                        json.dump({"timestamp": timestamp, "metrics": metrics}, f)
+                if self._client is not None:
+                    self._client.submit_spark_metrics(timestamp, metrics)
 
             self._stop_event.wait(self._sample_period)
 
