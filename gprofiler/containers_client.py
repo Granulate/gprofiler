@@ -55,7 +55,7 @@ class ContainerNamesClient:
             process_create_time = 0
             process_exists = False
 
-        # If process started after profiling start time then don't take container_name 
+        # If process started after profiling start time then don't take container_name
         # from cache to avoid wrong container name that might be caused by PID reuse
         if not process_exists or process_create_time < profiling_start_time:
             if pid in self._pid_to_container_name_cache:

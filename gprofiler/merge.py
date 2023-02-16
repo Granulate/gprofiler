@@ -441,9 +441,10 @@ def merge_profiles(
             ratio = perf_samples_count / profile_samples_count
             profile.stacks = scale_sample_counts(profile.stacks, ratio)
 
-        if profile.container_name in [None, ""]:
-            if process_perf.container_name is not None:
-                profile.container_name = process_perf.container_name
+        if process_perf is not None:
+            if profile.container_name in [None, ""]:
+                if process_perf.container_name is not None:
+                    profile.container_name = process_perf.container_name
 
         # swap them: use the processed (scaled or extended) samples from the runtime profiler.
         perf_pid_to_profiles[pid] = profile

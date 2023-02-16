@@ -1,5 +1,5 @@
-from threading import Event
 import time
+from threading import Event
 from typing import Optional
 
 from gprofiler.containers_client import ContainerNamesClient
