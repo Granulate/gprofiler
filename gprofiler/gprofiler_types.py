@@ -34,7 +34,6 @@ ProcessToProfileData = MutableMapping[int, ProfileData]
 
 
 class ProfilingErrorStack(StackToSampleCount):
-
     PROFILING_ERROR_STACK_PATTERN = re.compile(r".*;\[Profiling .+: .+\]")
 
     def __init__(self, what: str, reason: str, comm: str):
@@ -54,7 +53,7 @@ class ProfilingErrorStack(StackToSampleCount):
     ) -> StackToSampleCount:
         _, error_frame = next(iter(error_stack)).split(";", maxsplit=1)
         dest_stacks: StackToSampleCount = StackToSampleCount()
-        for (frame, count) in source_stacks.items():
+        for frame, count in source_stacks.items():
             comm, stack = frame.split(";", maxsplit=1)
             annotated = f"{comm};{error_frame};{stack}"
             dest_stacks[annotated] = count

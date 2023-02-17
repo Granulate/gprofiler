@@ -50,6 +50,7 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
     _SPARK_PROPS_FILE = os.path.join("__spark_conf__", "__spark_conf__.properties")
     _APP_NAME_NOT_FOUND = "app name not found"
     _APP_NAME_KEY = "spark.app.name"
+    _APP_ID_KEY = "--app-id"
 
     @staticmethod
     def _is_java_spark_executor(process: Process) -> bool:
@@ -73,4 +74,11 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
         )
         if self._APP_NAME_KEY in props:
             return f"spark: {props[self._APP_NAME_KEY]}"
+        args = process.cmdline()
+        try:
+            for idx, x in enumerate(args):
+                if x == self._APP_ID_KEY:
+                    return f"spark: {args[idx+1]}"
+        except Exception:
+            pass
         return self._APP_NAME_NOT_FOUND

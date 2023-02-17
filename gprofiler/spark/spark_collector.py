@@ -485,7 +485,6 @@ class SparkCollector:
 
         if metrics_json.get("apps"):
             if metrics_json["apps"].get("app") is not None:
-
                 for app_json in metrics_json["apps"]["app"]:
                     app_id = app_json.get("id")
                     tracking_url = app_json.get("trackingUrl")
