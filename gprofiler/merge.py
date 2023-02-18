@@ -10,9 +10,10 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from granulate_utils.metadata import Metadata
+from psutil import NoSuchProcess, Process
 
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.gprofiler_types import (
@@ -39,6 +40,8 @@ SAMPLE_REGEX = re.compile(
 # 0 [unknown] ([unknown])
 # 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
 FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \(\[?(.*?)\]?\)$")
+
+spark_app_ids: Set[str] = set()
 
 
 def parse_one_collapsed(collapsed: str, add_comm: Optional[str] = None) -> StackToSampleCount:
@@ -245,9 +248,10 @@ def _make_profile_metadata(
     application_metadata: Optional[List[Optional[Dict]]],
     application_metadata_enabled: bool,
 ) -> str:
-    if container_names_client is not None and add_container_names:
-        container_names = container_names_client.container_names
-        container_names_client.reset_cache()
+    global spark_app_ids
+    if add_container_names:
+        container_names = list(spark_app_ids)
+        spark_app_ids = set()
         enabled = True
     else:
         container_names = []
@@ -268,11 +272,26 @@ def _make_profile_metadata(
 def _get_container_name(
     pid: int, container_names_client: Optional[ContainerNamesClient], add_container_names: bool
 ) -> str:
-    return (
-        container_names_client.get_container_name(pid)
-        if add_container_names and container_names_client is not None
-        else ""
-    )
+    if not add_container_names:
+        return ""
+    try:
+        process = Process(pid)
+        args = process.cmdline()
+        it = iter(args)
+        for arg in it:
+            if arg == "--app-id":
+                name = f"spark: {next(it)}"
+                spark_app_ids.add(name)
+                return name
+        else:
+            return ""  # not found
+    except NoSuchProcess:
+        return ""
+    except StopIteration:
+        return ""
+    except Exception:
+        logger.exception("Unexpected error getting --app-id argument for pid", pid=pid, args=args)
+        return ""
 
 
 @dataclass
