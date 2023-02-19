@@ -41,6 +41,8 @@ from gprofiler.utils import get_iso8601_format_time
 from gprofiler.utils.fs import escape_filename
 from gprofiler.utils.process import search_for_process
 
+MAX_FIND_ATTEMPTS = 10
+
 # Application type and states to collect
 YARN_SPARK_APPLICATION_SPECIFIER = "SPARK"
 YARN_RUNNING_APPLICATION_SPECIFIER = "RUNNING"
@@ -586,6 +588,7 @@ class SparkSampler(object):
         storage_dir: str,
         api_client: Optional[APIClient] = None,
     ):
+        self._find_attempts = 0
         self._master_address: Optional[str] = None
         self._spark_mode: Optional[str] = None
         self._collection_thread: Optional[Thread] = None
@@ -796,6 +799,11 @@ class SparkSampler(object):
                 if spark_cluster_conf is not None:
                     master_address, cluster_mode = spark_cluster_conf
                     self._spark_sampler = SparkCollector(cluster_mode, master_address)
+                else:
+                    self._find_attempts += 1
+                    if self._find_attempts == MAX_FIND_ATTEMPTS:
+                        logger.info("Did not identify Spark cluster. Stopping Spark collector.")
+                        break
 
             if self._spark_sampler is not None:
                 metrics = list(self._spark_sampler.collect())
@@ -810,12 +818,12 @@ class SparkSampler(object):
 
             self._stop_event.wait(self._sample_period)
 
+        self._is_running = False
+
     def stop(self) -> None:
-        if self._is_running:
-            assert self._collection_thread is not None
+        if self._is_running and self._collection_thread is not None and self._collection_thread.is_alive():
             self._stop_event.set()
             self._collection_thread.join()
-            self._is_running = False
 
     def is_running(self) -> bool:
         return self._is_running
