@@ -562,7 +562,7 @@ def _init_profiler() -> None:
     )
 
     ApplicationIdentifiers.init_java(
-        JattachJcmdRunner(stop_event=Event(), jattach_timeout=AsyncProfiledProcess._JATTACH_TIMEOUT)
+        JattachJcmdRunner(stop_event=Event(), jattach_timeout=AsyncProfiledProcess._DEFAULT_JATTACH_TIMEOUT)
     )
     set_diagnostics(False)
     init_state(run_id="tests-run-id")

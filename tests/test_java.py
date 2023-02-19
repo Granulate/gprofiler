@@ -994,14 +994,14 @@ def test_collect_default_jvm_flags(
                 {
                     "name": "PrintCodeCache",
                     "type": "bool",
-                    "value": None,
+                    "value": "true",
                     "origin": "non-default",
                     "kind": ["product"],
                 },
                 {
                     "name": "SelfDestructTimer",
                     "type": "intx",
-                    "value": None,
+                    "value": "5",
                     "origin": "non-default",
                     "kind": ["product"],
                 },
@@ -1013,14 +1013,14 @@ def test_collect_default_jvm_flags(
                 {
                     "name": "PrintCodeCache",
                     "type": "bool",
-                    "value": None,
+                    "value": "true",
                     "origin": "environment",
                     "kind": ["product"],
                 },
                 {
                     "name": "SelfDestructTimer",
                     "type": "intx",
-                    "value": None,
+                    "value": "5",
                     "origin": "command line",
                     "kind": ["product"],
                 },
@@ -1032,14 +1032,14 @@ def test_collect_default_jvm_flags(
                 {
                     "name": "PrintCodeCache",
                     "type": "bool",
-                    "value": None,
+                    "value": "true",
                     "origin": "environment",
                     "kind": ["product"],
                 },
                 {
                     "name": "SelfDestructTimer",
                     "type": "intx",
-                    "value": None,
+                    "value": "5",
                     "origin": "command line",
                     "kind": ["product"],
                 },
@@ -1092,6 +1092,7 @@ def test_collect_flags_unsupported_filtered_out(
     application_pid: int,
     application_image_tag: str,
     profiler_state: ProfilerState,
+    caplog: LogCaptureFixture,
 ) -> None:
     """
     Tests filtering of jvm flags we don't support collecting
@@ -1114,6 +1115,7 @@ def test_collect_flags_unsupported_filtered_out(
                 profiler._metadata.get_jvm_flags_serialized(psutil.Process(container.attrs["State"]["Pid"]))
                 == expected_flags
             )
+        assert "Missing requested flags" in caplog.text
 
 
 @pytest.mark.parametrize("in_container", [True])

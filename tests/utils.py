@@ -198,7 +198,7 @@ def make_java_profiler(
     java_async_profiler_safemode: int = JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
     java_async_profiler_args: str = "",
     java_safemode: str = JAVA_SAFEMODE_ALL,
-    java_jattach_timeout: int = AsyncProfiledProcess._JATTACH_TIMEOUT,
+    java_jattach_timeout: int = AsyncProfiledProcess._DEFAULT_JATTACH_TIMEOUT,
     java_async_profiler_mcache: int = AsyncProfiledProcess._DEFAULT_MCACHE,
     java_async_profiler_report_meminfo: bool = True,
     java_collect_spark_app_name_as_appid: bool = False,
@@ -376,7 +376,9 @@ def assert_jvm_flags_equal(actual_jvm_flags: Optional[List], expected_jvm_flags:
         expected_flag_value = expected_flag_dict.pop("value")
 
         if expected_flag_value is not None:
-            assert actual_flag_value == expected_flag_value, f"{actual_jvm_flags} != {expected_jvm_flags}"
+            assert (
+                actual_flag_value == expected_flag_value
+            ), f"{actual_flag_dict|{'value': actual_flag_value}} != {expected_flag_dict|{'value': expected_flag_value}}"
 
         assert actual_flag_dict == expected_flag_dict
 
