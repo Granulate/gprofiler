@@ -41,7 +41,7 @@ from gprofiler.utils import get_iso8601_format_time
 from gprofiler.utils.fs import escape_filename
 from gprofiler.utils.process import search_for_process
 
-MAX_FIND_ATTEMPTS = 10
+FIND_CLUSTER_TIMEOUT_SECS = 10 * 60
 
 # Application type and states to collect
 YARN_SPARK_APPLICATION_SPECIFIER = "SPARK"
@@ -588,7 +588,6 @@ class SparkSampler(object):
         storage_dir: str,
         api_client: Optional[APIClient] = None,
     ):
-        self._find_attempts = 0
         self._master_address: Optional[str] = None
         self._spark_mode: Optional[str] = None
         self._collection_thread: Optional[Thread] = None
@@ -793,6 +792,8 @@ class SparkSampler(object):
         assert (
             self._client is not None or self._storage_dir is not None
         ), "A valid API client or storage directory is required"
+        timefn = time.monotonic
+        start_time = timefn()
         while not self._stop_event.is_set():
             if self._spark_sampler is None:
                 spark_cluster_conf = self._find_spark_cluster()
@@ -800,9 +801,8 @@ class SparkSampler(object):
                     master_address, cluster_mode = spark_cluster_conf
                     self._spark_sampler = SparkCollector(cluster_mode, master_address)
                 else:
-                    self._find_attempts += 1
-                    if self._find_attempts == MAX_FIND_ATTEMPTS:
-                        logger.info("Did not identify Spark cluster. Stopping Spark collector.")
+                    if timefn() - start_time >= FIND_CLUSTER_TIMEOUT_SECS:
+                        logger.info("Timed out identifying Spark cluster. Stopping Spark collector.")
                         break
 
             if self._spark_sampler is not None:
