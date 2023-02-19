@@ -14,6 +14,7 @@ from requests import Session
 from gprofiler import __version__
 from gprofiler.exceptions import APIError
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.system_metadata import get_hostname
 from gprofiler.utils import get_iso8601_format_time, get_iso8601_format_time_from_epoch_time
 
 if TYPE_CHECKING:
@@ -224,6 +225,7 @@ class APIClient(BaseAPIClient):
             {
                 "Authorization": f"Bearer {self._token}",
                 "X-Gprofiler-Service": self._service_name,
+                "X-GProfiler-Hostname": get_hostname(),
             }
         )
 
