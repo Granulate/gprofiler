@@ -16,13 +16,6 @@ IF ERRORLEVEL 1 (
 	EXIT /B -1
 )
 
-SET ERRORLEVEL=
-WHERE /Q wget
-IF ERRORLEVEL 1 (
-	ECHO wget is required to proceed. Exiting...
-	EXIT /B -1
-)
-
 REM Get Python version
 FOR /f "tokens=1-2" %%i in ('python --version') do (
 	set PYTHON_VERSION=%%j
@@ -40,7 +33,7 @@ SET ERRORLEVEL=
 WHERE /Q pip
 IF ERRORLEVEL 1 (
         ECHO pip wasn't found. Attempting to install...
-        wget -O .\dep\get-pip.py https://bootstrap.pypa.io/get-pip.py
+        curl -o .\dep\get-pip.py https://bootstrap.pypa.io/get-pip.py
         python  .\dep\get-pip.py
 	SET ERRORLEVEL=
 	WHERE /Q pip

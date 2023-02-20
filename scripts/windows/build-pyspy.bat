@@ -14,7 +14,7 @@ git clone --depth 1 -b %TAG% https://github.com/Granulate/py-spy.git && git -C p
 
 IF NOT EXIST .\dep\vs_BuildTools.exe (
 	ECHO Downloading Visual Studio Build Tools...
-	wget -O .\dep\vs_BuildTools.exe https://aka.ms/vs/17/release/vs_buildtools.exe
+	curl -o .\dep\vs_BuildTools.exe https://aka.ms/vs/17/release/vs_buildtools.exe
 )
 
 ECHO Installing Windows build tools components...
@@ -43,7 +43,7 @@ SET ERRORLEVEL=
 WHERE cargo
 IF ERRORLEVEL 1 (
 	ECHO cargo wasn't found. Attempting to install...
-	wget -O .\dep\rustup-init.exe https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe
+	curl -o .\dep\rustup-init.exe https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe
 	.\dep\rustup-init.exe -y
 )
 
