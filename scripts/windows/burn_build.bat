@@ -17,8 +17,8 @@ git clone --depth 1 -b %BURN_VERSION% https://github.com/Granulate/burn.git && g
 IF ERRORLEVEL 1 ( ECHO Getting burn tool failed. & GOTO exit_with_error )
 
 WHERE /Q go || (
-	CALL :go_install
-	IF ERRORLEVEL 1 ( ECHO Golang installation failed & GOTO exit_with_error )
+    CALL :go_install
+    IF ERRORLEVEL 1 ( ECHO Golang installation failed & GOTO exit_with_error )
 )
 
 ECHO Building burn.
@@ -31,6 +31,7 @@ ECHO Burn build complete
 GOTO end
 
 
+@REM
 @REM go_install
 @REM
 @REM download and extract a Golang distribution

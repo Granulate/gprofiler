@@ -176,6 +176,7 @@ USER 1001
 FROM golang${BURN_BUILDER_GOLANG} AS burn-builder
 WORKDIR /tmp
 COPY scripts/burn_build.sh .
+COPY scripts/burn_version.txt .
 RUN ./burn_build.sh
 
 # the gProfiler image itself, at last.
