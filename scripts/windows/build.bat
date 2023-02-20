@@ -2,14 +2,12 @@
 setlocal enabledelayedexpansion
 MKDIR app dep 2>NUL
 
-SET ERRORLEVEL=
 WHERE /Q python
 IF ERRORLEVEL 1 (
 	ECHO python 3.8.10 and above is required to proceed. Exiting...
 	EXIT /B -1
 )
 
-SET ERRORLEVEL=
 WHERE /Q git
 IF ERRORLEVEL 1 (
 	ECHO git is required to proceed. Exiting...
@@ -29,13 +27,11 @@ FOR /f "tokens=1-2" %%i in ('python --version') do (
 )
 @echo Installed python version: %PYTHON_VERSION%
 
-SET ERRORLEVEL=
 WHERE /Q pip
 IF ERRORLEVEL 1 (
         ECHO pip wasn't found. Attempting to install...
         curl -sfLo .\dep\get-pip.py https://bootstrap.pypa.io/get-pip.py
         python  .\dep\get-pip.py
-	SET ERRORLEVEL=
 	WHERE /Q pip
         IF ERRORLEVEL 1 (
                 ECHO Unable to install pip. See errors above. Error: %ERRORLEVEL% Exiting...
@@ -50,7 +46,6 @@ IF EXIST .\py-spy\py-spy.exe (
 	ECHO Found py-spy.exe
 ) ELSE (
 	ECHO Building py-spy executable...
-	SET ERRORLEVEL=
 	CALL .\scripts\windows\build-pyspy.bat
 	IF ERRORLEVEL 1 (
 		ECHO Building py-spy failed. See Errors above.
