@@ -33,7 +33,7 @@ SET ERRORLEVEL=
 WHERE /Q pip
 IF ERRORLEVEL 1 (
         ECHO pip wasn't found. Attempting to install...
-        curl -o .\dep\get-pip.py https://bootstrap.pypa.io/get-pip.py
+        curl -sfLo .\dep\get-pip.py https://bootstrap.pypa.io/get-pip.py
         python  .\dep\get-pip.py
 	SET ERRORLEVEL=
 	WHERE /Q pip
