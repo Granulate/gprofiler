@@ -1,11 +1,10 @@
 name: Build gProfiler on Windows
 
-on: pull_request
-# on:
-#   pull_request:
-#   push:
-#     tags:
-#       - 'windows'
+on:
+  pull_request:
+  push:
+    tags:
+      - 'windows'
 
 jobs:
   build-executable:
