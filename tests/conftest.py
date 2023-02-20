@@ -8,6 +8,7 @@ import subprocess
 from contextlib import _GeneratorContextManager, contextmanager
 from functools import lru_cache, partial
 from pathlib import Path
+from threading import Event
 from typing import Any, Callable, Dict, Generator, Iterable, Iterator, List, Mapping, Optional, Tuple, cast
 
 import docker
@@ -19,6 +20,7 @@ from docker.models.images import Image
 from psutil import Process
 from pytest import FixtureRequest, TempPathFactory, fixture
 
+from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.diagnostics import set_diagnostics
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.metadata.application_identifiers import (
@@ -29,6 +31,7 @@ from gprofiler.metadata.application_identifiers import (
     set_enrichment_options,
 )
 from gprofiler.metadata.enrichment import EnrichmentOptions
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.state import init_state
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
 from tests.utils import (
@@ -72,8 +75,18 @@ def in_container(request: FixtureRequest) -> bool:
 
 
 @fixture
+def insert_dso_name() -> bool:
+    return False
+
+
+@fixture
 def java_args() -> Tuple[str]:
     return cast(Tuple[str], ())
+
+
+@fixture()
+def profiler_state(tmp_path: Path, insert_dso_name: bool) -> ProfilerState:
+    return ProfilerState(Event(), str(tmp_path), False, insert_dso_name, CPU_PROFILING_MODE)
 
 
 def make_path_world_accessible(path: Path) -> None:
@@ -464,6 +477,7 @@ def runtime_specific_args(runtime: str) -> List[str]:
         ],
         "python": ["-d", "3"],  # Burner python tests make syscalls and we want to record python + kernel stacks
         "nodejs": ["--nodejs-mode", "perf"],  # enable NodeJS profiling
+        "dotnet": ["--dotnet-mode=dotnet-trace"],  # enable .NET
     }.get(runtime, [])
 
 

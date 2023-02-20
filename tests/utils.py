@@ -6,6 +6,7 @@ import os
 import re
 import subprocess
 from contextlib import contextmanager
+from logging import LogRecord
 from pathlib import Path
 from threading import Event
 from time import sleep
@@ -17,8 +18,8 @@ from docker.models.containers import Container
 from docker.models.images import Image
 from docker.types import Mount
 
-from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import (
     JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
     JAVA_SAFEMODE_ALL,
@@ -187,12 +188,9 @@ def snapshot_pid_collapsed(profiler: ProfilerInterface, pid: int) -> StackToSamp
 
 
 def make_java_profiler(
+    profiler_state: ProfilerState,
     frequency: int = 11,
     duration: int = 1,
-    stop_event: Event = Event(),
-    insert_dso_name: bool = False,
-    storage_dir: str = None,
-    profile_spawned_processes: bool = False,
     java_version_check: bool = True,
     java_async_profiler_mode: str = "cpu",
     java_async_profiler_safemode: int = JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
@@ -203,16 +201,11 @@ def make_java_profiler(
     java_async_profiler_report_meminfo: bool = True,
     java_collect_spark_app_name_as_appid: bool = False,
     java_mode: str = "ap",
-    profiling_mode: str = CPU_PROFILING_MODE,
 ) -> JavaProfiler:
-    assert storage_dir is not None
     return JavaProfiler(
         frequency=frequency,
         duration=duration,
-        stop_event=stop_event,
-        storage_dir=storage_dir,
-        insert_dso_name=insert_dso_name,
-        profile_spawned_processes=profile_spawned_processes,
+        profiler_state=profiler_state,
         java_version_check=java_version_check,
         java_async_profiler_mode=java_async_profiler_mode,
         java_async_profiler_safemode=java_async_profiler_safemode,
@@ -222,7 +215,6 @@ def make_java_profiler(
         java_async_profiler_mcache=java_async_profiler_mcache,
         java_collect_spark_app_name_as_appid=java_collect_spark_app_name_as_appid,
         java_mode=java_mode,
-        profiling_mode=profiling_mode,
         java_async_profiler_report_meminfo=java_async_profiler_report_meminfo,
     )
 
@@ -351,3 +343,10 @@ def _application_docker_container(
         container.reload()
     yield container
     container.remove(force=True)
+
+
+def log_record_extra(r: LogRecord) -> Dict[Any, Any]:
+    """
+    Gets the "extra" attached to a LogRecord
+    """
+    return getattr(r, "extra", {})

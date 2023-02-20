@@ -3,15 +3,14 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 from contextlib import _GeneratorContextManager
 from pathlib import Path
-from threading import Event
 from typing import Callable, Container, List
 
 import pytest
 from docker import DockerClient
 from docker.models.images import Image
 
-from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.merge import parse_one_collapsed
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.perf import SystemProfiler
 from tests import CONTAINERS_DIRECTORY
 from tests.conftest import AssertInCollapsed
@@ -28,26 +27,22 @@ from tests.utils import (
 @pytest.mark.parametrize("application_image_tag", ["without-flags"])
 @pytest.mark.parametrize("command_line", [["node", f"{CONTAINERS_DIRECTORY}/nodejs/fibonacci.js"]])
 def test_nodejs_attach_maps(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     profiler_type: str,
     command_line: List[str],
     runtime_specific_args: List[str],
+    profiler_state: ProfilerState,
 ) -> None:
     with SystemProfiler(
         1000,
         6,
-        Event(),
-        str(tmp_path),
-        False,
-        CPU_PROFILING_MODE,
-        False,
+        profiler_state,
         perf_mode="fp",
         perf_inject=False,
         perf_dwarf_stack_size=0,
         perf_node_attach=True,
-        perf_restart=False,
+        perf_memory_restart=False,
     ) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -84,27 +79,23 @@ def test_nodejs_attach_maps_from_container(
 @pytest.mark.parametrize("runtime", ["nodejs"])
 @pytest.mark.parametrize("application_image_tag", ["without-flags"])
 def test_twoprocesses_nodejs_attach_maps(
-    tmp_path: Path,
     assert_collapsed: AssertInCollapsed,
     profiler_type: str,
     profiler_flags: List[str],
     application_factory: Callable[[], _GeneratorContextManager],
+    profiler_state: ProfilerState,
 ) -> None:
     with application_factory() as pid1:
         with application_factory() as pid2:
             with SystemProfiler(
                 1000,
                 6,
-                Event(),
-                str(tmp_path),
-                False,
-                CPU_PROFILING_MODE,
-                False,
+                profiler_state,
                 perf_mode="fp",
                 perf_inject=False,
                 perf_dwarf_stack_size=0,
                 perf_node_attach=True,
-                perf_restart=False,
+                perf_memory_restart=False,
             ) as profiler:
                 results = profiler.snapshot()
                 assert_collapsed(results[pid1].stacks)
@@ -134,27 +125,23 @@ def test_twoprocesses_nodejs_attach_maps(
 @pytest.mark.parametrize("profiler_type", ["attach-maps"])
 @pytest.mark.parametrize("runtime", ["nodejs"])
 def test_nodejs_matrix(
-    tmp_path: Path,
     application_pid: int,
     application_docker_container: Container,
     assert_collapsed: AssertInCollapsed,
     runtime_specific_args: List[str],
     profiler_flags: List[str],
     application_image_tag: str,
+    profiler_state: ProfilerState,
 ) -> None:
     with SystemProfiler(
         1000,
         6,
-        Event(),
-        str(tmp_path),
-        False,
-        CPU_PROFILING_MODE,
-        False,
+        profiler_state,
         perf_mode="fp",
         perf_inject=False,
         perf_dwarf_stack_size=0,
         perf_node_attach=True,
-        perf_restart=False,
+        perf_memory_restart=False,
     ) as profiler:
         node_version, libc = application_image_tag.split("-")
         if node_version == "12" and libc == "glibc":
