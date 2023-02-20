@@ -3,7 +3,8 @@ IF NOT EXIST .\dep\dotnet-install.ps1 (
     wget -O .\dep\dotnet-install.ps1 https://dot.net/v1/dotnet-install.ps1
 )
 
-powershell -ExecutionPolicy Bypass -File .\dep\dotnet-install.ps1 -Runtime dotnet -Version 6.0.0 -InstallDir .\dep\dotnet
+SET DOTNET_VERSION=6.0.405
+powershell -ExecutionPolicy Bypass -File .\dep\dotnet-install.ps1 dotnet -Version %DOTNET_VERSION% -InstallDir .\dep\dotnet
 .\dep\dotnet\dotnet.exe tool install --tool-path .\dep\dotnet\tools dotnet-trace --version 6.0.351802
 MKDIR app\gprofiler\resources\dotnet
 FOR %%i IN (".\dep\dotnet\shared\Microsoft.NETCore.App\6.0.0\Microsoft.CSharp.dll",
