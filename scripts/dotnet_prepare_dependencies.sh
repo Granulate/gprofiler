@@ -60,6 +60,7 @@ declare -a deps=("libclrjit.so"
                  "System.Reflection.Emit.Lightweight.dll"
                  "System.Reflection.Primitives.dll"
                  "System.Net.Http.dll"
+                 "System.Diagnostics.DiagnosticSource.dll"
                  )
 mkdir -p /tmp/dotnet/deps
 for i in "${deps[@]}"
