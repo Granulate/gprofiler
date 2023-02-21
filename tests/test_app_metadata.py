@@ -82,14 +82,17 @@ from tests.utils import run_gprofiler_in_container_for_one_session
             },
         ),
         (
-            True,
-            "dotnet",
-            "dotnet-trace",
-            {
-                "dotnet_version": "6.0.302",
-                "exe": "/usr/share/dotnet/dotnet",
-                "execfn": "/usr/bin/dotnet",
-            },
+            pytest.param(
+                True,
+                "dotnet",
+                "dotnet-trace",
+                {
+                    "dotnet_version": "6.0.302",
+                    "exe": "/usr/share/dotnet/dotnet",
+                    "execfn": "/usr/bin/dotnet",
+                },
+                marks=pytest.mark.xfail(reason="https://github.com/Granulate/gprofiler/issues/697"),
+            )
         ),
     ],
 )
