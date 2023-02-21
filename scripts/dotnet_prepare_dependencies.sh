@@ -60,6 +60,7 @@ declare -a deps=("libclrjit.so"
                  "System.Reflection.Emit.Lightweight.dll"
                  "System.Reflection.Primitives.dll"
                  "System.Net.Http.dll"
+                 "System.Net.Security.dll"
                  "System.Diagnostics.DiagnosticSource.dll"
                  )
 mkdir -p /tmp/dotnet/deps
