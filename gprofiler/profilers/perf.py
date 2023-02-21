@@ -317,10 +317,6 @@ class SystemProfiler(ProfilerBase):
         return None
 
     def snapshot(self) -> ProcessToProfileData:
-        # Since at the beginning of perf profiling we don't have PID's -> check container_name for every process
-        # this way we will cache container_name for every pid
-        for process in pgrep_exe(r".*"):
-            self._profiler_state.get_container_name(process.pid)
         if self.perf_node_attach:
             self._node_processes = [process for process in self._node_processes if is_process_running(process)]
             new_processes = [process for process in get_node_processes() if process not in self._node_processes]
