@@ -47,6 +47,7 @@ RUN apt-get update && \
 
 RUN cp -r "$HOME/.dotnet" "/tmp/dotnet"
 COPY scripts/dotnet_prepare_dependencies.sh .
+COPY scripts/dotnet_trace_dependencies.txt .
 RUN ./dotnet_prepare_dependencies.sh
 
 # perf
