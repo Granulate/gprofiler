@@ -27,6 +27,7 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.system_metrics import Metrics
 from gprofiler.utils import merge_dicts
+from gprofiler.utils.perf import valid_perf_pid
 
 logger = get_logger_adapter(__name__)
 
@@ -273,6 +274,9 @@ def _get_container_name(
     pid: int, container_names_client: Optional[ContainerNamesClient], add_container_names: bool
 ) -> str:
     if not add_container_names:
+        return ""
+
+    if not valid_perf_pid(pid):
         return ""
 
     try:
