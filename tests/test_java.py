@@ -13,7 +13,7 @@ from collections import Counter
 from logging import LogRecord
 from pathlib import Path
 from subprocess import Popen
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import docker
 import psutil
@@ -32,6 +32,7 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import (
     JAVA_SAFEMODE_ALL,
     AsyncProfiledProcess,
+    JavaFlagCollectionOptions,
     JavaProfiler,
     frequency_to_ap_interval,
     get_java_version,
@@ -41,6 +42,7 @@ from tests.type_utils import cast_away_optional
 from tests.utils import (
     _application_docker_container,
     assert_function_in_collapsed,
+    assert_jvm_flags_equal,
     is_function_in_collapsed,
     is_pattern_in_collapsed,
     log_record_extra,
@@ -811,3 +813,323 @@ def test_no_stray_output_in_stdout_stderr(
     assert textout.splitlines() == ["Fibonacci thread starting", ap_version]
     # output from Fibonacci should be the only expected output in stderr
     assert texterr.strip() == "Fibonacci loop starting"
+
+
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize(
+    "application_image_tag,expected_flags",
+    [
+        (
+            "hotspot-jdk-8",
+            [
+                {
+                    "name": "CICompilerCount",
+                    "type": "intx",
+                    "value": None,
+                    "origin": "non-default",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "InitialHeapSize",
+                    "type": "uintx",
+                    "value": None,
+                    "origin": "non-default",
+                    "kind": ["product"],
+                },
+                {"name": "MaxHeapSize", "type": "uintx", "value": None, "origin": "non-default", "kind": ["product"]},
+                {"name": "MaxNewSize", "type": "uintx", "value": None, "origin": "non-default", "kind": ["product"]},
+                {
+                    "name": "MinHeapDeltaBytes",
+                    "type": "uintx",
+                    "value": None,
+                    "origin": "non-default",
+                    "kind": ["product"],
+                },
+                {"name": "NewSize", "type": "uintx", "value": None, "origin": "non-default", "kind": ["product"]},
+                {
+                    "name": "OldSize",
+                    "type": "uintx",
+                    "value": None,
+                    "origin": "non-default",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "UseCompressedClassPointers",
+                    "type": "bool",
+                    "value": None,
+                    "origin": "non-default",
+                    "kind": ["lp64_product"],
+                },
+                {
+                    "name": "UseCompressedOops",
+                    "type": "bool",
+                    "value": None,
+                    "origin": "non-default",
+                    "kind": ["lp64_product"],
+                },
+                {
+                    "name": "UseParallelGC",
+                    "type": "bool",
+                    "value": None,
+                    "origin": "non-default",
+                    "kind": ["product"],
+                },
+            ],
+        ),
+        (
+            "hotspot-jdk-11",
+            [
+                {"name": "CICompilerCount", "type": "intx", "value": None, "origin": "ergonomic", "kind": ["product"]},
+                {"name": "ConcGCThreads", "type": "uint", "value": None, "origin": "ergonomic", "kind": ["product"]},
+                {
+                    "name": "G1ConcRefinementThreads",
+                    "type": "uint",
+                    "value": None,
+                    "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "G1HeapRegionSize",
+                    "type": "size_t",
+                    "value": None,
+                    "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "GCDrainStackTargetSize",
+                    "type": "uintx",
+                    "value": None,
+                    "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "InitialHeapSize",
+                    "type": "size_t",
+                    "value": None,
+                    "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "MarkStackSize",
+                    "type": "size_t",
+                    "value": None,
+                    "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "MaxHeapSize",
+                    "type": "size_t",
+                    "value": None,
+                    "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "MaxNewSize",
+                    "type": "size_t",
+                    "value": None,
+                    "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "MinHeapDeltaBytes",
+                    "type": "size_t",
+                    "value": None,
+                    "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "SegmentedCodeCache",
+                    "type": "bool",
+                    "value": None,
+                    "origin": "ergonomic",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "UseCompressedClassPointers",
+                    "type": "bool",
+                    "value": None,
+                    "origin": "ergonomic",
+                    "kind": ["lp64_product"],
+                },
+                {
+                    "name": "UseCompressedOops",
+                    "type": "bool",
+                    "value": None,
+                    "origin": "ergonomic",
+                    "kind": ["lp64_product"],
+                },
+                {"name": "UseG1GC", "type": "bool", "value": None, "origin": "ergonomic", "kind": ["product"]},
+            ],
+        ),
+    ],
+)
+def test_collect_default_jvm_flags(
+    profiler_state: ProfilerState,
+    tmp_path: Path,
+    application_pid: int,
+    expected_flags: List[Dict[str, Union[None, str, List[str]]]],
+) -> None:
+    with make_java_profiler(profiler_state) as profiler:
+        assert_jvm_flags_equal(
+            profiler._metadata.get_jvm_flags_serialized(psutil.Process(application_pid)), expected_flags
+        )
+
+
+@pytest.mark.parametrize(
+    "java_cli_flags,java_env_flags",
+    [
+        (
+            "-XX:SelfDestructTimer=5",
+            "-XX:+PrintCodeCache",
+        ),
+    ],
+)
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize(
+    "application_image_tag,expected_flags",
+    [
+        (
+            "hotspot-jdk-8",
+            [
+                {
+                    "name": "PrintCodeCache",
+                    "type": "bool",
+                    "value": "true",
+                    "origin": "non-default",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "SelfDestructTimer",
+                    "type": "intx",
+                    "value": "5",
+                    "origin": "non-default",
+                    "kind": ["product"],
+                },
+            ],
+        ),
+        (
+            "hotspot-jdk-11",
+            [
+                {
+                    "name": "PrintCodeCache",
+                    "type": "bool",
+                    "value": "true",
+                    "origin": "environment",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "SelfDestructTimer",
+                    "type": "intx",
+                    "value": "5",
+                    "origin": "command line",
+                    "kind": ["product"],
+                },
+            ],
+        ),
+        (
+            "zing",
+            [
+                {
+                    "name": "PrintCodeCache",
+                    "type": "bool",
+                    "value": "true",
+                    "origin": "environment",
+                    "kind": ["product"],
+                },
+                {
+                    "name": "SelfDestructTimer",
+                    "type": "intx",
+                    "value": "5",
+                    "origin": "command line",
+                    "kind": ["product"],
+                },
+            ],
+        ),
+    ],
+)
+def test_collect_cmdline_and_env_jvm_flags(
+    docker_client: DockerClient,
+    application_docker_image: Image,
+    assert_collapsed: AssertInCollapsed,
+    java_cli_flags: str,
+    java_env_flags: str,
+    expected_flags: List[Dict[str, Union[None, str, List[str]]]],
+    application_pid: int,
+    application_image_tag: str,
+    profiler_state: ProfilerState,
+) -> None:
+    """
+    1. Tests collections jvm flags from env & commandline origins and reporting the correct origin
+    2. Tests collecting only specific flags
+    """
+    with make_java_profiler(profiler_state, java_collect_jvm_flags="SelfDestructTimer,PrintCodeCache") as profiler:
+        # When running a container manually we can't use application_pid fixture as it will come from the fixture
+        # container and not from the manually started one
+        with _application_docker_container(
+            docker_client,
+            application_docker_image,
+            [],
+            [],
+            application_docker_command=[
+                "bash",
+                "-c",
+                f"export JAVA_TOOL_OPTIONS={java_env_flags}; exec java {java_cli_flags} -jar Fibonacci.jar",
+            ],
+        ) as container:
+            actual_flags = profiler._metadata.get_jvm_flags_serialized(psutil.Process(container.attrs["State"]["Pid"]))
+            assert_jvm_flags_equal(actual_jvm_flags=actual_flags, expected_jvm_flags=expected_flags)
+
+
+@pytest.mark.parametrize("java_cli_flags", ["-XX:MinHeapFreeRatio=5 -XX:MaxHeapFreeRatio=95"])
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("expected_flags", [[]])
+def test_collect_flags_unsupported_filtered_out(
+    docker_client: DockerClient,
+    application_docker_image: Image,
+    assert_collapsed: AssertInCollapsed,
+    java_cli_flags: str,
+    expected_flags: List[Dict[str, Union[None, str, List[str]]]],
+    application_pid: int,
+    application_image_tag: str,
+    profiler_state: ProfilerState,
+    caplog: LogCaptureFixture,
+) -> None:
+    """
+    Tests filtering of jvm flags we don't support collecting
+    """
+    with make_java_profiler(profiler_state, java_collect_jvm_flags="MaxHeapFreeRatio,MinHeapFreeRatio") as profiler:
+        # When running a container manually we can't use application_pid fixture as it will come from the fixture
+        # container and not from the manually started one
+        with _application_docker_container(
+            docker_client,
+            application_docker_image,
+            [],
+            [],
+            application_docker_command=[
+                "bash",
+                "-c",
+                f"exec java {java_cli_flags} -jar Fibonacci.jar",
+            ],
+        ) as container:
+            assert (
+                profiler._metadata.get_jvm_flags_serialized(psutil.Process(container.attrs["State"]["Pid"]))
+                == expected_flags
+            )
+        log_record = next(filter(lambda r: r.message == "Missing requested flags:", caplog.records))
+        # use slicing to remove the leading -XX: instead of removeprefix as it's not available in python 3.8
+        assert (
+            set(flag[4:].split("=")[0] for flag in java_cli_flags.split())
+            == log_record_extra(log_record)["missing_flags"]
+        )
+
+
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("expected_flags", [[]])
+def test_collect_none_jvm_flags(
+    profiler_state: ProfilerState,
+    tmp_path: Path,
+    application_pid: int,
+    expected_flags: List[Dict[str, Union[str, List[str]]]],
+) -> None:
+    with make_java_profiler(profiler_state, java_collect_jvm_flags=JavaFlagCollectionOptions.NONE) as profiler:
+        assert profiler._metadata.get_jvm_flags_serialized(psutil.Process(application_pid)) == expected_flags
