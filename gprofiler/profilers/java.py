@@ -307,7 +307,7 @@ class JavaMetadata(ApplicationMetadata):
         # that loads other libs.
         libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")
 
-        jvm_flags: Union[None, str, List[Dict]]
+        jvm_flags: Union[str, List[Dict]]
 
         try:
             jvm_flags = self.get_jvm_flags_serialized(process)
@@ -324,16 +324,12 @@ class JavaMetadata(ApplicationMetadata):
         metadata.update(super().make_application_metadata(process))
         return metadata
 
-    def get_jvm_flags_serialized(self, process: Process) -> Optional[List[Dict]]:
-        jvm_flags = self.get_jvm_flags(process)
-        if jvm_flags is None:
-            return None
+    def get_jvm_flags_serialized(self, process: Process) -> List[Dict]:
+        return [flag.to_dict() for flag in sorted(self.get_jvm_flags(process), key=lambda flag: flag.name)]
 
-        return [flag.to_dict() for flag in sorted(jvm_flags, key=lambda flag: flag.name)]
-
-    def get_jvm_flags(self, process: Process) -> Optional[Iterable[JvmFlag]]:
+    def get_jvm_flags(self, process: Process) -> Iterable[JvmFlag]:
         if self.java_collect_jvm_flags == JavaFlagCollectionOptions.NONE:
-            return None
+            return []
 
         filtered_jvm_flags = self.get_supported_jvm_flags(process)
 
@@ -910,6 +906,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
             )
 
     def _init_collect_jvm_flags(self, java_collect_jvm_flags: str) -> Union[JavaFlagCollectionOptions, List[str]]:
+        # accept "" as empty, because sometimes people confuse and use --java-collect-jvm-flags="" in non-shell
+        # environment (e.g DaemonSet args) and thus the "" isn't eaten by the shell.
         if java_collect_jvm_flags == "":
             return JavaFlagCollectionOptions.NONE
         if java_collect_jvm_flags in (
@@ -917,7 +915,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
         ):
             return JavaFlagCollectionOptions(java_collect_jvm_flags)
         else:
-            return java_collect_jvm_flags.split(",")
+            # Handle spaces between input flag list
+            return [collect_jvm_flag.strip() for collect_jvm_flag in java_collect_jvm_flags.split(",")]
 
     def _disable_profiling(self, cause: str) -> None:
         if self._safemode_disable_reason is None and cause in self._java_safemode:

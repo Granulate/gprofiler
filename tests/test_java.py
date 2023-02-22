@@ -1097,7 +1097,7 @@ def test_collect_flags_unsupported_filtered_out(
     """
     Tests filtering of jvm flags we don't support collecting
     """
-    with make_java_profiler(profiler_state, java_collect_jvm_flags="MaxHeapFreeRatio, MinHeapFreeRatio") as profiler:
+    with make_java_profiler(profiler_state, java_collect_jvm_flags="MaxHeapFreeRatio,MinHeapFreeRatio") as profiler:
         # When running a container manually we can't use application_pid fixture as it will come from the fixture
         # container and not from the manually started one
         with _application_docker_container(
@@ -1115,11 +1115,16 @@ def test_collect_flags_unsupported_filtered_out(
                 profiler._metadata.get_jvm_flags_serialized(psutil.Process(container.attrs["State"]["Pid"]))
                 == expected_flags
             )
-        assert "Missing requested flags" in caplog.text
+        log_record = next(filter(lambda r: r.message == "Missing requested flags:", caplog.records))
+        # use slicing to remove the leading -XX: instead of removeprefix as it's not available in python 3.8
+        assert (
+            set(flag[4:].split("=")[0] for flag in java_cli_flags.split())
+            == log_record_extra(log_record)["missing_flags"]
+        )
 
 
 @pytest.mark.parametrize("in_container", [True])
-@pytest.mark.parametrize("expected_flags", [None])
+@pytest.mark.parametrize("expected_flags", [[]])
 def test_collect_none_jvm_flags(
     profiler_state: ProfilerState,
     tmp_path: Path,
