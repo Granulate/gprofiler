@@ -274,9 +274,14 @@ def _get_container_name(
 ) -> str:
     if not add_container_names:
         return ""
+
     try:
         process = Process(pid)
         args = process.cmdline()
+    except NoSuchProcess:
+        return ""
+
+    try:
         it = iter(args)
         for arg in it:
             if arg == "--app-id":
@@ -285,8 +290,6 @@ def _get_container_name(
                 return name
         else:
             return ""  # not found
-    except NoSuchProcess:
-        return ""
     except StopIteration:
         return ""
     except Exception:
