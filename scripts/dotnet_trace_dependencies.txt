@@ -55,3 +55,4 @@ System.Reflection.Primitives.dll
 System.Net.Http.dll
 System.Net.Security.dll
 System.Diagnostics.DiagnosticSource.dll
+System.Security.Cryptography.X509Certificates.dll
