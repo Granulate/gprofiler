@@ -30,19 +30,24 @@ from granulate_utils.java import (
     parse_jvm_flags,
     parse_jvm_version,
 )
-from granulate_utils.linux import proc_events
-from granulate_utils.linux.kernel_messages import KernelMessage
-from granulate_utils.linux.ns import get_proc_root_path, get_process_nspid, resolve_proc_root_links, run_in_ns
-from granulate_utils.linux.oom import get_oom_entry
-from granulate_utils.linux.process import (
-    get_mapped_dso_elf_id,
-    is_musl,
-    is_process_basename_matching,
-    is_process_running,
-    process_exe,
-    read_proc_file,
-)
-from granulate_utils.linux.signals import get_signal_entry
+
+from gprofiler.platform import is_linux
+
+if is_linux():
+    from granulate_utils.linux import proc_events
+    from granulate_utils.linux.kernel_messages import KernelMessage
+    from granulate_utils.linux.ns import get_proc_root_path, get_process_nspid, resolve_proc_root_links, run_in_ns
+    from granulate_utils.linux.oom import get_oom_entry
+    from granulate_utils.linux.process import (
+        get_mapped_dso_elf_id,
+        is_musl,
+        is_process_basename_matching,
+        is_process_running,
+        process_exe,
+        read_proc_file,
+    )
+    from granulate_utils.linux.signals import get_signal_entry
+
 from packaging.version import Version
 from psutil import NoSuchProcess, Process
 
