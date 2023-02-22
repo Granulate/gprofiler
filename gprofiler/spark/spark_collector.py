@@ -41,6 +41,8 @@ from gprofiler.utils import get_iso8601_format_time
 from gprofiler.utils.fs import escape_filename
 from gprofiler.utils.process import search_for_process
 
+FIND_CLUSTER_TIMEOUT_SECS = 10 * 60
+
 # Application type and states to collect
 YARN_SPARK_APPLICATION_SPECIFIER = "SPARK"
 YARN_RUNNING_APPLICATION_SPECIFIER = "RUNNING"
@@ -71,8 +73,8 @@ class SparkCollector:
         master_address: str,
         *,
         cluster_metrics: bool = True,
-        applications_metrics: bool = True,
-        streaming_metrics: bool = True,
+        applications_metrics: bool = False,
+        streaming_metrics: bool = False,
     ) -> None:
         self._last_sample_time_ms = 0
         self._cluster_mode = cluster_mode
@@ -781,42 +783,47 @@ class SparkSampler(object):
         return webapp_url, spark_cluster_mode
 
     def start(self) -> None:
-        spark_cluster_conf = self._find_spark_cluster()
-        if spark_cluster_conf is None:
-            logger.debug("Could not guess spark configuration, probably not master node")
-            return
-
-        master_address, cluster_mode = spark_cluster_conf
-        self._spark_sampler = SparkCollector(cluster_mode, master_address)
         self._stop_event.clear()
         self._collection_thread = Thread(target=self._collect_loop)
         self._collection_thread.start()
         self._is_running = True
 
     def _collect_loop(self) -> None:
-        assert self._spark_sampler is not None, "No valid SparkSampler was created. Unable to start collection."
-        assert (self._client is not None) or (
-            self._storage_dir is not None
+        assert (
+            self._client is not None or self._storage_dir is not None
         ), "A valid API client or storage directory is required"
+        timefn = time.monotonic
+        start_time = timefn()
         while not self._stop_event.is_set():
-            metrics = list(self._spark_sampler.collect())
-            timestamp = self._spark_sampler._last_sample_time_ms
-            if self._storage_dir is not None:
-                now = get_iso8601_format_time(datetime.now())
-                base_filename = os.path.join(self._storage_dir, f"spark_metric_{escape_filename(now)}")
-                with open(base_filename, "w") as f:
-                    json.dump({"timestamp": timestamp, "metrics": metrics}, f)
-            if self._client is not None:
-                self._client.submit_spark_metrics(timestamp, metrics)
+            if self._spark_sampler is None:
+                spark_cluster_conf = self._find_spark_cluster()
+                if spark_cluster_conf is not None:
+                    master_address, cluster_mode = spark_cluster_conf
+                    self._spark_sampler = SparkCollector(cluster_mode, master_address)
+                else:
+                    if timefn() - start_time >= FIND_CLUSTER_TIMEOUT_SECS:
+                        logger.info("Timed out identifying Spark cluster. Stopping Spark collector.")
+                        break
+
+            if self._spark_sampler is not None:
+                metrics = list(self._spark_sampler.collect())
+                timestamp = self._spark_sampler._last_sample_time_ms
+                if self._storage_dir is not None:
+                    now = get_iso8601_format_time(datetime.now())
+                    base_filename = os.path.join(self._storage_dir, f"spark_metric_{escape_filename(now)}")
+                    with open(base_filename, "w") as f:
+                        json.dump({"timestamp": timestamp, "metrics": metrics}, f)
+                if self._client is not None:
+                    self._client.submit_spark_metrics(timestamp, metrics)
 
             self._stop_event.wait(self._sample_period)
 
+        self._is_running = False
+
     def stop(self) -> None:
-        if self._is_running:
-            assert self._collection_thread is not None
+        if self._is_running and self._collection_thread is not None and self._collection_thread.is_alive():
             self._stop_event.set()
             self._collection_thread.join()
-            self._is_running = False
 
     def is_running(self) -> bool:
         return self._is_running

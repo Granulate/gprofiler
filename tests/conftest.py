@@ -471,6 +471,7 @@ def runtime_specific_args(runtime: str) -> List[str]:
         ],
         "python": ["-d", "3"],  # Burner python tests make syscalls and we want to record python + kernel stacks
         "nodejs": ["--nodejs-mode", "perf"],  # enable NodeJS profiling
+        "dotnet": ["--dotnet-mode=dotnet-trace"],  # enable .NET
     }.get(runtime, [])
 
 
