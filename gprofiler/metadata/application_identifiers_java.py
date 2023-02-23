@@ -86,5 +86,9 @@ class ApplicationIdentifiersJava:
     @classmethod
     def init_java(cls, jattach_jcmd_runner: JattachJcmdRunner) -> None:
         if is_linux():
-            cls.identifiers_map["java"] = [_JavaJarApplicationIdentifier(jattach_jcmd_runner)]
+            cls.identifiers_map = {
+                "java": [
+                    _JavaJarApplicationIdentifier(jattach_jcmd_runner),
+                ],
+            }
             cls.identifiers_map["java_spark"] = cls.identifiers_map["java"] + [_JavaSparkApplicationIdentifier()]
