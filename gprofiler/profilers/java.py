@@ -867,6 +867,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         )
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
         from gprofiler.metadata.application_identifiers_java import ApplicationIdentifiersJava
+
         ApplicationIdentifiersJava.init_java(self._jattach_jcmd_runner)
         self._metadata = JavaMetadata(
             self._profiler_state.stop_event, self._jattach_jcmd_runner, self._collect_jvm_flags
