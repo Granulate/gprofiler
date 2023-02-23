@@ -64,6 +64,7 @@ from gprofiler.gprofiler_types import (
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
+from gprofiler.metadata.application_identifiers_java import ApplicationIdentifiersJava
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
@@ -866,7 +867,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             stop_event=self._profiler_state.stop_event, jattach_timeout=self._jattach_timeout
         )
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
-        application_identifiers.ApplicationIdentifiers.init_java(self._jattach_jcmd_runner)
+        ApplicationIdentifiersJava.init_java(self._jattach_jcmd_runner)
         self._metadata = JavaMetadata(
             self._profiler_state.stop_event, self._jattach_jcmd_runner, self._collect_jvm_flags
         )

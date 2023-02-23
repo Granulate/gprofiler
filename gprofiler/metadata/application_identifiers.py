@@ -329,12 +329,6 @@ class ApplicationIdentifiers:
 
         _ApplicationIdentifier.enrichment_options = enrichment_options
 
-    @classmethod
-    def init_java(cls, jattach_jcmd_runner: JattachJcmdRunner) -> None:
-        if is_linux():
-            cls.identifiers_map["java"] = [_JavaJarApplicationIdentifier(jattach_jcmd_runner)]
-            cls.identifiers_map["java_spark"] = cls.identifiers_map["java"] + [_JavaSparkApplicationIdentifier()]
-
 
 @functools.lru_cache(4096)  # NOTE: arbitrary cache size
 def get_app_id(process: Process, runtime: str, aggregate_all: bool = False) -> Optional[str]:

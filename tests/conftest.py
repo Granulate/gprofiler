@@ -30,6 +30,7 @@ from gprofiler.metadata.application_identifiers import (
     get_python_app_id,
     get_ruby_app_id,
 )
+from gprofiler.metadata.application_identifiers_java import ApplicationIdentifiersJava
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import AsyncProfiledProcess, JattachJcmdRunner
@@ -562,7 +563,7 @@ def _init_profiler() -> None:
         )
     )
 
-    ApplicationIdentifiers.init_java(
+    ApplicationIdentifiersJava.init_java(
         JattachJcmdRunner(stop_event=Event(), jattach_timeout=AsyncProfiledProcess._DEFAULT_JATTACH_TIMEOUT)
     )
     set_diagnostics(False)
