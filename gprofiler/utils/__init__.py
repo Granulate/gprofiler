@@ -314,7 +314,7 @@ else:
 def pgrep_maps(match: str) -> List[Process]:
     # this is much faster than iterating over processes' maps with psutil.
     result = run_process(
-        f"grep -lP '{match}' /proc/*/maps",
+        f"grep -lE '{match}' /proc/*/maps",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         shell=True,
