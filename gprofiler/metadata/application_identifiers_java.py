@@ -11,8 +11,8 @@ from psutil import Process
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.base_application_identifier import _ApplicationIdentifier
-from gprofiler.profilers.java import JattachJcmdRunner
 from gprofiler.platform import is_linux
+from gprofiler.profilers.java import JattachJcmdRunner
 
 _logger = get_logger_adapter(__name__)
 
@@ -82,7 +82,7 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
 
 class ApplicationIdentifiersJava:
     identifiers_map: Dict[str, List[_ApplicationIdentifier]]
-    
+
     @classmethod
     def init_java(cls, jattach_jcmd_runner: JattachJcmdRunner) -> None:
         if is_linux():
