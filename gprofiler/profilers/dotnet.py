@@ -129,4 +129,4 @@ class DotnetProfiler(ProcessProfilerBase):
             )
 
     def _select_processes_to_profile(self) -> List[Process]:
-        return pgrep_maps(r"(?:^.+/dotnet[^/]*$)")
+        return pgrep_maps(r"(^.+/dotnet[^/]*$)")
