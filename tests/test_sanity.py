@@ -246,9 +246,8 @@ def test_from_container_spawned_process(
 
 
 @pytest.mark.parametrize("in_container", [True])
-@pytest.mark.parametrize("profiler_type", ["ap"])
-@pytest.mark.parametrize("runtime", ["java"])
-@pytest.mark.parametrize("application_image_tag", ["musl"])
+@pytest.mark.parametrize("profiler_type", ["py-spy"])
+@pytest.mark.parametrize("runtime", ["python"])
 def test_container_name_when_stopped(
     docker_client: DockerClient,
     gprofiler_docker_image: Image,
@@ -271,7 +270,7 @@ def test_container_name_when_stopped(
         wait_event(
             20,
             Event(),
-            lambda: re.search(rb"Profiling .*process \d* with async-profiler", container.logs()) is not None,
+            lambda: re.search(rb"Profiling process \d* with py-spy", container.logs()) is not None,
         )
     except TimeoutError:
         print(container.logs())
@@ -280,5 +279,5 @@ def test_container_name_when_stopped(
     application_container_name = application_docker_container.name
     application_docker_container.kill()
     collapsed_text = wait_for_gprofiler_container(container, output_collapsed)
-    assert "exited before stopping async-profiler" in container.logs().decode()
-    assert f";{application_container_name};java" in collapsed_text
+    assert "py-spy> Stopped sampling because process exited" in container.logs().decode()
+    assert f";{application_container_name};python" in collapsed_text
