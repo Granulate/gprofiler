@@ -250,7 +250,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             all_processes = [x for x in pgrep_exe("python")]
         else:
             all_processes = [
-                x for x in pgrep_maps(r"(^.+/(lib)?python[^/]*$)|(^.+/site-packages/.+?$)|(^.+/dist-packages/.+?$)")
+                x for x in pgrep_maps(DETECTED_PYTHON_PROCESSES_REGEX)
             ]
 
         for process in all_processes:
