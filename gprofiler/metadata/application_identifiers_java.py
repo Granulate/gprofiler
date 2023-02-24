@@ -10,9 +10,7 @@ from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata.application_identifiers import ApplicationIdentifiers
 from gprofiler.metadata.base_application_identifier import _ApplicationIdentifier
-from gprofiler.platform import is_linux
 from gprofiler.profilers.java import JattachJcmdRunner
 
 _logger = get_logger_adapter(__name__)
@@ -79,11 +77,3 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
         if self._APP_NAME_KEY in props:
             return f"spark: {props[self._APP_NAME_KEY]}"
         return self._APP_NAME_NOT_FOUND
-
-
-class ApplicationIdentifiersJava(ApplicationIdentifiers):
-    @classmethod
-    def init_java(cls, jattach_jcmd_runner: JattachJcmdRunner) -> None:
-        if is_linux():
-            cls.identifiers_map["java"] = [_JavaJarApplicationIdentifier(jattach_jcmd_runner)]
-            cls.identifiers_map["java_spark"] = cls.identifiers_map["java"] + [_JavaSparkApplicationIdentifier()]

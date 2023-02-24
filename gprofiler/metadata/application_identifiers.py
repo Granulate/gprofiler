@@ -2,6 +2,9 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+
+from __future__ import annotations
+
 import configparser
 import functools
 import os.path
@@ -14,7 +17,14 @@ from psutil import NoSuchProcess, Process
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.base_application_identifier import _ApplicationIdentifier
 from gprofiler.metadata.enrichment import EnrichmentOptions
+from gprofiler.platform import is_linux
 
+if is_linux():
+    from gprofiler.metadata.application_identifiers_java import (
+        _JavaJarApplicationIdentifier,
+        _JavaSparkApplicationIdentifier,
+    )
+    from gprofiler.profilers.java import JattachJcmdRunner
 _logger = get_logger_adapter(__name__)
 
 _PYTHON_BIN_RE = re.compile(r"^python([23](\.\d{1,2})?)?$")
@@ -320,6 +330,12 @@ class ApplicationIdentifiers:
         }
 
         _ApplicationIdentifier.enrichment_options = enrichment_options
+
+    @classmethod
+    def init_java(cls, jattach_jcmd_runner: JattachJcmdRunner) -> None:
+        if is_linux():
+            cls.identifiers_map["java"] = [_JavaJarApplicationIdentifier(jattach_jcmd_runner)]
+            cls.identifiers_map["java_spark"] = cls.identifiers_map["java"] + [_JavaSparkApplicationIdentifier()]
 
 
 @functools.lru_cache(4096)  # NOTE: arbitrary cache size

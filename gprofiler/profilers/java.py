@@ -34,7 +34,6 @@ from granulate_utils.java import (
 from gprofiler.platform import is_linux
 
 if is_linux():
-
     from granulate_utils.linux import proc_events
     from granulate_utils.linux.kernel_messages import KernelMessage
     from granulate_utils.linux.ns import get_proc_root_path, get_process_nspid, resolve_proc_root_links, run_in_ns
@@ -64,7 +63,7 @@ from gprofiler.gprofiler_types import (
 )
 from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata import application_identifiers, application_identifiers_java
+from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
@@ -867,7 +866,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             stop_event=self._profiler_state.stop_event, jattach_timeout=self._jattach_timeout
         )
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
-        application_identifiers_java.ApplicationIdentifiersJava.init_java(self._jattach_jcmd_runner)
+        application_identifiers.ApplicationIdentifiers.init_java(self._jattach_jcmd_runner)
         self._metadata = JavaMetadata(
             self._profiler_state.stop_event, self._jattach_jcmd_runner, self._collect_jvm_flags
         )
