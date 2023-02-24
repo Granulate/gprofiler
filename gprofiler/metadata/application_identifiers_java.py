@@ -4,14 +4,14 @@
 #
 import os
 import re
-from typing import Dict, List, Optional
+from typing import Optional
 
 from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata.base_application_identifier import _ApplicationIdentifier
 from gprofiler.metadata.application_identifiers import ApplicationIdentifiers
+from gprofiler.metadata.base_application_identifier import _ApplicationIdentifier
 from gprofiler.platform import is_linux
 from gprofiler.profilers.java import JattachJcmdRunner
 
@@ -82,7 +82,6 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
 
 
 class ApplicationIdentifiersJava(ApplicationIdentifiers):
-
     @classmethod
     def init_java(cls, jattach_jcmd_runner: JattachJcmdRunner) -> None:
         if is_linux():
