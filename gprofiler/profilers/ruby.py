@@ -65,7 +65,7 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
     RESOURCE_PATH = "ruby/rbspy"
     MAX_FREQUENCY = 100
     _EXTRA_TIMEOUT = 10  # extra time like given to py-spy
-    DETECTED_RUBY_PROCESSES_REGEX = r"(?:^.+/ruby[^/]*$)"
+    DETECTED_RUBY_PROCESSES_REGEX = r"(^.+/ruby[^/]*$)"
 
     def __init__(
         self,
