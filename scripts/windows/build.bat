@@ -43,7 +43,11 @@ python -m pip install --upgrade pip
 ECHO pip is installed.
 
 ECHO Building dotnet-trace...
-CALL .\scripts\windows\build-dotnet-trace.bat
+CALL .\scripts\windows\build_dotnet_trace.bat
+IF ERRORLEVEL 1 (
+    ECHO Building dotnet-trace failed. See Errors above.
+    EXIT /B 1
+)
 
 IF EXIST .\py-spy\py-spy.exe (
     ECHO Found py-spy.exe
