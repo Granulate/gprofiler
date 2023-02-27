@@ -882,7 +882,6 @@ def init_pid_file(pid_file: str) -> None:
 def main() -> None:
     args = parse_cmd_args()
     if is_windows():
-        args.flamegraph = False
         args.perf_mode = "disabled"
         args.pid_ns_check = False
     if args.subcommand != "upload-file":
