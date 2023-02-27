@@ -15,5 +15,7 @@ def _get_instance_data() -> Optional[Dict[str, str]]:
 
 def get_emr_version() -> Optional[str]:
     if (data := _get_instance_data()) is not None:
-        return data["releaseLabel"]
+        release = data.get("releaseLabel")
+        if isinstance(release, str):
+            return release
     return None
