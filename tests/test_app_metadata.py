@@ -154,17 +154,14 @@ from tests.utils import assert_jvm_flags_equal, run_gprofiler_in_container_for_o
             },
         ),
         (
-            pytest.param(
-                True,
-                "dotnet",
-                "dotnet-trace",
-                {
-                    "dotnet_version": "6.0.302",
-                    "exe": "/usr/share/dotnet/dotnet",
-                    "execfn": "/usr/bin/dotnet",
-                },
-                marks=pytest.mark.xfail(reason="https://github.com/Granulate/gprofiler/issues/697"),
-            )
+            True,
+            "dotnet",
+            "dotnet-trace",
+            {
+                "dotnet_version": "6.0.302",
+                "exe": "/usr/share/dotnet/dotnet",
+                "execfn": "/usr/bin/dotnet",
+            },
         ),
     ],
 )
