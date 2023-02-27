@@ -18,7 +18,6 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.platform import is_windows
 from gprofiler.profiler_state import ProfilerState
-
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_exe, pgrep_maps, random_prefix, removed_path, resource_path, run_process
