@@ -6,15 +6,15 @@
 set -euo pipefail
 
 mkdir -p /tmp/dotnet/deps
-# declare -a deps=("libclrjit.so"
-#                  "libhostpolicy.so"
-#                  "libcoreclr.so"
-#                  "libSystem.Native.so"
-#                  )
-# for i in "${deps[@]}"
-# do
-#    cp "/usr/share/dotnet/shared/Microsoft.NETCore.App/6.0.7/$i" "/tmp/dotnet/deps/$i"
-# done
+declare -a deps=("libclrjit.so"
+                 "libhostpolicy.so"
+                 "libcoreclr.so"
+                 "libSystem.Native.so"
+                 )
+for i in "${deps[@]}"
+do
+   cp "/usr/share/dotnet/shared/Microsoft.NETCore.App/6.0.7/$i" "/tmp/dotnet/deps/$i"
+done
 while read -r i  ; do
    cp "/usr/share/dotnet/shared/Microsoft.NETCore.App/6.0.7/$i" "/tmp/dotnet/deps/$i"
 done <./dotnet_trace_dependencies.txt

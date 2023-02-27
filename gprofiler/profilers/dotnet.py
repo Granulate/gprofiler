@@ -131,4 +131,4 @@ class DotnetProfiler(ProcessProfilerBase):
             )
 
     def _select_processes_to_profile(self) -> List[Process]:
-        return pgrep_exe("dotnet") if is_windows() else pgrep_maps(r"(?:^.+/dotnet[^/]*$)")
+        return pgrep_exe("dotnet") if is_windows() else pgrep_maps(r"(^.+/dotnet[^/]*$)")
