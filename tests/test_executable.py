@@ -83,11 +83,7 @@ def test_executable(
         ("python", "py-spy"),
         ("ruby", "rbspy"),
         ("php", "phpspy"),
-        pytest.param(
-            "dotnet",
-            "dotnet-trace",
-            marks=pytest.mark.xfail(reason="https://github.com/Granulate/gprofiler/issues/697"),
-        ),
+        ("dotnet", "dotnet-trace"),
     ],
 )
 @pytest.mark.parametrize(
