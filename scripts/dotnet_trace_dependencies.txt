@@ -1,3 +1,7 @@
+libclrjit.so
+libhostpolicy.so
+libcoreclr.so
+libSystem.Native.so
 Microsoft.CSharp.dll
 Microsoft.NETCore.App.deps.json
 Microsoft.Win32.Primitives.dll
