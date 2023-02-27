@@ -10,6 +10,7 @@ declare -a deps=("libclrjit.so"
                  "libhostpolicy.so"
                  "libcoreclr.so"
                  "libSystem.Native.so"
+                 "libSystem.Security.Cryptography.Native.OpenSsl.so"
                  )
 for i in "${deps[@]}"
 do
