@@ -165,12 +165,6 @@ The logs can then be viewed in their default location (`/var/log/gprofiler`).
 
 `TMPDIR` is added because gProfiler unpacks executables to `/tmp` by default; this is done by `staticx`. For cases where `/tmp` is marked with `noexec`, we add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current working directory, which is surely executable before gProfiler was started in it.
 
-### Executable known issues
-The following platforms are currently not supported with the gProfiler executable:
-+ Alpine
-
-**Remark:** container-based execution works and can be used in those cases.
-
 ## Running as systemd service
 
 You can generate a systemd service configuration that [runs gProfiler as an executable](#running-as-an-executable) (and therefore, bears the same [known issues](#executable-known-issues)) by running:

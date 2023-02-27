@@ -24,14 +24,15 @@ from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.diagnostics import set_diagnostics
 from gprofiler.gprofiler_types import StackToSampleCount
 from gprofiler.metadata.application_identifiers import (
+    ApplicationIdentifiers,
     get_java_app_id,
     get_node_app_id,
     get_python_app_id,
     get_ruby_app_id,
-    set_enrichment_options,
 )
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.profiler_state import ProfilerState
+from gprofiler.profilers.java import AsyncProfiledProcess, JattachJcmdRunner
 from gprofiler.state import init_state
 from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
 from tests.utils import (
@@ -39,6 +40,7 @@ from tests.utils import (
     _application_process,
     assert_function_in_collapsed,
     chmod_path_parts,
+    find_application_pid,
 )
 
 
@@ -248,6 +250,8 @@ def application_docker_image_configs() -> Mapping[str, Dict[str, Any]]:
         },
         "java": {
             "": {},
+            "hotspot-jdk-8": {},  # add for clarity when testing with multiple JDKs
+            "hotspot-jdk-11": dict(buildargs={"JAVA_BASE_IMAGE": "openjdk:11-jdk"}),
             "j9": dict(buildargs={"JAVA_BASE_IMAGE": "adoptopenjdk/openjdk8-openj9"}),
             "zing": dict(dockerfile="zing.Dockerfile"),
             "musl": dict(dockerfile="musl.Dockerfile"),
@@ -449,17 +453,7 @@ def application_pid(
     in_container: bool, application_process: subprocess.Popen, application_docker_container: Container
 ) -> int:
     pid: int = application_docker_container.attrs["State"]["Pid"] if in_container else application_process.pid
-
-    # Application might be run using "sh -c ...", we detect the case and return the "real" application pid
-    process = Process(pid)
-    if (
-        process.cmdline()[0].endswith("sh")
-        and process.cmdline()[1] == "-c"
-        and len(process.children(recursive=False)) == 1
-    ):
-        pid = process.children(recursive=False)[0].pid
-
-    return pid
+    return find_application_pid(pid)
 
 
 @fixture
@@ -553,12 +547,12 @@ def profiler_flags(runtime: str, profiler_type: str) -> List[str]:
 
 
 @fixture(autouse=True, scope="session")
-def _set_enrichment_options() -> None:
+def _init_profiler() -> None:
     """
     Updates the global EnrichmentOptions for this process (for JavaProfiler, PythonProfiler etc that
     we run in this context)
     """
-    set_enrichment_options(
+    ApplicationIdentifiers.init(
         EnrichmentOptions(
             profile_api_version=None,
             container_names=True,
@@ -566,6 +560,10 @@ def _set_enrichment_options() -> None:
             application_identifier_args_filters=[],
             application_metadata=True,
         )
+    )
+
+    ApplicationIdentifiers.init_java(
+        JattachJcmdRunner(stop_event=Event(), jattach_timeout=AsyncProfiledProcess._DEFAULT_JATTACH_TIMEOUT)
     )
     set_diagnostics(False)
     init_state(run_id="tests-run-id")

@@ -106,7 +106,6 @@ def test_rbspy(
 
 
 @pytest.mark.parametrize("runtime", ["dotnet"])
-@pytest.mark.xfail(reason="https://github.com/Granulate/gprofiler/issues/697")
 def test_dotnet_trace(
     application_pid: int,
     assert_collapsed: AssertInCollapsed,

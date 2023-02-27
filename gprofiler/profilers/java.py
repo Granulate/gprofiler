@@ -13,7 +13,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event, Lock
 from types import TracebackType
-from typing import Any, Dict, List, Optional, Sequence, Set, Type, TypeVar
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Type, TypeVar, Union
 
 import psutil
 from granulate_utils.java import (
@@ -22,25 +22,32 @@ from granulate_utils.java import (
     NATIVE_FRAMES_REGEX,
     SIGINFO_REGEX,
     VM_INFO_REGEX,
+    JvmFlag,
     JvmVersion,
     is_java_fatal_signal,
     java_exit_code_to_signo,
     locate_hotspot_error_file,
+    parse_jvm_flags,
     parse_jvm_version,
 )
-from granulate_utils.linux import proc_events
-from granulate_utils.linux.kernel_messages import KernelMessage
-from granulate_utils.linux.ns import get_proc_root_path, get_process_nspid, resolve_proc_root_links, run_in_ns
-from granulate_utils.linux.oom import get_oom_entry
-from granulate_utils.linux.process import (
-    get_mapped_dso_elf_id,
-    is_musl,
-    is_process_basename_matching,
-    is_process_running,
-    process_exe,
-    read_proc_file,
-)
-from granulate_utils.linux.signals import get_signal_entry
+
+from gprofiler.platform import is_linux
+
+if is_linux():
+    from granulate_utils.linux import proc_events
+    from granulate_utils.linux.kernel_messages import KernelMessage
+    from granulate_utils.linux.ns import get_proc_root_path, get_process_nspid, resolve_proc_root_links, run_in_ns
+    from granulate_utils.linux.oom import get_oom_entry
+    from granulate_utils.linux.process import (
+        get_mapped_dso_elf_id,
+        is_musl,
+        is_process_basename_matching,
+        is_process_running,
+        process_exe,
+        read_proc_file,
+    )
+    from granulate_utils.linux.signals import get_signal_entry
+
 from packaging.version import Version
 from psutil import NoSuchProcess, Process
 
@@ -145,6 +152,12 @@ Example:
 """
 
 
+class JavaFlagCollectionOptions(str, Enum):
+    ALL = "all"
+    DEFAULT = "default"
+    NONE = "none"
+
+
 class JattachExceptionBase(CalledProcessError):
     def __init__(
         self, returncode: int, cmd: Any, stdout: Any, stderr: Any, target_pid: int, ap_log: str, ap_loaded: str
@@ -211,6 +224,17 @@ class JattachSocketMissingException(JattachExceptionBase):
         )
 
 
+class JattachJcmdRunner:
+    def __init__(self, stop_event: Event, jattach_timeout: int):
+        self.stop_event = stop_event
+        self.jattach_timeout = jattach_timeout
+
+    def run(self, process: Process, cmd: str) -> str:
+        return run_process(
+            [jattach_path(), str(process.pid), "jcmd", cmd], stop_event=self.stop_event, timeout=self.jattach_timeout
+        ).stdout.decode()
+
+
 def is_java_basename(process: Process) -> bool:
     return is_process_basename_matching(process, r"^java$")
 
@@ -264,6 +288,16 @@ def get_java_version_logged(process: Process, stop_event: Event) -> str:
 
 
 class JavaMetadata(ApplicationMetadata):
+    def __init__(
+        self,
+        stop_event: Event,
+        jattach_jcmd_runner: JattachJcmdRunner,
+        java_collect_jvm_flags: Union[JavaFlagCollectionOptions, List[str]],
+    ):
+        super().__init__(stop_event)
+        self.jattach_jcmd_runner = jattach_jcmd_runner
+        self.java_collect_jvm_flags = java_collect_jvm_flags
+
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         if is_java_basename(process):
             version = get_java_version(process, self._stop_event)
@@ -273,10 +307,80 @@ class JavaMetadata(ApplicationMetadata):
         # that loads other libs.
         libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")
 
-        metadata = {"java_version": version, "libjvm_elfid": libjvm_elfid}
+        jvm_flags: Union[str, List[Dict]]
+
+        try:
+            jvm_flags = self.get_jvm_flags_serialized(process)
+        except Exception as e:
+            logger.exception("Failed to collect JVM flags", pid=process.pid)
+            jvm_flags = f"error {type(e).__name__}"
+
+        metadata = {
+            "java_version": version,
+            "libjvm_elfid": libjvm_elfid,
+            "jvm_flags": jvm_flags,
+        }
 
         metadata.update(super().make_application_metadata(process))
         return metadata
+
+    def get_jvm_flags_serialized(self, process: Process) -> List[Dict]:
+        return [flag.to_dict() for flag in sorted(self.get_jvm_flags(process), key=lambda flag: flag.name)]
+
+    def get_jvm_flags(self, process: Process) -> Iterable[JvmFlag]:
+        if self.java_collect_jvm_flags == JavaFlagCollectionOptions.NONE:
+            return []
+
+        filtered_jvm_flags = self.get_supported_jvm_flags(process)
+
+        if self.java_collect_jvm_flags == JavaFlagCollectionOptions.ALL:
+            return filtered_jvm_flags
+        elif self.java_collect_jvm_flags == JavaFlagCollectionOptions.DEFAULT:
+            return filter(self.default_collection_filter_jvm_flag, filtered_jvm_flags)
+        else:
+            assert isinstance(self.java_collect_jvm_flags, list), f"Unrecognized value: {self.java_collect_jvm_flags}"
+            found_flags = [flag for flag in filtered_jvm_flags if flag.name in self.java_collect_jvm_flags]
+            missing_flags = set(self.java_collect_jvm_flags) - {flag.name for flag in found_flags}
+
+            # log if the set is not empty
+            if missing_flags:
+                logger.warning("Missing requested flags:", missing_flags=missing_flags)
+
+            return found_flags
+
+    @staticmethod
+    def filter_jvm_flag(flag: JvmFlag) -> bool:
+        """
+        Filter out flags that are:
+        1. Flags that are of ccstr or ccstrlist type (type=ccstr, type=ccstrlist) - we have problems parsing them correctly # noqa: E501
+        2. Flags that are manageable (kind=manageable) - they might change during execution
+        """
+        if flag.type in ["ccstr", "ccstrlist"]:
+            return False
+
+        if "manageable" in flag.kind:
+            return False
+
+        return True
+
+    @staticmethod
+    def default_collection_filter_jvm_flag(flag: JvmFlag) -> bool:
+        """
+        Filter out flags that are:
+        1. Default flags (origin=default), that are constant for the JDK version
+        2. Flags that are non-production (kind=notproduct), platform dependent (kind=pd), or in development (kind=develop) # noqa: E501
+        """
+        if flag.origin == "default":
+            return False
+
+        if set(flag.kind).intersection({"notproduct", "pd", "develop"}):
+            return False
+
+        return True
+
+    @functools.lru_cache(maxsize=1024)
+    def get_supported_jvm_flags(self, process: Process) -> Iterable[JvmFlag]:
+        return filter(self.filter_jvm_flag, parse_jvm_flags(self.jattach_jcmd_runner.run(process, "VM.flags -all")))
 
 
 @functools.lru_cache(maxsize=1)
@@ -317,7 +421,7 @@ class AsyncProfiledProcess:
 
     # timeouts in seconds
     _FDTRANSFER_TIMEOUT = 10
-    _JATTACH_TIMEOUT = 30  # higher than jattach's timeout
+    _DEFAULT_JATTACH_TIMEOUT = 30  # higher than jattach's timeout
 
     _DEFAULT_MCACHE = 30  # arbitrarily chosen, not too high & not too low.
 
@@ -328,7 +432,7 @@ class AsyncProfiledProcess:
         mode: str,
         ap_safemode: int,
         ap_args: str,
-        jattach_timeout: int = _JATTACH_TIMEOUT,
+        jattach_timeout: int = _DEFAULT_JATTACH_TIMEOUT,
         mcache: int = 0,
         collect_meminfo: bool = True,
     ):
@@ -655,7 +759,7 @@ class AsyncProfiledProcess:
             "--java-jattach-timeout",
             dest="java_jattach_timeout",
             type=positive_integer,
-            default=AsyncProfiledProcess._JATTACH_TIMEOUT,
+            default=AsyncProfiledProcess._DEFAULT_JATTACH_TIMEOUT,
             help="Timeout for jattach operations (start/stop AP, etc)",
         ),
         ProfilerArgument(
@@ -680,6 +784,16 @@ class AsyncProfiledProcess:
             action="store_false",
             default=True,
             help="Disable collection of async-profiler meminfo at the end of each cycle (collected by default)",
+        ),
+        ProfilerArgument(
+            "--java-collect-jvm-flags",
+            dest="java_collect_jvm_flags",
+            type=str,
+            nargs="?",
+            default=JavaFlagCollectionOptions.DEFAULT.value,
+            help="Comma-separated list of JVM flags to collect from the JVM process, 'all' to collect all flags,"
+            "'default' for default flag filtering settings; see default_collection_filter_jvm_flag(), or 'none' to "
+            "disable collection of JVM flags. Defaults to '%(default)s'",
         ),
     ],
     supported_profiling_modes=["cpu", "allocation"],
@@ -719,6 +833,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_collect_spark_app_name_as_appid: bool,
         java_mode: str,
         java_async_profiler_report_meminfo: bool,
+        java_collect_jvm_flags: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
         super().__init__(frequency, duration, profiler_state)
@@ -746,8 +861,15 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._pid_to_java_version: Dict[int, Optional[str]] = {}
         self._kernel_messages_provider = get_kernel_messages_provider()
         self._enabled_proc_events_java = False
+        self._collect_jvm_flags = self._init_collect_jvm_flags(java_collect_jvm_flags)
+        self._jattach_jcmd_runner = JattachJcmdRunner(
+            stop_event=self._profiler_state.stop_event, jattach_timeout=self._jattach_timeout
+        )
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
-        self._metadata = JavaMetadata(self._profiler_state.stop_event)
+        application_identifiers.ApplicationIdentifiers.init_java(self._jattach_jcmd_runner)
+        self._metadata = JavaMetadata(
+            self._profiler_state.stop_event, self._jattach_jcmd_runner, self._collect_jvm_flags
+        )
         self._report_meminfo = java_async_profiler_report_meminfo
 
     def _init_ap_mode(self, profiling_mode: str, ap_mode: str) -> None:
@@ -782,6 +904,19 @@ class JavaProfiler(SpawningProcessProfilerBase):
                 "Java version checks are mandatory in"
                 f" --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS}"
             )
+
+    def _init_collect_jvm_flags(self, java_collect_jvm_flags: str) -> Union[JavaFlagCollectionOptions, List[str]]:
+        # accept "" as empty, because sometimes people confuse and use --java-collect-jvm-flags="" in non-shell
+        # environment (e.g DaemonSet args) and thus the "" isn't eaten by the shell.
+        if java_collect_jvm_flags == "":
+            return JavaFlagCollectionOptions.NONE
+        if java_collect_jvm_flags in (
+            java_flag_collection_option.value for java_flag_collection_option in JavaFlagCollectionOptions
+        ):
+            return JavaFlagCollectionOptions(java_collect_jvm_flags)
+        else:
+            # Handle spaces between input flag list
+            return [collect_jvm_flag.strip() for collect_jvm_flag in java_collect_jvm_flags.split(",")]
 
     def _disable_profiling(self, cause: str) -> None:
         if self._safemode_disable_reason is None and cause in self._java_safemode:
