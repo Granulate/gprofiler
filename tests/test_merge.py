@@ -155,7 +155,7 @@ def parse_profiles_text(profiles_text: str) -> ProcessToProfileData:
     parsed: ProcessToStackSampleCounters = parse_many_collapsed(profiles_text)
     process_to_profile_data: ProcessToProfileData = dict()
     for pid in parsed:
-        process_to_profile_data[pid] = ProfileData(parsed[pid], None, None)
+        process_to_profile_data[pid] = ProfileData(parsed[pid], None, None, None)
     return process_to_profile_data
 
 

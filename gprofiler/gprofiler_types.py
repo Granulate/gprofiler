@@ -27,6 +27,7 @@ class ProfileData:
     stacks: StackToSampleCount
     appid: Optional[str]
     app_metadata: Optional[AppMetadata]
+    container_name: Optional[str]
 
 
 ProcessToStackSampleCounters = MutableMapping[int, StackToSampleCount]

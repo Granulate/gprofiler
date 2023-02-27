@@ -354,7 +354,7 @@ class SystemProfiler(ProfilerBase):
             appid = self._get_appid(pid)
         else:
             appid = None
-        return ProfileData(stacks, appid, metadata)
+        return ProfileData(stacks, appid, metadata, self._profiler_state.get_container_name(pid))
 
 
 class PerfMetadata(ApplicationMetadata):

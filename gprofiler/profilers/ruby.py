@@ -105,6 +105,7 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
             no_extra_to_server=True,
         )
         comm = process_comm(process)
+        container_name = self._profiler_state.get_container_name(process.pid)
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_ruby_app_id(process)
 
@@ -121,7 +122,9 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
                 raise StopEventSetException
 
             logger.info(f"Finished profiling process {process.pid} with rbspy")
-            return ProfileData(merge.parse_one_collapsed_file(Path(local_output_path), comm), appid, app_metadata)
+            return ProfileData(
+                merge.parse_one_collapsed_file(Path(local_output_path), comm), appid, app_metadata, container_name
+            )
 
     def _select_processes_to_profile(self) -> List[Process]:
         return pgrep_maps(self.DETECTED_RUBY_PROCESSES_REGEX)

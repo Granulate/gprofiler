@@ -924,7 +924,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._safemode_disable_reason = cause
 
     def _profiling_skipped_profile(self, reason: str, comm: str) -> ProfileData:
-        return ProfileData(self._profiling_error_stack("skipped", reason, comm), None, None)
+        return ProfileData(self._profiling_error_stack("skipped", reason, comm), None, None, None)
 
     def _is_jvm_type_supported(self, java_version_cmd_output: str) -> bool:
         return all(exclusion not in java_version_cmd_output for exclusion in self.JDK_EXCLUSIONS)
@@ -1073,6 +1073,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._profiled_pids.add(process.pid)
 
         logger.info(f"Profiling{' spawned' if spawned else ''} process {process.pid} with async-profiler")
+        container_name = self._profiler_state.get_container_name(process.pid)
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_java_app_id(process, self._collect_spark_app_name)
 
@@ -1093,7 +1094,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         ) as ap_proc:
             stackcollapse = self._profile_ap_process(ap_proc, comm, duration)
 
-        return ProfileData(stackcollapse, appid, app_metadata)
+        return ProfileData(stackcollapse, appid, app_metadata, container_name)
 
     @staticmethod
     def _log_mem_usage(ap_log: str, pid: int) -> None:

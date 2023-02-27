@@ -98,6 +98,7 @@ class DotnetProfiler(ProcessProfilerBase):
             cmdline=" ".join(process.cmdline()),
             no_extra_to_server=True,
         )
+        container_name = self._profiler_state.get_container_name(process.pid)
         appid = None
         app_metadata = self._metadata.get_metadata(process)
         # had to change the dots for minuses because of dotnet-trace removing the last part in other case
@@ -126,6 +127,7 @@ class DotnetProfiler(ProcessProfilerBase):
                 load_speedscope_as_collapsed(local_output_path, self._frequency, comm, self._DOTNET_FRAME_SUFFIX),
                 appid,
                 app_metadata,
+                container_name,
             )
 
     def _select_processes_to_profile(self) -> List[Process]:

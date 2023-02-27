@@ -207,6 +207,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             cmdline=process.cmdline(),
             no_extra_to_server=True,
         )
+        container_name = self._profiler_state.get_container_name(process.pid)
         appid = application_identifiers.get_python_app_id(process)
         app_metadata = self._metadata.get_metadata(process)
         comm = process_comm(process)
@@ -235,6 +236,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
                         self._profiling_error_stack("error", comm, "process exited before py-spy started"),
                         appid,
                         app_metadata,
+                        container_name,
                     )
                 raise
 
@@ -242,7 +244,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             parsed = merge.parse_one_collapsed_file(Path(local_output_path), comm)
             if self.add_versions:
                 parsed = _add_versions_to_process_stacks(process, parsed)
-            return ProfileData(parsed, appid, app_metadata)
+            return ProfileData(parsed, appid, app_metadata, container_name)
 
     def _select_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
