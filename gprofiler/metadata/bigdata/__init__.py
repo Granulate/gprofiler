@@ -9,7 +9,7 @@ from gprofiler.metadata.bigdata.emr import get_emr_version
 @dataclass
 class BigDataInfo:
     provider: str
-    provider_version: Optional[str]
+    provider_version: str
 
 
 def get_bigdata_info() -> Optional[BigDataInfo]:
