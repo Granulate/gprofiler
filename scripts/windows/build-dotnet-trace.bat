@@ -4,7 +4,7 @@ IF NOT EXIST .\dep\dotnet-install.ps1 (
 )
 
 SET DOTNET_VERSION=6.0.405
-SET DOTNET_TRACE_VERSION=6.0.257301
+SET DOTNET_TRACE_VERSION=6.0.351802
 SET DOTNET_SHARED_VERSION=6.0.13
 powershell -ExecutionPolicy Bypass -File .\dep\dotnet-install.ps1 dotnet -Version %DOTNET_VERSION% -InstallDir .\dep\dotnet
 .\dep\dotnet\dotnet.exe tool install --tool-path .\dep\dotnet\tools dotnet-trace --version %DOTNET_TRACE_VERSION%
