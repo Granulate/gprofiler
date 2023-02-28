@@ -53,9 +53,11 @@ def test_perf_fp_dwarf_smart(
     application_pid: int,
     runtime: str,
     perf_mode: str,
+    application_docker_container: Container,
 ) -> None:
     with system_profiler as profiler:
-        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
+        process_profile = snapshot_pid_profile(profiler, application_pid)
+        process_collapsed = process_profile.stacks
 
         if runtime == "native_dwarf":
             # app is built with DWARF info and without FP, so we expect to see a callstack only in DWARF or smart modes.
@@ -72,6 +74,8 @@ def test_perf_fp_dwarf_smart(
         assert is_function_in_collapsed(";_start;__libc_start_main;main;", process_collapsed) ^ bool(
             perf_mode not in ("dwarf", "smart")
         )
+        # Check if container name is added to ProfileData
+        assert application_docker_container.name == process_profile.container_name
 
 
 def _restart_app_container(application_docker_container: Container) -> int:

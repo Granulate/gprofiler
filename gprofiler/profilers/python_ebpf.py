@@ -239,11 +239,13 @@ class PythonEbpfProfiler(ProfilerBase):
                 process = Process(pid)
                 appid = application_identifiers.get_python_app_id(process)
                 app_metadata = self._metadata.get_metadata(process)
+                container_name = self._profiler_state.get_container_name(pid)
             except NoSuchProcess:
                 appid = None
                 app_metadata = None
+                container_name = None
 
-            profiles[pid] = ProfileData(parsed[pid], appid, app_metadata)
+            profiles[pid] = ProfileData(parsed[pid], appid, app_metadata, container_name)
         return profiles
 
     def _terminate(self) -> Optional[int]:

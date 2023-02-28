@@ -70,16 +70,6 @@ def _make_profile_metadata(
     return "# " + json.dumps(profile_metadata)
 
 
-def _get_container_name(
-    pid: int, container_names_client: Optional[ContainerNamesClient], add_container_names: bool
-) -> str:
-    return (
-        container_names_client.get_container_name(pid)
-        if add_container_names and container_names_client is not None
-        else ""
-    )
-
-
 @dataclass
 class PidStackEnrichment:
     appid: Optional[str]
@@ -87,11 +77,17 @@ class PidStackEnrichment:
     container_prefix: str
 
 
+def _get_container_name_from_profile(profile: ProfileData) -> str:
+    if profile.container_name is not None:
+        container_prefix = profile.container_name
+    else:
+        container_prefix = ""
+    return f"{container_prefix};"
+
+
 def _enrich_pid_stacks(
-    pid: int,
     profile: ProfileData,
     enrichment_options: EnrichmentOptions,
-    container_names_client: Optional[ContainerNamesClient],
     application_metadata: List[Optional[Dict]],
 ) -> PidStackEnrichment:
     """
@@ -121,7 +117,7 @@ def _enrich_pid_stacks(
     # to maintain compatibility with old profiler versions, we include the container name frame in any case
     # if the protocol version does not "v1, regardless of whether container_names is enabled or not.
     if enrichment_options.profile_api_version != "v1":
-        container_prefix = _get_container_name(pid, container_names_client, enrichment_options.container_names) + ";"
+        container_prefix = _get_container_name_from_profile(profile)
     else:
         container_prefix = ""
 
@@ -198,7 +194,7 @@ def concatenate_profiles(
     application_metadata: List[Optional[Dict]] = [None]
 
     for pid, profile in process_profiles.items():
-        enrich_data = _enrich_pid_stacks(pid, profile, enrichment_options, container_names_client, application_metadata)
+        enrich_data = _enrich_pid_stacks(profile, enrichment_options, application_metadata)
         for stack, count in profile.stacks.items():
             lines.append(_enrich_and_finalize_stack(stack, count, enrichment_options, enrich_data))
 
@@ -249,6 +245,11 @@ def merge_profiles(
             # divided by samples we received from the runtime profiler of this process.
             ratio = perf_samples_count / profile_samples_count
             profile.stacks = scale_sample_counts(profile.stacks, ratio)
+
+        if process_perf is not None:
+            if profile.container_name in [None, ""]:
+                if process_perf.container_name is not None:
+                    profile.container_name = process_perf.container_name
 
         # swap them: use the processed (scaled or extended) samples from the runtime profiler.
         perf_pid_to_profiles[pid] = profile

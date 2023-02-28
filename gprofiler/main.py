@@ -142,18 +142,16 @@ class GProfiler:
         # 2. accessible only by us.
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
+        container_names_client = ContainerNamesClient() if self._enrichment_options.container_names else None
         self._profiler_state = ProfilerState(
             Event(),
             TEMPORARY_STORAGE_PATH,
             profile_spawned_processes,
             bool(user_args.get("insert_dso_name")),
             profiling_mode,
+            container_names_client,
         )
         self.system_profiler, self.process_profilers = get_profilers(user_args, profiler_state=self._profiler_state)
-        if self._enrichment_options.container_names:
-            self._container_names_client: Optional[ContainerNamesClient] = ContainerNamesClient()
-        else:
-            self._container_names_client = None
         self._usage_logger = usage_logger
         if collect_metrics:
             self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(
@@ -322,7 +320,7 @@ class GProfiler:
             assert system_result == {}, system_result  # should be empty!
             merged_result = concatenate_profiles(
                 process_profiles,
-                self._container_names_client,
+                self._profiler_state.container_names_client,
                 self._enrichment_options,
                 metadata,
                 metrics,
@@ -332,7 +330,7 @@ class GProfiler:
             merged_result = merge_profiles(
                 system_result,
                 process_profiles,
-                self._container_names_client,
+                self._profiler_state.container_names_client,
                 self._enrichment_options,
                 metadata,
                 metrics,
@@ -882,7 +880,6 @@ def init_pid_file(pid_file: str) -> None:
 def main() -> None:
     args = parse_cmd_args()
     if is_windows():
-        args.flamegraph = False
         args.perf_mode = "disabled"
         args.pid_ns_check = False
     if args.subcommand != "upload-file":

@@ -1,5 +1,7 @@
 from threading import Event
+from typing import Optional
 
+from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.utils import TemporaryDirectoryWithMode
 
 
@@ -13,6 +15,7 @@ class ProfilerState:
         profile_spawned_processes: bool,
         insert_dso_name: bool,
         profiling_mode: str,
+        container_names_client: Optional[ContainerNamesClient],
     ) -> None:
         self._stop_event = stop_event
         self._profile_spawned_processes = profile_spawned_processes
@@ -20,6 +23,7 @@ class ProfilerState:
         self._profiling_mode = profiling_mode
         self._temporary_dir = TemporaryDirectoryWithMode(dir=storage_dir, mode=0o755)
         self._storage_dir = self._temporary_dir.name
+        self._container_names_client = container_names_client
 
     @property
     def stop_event(self) -> Event:
@@ -40,3 +44,13 @@ class ProfilerState:
     @property
     def profiling_mode(self) -> str:
         return self._profiling_mode
+
+    @property
+    def container_names_client(self) -> Optional[ContainerNamesClient]:
+        return self._container_names_client
+
+    def get_container_name(self, pid: int) -> str:
+        if self._container_names_client is not None:
+            return self._container_names_client.get_container_name(pid)
+        else:
+            return ""
