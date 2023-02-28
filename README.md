@@ -478,7 +478,7 @@ We welcome all feedback and suggestion through Github Issues:
 1. Update `__version__` in `__init__.py`.
 2. Create a tag with the same version (after merging the `__version__` update) and push it.
 
-We recommend going through our [contribution guide](https://github.com/granulate/gprofiler/blob/master/CONTRIBUTING.md) for more details.
+We recommend going through our [contribution guide](./CONTRIBUTING.md) for more details.
 
 # Credits
 * [async-profiler](https://github.com/jvm-profiling-tools/async-profiler) by [Andrei Pangin](https://github.com/apangin). See [our fork](https://github.com/Granulate/async-profiler).
