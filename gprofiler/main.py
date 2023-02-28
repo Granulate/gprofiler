@@ -41,7 +41,7 @@ from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import concatenate_from_external_file, concatenate_profiles, merge_profiles
-from gprofiler.metadata.application_identifiers import set_enrichment_options
+from gprofiler.metadata.application_identifiers import ApplicationIdentifiers
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
@@ -882,7 +882,6 @@ def init_pid_file(pid_file: str) -> None:
 def main() -> None:
     args = parse_cmd_args()
     if is_windows():
-        args.flamegraph = False
         args.perf_mode = "disabled"
         args.pid_ns_check = False
     if args.subcommand != "upload-file":
@@ -1009,7 +1008,7 @@ def main() -> None:
             application_metadata=args.application_metadata,
         )
 
-        set_enrichment_options(enrichment_options)
+        ApplicationIdentifiers.init(enrichment_options)
         set_diagnostics(args.diagnostics)
 
         gprofiler = GProfiler(

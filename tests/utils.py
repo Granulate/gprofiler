@@ -17,6 +17,7 @@ from docker.errors import ContainerError
 from docker.models.containers import Container
 from docker.models.images import Image
 from docker.types import Mount
+from psutil import Process
 
 from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
 from gprofiler.profiler_state import ProfilerState
@@ -24,6 +25,7 @@ from gprofiler.profilers.java import (
     JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
     JAVA_SAFEMODE_ALL,
     AsyncProfiledProcess,
+    JavaFlagCollectionOptions,
     JavaProfiler,
 )
 from gprofiler.profilers.profiler_base import ProfilerInterface
@@ -196,11 +198,12 @@ def make_java_profiler(
     java_async_profiler_safemode: int = JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
     java_async_profiler_args: str = "",
     java_safemode: str = JAVA_SAFEMODE_ALL,
-    java_jattach_timeout: int = AsyncProfiledProcess._JATTACH_TIMEOUT,
+    java_jattach_timeout: int = AsyncProfiledProcess._DEFAULT_JATTACH_TIMEOUT,
     java_async_profiler_mcache: int = AsyncProfiledProcess._DEFAULT_MCACHE,
     java_async_profiler_report_meminfo: bool = True,
     java_collect_spark_app_name_as_appid: bool = False,
     java_mode: str = "ap",
+    java_collect_jvm_flags: str = JavaFlagCollectionOptions.DEFAULT,
 ) -> JavaProfiler:
     return JavaProfiler(
         frequency=frequency,
@@ -216,6 +219,7 @@ def make_java_profiler(
         java_collect_spark_app_name_as_appid=java_collect_spark_app_name_as_appid,
         java_mode=java_mode,
         java_async_profiler_report_meminfo=java_async_profiler_report_meminfo,
+        java_collect_jvm_flags=java_collect_jvm_flags,
     )
 
 
@@ -343,6 +347,40 @@ def _application_docker_container(
         container.reload()
     yield container
     container.remove(force=True)
+
+
+def find_application_pid(pid: int) -> int:
+    # Application might be run using "sh -c ...", we detect the case and return the "real" application pid
+    process = Process(pid)
+    if (
+        process.cmdline()[0].endswith("sh")
+        and process.cmdline()[1] == "-c"
+        and len(process.children(recursive=False)) == 1
+    ):
+        pid = process.children(recursive=False)[0].pid
+
+    return pid
+
+
+def assert_jvm_flags_equal(actual_jvm_flags: Optional[List], expected_jvm_flags: List) -> None:
+    """
+    When comparing JVM flags, we want to ignore the "value" field
+    as it might change in the CI due to ergonomic set flags
+    """
+    assert actual_jvm_flags is not None, f"{actual_jvm_flags} != {expected_jvm_flags}"
+
+    assert len(actual_jvm_flags) == len(expected_jvm_flags), f"{actual_jvm_flags} != {expected_jvm_flags}"
+
+    for actual_flag_dict, expected_flag_dict in zip(actual_jvm_flags, expected_jvm_flags):
+        actual_flag_value = actual_flag_dict.pop("value")
+        expected_flag_value = expected_flag_dict.pop("value")
+
+        if expected_flag_value is not None:
+            assert (
+                actual_flag_value == expected_flag_value
+            ), f"{actual_flag_dict|{'value': actual_flag_value}} != {expected_flag_dict|{'value': expected_flag_value}}"
+
+        assert actual_flag_dict == expected_flag_dict
 
 
 def log_record_extra(r: LogRecord) -> Dict[Any, Any]:
