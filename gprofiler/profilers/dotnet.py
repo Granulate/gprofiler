@@ -16,10 +16,11 @@ from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import ProfileData
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.application_metadata import ApplicationMetadata
+from gprofiler.platform import is_windows
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
-from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
+from gprofiler.utils import pgrep_exe, pgrep_maps, random_prefix, removed_path, resource_path, run_process
 from gprofiler.utils.process import process_comm
 from gprofiler.utils.speedscope import load_speedscope_as_collapsed
 
@@ -52,6 +53,7 @@ class DotnetMetadata(ApplicationMetadata):
     "dotnet",
     possible_modes=["dotnet-trace", "disabled"],
     supported_archs=["x86_64", "aarch64"],
+    supported_windows_archs=["AMD64"],
     default_mode="disabled",
     supported_profiling_modes=["cpu"],
 )
@@ -82,7 +84,7 @@ class DotnetProfiler(ProcessProfilerBase):
             "--format",
             "speedscope",
             "--process-id",
-            str(get_process_nspid(process.pid)),
+            str(process.pid if is_windows() else get_process_nspid(process.pid)),
             "--profile",
             "cpu-sampling",
             "--duration",
@@ -116,7 +118,7 @@ class DotnetProfiler(ProcessProfilerBase):
                     env={"TMPDIR": tempdir, "DOTNET_ROOT": dotnet_root},
                     stop_event=self._profiler_state.stop_event,
                     timeout=self._duration + self._EXTRA_TIMEOUT,
-                    kill_signal=signal.SIGKILL,
+                    kill_signal=signal.SIGTERM if is_windows() else signal.SIGKILL,
                 )
                 local_output_path = local_output_path + ".speedscope.json"
             except ProcessStoppedException:
@@ -131,4 +133,4 @@ class DotnetProfiler(ProcessProfilerBase):
             )
 
     def _select_processes_to_profile(self) -> List[Process]:
-        return pgrep_maps(r"(^.+/dotnet[^/]*$)")
+        return pgrep_exe("dotnet") if is_windows() else pgrep_maps(r"(^.+/dotnet[^/]*$)")

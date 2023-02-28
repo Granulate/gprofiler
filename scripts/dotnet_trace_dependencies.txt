@@ -1,7 +1,3 @@
-libclrjit.so
-libhostpolicy.so
-libcoreclr.so
-libSystem.Native.so
 Microsoft.CSharp.dll
 Microsoft.NETCore.App.deps.json
 Microsoft.Win32.Primitives.dll
@@ -46,7 +42,6 @@ System.Security.Principal.dll
 System.IO.dll
 System.Security.Cryptography.Algorithms.dll
 System.Security.Cryptography.Primitives.dll
-libSystem.Security.Cryptography.Native.OpenSsl.so
 System.Runtime.CompilerServices.Unsafe.dll
 System.Diagnostics.TraceSource.dll
 System.Reflection.Emit.ILGeneration.dll
