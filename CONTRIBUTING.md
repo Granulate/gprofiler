@@ -18,6 +18,8 @@ To get the source of `gprofiler`, clone the git repository via:
 git clone --recursive https://github.com/granulate/gprofiler
 ````
 
+Make sure to clone in `--recursive` mode! The project uses submodules. If you didn't clone recursively, run `git submodule update --init`.
+
 This will clone the complete source to your local machine. Navigate to the project folder
 and install all needed dependencies with:
 ````bash
@@ -25,29 +27,52 @@ pip3 install -r requirements.txt
 pip3 install -r dev-requirements.txt
 ````
 
-This above commands installs all packages required for building, developing and testing the project.
+This above commands installs all packages required for linting and testing. For a local build, no dependencies are needed (see [building](#building) ahead)
 
 ## Building
 
-### Standard build
 There are build scripts under `scripts/` for all components gProfiler uses.
-They are all invoked during the Docker build (described ahead). Do not invoke them manually.
-If you don't want to build the binaries yourself, you can copy the built artifacts from the latest Docker image build; there's an helper script to do that:
+They are all invoked during the gProfiler Docker image build & gProfiler executable build (described ahead). Do not invoke them manually as each requires a different OS & installed tools to run - they are invoked properly during the full build.
+
+The full build builds from source all profilers used by gProfiler. It can take 20-30 minutes on an 8-cores machine and requires 16 GB of RAM. It might work with less but the build containers might get OOMs.
+
+### Docker image build
+You can build the docker image, including all bundled dependencies, through:
+```bash
+# x86_64
+./scripts/build_x86_64_container.sh -t gprofiler
+# aarch64
+./scripts/build_aarch64_container.sh -t gprofiler
+```
+These will create a local image named `gprofiler`.
+
+### Executable build
+You can build executable, including all bundled dependencies, through:
+```bash
+# x86_64
+./scripts/build_x86_64_executable.sh
+# aarch64
+./scripts/build_aarch64_executable.sh
+```
+These will create an executable in `build/{arch}/gprofiler`.
+
+### Cross-building
+Both the container & executable build scripts can run over Docker multiarch support. It will be much slower though.
+If you don't have Docker multiarch configured on your host, you can do that via:
+```bash
+docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+docker buildx create --name multiarch --driver docker-container --use --node multiarch0
+```
+Following that, you can run the build script for a cross architecture.
+
+### Accessing build artifacts
+
+If you want particular artifacts (e.g one of the built profilers) but don't want to build the entire profiler, you can copy the built artifacts from the latest Docker image build; there's a helper script to do that:
 ```bash
 ./scripts/copy_resources_from_image.sh
 ```
 
 The above command will get the `granulate/gprofiler:latest` image and extract all dependencies to the `gprofiler/resources` directory.
-
-### Docker build
-Alternatively, you can build the docker image, including all dependencies, through:
-```bash
-./scripts/build_x86_64_container.sh -t gprofiler
-```
-
-To build the gProfiler executable, you can run `./scripts/build_x86_64_executable.sh`.
-
-There are matching scripts for `aarch64`.
 
 ### Debugging the build
 
