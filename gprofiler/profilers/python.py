@@ -21,7 +21,6 @@ from granulate_utils.linux.process import (
 from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PROCESSES_REGEX
 from psutil import NoSuchProcess, Process
 
-from gprofiler import merge
 from gprofiler.exceptions import (
     CalledProcessError,
     CalledProcessTimeoutError,
@@ -44,6 +43,7 @@ from gprofiler.platform import is_linux, is_windows
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProfilerInterface, SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
+from gprofiler.utils.collapsed_format import parse_one_collapsed_file
 
 if is_linux():
     from gprofiler.profilers.python_ebpf import PythonEbpfProfiler, PythonEbpfError
@@ -239,7 +239,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
                 raise
 
             logger.info(f"Finished profiling process {process.pid} with py-spy")
-            parsed = merge.parse_one_collapsed_file(Path(local_output_path), comm)
+            parsed = parse_one_collapsed_file(Path(local_output_path), comm)
             if self.add_versions:
                 parsed = _add_versions_to_process_stacks(process, parsed)
             return ProfileData(parsed, appid, app_metadata)

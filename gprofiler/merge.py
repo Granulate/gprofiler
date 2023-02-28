@@ -5,22 +5,14 @@
 import json
 import math
 import random
-from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from granulate_utils.metadata import Metadata
 
 from gprofiler.containers_client import ContainerNamesClient
-from gprofiler.gprofiler_types import (
-    ProcessToProfileData,
-    ProcessToStackSampleCounters,
-    ProfileData,
-    ProfilingErrorStack,
-    StackToSampleCount,
-)
+from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, ProfilingErrorStack, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.system_metrics import Metrics
@@ -31,62 +23,6 @@ logger = get_logger_adapter(__name__)
 # ffffffff81082227 mmput+0x57 ([kernel.kallsyms])
 # 0 [unknown] ([unknown])
 # 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
-
-
-def parse_one_collapsed(collapsed: str, add_comm: Optional[str] = None) -> StackToSampleCount:
-    """
-    Parse a stack-collapsed listing.
-
-    If 'add_comm' is not None, add it as the first frame for each stack.
-    """
-    stacks: StackToSampleCount = Counter()
-
-    for line in collapsed.splitlines():
-        if line.strip() == "":
-            continue
-        if line.startswith("#"):
-            continue
-        try:
-            stack, _, count = line.rpartition(" ")
-            if add_comm is not None:
-                stacks[f"{add_comm};{stack}"] += int(count)
-            else:
-                stacks[stack] += int(count)
-        except Exception:
-            logger.exception(f'bad stack - line="{line}"')
-
-    return stacks
-
-
-def parse_one_collapsed_file(collapsed: Path, add_comm: Optional[str] = None) -> StackToSampleCount:
-    """
-    Parse a stack-collapsed file.
-    """
-    return parse_one_collapsed(collapsed.read_text(), add_comm)
-
-
-def parse_many_collapsed(text: str) -> ProcessToStackSampleCounters:
-    """
-    Parse a stack-collapsed listing where stacks are prefixed with the command and pid/tid of their
-    origin.
-    """
-    results: ProcessToStackSampleCounters = defaultdict(Counter)
-    bad_lines = []
-
-    for line in text.splitlines():
-        try:
-            stack, count = line.rsplit(" ", maxsplit=1)
-            comm_pid_tid, stack = stack.split(";", maxsplit=1)
-            comm, pid_tid = comm_pid_tid.rsplit("-", maxsplit=1)
-            pid = int(pid_tid.split("/")[0])
-            results[pid][f"{comm};{stack}"] += int(count)
-        except ValueError:
-            bad_lines.append(line)
-
-    if bad_lines:
-        logger.warning(f"Got {len(bad_lines)} bad lines when parsing (showing up to 8):\n" + "\n".join(bad_lines[:8]))
-
-    return results
 
 
 def scale_sample_counts(stacks: StackToSampleCount, ratio: float) -> StackToSampleCount:

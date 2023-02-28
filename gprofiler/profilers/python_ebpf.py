@@ -13,7 +13,6 @@ from typing import Dict, List, NoReturn, Optional
 from granulate_utils.linux.ns import is_running_in_init_pid
 from psutil import NoSuchProcess, Process
 
-from gprofiler import merge
 from gprofiler.exceptions import CalledProcessError, StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData
 from gprofiler.log import get_logger_adapter
@@ -30,6 +29,7 @@ from gprofiler.utils import (
     wait_event,
     wait_for_file_by_prefix,
 )
+from gprofiler.utils.collapsed_format import parse_many_collapsed
 
 logger = get_logger_adapter(__name__)
 
@@ -230,7 +230,7 @@ class PythonEbpfProfiler(ProfilerBase):
         finally:
             # always remove, even if we get read/decode errors
             collapsed_path.unlink()
-        parsed = merge.parse_many_collapsed(collapsed_text)
+        parsed = parse_many_collapsed(collapsed_text)
         if self.add_versions:
             parsed = python._add_versions_to_stacks(parsed)
         profiles = {}

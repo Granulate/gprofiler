@@ -13,7 +13,6 @@ import pytest
 from docker import DockerClient
 from docker.models.images import Image
 
-from gprofiler.merge import parse_one_collapsed
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.dotnet import DotnetProfiler
 from gprofiler.profilers.perf import SystemProfiler
@@ -22,6 +21,7 @@ from gprofiler.profilers.python import PySpyProfiler
 from gprofiler.profilers.python_ebpf import PythonEbpfProfiler
 from gprofiler.profilers.ruby import RbSpyProfiler
 from gprofiler.utils import wait_event
+from gprofiler.utils.collapsed_format import parse_one_collapsed
 from tests import PHPSPY_DURATION
 from tests.conftest import AssertInCollapsed
 from tests.utils import (

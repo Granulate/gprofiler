@@ -13,9 +13,10 @@ import pytest
 from granulate_utils.metadata import Metadata
 
 from gprofiler.gprofiler_types import ProcessToProfileData, ProcessToStackSampleCounters, ProfileData
-from gprofiler.merge import merge_profiles, parse_many_collapsed
+from gprofiler.merge import merge_profiles
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.system_metrics import Metrics
+from gprofiler.utils.collapsed_format import parse_many_collapsed
 
 
 def parse_profiles_text(profiles_text: str) -> ProcessToProfileData:

@@ -32,6 +32,7 @@ from granulate_utils.java import (
 )
 
 from gprofiler.platform import is_linux
+from gprofiler.utils.collapsed_format import parse_one_collapsed
 
 if is_linux():
     from granulate_utils.linux import proc_events
@@ -51,7 +52,6 @@ if is_linux():
 from packaging.version import Version
 from psutil import NoSuchProcess, Process
 
-from gprofiler import merge
 from gprofiler.diagnostics import is_diagnostics
 from gprofiler.exceptions import CalledProcessError, CalledProcessTimeoutError, NoRwExecDirectoryFoundError
 from gprofiler.gprofiler_types import (
@@ -1152,7 +1152,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             return self._profiling_error_stack("error", "process exited before reading the output", comm)
         else:
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
-            return merge.parse_one_collapsed(output, comm)
+            return parse_one_collapsed(output, comm)
 
     def _check_hotspot_error(self, ap_proc: AsyncProfiledProcess) -> None:
         pid = ap_proc.process.pid

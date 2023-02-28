@@ -11,7 +11,7 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 
-from gprofiler.merge import parse_one_collapsed
+from gprofiler.utils.collapsed_format import parse_one_collapsed
 from tests.conftest import AssertInCollapsed
 from tests.utils import assert_jvm_flags_equal, run_gprofiler_in_container_for_one_session
 
