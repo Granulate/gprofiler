@@ -167,7 +167,7 @@ The logs can then be viewed in their default location (`/var/log/gprofiler`).
 
 ## Running as systemd service
 
-You can generate a systemd service configuration that [runs gProfiler as an executable](#running-as-an-executable) (and therefore, bears the same [known issues](#executable-known-issues)) by running:
+You can generate a systemd service configuration that [runs gProfiler as an executable](#running-as-an-executable) by running:
 
 ``` bash
 curl -s https://raw.githubusercontent.com/Granulate/gprofiler/master/deploy/systemd/create_systemd_service.sh | GPROFILER_TOKEN=<TOKEN> GPROFILER_SERVICE=<SERVICE_NAME> bash
@@ -467,17 +467,7 @@ Additionally, each frame has a suffix which designates the profiler it originate
 
 # Building
 
-Note: this process builds from source all of the profilers used by gProfiler. It's recommended to use machines with at least 8 cores and 16 GB of RAM (memory is more important, as your build may fail with OOM if you have less memory available).
-
-## Container
-
-* x86_64: `./scripts/build_x86_64_container.sh -t gprofiler` will create a local image `gprofiler`.
-* Aarch64: `./scripts/build_aarch64_container.sh`, you will need to set up buildx for building cross architecture before, if you're building on x86_64.
-
-## Executable
-
-* x86_64: `./scripts/build_x86_64_executable.sh` will build the executable into `build/x86_64/gprofiler`.
-* Aarch64: `./scripts/build_aarch64_executable.sh` will build the executable into `build/aarch64/gprofiler`. As with the Aarch64 container build - this can be used to cross-compile on x86_64, you just need to set up buildx for that, see notes above.
+Please refer to the [building](https://github.com/granulate/gprofiler/blob/master/CONTRIBUTING.md#building) section.
 
 # Contribute
 We welcome all feedback and suggestion through Github Issues:

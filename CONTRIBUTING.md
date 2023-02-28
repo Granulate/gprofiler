@@ -34,7 +34,7 @@ This above commands installs all packages required for linting and testing. For 
 There are build scripts under `scripts/` for all components gProfiler uses.
 They are all invoked during the gProfiler Docker image build & gProfiler executable build (described ahead). Do not invoke them manually as each requires a different OS & installed tools to run - they are invoked properly during the full build.
 
-Note that the full build can take 20-30 minutes and requires 16 GB of RAM. It might work with less but the build containers might get OOMs.
+The full build builds from source all profilers used by gProfiler. It can take 20-30 minutes on an 8-cores machine and requires 16 GB of RAM. It might work with less but the build containers might get OOMs.
 
 ### Docker image build
 You can build the docker image, including all bundled dependencies, through:
@@ -44,6 +44,7 @@ You can build the docker image, including all bundled dependencies, through:
 # aarch64
 ./scripts/build_aarch64_container.sh -t gprofiler
 ```
+These will create a local image named `gprofiler`.
 
 ### Executable build
 You can build executable, including all bundled dependencies, through:
@@ -53,6 +54,7 @@ You can build executable, including all bundled dependencies, through:
 # aarch64
 ./scripts/build_aarch64_executable.sh
 ```
+These will create an executable in `build/{arch}/gprofiler`.
 
 ### Cross-building
 Both the container & executable build scripts can run over Docker multiarch support. It will be much slower though.
