@@ -467,7 +467,7 @@ Additionally, each frame has a suffix which designates the profiler it originate
 
 # Building
 
-Please refer to the [building](https://github.com/granulate/gprofiler/blob/master/CONTRIBUTING.md#building) section.
+Please refer to the [building](./CONTRIBUTING.md#building) section.
 
 # Contribute
 We welcome all feedback and suggestion through Github Issues:
