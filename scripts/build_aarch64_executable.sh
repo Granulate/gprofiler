@@ -19,8 +19,8 @@ GOLANG_VERSION=@sha256:f7d3519759ba6988a2b73b5874b17c5958ac7d0aa48a8b1d84d66ef25
 ALPINE_VERSION=@sha256:b06a5cf61b2956088722c4f1b9a6f71dfe95f0b1fe285d44195452b8a1627de7
 # mcr.microsoft.com/dotnet/sdk:6.0-focal
 DOTNET_BUILDER=@sha256:749439ff7a431ab4bc38d43cea453dff9ae1ed89a707c318b5082f9b2b25fa22
-# node-package-builder-glibc - centos7:latest
-NODE_PACKAGE_BUILDER_GLIBC=@sha256:65a4aad1156d8a0679537cb78519a17eb7142e05a968b26a5361153006224fdc
+# Take image from build-prepare stage
+NODE_PACKAGE_BUILDER_GLIBC=build-prepare
 
 mkdir -p build/aarch64
 docker buildx build --platform=linux/arm64 \

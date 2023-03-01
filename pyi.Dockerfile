@@ -111,17 +111,6 @@ RUN ./node_builder_musl_env.sh
 COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
 
-# node-package-builder-glibc
-FROM centos${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
-USER 0
-WORKDIR /tmp
-COPY scripts/node_builder_glibc_env.sh .
-RUN ./node_builder_glibc_env.sh
-COPY scripts/build_node_package.sh .
-RUN ./build_node_package.sh
-# needed for hadolint
-USER 1001
-
 # bcc helpers
 # built on newer Ubuntu because they require new clang (newer than available in GPROFILER_BUILDER's CentOS 7)
 # these are only relevant for modern kernels, so there's no real reason to build them on CentOS 7 anyway.
@@ -148,15 +137,12 @@ RUN ./bcc_helpers_build.sh
 
 
 # bcc & gprofiler
-FROM centos${GPROFILER_BUILDER} AS build-stage
-
+FROM centos${GPROFILER_BUILDER} AS build-prepare
+WORKDIR /tmp
+COPY scripts/fix_centos8.sh .
 # fix repo links for CentOS 8, and enable powertools (required to download glibc-static)
 RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
-        sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*; \
-        sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*; \
-        yum install -y dnf-plugins-core; \
-        dnf config-manager --set-enabled powertools; \
-        yum clean all; \
+        ./fix_centos8.sh; \
     fi
 
 # python 3.10 installation
@@ -256,6 +242,19 @@ RUN set -e; \
 # we want the latest pip
 # hadolint ignore=DL3013
 RUN python3 -m pip install --no-cache-dir --upgrade pip
+
+FROM ${NODE_PACKAGE_BUILDER_GLIBC} as node-package-builder-glibc
+USER 0
+WORKDIR /tmp
+COPY scripts/node_builder_glibc_env.sh .
+RUN ./node_builder_glibc_env.sh
+COPY scripts/build_node_package.sh .
+RUN ./build_node_package.sh
+# needed for hadolint
+WORKDIR /app
+USER 1001
+
+FROM build-prepare as build-stage
 
 COPY requirements.txt requirements.txt
 COPY granulate-utils/setup.py granulate-utils/requirements.txt granulate-utils/README.md granulate-utils/
