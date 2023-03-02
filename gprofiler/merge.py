@@ -20,10 +20,6 @@ from gprofiler.utils import merge_dicts
 
 logger = get_logger_adapter(__name__)
 
-# ffffffff81082227 mmput+0x57 ([kernel.kallsyms])
-# 0 [unknown] ([unknown])
-# 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
-
 
 def scale_sample_counts(stacks: StackToSampleCount, ratio: float) -> StackToSampleCount:
     if ratio == 1:
