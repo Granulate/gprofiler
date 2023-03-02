@@ -26,29 +26,36 @@ from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
 
 from gprofiler import __version__
-from gprofiler.client import DEFAULT_UPLOAD_TIMEOUT, GRANULATE_SERVER_HOST, APIClient
+from gprofiler.client import (
+    DEFAULT_API_SERVER_ADDRESS,
+    DEFAULT_PROFILER_SERVER_ADDRESS,
+    DEFAULT_UPLOAD_TIMEOUT,
+    APIClient,
+    ProfilerAPIClient,
+)
 from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.databricks_client import DatabricksClient
 from gprofiler.diagnostics import log_diagnostics, set_diagnostics
 from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
-from gprofiler.log import DEFAULT_API_SERVER_ADDRESS, RemoteLogsHandler, initial_root_logger_setup
+from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import concatenate_from_external_file, concatenate_profiles, merge_profiles
-from gprofiler.metadata.application_identifiers import set_enrichment_options
+from gprofiler.metadata.application_identifiers import ApplicationIdentifiers
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
 from gprofiler.platform import is_linux, is_windows
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
+from gprofiler.spark.spark_collector import SparkSampler
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import Metrics, NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
 from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLoggerInterface
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
-    TemporaryDirectoryWithMode,
     atomically_symlink,
     get_iso8601_format_time,
     grab_gprofiler_mutex,
@@ -57,6 +64,7 @@ from gprofiler.utils import (
     resource_path,
     run_process,
 )
+from gprofiler.utils.fs import escape_filename
 from gprofiler.utils.proxy import get_https_proxy
 
 logger: logging.LoggerAdapter
@@ -95,7 +103,7 @@ class GProfiler:
         output_dir: str,
         flamegraph: bool,
         rotating_output: bool,
-        client: Optional[APIClient],
+        profiler_api_client: Optional[ProfilerAPIClient],
         collect_metrics: bool,
         collect_metadata: bool,
         enrichment_options: EnrichmentOptions,
@@ -108,26 +116,24 @@ class GProfiler:
         profile_spawned_processes: bool = True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         controller_process: Optional[Process] = None,
+        spark_sampler: Optional[SparkSampler] = None,
     ):
         self._output_dir = output_dir
         self._flamegraph = flamegraph
         self._rotating_output = rotating_output
-        self._client = client
+        self._profiler_api_client = profiler_api_client
         self._state = state
         self._remote_logs_handler = remote_logs_handler
         self._profile_api_version = profile_api_version
-        self._profile_spawned_processes = profile_spawned_processes
         self._collect_metrics = collect_metrics
         self._collect_metadata = collect_metadata
         self._enrichment_options = enrichment_options
-        self._stop_event = Event()
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
         self._last_diagnostics = 0.0
         self._gpid = ""
         self._controller_process = controller_process
         self._duration = duration
-        self._profiling_mode = profiling_mode
         if collect_metadata:
             self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
@@ -136,22 +142,30 @@ class GProfiler:
         # 2. accessible only by us.
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
-        self._temp_storage_dir = TemporaryDirectoryWithMode(dir=TEMPORARY_STORAGE_PATH, mode=0o755)
-        self.system_profiler, self.process_profilers = get_profilers(
-            user_args,
-            storage_dir=self._temp_storage_dir.name,
-            stop_event=self._stop_event,
-            profile_spawned_processes=self._profile_spawned_processes,
+        self._profiler_state = ProfilerState(
+            Event(),
+            TEMPORARY_STORAGE_PATH,
+            profile_spawned_processes,
+            bool(user_args.get("insert_dso_name")),
+            profiling_mode,
         )
+        self.system_profiler, self.process_profilers = get_profilers(user_args, profiler_state=self._profiler_state)
         if self._enrichment_options.container_names:
             self._container_names_client: Optional[ContainerNamesClient] = ContainerNamesClient()
         else:
             self._container_names_client = None
         self._usage_logger = usage_logger
         if collect_metrics:
-            self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(self._stop_event)
+            self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(
+                self._profiler_state.stop_event
+            )
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
+
+        self._spark_sampler = spark_sampler
+
+        if isinstance(self.system_profiler, NoopProfiler) and not self.process_profilers and not spark_sampler:
+            raise NoProfilersEnabledError()
 
     @property
     def all_profilers(self) -> Iterable[ProfilerInterface]:
@@ -192,9 +206,7 @@ class GProfiler:
     ) -> None:
         start_ts = get_iso8601_format_time(local_start_time)
         end_ts = get_iso8601_format_time(local_end_time)
-        base_filename = os.path.join(
-            self._output_dir, "profile_{}".format(end_ts.replace(":", "-" if is_windows() else ":"))
-        )
+        base_filename = os.path.join(self._output_dir, "profile_{}".format(escape_filename(end_ts)))
         collapsed_path = base_filename + ".col"
         Path(collapsed_path).write_text(collapsed_data, encoding="utf-8")
         stripped_collapsed_data = self._strip_extra_data(collapsed_data)
@@ -214,7 +226,7 @@ class GProfiler:
                         [resource_path("burn"), "convert", "--type=folded"],
                         suppress_log=True,
                         stdin=stripped_collapsed_data.encode(),
-                        stop_event=self._stop_event,
+                        stop_event=self._profiler_state.stop_event,
                         timeout=10,
                     ).stdout,
                 )
@@ -242,8 +254,11 @@ class GProfiler:
         return "\n".join(lines)
 
     def start(self) -> None:
-        self._stop_event.clear()
+        self._profiler_state.stop_event.clear()
         self._system_metrics_monitor.start()
+
+        if self._spark_sampler:
+            self._spark_sampler.start()
 
         for prof in list(self.all_profilers):
             try:
@@ -260,9 +275,10 @@ class GProfiler:
 
     def stop(self) -> None:
         logger.info("Stopping ...")
-        self._stop_event.set()
+        self._profiler_state.stop_event.set()
         self._system_metrics_monitor.stop()
-
+        if self._spark_sampler is not None and self._spark_sampler.is_running():
+            self._spark_sampler.stop()
         for prof in self.all_profilers:
             prof.stop()
 
@@ -300,7 +316,7 @@ class GProfiler:
             if self._collect_metadata
             else {"hostname": get_hostname()}
         )
-        metadata.update({"profiling_mode": self._profiling_mode})
+        metadata.update({"profiling_mode": self._profiler_state.profiling_mode})
         metrics = self._system_metrics_monitor.get_metrics()
         if NoopProfiler.is_noop_profiler(self.system_profiler):
             assert system_result == {}, system_result  # should be empty!
@@ -325,9 +341,9 @@ class GProfiler:
         if self._output_dir:
             self._generate_output_files(merged_result, local_start_time, local_end_time)
 
-        if self._client:
+        if self._profiler_api_client:
             self._gpid = _submit_profile_logged(
-                self._client,
+                self._profiler_api_client,
                 local_start_time,
                 local_end_time,
                 merged_result,
@@ -352,7 +368,7 @@ class GProfiler:
         with self:
             self._usage_logger.init_cycles()
 
-            while not self._stop_event.is_set():
+            while not self._profiler_state.stop_event.is_set():
                 self._state.init_new_cycle()
 
                 snapshot_start = time.monotonic()
@@ -363,7 +379,7 @@ class GProfiler:
                 self._usage_logger.log_cycle()
 
                 # wait for one duration
-                self._stop_event.wait(max(self._duration - (time.monotonic() - snapshot_start), 0))
+                self._profiler_state.stop_event.wait(max(self._duration - (time.monotonic() - snapshot_start), 0))
 
                 if self._controller_process is not None and not is_process_running(self._controller_process):
                     logger.info(f"Controller process {self._controller_process.pid} has exited; gProfiler stopping...")
@@ -373,7 +389,7 @@ class GProfiler:
 
 
 def _submit_profile_logged(
-    client: APIClient,
+    client: ProfilerAPIClient,
     start_time: datetime.datetime,
     end_time: datetime.datetime,
     profile: str,
@@ -404,7 +420,7 @@ def _submit_profile_logged(
     return ""
 
 
-def send_collapsed_file_only(args: configargparse.Namespace, client: APIClient) -> None:
+def send_collapsed_file_only(args: configargparse.Namespace, client: ProfilerAPIClient) -> None:
     spawn_time = time.time()
     gpid = ""
     metrics = NoopSystemMetricsMonitor().get_metrics()
@@ -486,7 +502,7 @@ def parse_cmd_args() -> configargparse.Namespace:
     parser.add_argument(
         "--mode",
         dest="profiling_mode",
-        choices=["cpu", "allocation"],
+        choices=["cpu", "allocation", "none"],
         default="cpu",
         help="Select gProfiler's profiling mode, default is %(default)s, available options are "
         "%(choices)s; allocation will profile only Java processes",
@@ -505,6 +521,22 @@ def parse_cmd_args() -> configargparse.Namespace:
     )
 
     _add_profilers_arguments(parser)
+
+    spark_options = parser.add_argument_group("Spark")
+
+    spark_options.add_argument(
+        "--spark-sample-period",
+        type=int,
+        default=120,
+        help="Time in seconds between each metric collection",
+    )
+
+    spark_options.add_argument(
+        "--collect-spark-metrics",
+        default=False,
+        action="store_true",
+        help="Collect Apache Spark metrics",
+    )
 
     nodejs_options = parser.add_argument_group("NodeJS")
     nodejs_options.add_argument(
@@ -553,7 +585,20 @@ def parse_cmd_args() -> configargparse.Namespace:
     for subparser in [parser, upload_file]:
         connectivity = subparser.add_argument_group("connectivity")
         connectivity.add_argument(
-            "--server-host", default=GRANULATE_SERVER_HOST, help="Server host (default: %(default)s)"
+            "--server-host",
+            default=DEFAULT_PROFILER_SERVER_ADDRESS,
+            help="Server address for uploading profiles (default: %(default)s)",
+        )
+        connectivity.add_argument(
+            "--api-server",
+            default=DEFAULT_API_SERVER_ADDRESS,
+            help="Server address for reporting logs and metrics (default: %(default)s)",
+        )
+        connectivity.add_argument(
+            "--glogger-server",
+            default=DEFAULT_API_SERVER_ADDRESS,
+            dest="api_server",
+            help="Deprecated alias for --api-server.",
         )
         connectivity.add_argument(
             "--server-upload-timeout",
@@ -565,11 +610,6 @@ def parse_cmd_args() -> configargparse.Namespace:
         connectivity.add_argument("--service-name", help="Service name")
         connectivity.add_argument(
             "--curlify-requests", help="Log cURL commands for HTTP requests (used for debugging)", action="store_true"
-        )
-        connectivity.add_argument(
-            "--glogger-server",
-            default=DEFAULT_API_SERVER_ADDRESS,
-            help="URL for remote gLogger logs (default: %(default)s)",
         )
 
     upload_file.set_defaults(func=send_collapsed_file_only)
@@ -842,7 +882,6 @@ def init_pid_file(pid_file: str) -> None:
 def main() -> None:
     args = parse_cmd_args()
     if is_windows():
-        args.flamegraph = False
         args.perf_mode = "disabled"
         args.pid_ns_check = False
     if args.subcommand != "upload-file":
@@ -850,9 +889,7 @@ def main() -> None:
     state = init_state()
 
     remote_logs_handler = (
-        RemoteLogsHandler(args.glogger_server, args.server_token, args.service_name)
-        if _should_send_logs(args)
-        else None
+        RemoteLogsHandler(args.api_server, args.server_token, args.service_name) if _should_send_logs(args) else None
     )
     global logger
     logger = initial_root_logger_setup(
@@ -915,11 +952,11 @@ def main() -> None:
             client_kwargs = {}
             if "server_upload_timeout" in args:
                 client_kwargs["upload_timeout"] = args.server_upload_timeout
-            client = (
-                APIClient(
-                    args.server_host,
+            profiler_api_client = (
+                ProfilerAPIClient(
                     args.server_token,
                     args.service_name,
+                    args.server_host,
                     args.curlify_requests,
                     get_hostname(),
                     **client_kwargs,
@@ -940,9 +977,27 @@ def main() -> None:
             )
             sys.exit(1)
 
+        if args.collect_spark_metrics:
+            if args.upload_results:
+                client_kwargs = {}
+                if "server_upload_timeout" in args:
+                    client_kwargs["timeout"] = args.server_upload_timeout
+                api_client = APIClient(
+                    args.server_token,
+                    args.service_name,
+                    args.api_server,
+                    args.curlify_requests,
+                    **client_kwargs,
+                )
+            else:
+                api_client = None
+            spark_sampler = SparkSampler(args.spark_sample_period, args.output_dir, api_client)
+        else:
+            spark_sampler = None
+
         if hasattr(args, "func"):
             assert args.subcommand == "upload-file"
-            args.func(args, client)
+            args.func(args, profiler_api_client)
             return
 
         enrichment_options = EnrichmentOptions(
@@ -953,14 +1008,14 @@ def main() -> None:
             application_metadata=args.application_metadata,
         )
 
-        set_enrichment_options(enrichment_options)
+        ApplicationIdentifiers.init(enrichment_options)
         set_diagnostics(args.diagnostics)
 
         gprofiler = GProfiler(
             args.output_dir,
             args.flamegraph,
             args.rotating_output,
-            client,
+            profiler_api_client,
             args.collect_metrics,
             args.collect_metadata,
             enrichment_options,
@@ -973,6 +1028,7 @@ def main() -> None:
             args.profile_spawned_processes,
             remote_logs_handler,
             controller_process,
+            spark_sampler,
         )
         logger.info("gProfiler initialized and ready to start profiling")
         if args.continuous:

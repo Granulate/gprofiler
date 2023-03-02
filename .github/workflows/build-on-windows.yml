@@ -1,0 +1,18 @@
+name: Build gProfiler on Windows
+
+on: pull_request
+
+jobs:
+  build-executable:
+   runs-on: windows-latest
+   steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+        
+      - name: run the build script
+        run: .\scripts\windows\build.bat
+
+      - name: check gprofiler build
+        run: .\app\dist\gprofiler.exe -h

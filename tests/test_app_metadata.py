@@ -13,7 +13,7 @@ from docker.models.images import Image
 
 from gprofiler.merge import parse_one_collapsed
 from tests.conftest import AssertInCollapsed
-from tests.utils import run_gprofiler_in_container_for_one_session
+from tests.utils import assert_jvm_flags_equal, run_gprofiler_in_container_for_one_session
 
 
 @pytest.mark.parametrize(
@@ -55,6 +55,78 @@ from tests.utils import run_gprofiler_in_container_for_one_session
                 "OpenJDK Runtime Environment (build 1.8.0_275-b01)\n"
                 "OpenJDK 64-Bit Server VM (build 25.275-b01, mixed mode)",
                 "libjvm_elfid": "buildid:0542486ff00153ca0bcf9f2daea9a36c428d6cde",
+                "jvm_flags": [
+                    {
+                        "name": "CICompilerCount",
+                        "type": "intx",
+                        "value": None,
+                        "origin": "non-default",
+                        "kind": ["product"],
+                    },
+                    {
+                        "name": "InitialHeapSize",
+                        "type": "uintx",
+                        "value": None,
+                        "origin": "non-default",
+                        "kind": ["product"],
+                    },
+                    {
+                        "name": "MaxHeapSize",
+                        "type": "uintx",
+                        "value": None,
+                        "origin": "non-default",
+                        "kind": ["product"],
+                    },
+                    {
+                        "name": "MaxNewSize",
+                        "type": "uintx",
+                        "value": None,
+                        "origin": "non-default",
+                        "kind": ["product"],
+                    },
+                    {
+                        "name": "MinHeapDeltaBytes",
+                        "type": "uintx",
+                        "value": None,
+                        "origin": "non-default",
+                        "kind": ["product"],
+                    },
+                    {
+                        "name": "NewSize",
+                        "type": "uintx",
+                        "value": None,
+                        "origin": "non-default",
+                        "kind": ["product"],
+                    },
+                    {
+                        "name": "OldSize",
+                        "type": "uintx",
+                        "value": None,
+                        "origin": "non-default",
+                        "kind": ["product"],
+                    },
+                    {
+                        "name": "UseCompressedClassPointers",
+                        "type": "bool",
+                        "value": None,
+                        "origin": "non-default",
+                        "kind": ["lp64_product"],
+                    },
+                    {
+                        "name": "UseCompressedOops",
+                        "type": "bool",
+                        "value": None,
+                        "origin": "non-default",
+                        "kind": ["lp64_product"],
+                    },
+                    {
+                        "name": "UseParallelGC",
+                        "type": "bool",
+                        "value": None,
+                        "origin": "non-default",
+                        "kind": ["product"],
+                    },
+                ],
             },
         ),
         (
@@ -102,6 +174,7 @@ def test_app_metadata(
     output_collapsed: Path,
     assert_collapsed: AssertInCollapsed,
     profiler_flags: List[str],
+    runtime: str,
     expected_metadata: Dict,
     application_executable: str,
 ) -> None:
@@ -123,6 +196,12 @@ def test_app_metadata(
     stack = next(filter(lambda l: application_docker_container.name in l and application_executable in l, lines[1:]))
     # stack begins with index
     idx = int(stack.split(";")[0])
+
+    if runtime == "java":
+        # don't check JVM flags in direct comparison, as they might change a bit across machines due to ergonomics
+        actual_jvm_flags = metadata["application_metadata"][idx].pop("jvm_flags")
+        expected_jvm_flags = expected_metadata.pop("jvm_flags")
+        assert_jvm_flags_equal(actual_jvm_flags=actual_jvm_flags, expected_jvm_flags=expected_jvm_flags)
 
     # values from the current test container
     assert metadata["application_metadata"][idx] == expected_metadata

@@ -56,10 +56,11 @@ RUN mv "/tmp/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /tmp/rbs
 FROM mcr.microsoft.com/dotnet/sdk${DOTNET_BUILDER} as dotnet-builder
 WORKDIR /tmp
 RUN apt-get update && \
-  dotnet tool install --global dotnet-trace
+  dotnet tool install --global dotnet-trace --version 6.0.351802
 
 RUN cp -r "$HOME/.dotnet" "/tmp/dotnet"
 COPY scripts/dotnet_prepare_dependencies.sh .
+COPY scripts/dotnet_trace_dependencies.txt .
 RUN ./dotnet_prepare_dependencies.sh
 
 # perf
@@ -181,6 +182,7 @@ USER 1001
 FROM golang${BURN_BUILDER_GOLANG} AS burn-builder
 WORKDIR /tmp
 COPY scripts/burn_build.sh .
+COPY scripts/burn_version.txt .
 RUN ./burn_build.sh
 
 # the gProfiler image itself, at last.

@@ -10,7 +10,7 @@ import sched
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures._base import Future
-from threading import Event, Lock, Thread
+from threading import Lock, Thread
 from types import TracebackType
 from typing import Dict, List, Optional, Tuple, Type, TypeVar
 
@@ -22,6 +22,7 @@ from psutil import NoSuchProcess, Process, ZombieProcess
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, ProfilingErrorStack, StackToSampleCount
 from gprofiler.log import get_logger_adapter
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.utils import limit_frequency
 from gprofiler.utils.process import process_comm
 
@@ -75,13 +76,10 @@ class ProfilerBase(ProfilerInterface):
         self,
         frequency: int,
         duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
-        insert_dso_name: bool,
-        profiling_mode: str,
+        profiler_state: ProfilerState,
     ):
         self._frequency = limit_frequency(
-            self.MAX_FREQUENCY, frequency, self.__class__.__name__, logger, profiling_mode
+            self.MAX_FREQUENCY, frequency, self.__class__.__name__, logger, profiler_state.profiling_mode
         )
         if self.MIN_DURATION is not None and duration < self.MIN_DURATION:
             raise ValueError(
@@ -89,18 +87,16 @@ class ProfilerBase(ProfilerInterface):
                 "raise the duration in order to use this profiler"
             )
         self._duration = duration
-        self._stop_event = stop_event or Event()
-        self._storage_dir = storage_dir
-        self._profiling_mode = profiling_mode
+        self._profiler_state = profiler_state
 
-        if profiling_mode == "allocation":
+        if profiler_state.profiling_mode == "allocation":
             frequency_str = f"allocation interval: {humanfriendly.format_size(frequency, binary=True)}"
         else:
             frequency_str = f"frequency: {frequency}hz"
 
         logger.info(
             f"Initialized {self.__class__.__name__} ({frequency_str}, duration: {self._duration}s), "
-            f"profiling mode: {profiling_mode}"
+            f"profiling mode: {profiler_state.profiling_mode}"
         )
 
 
@@ -207,14 +203,9 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         self,
         frequency: int,
         duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
-        insert_dso_name: bool,
-        profile_spawned_processes: bool,
-        profiling_mode: str,
+        profiler_state: ProfilerState,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
-        self._profile_spawned_processes = profile_spawned_processes
+        super().__init__(frequency, duration, profiler_state)
         self._submit_lock = Lock()
         self._threads: Optional[ThreadPoolExecutor] = None
         self._start_ts: Optional[float] = None
@@ -266,7 +257,7 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
     def start(self) -> None:
         super().start()
 
-        if self._profile_spawned_processes:
+        if self._profiler_state.profile_spawned_processes:
             logger.debug(f"{self.__class__.__name__}: starting profiling spawning processes")
             self._sched_thread.start()
 
@@ -280,7 +271,7 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
     def stop(self) -> None:
         super().stop()
 
-        if self._profile_spawned_processes:
+        if self._profiler_state.profile_spawned_processes:
             if self._enabled_proc_events_spawning:
                 unregister_exec_callback(self._proc_exec_callback)
                 self._enabled_proc_events_spawning = False
@@ -296,7 +287,7 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         # wait for the duration, in case snapshot() found no processes and returns immediately.
         duration_left = end_ts - time.monotonic()
         if duration_left > 0:
-            self._stop_event.wait(duration_left)
+            self._profiler_state.stop_event.wait(duration_left)
 
         self._stop_profiling_spawning()
         self._clear_sched()
@@ -309,9 +300,9 @@ class SpawningProcessProfilerBase(ProcessProfilerBase):
         return results
 
     def _sched_thread_run(self) -> None:
-        while not (self._stop_event.is_set() or self._sched_stop):
+        while not (self._profiler_state.stop_event.is_set() or self._sched_stop):
             self._sched.run()
-            self._stop_event.wait(0.1)
+            self._profiler_state.stop_event.wait(0.1)
 
     def _clear_sched(self) -> None:
         for event in self._sched.queue:

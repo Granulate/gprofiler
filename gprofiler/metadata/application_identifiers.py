@@ -2,6 +2,9 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+
+from __future__ import annotations
+
 import configparser
 import functools
 import os.path
@@ -21,7 +24,7 @@ if is_linux():
         _JavaJarApplicationIdentifier,
         _JavaSparkApplicationIdentifier,
     )
-
+    from gprofiler.profilers.java import JattachJcmdRunner
 _logger = get_logger_adapter(__name__)
 
 _PYTHON_BIN_RE = re.compile(r"^python([23](\.\d{1,2})?)?$")
@@ -306,29 +309,33 @@ class _RubyModuleApplicationIdentifier(_ApplicationIdentifier):
         return None
 
 
-# Please note that the order matter, because the FIRST matching identifier will be used.
-# so when adding new identifiers pay attention to the order, unless aggregate_all is used.
-_IDENTIFIERS_MAP: Dict[str, List[_ApplicationIdentifier]] = {
-    "python": [
-        _GunicornTitleApplicationIdentifier(),
-        _GunicornApplicationIdentifier(),
-        _UwsgiApplicationIdentifier(),
-        _CeleryApplicationIdentifier(),
-        _PySparkApplicationIdentifier(),
-        _PythonModuleApplicationIdentifier(),
-    ],
-}
+class ApplicationIdentifiers:
+    identifiers_map: Dict[str, List[_ApplicationIdentifier]]
 
-_IDENTIFIERS_MAP["node"] = [_NodeModuleApplicationIdentifier()]
-_IDENTIFIERS_MAP["ruby"] = [_RubyModuleApplicationIdentifier()]
+    @classmethod
+    def init(cls, enrichment_options: EnrichmentOptions) -> None:
+        # Please note that the order matter, because the FIRST matching identifier will be used.
+        # so when adding new identifiers pay attention to the order, unless aggregate_all is used.
+        cls.identifiers_map = {
+            "python": [
+                _GunicornTitleApplicationIdentifier(),
+                _GunicornApplicationIdentifier(),
+                _UwsgiApplicationIdentifier(),
+                _CeleryApplicationIdentifier(),
+                _PySparkApplicationIdentifier(),
+                _PythonModuleApplicationIdentifier(),
+            ],
+            "node": [_NodeModuleApplicationIdentifier()],
+            "ruby": [_RubyModuleApplicationIdentifier()],
+        }
 
-if is_linux():
-    _IDENTIFIERS_MAP["java"] = [_JavaJarApplicationIdentifier()]
-    _IDENTIFIERS_MAP["java_spark"] = _IDENTIFIERS_MAP["java"] + [_JavaSparkApplicationIdentifier()]
+        _ApplicationIdentifier.enrichment_options = enrichment_options
 
-
-def set_enrichment_options(enrichment_options: EnrichmentOptions) -> None:
-    _ApplicationIdentifier.enrichment_options = enrichment_options
+    @classmethod
+    def init_java(cls, jattach_jcmd_runner: JattachJcmdRunner) -> None:
+        if is_linux():
+            cls.identifiers_map["java"] = [_JavaJarApplicationIdentifier(jattach_jcmd_runner)]
+            cls.identifiers_map["java_spark"] = cls.identifiers_map["java"] + [_JavaSparkApplicationIdentifier()]
 
 
 @functools.lru_cache(4096)  # NOTE: arbitrary cache size
@@ -343,7 +350,7 @@ def get_app_id(process: Process, runtime: str, aggregate_all: bool = False) -> O
         return None
 
     appids = []
-    for identifier in _IDENTIFIERS_MAP[runtime]:
+    for identifier in ApplicationIdentifiers.identifiers_map[runtime]:
         try:
             appid = identifier.get_app_id(process)
             if appid is not None:

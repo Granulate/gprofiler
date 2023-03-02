@@ -23,6 +23,7 @@ from gprofiler.gprofiler_types import AppMetadata, ProcessToProfileData, Profile
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
@@ -169,20 +170,26 @@ class PerfProcess:
             assert self._process is not None and self._process.stderr is not None
             logger.debug(f"{self._log_name} run output", perf_stderr=self._process.stderr.read1())  # type: ignore
 
-        if self._inject_jit:
+        try:
             inject_data = Path(f"{str(perf_data)}.inject")
-            run_process(
-                [perf_path(), "inject", "--jit", "-o", str(inject_data), "-i", str(perf_data)],
-            )
-            perf_data.unlink()
-            perf_data = inject_data
+            if self._inject_jit:
+                run_process(
+                    [perf_path(), "inject", "--jit", "-o", str(inject_data), "-i", str(perf_data)],
+                )
+                perf_data.unlink()
+                perf_data = inject_data
 
-        perf_script_proc = run_process(
-            [perf_path(), "script", "-F", "+pid", "-i", str(perf_data)],
-            suppress_log=True,
-        )
-        perf_data.unlink()
-        return perf_script_proc.stdout.decode("utf8")
+            perf_script_proc = run_process(
+                [perf_path(), "script", "-F", "+pid", "-i", str(perf_data)],
+                suppress_log=True,
+            )
+            return perf_script_proc.stdout.decode("utf8")
+        finally:
+            perf_data.unlink()
+            if self._inject_jit:
+                # might be missing if it's already removed.
+                # might be existing if "perf inject" itself fails
+                remove_path(inject_data, missing_ok=True)
 
 
 @register_profiler(
@@ -226,22 +233,19 @@ class SystemProfiler(ProfilerBase):
         self,
         frequency: int,
         duration: int,
-        stop_event: Event,
-        storage_dir: str,
-        insert_dso_name: bool,
-        profiling_mode: str,
-        profile_spawned_processes: bool,
+        profiler_state: ProfilerState,
         perf_mode: str,
         perf_dwarf_stack_size: int,
         perf_inject: bool,
         perf_node_attach: bool,
         perf_memory_restart: bool,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
-        _ = profile_spawned_processes  # Required for mypy unused argument warning
+        super().__init__(frequency, duration, profiler_state)
         self._perfs: List[PerfProcess] = []
-        self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
-        self._insert_dso_name = insert_dso_name
+        self._metadata_collectors: List[PerfMetadata] = [
+            GolangPerfMetadata(self._profiler_state.stop_event),
+            NodePerfMetadata(self._profiler_state.stop_event),
+        ]
         self._node_processes: List[Process] = []
         self._node_processes_attached: List[Process] = []
         self._perf_memory_restart = perf_memory_restart
@@ -249,8 +253,8 @@ class SystemProfiler(ProfilerBase):
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
                 self._frequency,
-                self._stop_event,
-                os.path.join(self._storage_dir, "perf.fp"),
+                self._profiler_state.stop_event,
+                os.path.join(self._profiler_state.storage_dir, "perf.fp"),
                 False,
                 perf_inject,
                 [],
@@ -262,8 +266,8 @@ class SystemProfiler(ProfilerBase):
         if perf_mode in ("dwarf", "smart"):
             self._perf_dwarf: Optional[PerfProcess] = PerfProcess(
                 self._frequency,
-                self._stop_event,
-                os.path.join(self._storage_dir, "perf.dwarf"),
+                self._profiler_state.stop_event,
+                os.path.join(self._profiler_state.storage_dir, "perf.dwarf"),
                 True,
                 False,  # no inject in dwarf mode, yet
                 ["--call-graph", f"dwarf,{perf_dwarf_stack_size}"],
@@ -327,7 +331,7 @@ class SystemProfiler(ProfilerBase):
             for perf in self._perfs:
                 perf.restart_if_rss_exceeded()
 
-        if self._stop_event.wait(self._duration):
+        if self._profiler_state.stop_event.wait(self._duration):
             raise StopEventSetException
 
         for perf in self._perfs:
@@ -338,7 +342,7 @@ class SystemProfiler(ProfilerBase):
             for k, v in merge.merge_global_perfs(
                 self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
                 self._perf_dwarf.wait_and_script() if self._perf_dwarf is not None else None,
-                self._insert_dso_name,
+                self._profiler_state.insert_dso_name,
             ).items()
         }
 

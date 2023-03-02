@@ -4,7 +4,6 @@
 #
 
 import logging
-from pathlib import Path
 from threading import Event
 from typing import cast
 
@@ -12,7 +11,7 @@ import pytest
 from docker.models.containers import Container
 from pytest import LogCaptureFixture
 
-from gprofiler.consts import CPU_PROFILING_MODE
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.perf import DEFAULT_PERF_DWARF_STACK_SIZE, SystemProfiler
 from gprofiler.utils import wait_event
 from tests.utils import (
@@ -24,24 +23,15 @@ from tests.utils import (
 
 
 @pytest.fixture
-def insert_dso_name() -> bool:
-    return False
+def system_profiler(perf_mode: str, insert_dso_name: bool, profiler_state: ProfilerState) -> SystemProfiler:
+    return make_system_profiler(perf_mode, profiler_state)
 
 
-@pytest.fixture
-def system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) -> SystemProfiler:
-    return make_system_profiler(tmp_path, perf_mode, insert_dso_name)
-
-
-def make_system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) -> SystemProfiler:
+def make_system_profiler(perf_mode: str, profiler_state: ProfilerState) -> SystemProfiler:
     return SystemProfiler(
         99,
         1,
-        Event(),
-        str(tmp_path),
-        insert_dso_name,
-        CPU_PROFILING_MODE,
-        False,
+        profiler_state,
         perf_mode=perf_mode,
         perf_inject=False,
         perf_dwarf_stack_size=DEFAULT_PERF_DWARF_STACK_SIZE,

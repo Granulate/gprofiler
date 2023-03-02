@@ -13,7 +13,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event, Lock
 from types import TracebackType
-from typing import Any, Dict, List, Optional, Sequence, Set, Type, TypeVar
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Type, TypeVar, Union
 
 import psutil
 from granulate_utils.java import (
@@ -22,26 +22,34 @@ from granulate_utils.java import (
     NATIVE_FRAMES_REGEX,
     SIGINFO_REGEX,
     VM_INFO_REGEX,
+    JvmFlag,
     JvmVersion,
     is_java_fatal_signal,
     java_exit_code_to_signo,
     locate_hotspot_error_file,
+    parse_jvm_flags,
     parse_jvm_version,
 )
-from granulate_utils.linux import proc_events
-from granulate_utils.linux.kernel_messages import KernelMessage
-from granulate_utils.linux.ns import get_proc_root_path, get_process_nspid, resolve_proc_root_links, run_in_ns
-from granulate_utils.linux.oom import get_oom_entry
-from granulate_utils.linux.process import (
-    get_mapped_dso_elf_id,
-    is_musl,
-    is_process_basename_matching,
-    is_process_running,
-    process_exe,
-)
-from granulate_utils.linux.signals import get_signal_entry
+
+from gprofiler.platform import is_linux
+
+if is_linux():
+    from granulate_utils.linux import proc_events
+    from granulate_utils.linux.kernel_messages import KernelMessage
+    from granulate_utils.linux.ns import get_proc_root_path, get_process_nspid, resolve_proc_root_links, run_in_ns
+    from granulate_utils.linux.oom import get_oom_entry
+    from granulate_utils.linux.process import (
+        get_mapped_dso_elf_id,
+        is_musl,
+        is_process_basename_matching,
+        is_process_running,
+        process_exe,
+        read_proc_file,
+    )
+    from granulate_utils.linux.signals import get_signal_entry
+
 from packaging.version import Version
-from psutil import Process
+from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
 from gprofiler.diagnostics import is_diagnostics
@@ -57,6 +65,7 @@ from gprofiler.kernel_messages import get_kernel_messages_provider
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
@@ -134,25 +143,43 @@ JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 256  # StackRecovery.PROBE_SP
 
 SUPPORTED_AP_MODES = ["cpu", "itimer", "alloc"]
 
+PROBLEMATIC_FRAME_REGEX = re.compile(r"^# Problematic frame:\n# (.*?)\n#\n", re.MULTILINE | re.DOTALL)
+"""
+See VMError::report.
+Example:
+    # Problematic frame:
+    # C  [libasyncProfiler.so+0x218a0]  Profiler::getJavaTraceAsync(void*, ASGCT_CallFrame*, int)+0xe0
+"""
+
+
+class JavaFlagCollectionOptions(str, Enum):
+    ALL = "all"
+    DEFAULT = "default"
+    NONE = "none"
+
 
 class JattachExceptionBase(CalledProcessError):
     def __init__(
-        self, returncode: int, cmd: Any, stdout: Any, stderr: Any, target_pid: int, ap_log: str, is_loaded: bool
+        self, returncode: int, cmd: Any, stdout: Any, stderr: Any, target_pid: int, ap_log: str, ap_loaded: str
     ):
         super().__init__(returncode, cmd, stdout, stderr)
         self._target_pid = target_pid
         self._ap_log = ap_log
-        self.is_loaded = is_loaded
+        self._ap_loaded = ap_loaded
 
     def __str__(self) -> str:
         ap_log = self._ap_log.strip()
         if not ap_log:
             ap_log = "(empty)"
-        loaded_msg = f"async-profiler DSO was{'' if self.is_loaded else ' not'} loaded"
+        loaded_msg = f"async-profiler DSO loaded: {self._ap_loaded}"
         return super().__str__() + f"\nJava PID: {self._target_pid}\n{loaded_msg}\nasync-profiler log:\n{ap_log}"
 
     def get_ap_log(self) -> str:
         return self._ap_log
+
+    @property
+    def is_ap_loaded(self) -> bool:
+        return self._ap_loaded == "yes"
 
 
 class JattachException(JattachExceptionBase):
@@ -170,10 +197,10 @@ class JattachTimeout(JattachExceptionBase):
         stderr: Any,
         target_pid: int,
         ap_log: str,
-        is_loaded: bool,
+        ap_loaded: str,
         timeout: int,
     ):
-        super().__init__(returncode, cmd, stdout, stderr, target_pid, ap_log, is_loaded)
+        super().__init__(returncode, cmd, stdout, stderr, target_pid, ap_log, ap_loaded)
         self._timeout = timeout
 
     def __str__(self) -> str:
@@ -195,6 +222,17 @@ class JattachSocketMissingException(JattachExceptionBase):
             "\nJVM attach socket is missing and jattach could not create it. It has most"
             " likely been removed; the process has to be restarted for a new socket to be created."
         )
+
+
+class JattachJcmdRunner:
+    def __init__(self, stop_event: Event, jattach_timeout: int):
+        self.stop_event = stop_event
+        self.jattach_timeout = jattach_timeout
+
+    def run(self, process: Process, cmd: str) -> str:
+        return run_process(
+            [jattach_path(), str(process.pid), "jcmd", cmd], stop_event=self.stop_event, timeout=self.jattach_timeout
+        ).stdout.decode()
 
 
 def is_java_basename(process: Process) -> bool:
@@ -250,6 +288,16 @@ def get_java_version_logged(process: Process, stop_event: Event) -> str:
 
 
 class JavaMetadata(ApplicationMetadata):
+    def __init__(
+        self,
+        stop_event: Event,
+        jattach_jcmd_runner: JattachJcmdRunner,
+        java_collect_jvm_flags: Union[JavaFlagCollectionOptions, List[str]],
+    ):
+        super().__init__(stop_event)
+        self.jattach_jcmd_runner = jattach_jcmd_runner
+        self.java_collect_jvm_flags = java_collect_jvm_flags
+
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         if is_java_basename(process):
             version = get_java_version(process, self._stop_event)
@@ -259,10 +307,80 @@ class JavaMetadata(ApplicationMetadata):
         # that loads other libs.
         libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")
 
-        metadata = {"java_version": version, "libjvm_elfid": libjvm_elfid}
+        jvm_flags: Union[str, List[Dict]]
+
+        try:
+            jvm_flags = self.get_jvm_flags_serialized(process)
+        except Exception as e:
+            logger.exception("Failed to collect JVM flags", pid=process.pid)
+            jvm_flags = f"error {type(e).__name__}"
+
+        metadata = {
+            "java_version": version,
+            "libjvm_elfid": libjvm_elfid,
+            "jvm_flags": jvm_flags,
+        }
 
         metadata.update(super().make_application_metadata(process))
         return metadata
+
+    def get_jvm_flags_serialized(self, process: Process) -> List[Dict]:
+        return [flag.to_dict() for flag in sorted(self.get_jvm_flags(process), key=lambda flag: flag.name)]
+
+    def get_jvm_flags(self, process: Process) -> Iterable[JvmFlag]:
+        if self.java_collect_jvm_flags == JavaFlagCollectionOptions.NONE:
+            return []
+
+        filtered_jvm_flags = self.get_supported_jvm_flags(process)
+
+        if self.java_collect_jvm_flags == JavaFlagCollectionOptions.ALL:
+            return filtered_jvm_flags
+        elif self.java_collect_jvm_flags == JavaFlagCollectionOptions.DEFAULT:
+            return filter(self.default_collection_filter_jvm_flag, filtered_jvm_flags)
+        else:
+            assert isinstance(self.java_collect_jvm_flags, list), f"Unrecognized value: {self.java_collect_jvm_flags}"
+            found_flags = [flag for flag in filtered_jvm_flags if flag.name in self.java_collect_jvm_flags]
+            missing_flags = set(self.java_collect_jvm_flags) - {flag.name for flag in found_flags}
+
+            # log if the set is not empty
+            if missing_flags:
+                logger.warning("Missing requested flags:", missing_flags=missing_flags)
+
+            return found_flags
+
+    @staticmethod
+    def filter_jvm_flag(flag: JvmFlag) -> bool:
+        """
+        Filter out flags that are:
+        1. Flags that are of ccstr or ccstrlist type (type=ccstr, type=ccstrlist) - we have problems parsing them correctly # noqa: E501
+        2. Flags that are manageable (kind=manageable) - they might change during execution
+        """
+        if flag.type in ["ccstr", "ccstrlist"]:
+            return False
+
+        if "manageable" in flag.kind:
+            return False
+
+        return True
+
+    @staticmethod
+    def default_collection_filter_jvm_flag(flag: JvmFlag) -> bool:
+        """
+        Filter out flags that are:
+        1. Default flags (origin=default), that are constant for the JDK version
+        2. Flags that are non-production (kind=notproduct), platform dependent (kind=pd), or in development (kind=develop) # noqa: E501
+        """
+        if flag.origin == "default":
+            return False
+
+        if set(flag.kind).intersection({"notproduct", "pd", "develop"}):
+            return False
+
+        return True
+
+    @functools.lru_cache(maxsize=1024)
+    def get_supported_jvm_flags(self, process: Process) -> Iterable[JvmFlag]:
+        return filter(self.filter_jvm_flag, parse_jvm_flags(self.jattach_jcmd_runner.run(process, "VM.flags -all")))
 
 
 @functools.lru_cache(maxsize=1)
@@ -303,26 +421,23 @@ class AsyncProfiledProcess:
 
     # timeouts in seconds
     _FDTRANSFER_TIMEOUT = 10
-    _JATTACH_TIMEOUT = 30  # higher than jattach's timeout
+    _DEFAULT_JATTACH_TIMEOUT = 30  # higher than jattach's timeout
 
     _DEFAULT_MCACHE = 30  # arbitrarily chosen, not too high & not too low.
 
     def __init__(
         self,
         process: Process,
-        storage_dir: str,
-        insert_dso_name: bool,
-        stop_event: Event,
+        profiler_state: ProfilerState,
         mode: str,
         ap_safemode: int,
         ap_args: str,
-        jattach_timeout: int = _JATTACH_TIMEOUT,
+        jattach_timeout: int = _DEFAULT_JATTACH_TIMEOUT,
         mcache: int = 0,
         collect_meminfo: bool = True,
     ):
         self.process = process
-        self._stop_event = stop_event
-        self._insert_dso_name = insert_dso_name
+        self._profiler_state = profiler_state
         # access the process' root via its topmost parent/ancestor which uses the same mount namespace.
         # this allows us to access the files after the process exits:
         # * for processes that run in host mount NS - their ancestor is always available (it's going to be PID 1)
@@ -352,8 +467,7 @@ class AsyncProfiledProcess:
         self._libap_path_process = remove_prefix(self._libap_path_host, self._process_root)
 
         # for other purposes - we can use storage_dir.
-        self._storage_dir = storage_dir
-        self._storage_dir_host = resolve_proc_root_links(self._process_root, self._storage_dir)
+        self._storage_dir_host = resolve_proc_root_links(self._process_root, self._profiler_state.storage_dir)
 
         self._output_path_host = os.path.join(self._storage_dir_host, f"async-profiler-{self.process.pid}.output")
         self._output_path_process = remove_prefix(self._output_path_host, self._process_root)
@@ -490,14 +604,14 @@ class AsyncProfiledProcess:
             f"log={self._log_path_process}"
             f"{f',fdtransfer={self._fdtransfer_path}' if self._mode == 'cpu' else ''}"
             f",safemode={self._ap_safemode},timeout={ap_timeout}"
-            f"{',lib' if self._insert_dso_name else ''}{self._get_extra_ap_args()}"
+            f"{',lib' if self._profiler_state.insert_dso_name else ''}{self._get_extra_ap_args()}"
         ]
 
     def _get_stop_cmd(self, with_output: bool) -> List[str]:
         return self._get_base_cmd() + [
             f"stop,log={self._log_path_process},mcache={self._mcache}"
             f"{self._get_ap_output_args() if with_output else ''}"
-            f"{',lib' if self._insert_dso_name else ''}{',meminfolog' if self._collect_meminfo else ''}"
+            f"{',lib' if self._profiler_state.insert_dso_name else ''}{',meminfolog' if self._collect_meminfo else ''}"
             f"{self._get_extra_ap_args()}"
         ]
 
@@ -516,12 +630,22 @@ class AsyncProfiledProcess:
     def _run_async_profiler(self, cmd: List[str]) -> str:
         try:
             # kill jattach with SIGTERM if it hangs. it will go down
-            run_process(cmd, stop_event=self._stop_event, timeout=self._jattach_timeout, kill_signal=signal.SIGTERM)
+            run_process(
+                cmd,
+                stop_event=self._profiler_state.stop_event,
+                timeout=self._jattach_timeout,
+                kill_signal=signal.SIGTERM,
+            )
         except CalledProcessError as e:  # catches CalledProcessTimeoutError as well
             ap_log = self._read_ap_log()
-            is_loaded = f" {self._libap_path_process}\n" in Path(f"/proc/{self.process.pid}/maps").read_text()
+            try:
+                ap_loaded = (
+                    "yes" if f" {self._libap_path_process}\n" in read_proc_file(self.process, "maps").decode() else "no"
+                )
+            except NoSuchProcess:
+                ap_loaded = "not sure, process exited"
 
-            args = e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, is_loaded
+            args = e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, ap_loaded
             if isinstance(e, CalledProcessTimeoutError):
                 raise JattachTimeout(*args, timeout=self._jattach_timeout) from None
             elif e.stderr == b"Could not start attach mechanism: No such file or directory\n":
@@ -545,7 +669,7 @@ class AsyncProfiledProcess:
             # sure that fdtransfer is still around for the full duration of jattach, in case the application
             # takes a while to accept & handle the connection.
             [fdtransfer_path(), self._fdtransfer_path, str(self.process.pid), str(self._jattach_timeout + 5)],
-            stop_event=self._stop_event,
+            stop_event=self._profiler_state.stop_event,
             timeout=self._FDTRANSFER_TIMEOUT,
         )
 
@@ -562,7 +686,7 @@ class AsyncProfiledProcess:
             self._run_async_profiler(start_cmd)
             return True
         except JattachException as e:
-            if e.is_loaded:
+            if e.is_ap_loaded:
                 if (
                     e.returncode == 200  # 200 == AP's COMMAND_ERROR
                     and e.get_ap_log() == "[ERROR] Profiler already started\n"
@@ -635,7 +759,7 @@ class AsyncProfiledProcess:
             "--java-jattach-timeout",
             dest="java_jattach_timeout",
             type=positive_integer,
-            default=AsyncProfiledProcess._JATTACH_TIMEOUT,
+            default=AsyncProfiledProcess._DEFAULT_JATTACH_TIMEOUT,
             help="Timeout for jattach operations (start/stop AP, etc)",
         ),
         ProfilerArgument(
@@ -660,6 +784,16 @@ class AsyncProfiledProcess:
             action="store_false",
             default=True,
             help="Disable collection of async-profiler meminfo at the end of each cycle (collected by default)",
+        ),
+        ProfilerArgument(
+            "--java-collect-jvm-flags",
+            dest="java_collect_jvm_flags",
+            type=str,
+            nargs="?",
+            default=JavaFlagCollectionOptions.DEFAULT.value,
+            help="Comma-separated list of JVM flags to collect from the JVM process, 'all' to collect all flags,"
+            "'default' for default flag filtering settings; see default_collection_filter_jvm_flag(), or 'none' to "
+            "disable collection of JVM flags. Defaults to '%(default)s'",
         ),
     ],
     supported_profiling_modes=["cpu", "allocation"],
@@ -688,11 +822,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self,
         frequency: int,
         duration: int,
-        stop_event: Event,
-        storage_dir: str,
-        insert_dso_name: bool,
-        profile_spawned_processes: bool,
-        profiling_mode: str,
+        profiler_state: ProfilerState,
         java_version_check: bool,
         java_async_profiler_mode: str,
         java_async_profiler_safemode: int,
@@ -703,18 +833,19 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_collect_spark_app_name_as_appid: bool,
         java_mode: str,
         java_async_profiler_report_meminfo: bool,
+        java_collect_jvm_flags: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
-        super().__init__(
-            frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes, profiling_mode
-        )
+        super().__init__(frequency, duration, profiler_state)
         # Alloc interval is passed in frequency in allocation profiling (in bytes, as async-profiler expects)
-        self._interval = frequency_to_ap_interval(frequency) if profiling_mode == "cpu" else frequency
+        self._interval = (
+            frequency_to_ap_interval(frequency) if self._profiler_state.profiling_mode == "cpu" else frequency
+        )
         # simple version check, and
         self._simple_version_check = java_version_check
         if not self._simple_version_check:
             logger.warning("Java version checks are disabled")
-        self._init_ap_mode(profiling_mode, java_async_profiler_mode)
+        self._init_ap_mode(self._profiler_state.profiling_mode, java_async_profiler_mode)
         self._ap_safemode = java_async_profiler_safemode
         self._ap_args = java_async_profiler_args
         self._jattach_timeout = java_jattach_timeout
@@ -730,9 +861,15 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._pid_to_java_version: Dict[int, Optional[str]] = {}
         self._kernel_messages_provider = get_kernel_messages_provider()
         self._enabled_proc_events_java = False
+        self._collect_jvm_flags = self._init_collect_jvm_flags(java_collect_jvm_flags)
+        self._jattach_jcmd_runner = JattachJcmdRunner(
+            stop_event=self._profiler_state.stop_event, jattach_timeout=self._jattach_timeout
+        )
         self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
-        self._metadata = JavaMetadata(self._stop_event)
-        self._insert_dso_name = insert_dso_name
+        application_identifiers.ApplicationIdentifiers.init_java(self._jattach_jcmd_runner)
+        self._metadata = JavaMetadata(
+            self._profiler_state.stop_event, self._jattach_jcmd_runner, self._collect_jvm_flags
+        )
         self._report_meminfo = java_async_profiler_report_meminfo
 
     def _init_ap_mode(self, profiling_mode: str, ap_mode: str) -> None:
@@ -767,6 +904,19 @@ class JavaProfiler(SpawningProcessProfilerBase):
                 "Java version checks are mandatory in"
                 f" --java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS}"
             )
+
+    def _init_collect_jvm_flags(self, java_collect_jvm_flags: str) -> Union[JavaFlagCollectionOptions, List[str]]:
+        # accept "" as empty, because sometimes people confuse and use --java-collect-jvm-flags="" in non-shell
+        # environment (e.g DaemonSet args) and thus the "" isn't eaten by the shell.
+        if java_collect_jvm_flags == "":
+            return JavaFlagCollectionOptions.NONE
+        if java_collect_jvm_flags in (
+            java_flag_collection_option.value for java_flag_collection_option in JavaFlagCollectionOptions
+        ):
+            return JavaFlagCollectionOptions(java_collect_jvm_flags)
+        else:
+            # Handle spaces between input flag list
+            return [collect_jvm_flag.strip() for collect_jvm_flag in java_collect_jvm_flags.split(",")]
 
     def _disable_profiling(self, cause: str) -> None:
         if self._safemode_disable_reason is None and cause in self._java_safemode:
@@ -892,7 +1042,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         # TODO we can get the "java" binary by extracting the java home from the libjvm path,
         # then check with that instead (if exe isn't java)
         if is_java_basename(process):
-            java_version_output: Optional[str] = get_java_version_logged(process, self._stop_event)
+            java_version_output: Optional[str] = get_java_version_logged(process, self._profiler_state.stop_event)
         else:
             java_version_output = None
 
@@ -933,9 +1083,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
 
         with AsyncProfiledProcess(
             process,
-            self._storage_dir,
-            self._insert_dso_name,
-            self._stop_event,
+            self._profiler_state,
             self._mode,
             self._ap_safemode,
             self._ap_args,
@@ -981,7 +1129,9 @@ class JavaProfiler(SpawningProcessProfilerBase):
                 )
 
         try:
-            wait_event(duration, self._stop_event, lambda: not is_process_running(ap_proc.process), interval=1)
+            wait_event(
+                duration, self._profiler_state.stop_event, lambda: not is_process_running(ap_proc.process), interval=1
+            )
         except TimeoutError:
             # Process still running. We will stop the profiler in finally block.
             pass
@@ -1016,6 +1166,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
         vm_info = m[1] if m else ""
         m = SIGINFO_REGEX.search(contents)
         siginfo = m[1] if m else ""
+        m = PROBLEMATIC_FRAME_REGEX.search(contents)
+        problematic_frame = m[1] if m else ""
         m = NATIVE_FRAMES_REGEX.search(contents)
         native_frames = m[1] if m else ""
         m = CONTAINER_INFO_REGEX.search(contents)
@@ -1024,6 +1176,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             f"Found Hotspot error log for pid {pid} at {error_file}:\n"
             f"VM info: {vm_info}\n"
             f"siginfo: {siginfo}\n"
+            f"Problematic frame: {problematic_frame}\n"
             f"native frames:\n{native_frames}\n"
             f"container info:\n{container_info}"
         )
