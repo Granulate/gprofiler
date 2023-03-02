@@ -180,6 +180,8 @@ class PythonEbpfProfiler(ProfilerBase):
         if self.user_stacks_pages is not None:
             cmd.extend(["--user-stacks-pages", str(self.user_stacks_pages)])
 
+        cmd.extend(["-v=9"])
+
         for f in glob.glob(f"{str(self.output_path)}.*"):
             os.unlink(f)
 
