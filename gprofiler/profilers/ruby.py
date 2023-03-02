@@ -13,7 +13,6 @@ from granulate_utils.linux.elf import get_elf_id
 from granulate_utils.linux.process import get_mapped_dso_elf_id, is_process_basename_matching
 from psutil import Process
 
-from gprofiler import merge
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import ProfileData
 from gprofiler.log import get_logger_adapter
@@ -23,6 +22,7 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
+from gprofiler.utils.collapsed_format import parse_one_collapsed_file
 from gprofiler.utils.process import process_comm, search_proc_maps
 
 logger = get_logger_adapter(__name__)
@@ -123,7 +123,7 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
 
             logger.info(f"Finished profiling process {process.pid} with rbspy")
             return ProfileData(
-                merge.parse_one_collapsed_file(Path(local_output_path), comm), appid, app_metadata, container_name
+                parse_one_collapsed_file(Path(local_output_path), comm), appid, app_metadata, container_name
             )
 
     def _select_processes_to_profile(self) -> List[Process]:

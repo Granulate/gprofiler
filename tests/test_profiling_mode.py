@@ -6,7 +6,7 @@ import pytest as pytest
 from docker import DockerClient
 from docker.models.images import Image
 
-from gprofiler.merge import parse_one_collapsed
+from gprofiler.utils.collapsed_format import parse_one_collapsed
 from tests.utils import assert_function_in_collapsed, run_gprofiler_in_container_for_one_session
 
 
