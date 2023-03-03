@@ -140,6 +140,10 @@ def test_dso_name_in_pyperf_profile(
     insert_dso_name: bool,
     profiler_state: ProfilerState,
 ) -> None:
+    # pyperf is not working on aarch right now https://github.com/Granulate/gprofiler/issues/499
+    if platform.machine() == "aarch64" and profiler_type == "pyperf":
+        pytest.skip("PyPerf doesn't support aarch64 architecture!")
+
     with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
     python_version, _, _ = application_image_tag.split("-")
