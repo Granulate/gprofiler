@@ -6,6 +6,7 @@ import os
 
 import psutil
 import pytest
+import platform
 from granulate_utils.linux.process import is_musl
 
 from gprofiler.profiler_state import ProfilerState
@@ -76,6 +77,10 @@ def test_python_matrix(
     profiler_state: ProfilerState,
 ) -> None:
     python_version, libc, app = application_image_tag.split("-")
+
+    # pyperf is not working on aarch right now https://github.com/Granulate/gprofiler/issues/499
+    if platform.machine() == "aarch64" and profiler_type == "pyperf":
+        pytest.skip("PyPerf doesn't support aarch64 architecture!")
 
     if python_version == "3.5" and profiler_type == "pyperf":
         pytest.skip("PyPerf doesn't support Python 3.5!")
