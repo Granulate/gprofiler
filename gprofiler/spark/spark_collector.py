@@ -10,7 +10,7 @@ import os
 import re
 import time
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timezone
 from threading import Event, Thread
 from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 from urllib.parse import urljoin, urlparse
@@ -807,14 +807,14 @@ class SparkSampler(object):
 
             if self._spark_sampler is not None:
                 metrics = list(self._spark_sampler.collect())
-                timestamp = self._spark_sampler._last_sample_time_ms
+                timestamp = datetime.now(tz=timezone.utc)
                 if self._storage_dir is not None:
                     now = get_iso8601_format_time(datetime.now())
                     base_filename = os.path.join(self._storage_dir, f"spark_metric_{escape_filename(now)}")
                     with open(base_filename, "w") as f:
-                        json.dump({"timestamp": timestamp, "metrics": metrics}, f)
+                        json.dump({"timestamp": int(timestamp.timestamp()), "metrics": metrics}, f)
                 if self._client is not None:
-                    self._client.submit_spark_metrics(timestamp, metrics)
+                    self._client.submit_spark_metrics(int(timestamp.timestamp()), metrics)
 
             self._stop_event.wait(self._sample_period)
 
