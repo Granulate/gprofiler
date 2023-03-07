@@ -380,7 +380,7 @@ class SparkCollector:
         Parse the JSON response and set the metrics
         """
         if response_json is None:
-            return ()
+            return
 
         for field_name, metric_name in metrics.items():
             if (value := response_json.get(field_name)) is not None:
