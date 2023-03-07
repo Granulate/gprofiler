@@ -78,9 +78,7 @@ def test_python_matrix(
 ) -> None:
     python_version, libc, app = application_image_tag.split("-")
 
-    # pyperf is not working on aarch right now https://github.com/Granulate/gprofiler/issues/499
-    if platform.machine() == "aarch64" and profiler_type == "pyperf":
-        pytest.skip("PyPerf doesn't support aarch64 architecture!")
+
 
     if python_version == "3.5" and profiler_type == "pyperf":
         pytest.skip("PyPerf doesn't support Python 3.5!")
@@ -88,11 +86,16 @@ def test_python_matrix(
     if python_version == "2.7" and profiler_type == "pyperf" and app == "uwsgi":
         pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/485")
 
-    if python_version == "2.7" and profiler_type == "py-spy" and app == "uwsgi":
-        pytest.xfail("This combination fails, see <placeholder>")
+    if platform.machine() == "aarch64": 
+        # pyperf is not working on aarch right now https://github.com/Granulate/gprofiler/issues/499
+        if profiler_type == "pyperf":
+            pytest.skip("PyPerf doesn't support aarch64 architecture!")
 
-    if python_version in ["2.7", "3.7", "3.8", "3.9", "3.10"] and profiler_type == "py-spy" and libc == "musl":
-        pytest.xfail("This combination fails, see <placeholder>")
+        if python_version == "2.7" and profiler_type == "py-spy" and app == "uwsgi":
+            pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/713")
+
+        if python_version in ["3.7", "3.8", "3.9", "3.10"] and profiler_type == "py-spy" and libc == "musl":
+            pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/714")
 
     with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
