@@ -158,3 +158,11 @@ SPARK_STREAMING_BATCHES_METRICS = {
     "avg25_batchDuration": "spark_app_streaming_batchDuration_avg25",
 }
 SPARK_EXECUTORS_METRICS = {"count": "spark_executors_count", "activeCount": "spark_executors_active_count"}
+
+SPARK_AGGREGATED_METRICS = {
+    "failed_tasks": "spark_aggregated_stage_failed_tasks",
+    "active_tasks": "spark_aggregated_stage_active_tasks",
+    "pending_stages": "spark_aggregated_stage_pending_stages",
+    "failed_stages": "spark_aggregated_stage_failed_stages",
+    "active_stages": "spark_aggregated_stage_active_stages",
+}
