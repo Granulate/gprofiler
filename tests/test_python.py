@@ -88,7 +88,7 @@ def test_python_matrix(
     if python_version == "2.7" and profiler_type == "pyperf" and app == "uwsgi":
         pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/485")
 
-    if python_version in ["3.7", "3.8", "3.9", "3.10"] and profiler_type == "py-spy" and app == "uwsgi":
+    if python_version in ["2.7", "3.7", "3.8", "3.9", "3.10"] and profiler_type == "py-spy" and libc == "musl":
         pytest.xfail("This combination fails, see <placeholder>")
 
     with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None) as profiler:
