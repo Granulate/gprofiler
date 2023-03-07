@@ -180,15 +180,15 @@ class SparkCollector:
         Get metrics for each Spark job.
         """
         iteration_metrics: Dict[str, Dict[str, Any]] = {}
-        futures = self._spark_async_metric_request(running_apps, 'jobs')
 
-        for future in concurrent.futures.as_completed(futures):
+        for app_id, (app_name, tracking_url) in running_apps.items():
             try:
-                app_id, app_name = futures[future]
+                base_url = self._get_request_url(tracking_url)
+                response = self._rest_request_to_json(base_url, SPARK_APPS_PATH, app_id, 'jobs')
                 application_diff_aggregated_metrics = dict.fromkeys(SPARK_APPLICATION_DIFF_METRICS.keys(), 0)
                 application_gauge_aggregated_metrics = dict.fromkeys(SPARK_APPLICATION_GAUGE_METRICS.keys(), 0)
                 iteration_metrics[app_id] = {}
-                for job in future.result():
+                for job in response:
                     iteration_metrics[app_id][job["jobId"]] = job
                     first_time_seen_job = job["jobId"] not in self._last_iteration_app_job_metrics.get(app_id, {})
                     # In order to keep track of an application's metrics, we want to accumulate the values across all
@@ -233,7 +233,8 @@ class SparkCollector:
             for app_id, (app_name, tracking_url) in running_apps.items():
                 tags = [f'app_name:{str(app_name)}', f'app_id:{str(app_id)}']
                 try:
-                    futures = self._spark_async_metric_request(running_apps, 'stages')
+                    base_url = self._get_request_url(tracking_url)
+                    response = self._rest_request_to_json(base_url, SPARK_APPS_PATH, app_id, 'stages')
                 except Exception as e:
                     logger.exception("Exception occurred while trying to retrieve stage metrics",
                                           extra={"exception": e})
@@ -245,24 +246,25 @@ class SparkCollector:
                 deserialize_count_for_avg = 0
                 deserialize_time_for_avg = 0
 
-                for future in concurrent.futures.as_completed(futures):
-                    stages = future.result()
-                    logger.debug(f"_spark_stage_metrics we have {len(stages)}")
-                    for stage in stages:  # Iterate through each stage
-                        curr_deserialize_time = stage.get("executorDeserializeTime")
-                        if curr_deserialize_time is not None:
-                            deserialize_count_for_avg += 1
-                            deserialize_time_for_avg += curr_deserialize_time
+                logger.debug(f"_spark_stage_metrics we have {len(stages)}")
 
-                        curr_stage_status = stage["status"]
-                        aggregated_metrics["failed_tasks"] += stage["numFailedTasks"]
-                        if curr_stage_status == "PENDING":
-                            aggregated_metrics["pending_stages"] += 1
-                        elif curr_stage_status == "ACTIVE":
-                            aggregated_metrics["active_tasks"] += stage["numActiveTasks"]
-                            aggregated_metrics["active_stages"] += 1
-                        elif curr_stage_status == "FAILED":
-                            aggregated_metrics["failed_stages"] += 1
+                for stage in response:
+                    logger.debug(f"_spark_stage_metrics we have {len(stages)}")
+                    curr_deserialize_time = stage.get("executorDeserializeTime")
+                    if curr_deserialize_time is not None:
+                        deserialize_count_for_avg += 1
+                        deserialize_time_for_avg += curr_deserialize_time
+
+                    curr_stage_status = stage["status"]
+                    aggregated_metrics["failed_tasks"] += stage["numFailedTasks"]
+                    if curr_stage_status == "PENDING":
+                        aggregated_metrics["pending_stages"] += 1
+                    elif curr_stage_status == "ACTIVE":
+                        aggregated_metrics["active_tasks"] += stage["numActiveTasks"]
+                        aggregated_metrics["active_stages"] += 1
+                    elif curr_stage_status == "FAILED":
+                        aggregated_metrics["failed_stages"] += 1
+
                 self._set_metrics_from_json(collected_metrics, tags, aggregated_metrics, SPARK_AGGREGATED_METRICS)
                 if deserialize_count_for_avg != 0:
                     self._set_individual_metric(collected_metrics, tags,
@@ -319,11 +321,10 @@ class SparkCollector:
         """
         Get metrics for each Spark executor.
         """
-        futures = self._spark_async_metric_request(running_apps, 'executors')
-        for future in concurrent.futures.as_completed(futures):
+        for app_id, (app_name, tracking_url) in running_apps.items():
             try:
-                app_id, app_name = futures[future]
-                executors = future.result()
+                base_url = self._get_request_url(tracking_url)
+                executors = self._rest_request_to_json(base_url, SPARK_APPS_PATH, app_id, 'executors')
 
                 labels = {"app_name": app_name, "app_id": app_id}
                 self._set_metrics_from_json(
