@@ -483,10 +483,7 @@ class AsyncProfiledProcess:
         self._jattach_timeout = jattach_timeout
         self._mcache = mcache
         self._collect_meminfo = collect_meminfo
-        if include_method_modifiers:
-            self._include_method_modifiers = ",includemm"
-        else:
-            self._include_method_modifiers = ""
+        self._include_method_modifiers = ",includemm" if include_method_modifiers else ""
 
     def _find_rw_exec_dir(self, available_dirs: Sequence[str]) -> str:
         """
