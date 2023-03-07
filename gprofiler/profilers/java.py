@@ -435,6 +435,7 @@ class AsyncProfiledProcess:
         jattach_timeout: int = _DEFAULT_JATTACH_TIMEOUT,
         mcache: int = 0,
         collect_meminfo: bool = True,
+        include_method_modifiers: bool = False,
     ):
         self.process = process
         self._profiler_state = profiler_state
@@ -482,6 +483,10 @@ class AsyncProfiledProcess:
         self._jattach_timeout = jattach_timeout
         self._mcache = mcache
         self._collect_meminfo = collect_meminfo
+        if include_method_modifiers:
+            self._include_method_modifiers = "includemm"
+        else:
+            self._include_method_modifiers = ""
 
     def _find_rw_exec_dir(self, available_dirs: Sequence[str]) -> str:
         """
@@ -590,7 +595,10 @@ class AsyncProfiledProcess:
         return f",{self._ap_args}" if self._ap_args else ""
 
     def _get_ap_output_args(self) -> str:
-        return f",file={self._output_path_process},{self.OUTPUT_FORMAT},{self.FORMAT_PARAMS}"
+        return (
+            f",file={self._output_path_process},{self.OUTPUT_FORMAT},"
+            + f"{self.FORMAT_PARAMS},{self._include_method_modifiers}"
+        )
 
     def _get_interval_arg(self, interval: int) -> str:
         if self._mode == "alloc":
@@ -795,6 +803,13 @@ class AsyncProfiledProcess:
             "'default' for default flag filtering settings; see default_collection_filter_jvm_flag(), or 'none' to "
             "disable collection of JVM flags. Defaults to '%(default)s'",
         ),
+        ProfilerArgument(
+            "--java-include-method-modifiers",
+            dest="java_include_method_modifiers",
+            action="store_true",
+            default=False,
+            help="Add method modifiers to profiling data",
+        ),
     ],
     supported_profiling_modes=["cpu", "allocation"],
 )
@@ -834,6 +849,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_mode: str,
         java_async_profiler_report_meminfo: bool,
         java_collect_jvm_flags: str,
+        java_include_method_modifiers: bool,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
         super().__init__(frequency, duration, profiler_state)
@@ -871,6 +887,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._profiler_state.stop_event, self._jattach_jcmd_runner, self._collect_jvm_flags
         )
         self._report_meminfo = java_async_profiler_report_meminfo
+        self._include_method_modifiers = java_include_method_modifiers
 
     def _init_ap_mode(self, profiling_mode: str, ap_mode: str) -> None:
         assert profiling_mode in ("cpu", "allocation"), "async-profiler support only cpu/allocation profiling modes"
@@ -1091,6 +1108,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._jattach_timeout,
             self._ap_mcache,
             self._report_meminfo,
+            self._include_method_modifiers,
         ) as ap_proc:
             stackcollapse = self._profile_ap_process(ap_proc, comm, duration)
 

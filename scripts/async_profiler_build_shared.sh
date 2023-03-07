@@ -5,10 +5,10 @@
 #
 set -euo pipefail
 
-VERSION=v2.9g5
-GIT_REV="60cbc128a752c657e8a97300784686e08c8dbe9d"
+VERSION=add_method_modifiers
+GIT_REV="b693b5a726b3919959cf62d6f1982c972e07c66e"
 
-git clone --depth 1 -b "$VERSION" https://github.com/Granulate/async-profiler.git && cd async-profiler && git reset --hard "$GIT_REV"
+git clone --depth 1 -b "$VERSION" https://github.com/mpozniak95/async-profiler.git && cd async-profiler && git reset --hard "$GIT_REV"
 make all
 
 # add a version file to the build directory

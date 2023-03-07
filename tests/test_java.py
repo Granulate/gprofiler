@@ -1133,3 +1133,13 @@ def test_collect_none_jvm_flags(
 ) -> None:
     with make_java_profiler(profiler_state, java_collect_jvm_flags=JavaFlagCollectionOptions.NONE) as profiler:
         assert profiler._metadata.get_jvm_flags_serialized(psutil.Process(application_pid)) == expected_flags
+
+
+@pytest.mark.parametrize("in_container", [True])
+def test_including_method_modifiers(
+    application_pid: int,
+    profiler_state: ProfilerState,
+) -> None:
+    with make_java_profiler(profiler_state, java_include_method_modifiers=True) as profiler:
+        collapsed = snapshot_pid_collapsed(profiler, application_pid)
+        assert is_function_in_collapsed("Fibonacci.private.static.fibonacci(I)J_[j]", collapsed)
