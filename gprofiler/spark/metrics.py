@@ -166,3 +166,5 @@ SPARK_AGGREGATED_METRICS = {
     "failed_stages": "spark_aggregated_stage_failed_stages",
     "active_stages": "spark_aggregated_stage_active_stages",
 }
+
+SPARK_RUNNING_APPS_COUNT_METRIC = {"running_applications": "spark_num_applications_running"}
