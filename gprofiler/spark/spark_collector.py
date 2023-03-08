@@ -225,19 +225,11 @@ class SparkCollector:
 
                 stages = response
                 aggregated_metrics = dict.fromkeys(SPARK_AGGREGATED_METRICS.keys(), 0)
-                # Deserialization average
-                # If there is any suggestion to improve this metric, reach out.
-                deserialize_count_for_avg = 0
-                deserialize_time_for_avg = 0
 
                 logger.debug(f"_spark_stage_metrics we have {len(stages)}")
 
                 for stage in response:
                     logger.debug(f"_spark_stage_metrics we have {len(stages)}")
-                    curr_deserialize_time = stage.get("executorDeserializeTime")
-                    if curr_deserialize_time is not None:
-                        deserialize_count_for_avg += 1
-                        deserialize_time_for_avg += curr_deserialize_time
 
                     curr_stage_status = stage["status"]
                     aggregated_metrics["failed_tasks"] += stage["numFailedTasks"]
@@ -250,13 +242,6 @@ class SparkCollector:
                         aggregated_metrics["failed_stages"] += 1
 
                 self._set_metrics_from_json(collected_metrics, tags, aggregated_metrics, SPARK_AGGREGATED_METRICS)
-                """if deserialize_count_for_avg != 0:
-                    self._set_individual_metric(
-                        collected_metrics,
-                        tags,
-                        int(deserialize_time_for_avg / deserialize_count_for_avg),
-                        self.STAGE_AVG_DESERIALIZE_TIME,
-                    )"""
 
         else:
             for app_id, (app_name, tracking_url) in running_apps.items():
