@@ -4,6 +4,7 @@
 #
 import logging
 import os
+import platform
 import shutil
 import signal
 import subprocess
@@ -378,6 +379,12 @@ def test_sanity_other_jvms(
     search_for: str,
     profiler_state: ProfilerState,
 ) -> None:
+
+    if platform.machine() == "aarch64":
+        pytest.xfail(
+            "Different JVMs are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
+        )
+
     with make_java_profiler(
         profiler_state,
         frequency=99,
@@ -1062,6 +1069,10 @@ def test_collect_cmdline_and_env_jvm_flags(
     1. Tests collections jvm flags from env & commandline origins and reporting the correct origin
     2. Tests collecting only specific flags
     """
+    if platform.machine() == "aarch64":
+        pytest.xfail(
+            "Different jvm flags are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
+        )
     with make_java_profiler(profiler_state, java_collect_jvm_flags="SelfDestructTimer,PrintCodeCache") as profiler:
         # When running a container manually we can't use application_pid fixture as it will come from the fixture
         # container and not from the manually started one
