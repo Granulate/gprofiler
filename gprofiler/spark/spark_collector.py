@@ -78,13 +78,13 @@ logger = get_logger_adapter(__name__)
 
 class SparkCollector:
     def __init__(
-        self,
-        cluster_mode: str,
-        master_address: str,
-        *,
-        cluster_metrics: bool = True,
-        applications_metrics: bool = False,
-        streaming_metrics: bool = False,
+            self,
+            cluster_mode: str,
+            master_address: str,
+            *,
+            cluster_metrics: bool = True,
+            applications_metrics: bool = False,
+            streaming_metrics: bool = False,
     ) -> None:
         self._last_sample_time_ms = 0
         self._cluster_mode = cluster_mode
@@ -162,7 +162,7 @@ class SparkCollector:
         return self._thread_pool.submit(self._rest_request_to_json, address, object_path, *args, **kwargs)
 
     def _spark_async_metric_request(
-        self, running_apps: Dict[str, Tuple[str, str]], path: str
+            self, running_apps: Dict[str, Tuple[str, str]], path: str
     ) -> Dict[Future[Any], Tuple[str, str]]:
         futures = {}
         for app_id, (app_name, tracking_url) in running_apps.items():
@@ -175,7 +175,7 @@ class SparkCollector:
         return futures
 
     def _spark_application_metrics(
-        self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
+            self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
     ) -> None:
         """
         Get metrics for each Spark job.
@@ -224,14 +224,14 @@ class SparkCollector:
         self._last_iteration_app_job_metrics = iteration_metrics
 
     def _spark_stage_metrics(
-        self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
+            self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
     ) -> None:
         """
         Get metrics for each Spark stage.
         """
         if self._low_cardinality:
             self._set_individual_metric(
-                collected_metrics, [], len(running_apps), SPARK_RUNNING_APPS_COUNT_METRIC["running_applications"]
+                collected_metrics, SPARK_RUNNING_APPS_COUNT_METRIC["running_applications"], len(running_apps), []
             )
             for app_id, (app_name, tracking_url) in running_apps.items():
                 tags = [f"app_name:{str(app_name)}", f"app_id:{str(app_id)}"]
@@ -271,13 +271,13 @@ class SparkCollector:
                         aggregated_metrics["failed_stages"] += 1
 
                 self._set_metrics_from_json(collected_metrics, tags, aggregated_metrics, SPARK_AGGREGATED_METRICS)
-                if deserialize_count_for_avg != 0:
+                """if deserialize_count_for_avg != 0:
                     self._set_individual_metric(
                         collected_metrics,
                         tags,
                         int(deserialize_time_for_avg / deserialize_count_for_avg),
                         self.STAGE_AVG_DESERIALIZE_TIME,
-                    )
+                    )"""
 
         else:
             for app_id, (app_name, tracking_url) in running_apps.items():
@@ -330,7 +330,7 @@ class SparkCollector:
                     logger.exception("Could not gather spark stages metrics")
 
     def _spark_executor_metrics(
-        self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
+            self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
     ) -> None:
         """
         Get metrics for each Spark executor.
@@ -354,7 +354,7 @@ class SparkCollector:
                 logger.exception("Could not gather spark executors metrics")
 
     def _spark_rdd_metrics(
-        self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
+            self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
     ) -> None:
         """
         Get metrics for each Spark RDD.
@@ -373,7 +373,7 @@ class SparkCollector:
                 logger.exception("Could not gather Spark RDD metrics")
 
     def _spark_streaming_statistics_metrics(
-        self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
+            self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
     ) -> None:
         """
         Get metrics for each application streaming statistics.
@@ -392,7 +392,7 @@ class SparkCollector:
 
     @staticmethod
     def _get_last_batches_metrics(
-        batches: List[Dict[str, Union[str, int]]], completed_batches: List[Dict[str, Union[str, int]]], n: int
+            batches: List[Dict[str, Union[str, int]]], completed_batches: List[Dict[str, Union[str, int]]], n: int
     ) -> Dict[str, float]:
         last = batches[:n]
         last_completed = completed_batches[:n]
@@ -400,16 +400,16 @@ class SparkCollector:
             f"avg{n}_inputSize": sum([int(batch.get("inputSize", 0)) for batch in last]) / len(last),
             f"max{n}_inputSize": max([int(batch.get("inputSize", 0)) for batch in last]),
             f"avg{n}_processingTime": sum([int(batch.get("processingTime", 0)) for batch in last_completed])
-            / len(last_completed),
+                                      / len(last_completed),
             f"max{n}_processingTime": max([int(batch.get("processingTime", 0)) for batch in last_completed]),
             f"avg{n}_totalDelay": sum([int(batch.get("totalDelay", 0)) for batch in last_completed])
-            / len(last_completed),
+                                  / len(last_completed),
             f"max{n}_totalDelay": max([int(batch.get("totalDelay", 0)) for batch in last_completed]),
             f"avg{n}_batchDuration": sum([int(batch.get("batchDuration", 0)) for batch in last]) / len(last),
         }
 
     def _spark_batches_streams_metrics(
-        self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
+            self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
     ) -> None:
         for app_id, (app_name, tracking_url) in running_apps.items():
             try:
@@ -443,7 +443,7 @@ class SparkCollector:
                 logger.exception("Could not gather Spark batch metrics for application")
 
     def _spark_structured_streams_metrics(
-        self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
+            self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
     ) -> None:
         """
         Get metrics for each application structured stream.
@@ -480,11 +480,11 @@ class SparkCollector:
                 logger.exception("Could not gather structured streaming metrics for application")
 
     def _set_task_summary_from_json(
-        self,
-        collected_metrics: Dict[str, Dict[str, Any]],
-        labels: Dict[str, str],
-        metrics_json: Dict[str, List[int]],
-        metrics: Dict[str, str],
+            self,
+            collected_metrics: Dict[str, Dict[str, Any]],
+            labels: Dict[str, str],
+            metrics_json: Dict[str, List[int]],
+            metrics: Dict[str, str],
     ) -> None:
         quantile_index = 0
         if metrics_json is None:
@@ -505,7 +505,7 @@ class SparkCollector:
             quantile_index += 1
 
     def _set_individual_metric(
-        self, collected_metrics: Dict[str, Dict[str, Any]], name: str, value: Any, labels: Dict[str, str]
+            self, collected_metrics: Dict[str, Dict[str, Any]], name: str, value: Any, labels: Dict[str, str]
     ) -> None:
         if name not in collected_metrics and value is not None:
             collected_metrics[name] = {
@@ -515,11 +515,11 @@ class SparkCollector:
             }
 
     def _set_metrics_from_json(
-        self,
-        collected_metrics: Dict[str, Dict[str, Any]],
-        labels: Dict[str, str],
-        metrics_json: Dict[Any, Any],
-        metrics: Dict[str, str],
+            self,
+            collected_metrics: Dict[str, Dict[str, Any]],
+            labels: Dict[str, str],
+            metrics_json: Dict[Any, Any],
+            metrics: Dict[str, str],
     ) -> None:
         """
         Parse the JSON response and set the metrics
@@ -705,10 +705,10 @@ class SparkSampler(object):
     """
 
     def __init__(
-        self,
-        sample_period: float,
-        storage_dir: str,
-        api_client: Optional[APIClient] = None,
+            self,
+            sample_period: float,
+            storage_dir: str,
+            api_client: Optional[APIClient] = None,
     ):
         self._master_address: Optional[str] = None
         self._spark_mode: Optional[str] = None
@@ -750,7 +750,7 @@ class SparkSampler(object):
             return None
 
     def _get_yarn_config_property(
-        self, process: psutil.Process, requested_property: str, default: Optional[str] = None
+            self, process: psutil.Process, requested_property: str, default: Optional[str] = None
     ) -> Optional[str]:
         config = self._get_yarn_config(process)
         if config is not None:
@@ -780,9 +780,9 @@ class SparkSampler(object):
             for config_property in config.iter("property"):
                 name_property = config_property.find("name")
                 if (
-                    name_property is not None
-                    and name_property.text is not None
-                    and name_property.text.startswith("yarn.resourcemanager.webapp.address")
+                        name_property is not None
+                        and name_property.text is not None
+                        and name_property.text.startswith("yarn.resourcemanager.webapp.address")
                 ):
                     value_property = config_property.find("value")
                     if value_property is not None and value_property.text is not None:
@@ -875,9 +875,9 @@ class SparkSampler(object):
         def is_master_process(process: psutil.Process) -> bool:
             try:
                 return (
-                    "org.apache.hadoop.yarn.server.resourcemanager.ResourceManager" in process.cmdline()
-                    or "org.apache.spark.deploy.master.Master" in process.cmdline()
-                    or "mesos-master" in process_exe(process)
+                        "org.apache.hadoop.yarn.server.resourcemanager.ResourceManager" in process.cmdline()
+                        or "org.apache.spark.deploy.master.Master" in process.cmdline()
+                        or "mesos-master" in process_exe(process)
                 )
             except MissingExePath:
                 return False
@@ -925,7 +925,7 @@ class SparkSampler(object):
 
     def _collect_loop(self) -> None:
         assert (
-            self._client is not None or self._storage_dir is not None
+                self._client is not None or self._storage_dir is not None
         ), "A valid API client or storage directory is required"
         timefn = time.monotonic
         start_time = timefn()
