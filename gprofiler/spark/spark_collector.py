@@ -10,7 +10,6 @@ import os
 import re
 import time
 import xml.etree.ElementTree as ET
-from concurrent.futures import Future
 from datetime import datetime, timezone
 from threading import Event, Thread
 from typing import Any, Dict, Generator, List, Optional, Tuple, Union
@@ -153,26 +152,6 @@ class SparkCollector:
                 self._set_metrics_from_json(collected_metrics, labels, node, YARN_NODES_METRICS)
         except Exception:
             logger.exception("Could not gather yarn nodes metrics")
-
-    def _async_rest_request_to_json(self, address: str, object_path: str, *args: Any, **kwargs: Any) -> Future[Any]:
-        """
-        Query the given URL asynchronously and return a Future that'll hold the JSON response
-        """
-        assert self._thread_pool
-        return self._thread_pool.submit(self._rest_request_to_json, address, object_path, *args, **kwargs)
-
-    def _spark_async_metric_request(
-        self, running_apps: Dict[str, Tuple[str, str]], path: str
-    ) -> Dict[Future[Any], Tuple[str, str]]:
-        futures = {}
-        for app_id, (app_name, tracking_url) in running_apps.items():
-            try:
-                base_url = self._get_request_url(tracking_url)
-                futures[self._async_rest_request_to_json(base_url, SPARK_APPS_PATH, app_id, path)] = (app_id, app_name)
-            except Exception as e:
-                logger.warning(f"Could not gather spark {path} metrics - failed submitting to thread pool")
-                logger.debug(e)
-        return futures
 
     def _spark_application_metrics(
         self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
