@@ -6,11 +6,11 @@
 set -euo pipefail
 
 VERSION=add_method_modifiers
-GIT_REV="664d04f18da2205b4f34ce422ec144dd2974906e"
+GIT_REV="76be7e8c377ede43f9bb0fabb2903f950280e1a7"
 
 git clone --depth 1 -b "$VERSION" https://github.com/mpozniak95/async-profiler.git && cd async-profiler && git reset --hard "$GIT_REV"
 
-make all CXXFLAGS="-O3 -fno-omit-frame-pointer -fvisibility=hidden -std=c++11"
+make all
 
 # add a version file to the build directory
 echo -n "$VERSION" > build/async-profiler-version
