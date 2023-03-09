@@ -109,6 +109,7 @@ class SparkCollector:
 
             if self._applications_metrics:
                 spark_apps = self._get_running_apps()
+                self._running_applications_length_metric(collected_metrics, spark_apps)
                 self._spark_application_metrics(collected_metrics, spark_apps)
                 self._spark_stage_metrics(collected_metrics, spark_apps)
                 self._spark_executor_metrics(collected_metrics, spark_apps)
@@ -119,6 +120,9 @@ class SparkCollector:
 
                 # Get the rdd metrics
                 if not self._low_cardinality:
+                    """
+                    RDD metrics are not collected in low cardinality mode.
+                    """
                     self._spark_rdd_metrics(collected_metrics, spark_apps)
 
             for metric in collected_metrics.values():
@@ -151,6 +155,13 @@ class SparkCollector:
                 self._set_metrics_from_json(collected_metrics, labels, node, YARN_NODES_METRICS)
         except Exception:
             logger.exception("Could not gather yarn nodes metrics")
+
+    def _running_applications_length_metric(
+        self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
+    ) -> None:
+        self._set_individual_metric(
+            collected_metrics, SPARK_RUNNING_APPS_COUNT_METRIC["running_applications"], len(running_apps), {}
+        )
 
     def _spark_application_metrics(
         self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
@@ -208,9 +219,6 @@ class SparkCollector:
         Get metrics for each Spark stage.
         """
         if self._low_cardinality:
-            self._set_individual_metric(
-                collected_metrics, SPARK_RUNNING_APPS_COUNT_METRIC["running_applications"], len(running_apps), {}
-            )
             for app_id, (app_name, tracking_url) in running_apps.items():
                 tags = {"app_name": str(app_name), "app_id": str(app_id)}
                 try:
