@@ -222,14 +222,9 @@ class SparkCollector:
                     )
                     return
 
-                stages = response
                 aggregated_metrics = dict.fromkeys(SPARK_AGGREGATED_STAGE_METRICS.keys(), 0)
 
-                logger.debug(f"_spark_stage_metrics we have {len(stages)}")
-
                 for stage in response:
-                    logger.debug(f"_spark_stage_metrics we have {len(stages)}")
-
                     curr_stage_status = stage["status"]
                     aggregated_metrics["failed_tasks"] += stage["numFailedTasks"]
                     if curr_stage_status == "PENDING":
