@@ -211,7 +211,7 @@ class SparkCollector:
         """
         if self._low_cardinality:
             self._set_individual_metric(
-                collected_metrics, SPARK_RUNNING_APPS_COUNT_METRIC["running_applications"], len(running_apps), []
+                collected_metrics, SPARK_RUNNING_APPS_COUNT_METRIC["running_applications"], len(running_apps), {}
             )
             for app_id, (app_name, tracking_url) in running_apps.items():
                 tags = {"app_name": str(app_name), "app_id": str(app_id)}
