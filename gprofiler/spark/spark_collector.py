@@ -728,17 +728,6 @@ class SparkSampler(object):
                         return value_property.text
         return default
 
-    def _guess_driver_application_master_address(self, process: psutil.Process) -> str:
-        """
-        Selects the master address for a org.apache.spark.deploy.master.Master running on this node.
-        Uses master_address if given, or defaults to my hostname.
-        """
-        if self._master_address is not None:
-            return self._master_address
-        else:
-            host_name = get_hostname()
-            return host_name + ":4040"
-
     def _guess_yarn_resource_manager_webapp_address(self, resource_manager_process: psutil.Process) -> str:
         config = self._get_yarn_config(resource_manager_process)
 
