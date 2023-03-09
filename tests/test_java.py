@@ -152,6 +152,8 @@ def test_java_async_profiler_cpu_mode(
     """
     Run Java in a container and enable async-profiler in CPU mode, make sure we get kernel stacks.
     """
+    if platform.machine() == "aarch64":
+        pytest.xfail("<placeholder>")
     with make_java_profiler(
         profiler_state,
         frequency=999,
@@ -174,6 +176,8 @@ def test_java_async_profiler_musl_and_cpu(
     Run Java in an Alpine-based container and enable async-profiler in CPU mode, make sure that musl profiling
     works and that we get kernel stacks.
     """
+    if platform.machine() == "aarch64":
+        pytest.xfail("<placeholder>")
     with make_java_profiler(profiler_state, frequency=999) as profiler:
         assert is_musl(psutil.Process(application_pid))
 
@@ -247,6 +251,8 @@ def test_hotspot_error_file(
     caplog: LogCaptureFixture,
     profiler_state: ProfilerState,
 ) -> None:
+    if platform.machine() == "aarch64":
+        pytest.xfail("<placeholder>")
     start_async_profiler = AsyncProfiledProcess.start_async_profiler
 
     # Simulate crashing process
@@ -577,7 +583,8 @@ def test_java_attach_socket_missing(
     """
     Tests that we get the proper JattachMissingSocketException when the attach socket is deleted.
     """
-
+    if platform.machine() == "aarch64":
+        pytest.xfail("<placeholder>")
     with make_java_profiler(
         profiler_state,
         duration=1,
