@@ -221,7 +221,7 @@ def make_java_profiler(
         java_mode=java_mode,
         java_async_profiler_report_meminfo=java_async_profiler_report_meminfo,
         java_collect_jvm_flags=java_collect_jvm_flags,
-        java_full_hserr=java_full_hserr
+        java_full_hserr=java_full_hserr,
     )
 
 
