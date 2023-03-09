@@ -120,7 +120,8 @@ class SparkCollector:
                     self._spark_structured_streams_metrics(collected_metrics, spark_apps)
 
                 # Get the rdd metrics
-                # self._spark_rdd_metrics(collected_metrics, spark_apps)
+                if not self._low_cardinality:
+                    self._spark_rdd_metrics(collected_metrics, spark_apps)
 
             for metric in collected_metrics.values():
                 yield metric
