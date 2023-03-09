@@ -26,7 +26,7 @@ from gprofiler.client import APIClient
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_hostname
 from gprofiler.spark.metrics import (
-    SPARK_AGGREGATED_METRICS,
+    SPARK_AGGREGATED_STAGE_METRICS,
     SPARK_APPLICATION_DIFF_METRICS,
     SPARK_APPLICATION_GAUGE_METRICS,
     SPARK_EXECUTORS_METRICS,
@@ -225,7 +225,7 @@ class SparkCollector:
                     return
 
                 stages = response
-                aggregated_metrics = dict.fromkeys(SPARK_AGGREGATED_METRICS.keys(), 0)
+                aggregated_metrics = dict.fromkeys(SPARK_AGGREGATED_STAGE_METRICS.keys(), 0)
 
                 logger.debug(f"_spark_stage_metrics we have {len(stages)}")
 
@@ -242,7 +242,7 @@ class SparkCollector:
                     elif curr_stage_status == "FAILED":
                         aggregated_metrics["failed_stages"] += 1
 
-                self._set_metrics_from_json(collected_metrics, tags, aggregated_metrics, SPARK_AGGREGATED_METRICS)
+                self._set_metrics_from_json(collected_metrics, tags, aggregated_metrics, SPARK_AGGREGATED_STAGE_METRICS)
 
         else:
             for app_id, (app_name, tracking_url) in running_apps.items():

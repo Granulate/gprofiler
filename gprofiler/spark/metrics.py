@@ -159,7 +159,7 @@ SPARK_STREAMING_BATCHES_METRICS = {
 }
 SPARK_EXECUTORS_METRICS = {"count": "spark_executors_count", "activeCount": "spark_executors_active_count"}
 
-SPARK_AGGREGATED_METRICS = {
+SPARK_AGGREGATED_STAGE_METRICS = {
     "failed_tasks": "spark_aggregated_stage_failed_tasks",
     "active_tasks": "spark_aggregated_stage_active_tasks",
     "pending_stages": "spark_aggregated_stage_pending_stages",
