@@ -752,7 +752,7 @@ class SparkSampler(object):
     def _guess_standalone_master_webapp_address(self, process: psutil.Process) -> str:
         """
         Selects the master address for a standalone cluster.
-        Uses master_address if given, or defaults to my hostname.
+        Uses master_address if given.
         """
         if self._master_address:
             return self._master_address
