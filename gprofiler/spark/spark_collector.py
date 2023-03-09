@@ -66,8 +66,6 @@ YARN_NODES_PATH = "ws/v1/cluster/nodes"
 SPARK_APPS_PATH = "api/v1/applications"
 MESOS_MASTER_APP_PATH = "/frameworks"
 
-MAX_THREAD_POOL_WORKERS = 10
-
 STRUCTURED_STREAMS_METRICS_REGEX = re.compile(
     r"^[\w-]+\.driver\.spark\.streaming\.(?P<query_name>[\w-]+)\.(?P<metric_name>[\w-]+)$"
 )
