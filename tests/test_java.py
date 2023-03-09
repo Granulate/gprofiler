@@ -381,7 +381,7 @@ def test_sanity_other_jvms(
 ) -> None:
 
     if platform.machine() == "aarch64":
-        pytest.skip(
+        pytest.xfail(
             "Different JVMs are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
         )
 
@@ -1070,7 +1070,7 @@ def test_collect_cmdline_and_env_jvm_flags(
     2. Tests collecting only specific flags
     """
     if platform.machine() == "aarch64":
-        pytest.skip(
+        pytest.xfail(
             "Different jvm flags are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
         )
     with make_java_profiler(profiler_state, java_collect_jvm_flags="SelfDestructTimer,PrintCodeCache") as profiler:
