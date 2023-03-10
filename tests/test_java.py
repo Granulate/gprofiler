@@ -153,7 +153,7 @@ def test_java_async_profiler_cpu_mode(
     Run Java in a container and enable async-profiler in CPU mode, make sure we get kernel stacks.
     """
     if platform.machine() == "aarch64":
-        pytest.xfail("<placeholder>")
+        pytest.xfail("This test is not working on aarch64 https://github.com/Granulate/gprofiler/issues/723")
     with make_java_profiler(
         profiler_state,
         frequency=999,
@@ -250,7 +250,7 @@ def test_hotspot_error_file(
     profiler_state: ProfilerState,
 ) -> None:
     if platform.machine() == "aarch64":
-        pytest.xfail("<placeholder>")
+        pytest.xfail("These tests do not work on aarch64 https://github.com/Granulate/gprofiler/issues/721")
     start_async_profiler = AsyncProfiledProcess.start_async_profiler
 
     # Simulate crashing process
@@ -582,7 +582,7 @@ def test_java_attach_socket_missing(
     Tests that we get the proper JattachMissingSocketException when the attach socket is deleted.
     """
     if platform.machine() == "aarch64":
-        pytest.xfail("<placeholder>")
+        pytest.xfail("This test fails on aarch64 https://github.com/Granulate/gprofiler/issues/722")
     with make_java_profiler(
         profiler_state,
         duration=1,
