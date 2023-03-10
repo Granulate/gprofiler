@@ -351,15 +351,7 @@ def application_docker_image(
     application_image_tag: str,
 ) -> Iterable[Image]:
     if platform.machine() == "aarch64":
-        if "buildargs" in application_docker_image_configs:
-            if "JAVA_BASE_IMAGE" in application_docker_image_configs["buildargs"]:
-                if "j9" in application_docker_image_configs["buildargs"]["JAVA_BASE_IMAGE"]:
-                    pytest.skip("<placeholder2>")
-        if "dockerfile" in application_docker_image_configs:
-            if (
-                "zing" in application_docker_image_configs["dockerfile"]
-                or "musl" in application_docker_image_configs["dockerfile"]
-            ):
+        if application_image_tag == "j9" or application_image_tag == "zing":
                 pytest.skip("<placeholder2>")
     yield _build_image(docker_client, **application_docker_image_configs[image_name(runtime, application_image_tag)])
 
