@@ -356,9 +356,7 @@ def application_docker_image(
                 "Different JVMs are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
             )
         if application_image_tag == "musl":
-            pytest.xfail(
-                "musl is not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
-            )
+            pytest.xfail("musl is not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717")
     yield _build_image(docker_client, **application_docker_image_configs[image_name(runtime, application_image_tag)])
 
 
