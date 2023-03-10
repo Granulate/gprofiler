@@ -233,8 +233,6 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
 def _build_image(
     docker_client: DockerClient, runtime: str, dockerfile: str = "Dockerfile", **kwargs: Mapping[str, Any]
 ) -> Image:
-    if ("zing" in dockerfile or "musl" in dockerfile) and platform.machine() == "aarch64":
-        pytest.xfail("<placeholder2>")
     base_path = CONTAINERS_DIRECTORY / runtime
     return docker_client.images.build(path=str(base_path), rm=True, dockerfile=str(base_path / dockerfile), **kwargs)[0]
 
@@ -352,6 +350,8 @@ def application_docker_image(
     runtime: str,
     application_image_tag: str,
 ) -> Iterable[Image]:
+    if ("zing" in application_docker_image_configs.keys() or "musl" in application_docker_image_configs.keys() or "j9" in application_docker_image_configs.keys()) and platform.machine() == "aarch64":
+        pytest.xfail("<placeholder2>")
     yield _build_image(docker_client, **application_docker_image_configs[image_name(runtime, application_image_tag)])
 
 
