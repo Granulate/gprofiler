@@ -758,7 +758,6 @@ class SparkSampler(object):
                 # No need to submit samples that don't actually have a value:
                 samples = tuple(filter(lambda s: s.value is not None, collected))
                 snapshot = MetricsSnapshot(datetime.now(tz=timezone.utc), samples)
-                # _client and _storage_dir are mutually exclusive, so we will never bake the payload twice
                 if self._storage_dir is not None:
                     now = get_iso8601_format_time(datetime.now())
                     base_filename = os.path.join(self._storage_dir, f"spark_metric_{escape_filename(now)}")
