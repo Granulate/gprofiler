@@ -116,7 +116,7 @@ class SparkCollector:
             metrics_json = self._rest_request_to_json(self._master_address, YARN_CLUSTER_PATH)
 
             if metrics_json.get("clusterMetrics") is not None:
-                yield from self._set_metrics_from_json({}, metrics_json["clusterMetrics"], YARN_CLUSTER_METRICS)
+                yield from self._samples_from_json({}, metrics_json["clusterMetrics"], YARN_CLUSTER_METRICS)
         except Exception:
             logger.exception("Could not gather yarn cluster metrics")
 
@@ -129,7 +129,7 @@ class SparkCollector:
                     node[metric] = value  # this will create all relevant metrics under same dictionary
 
                 labels = {"node_hostname": node["nodeHostName"]}
-                yield from self._set_metrics_from_json(labels, node, YARN_NODES_METRICS)
+                yield from self._samples_from_json(labels, node, YARN_NODES_METRICS)
         except Exception:
             logger.exception("Could not gather yarn nodes metrics")
 
@@ -168,10 +168,10 @@ class SparkCollector:
                         application_gauge_aggregated_metrics[metric] += int(job[metric])
 
                 labels = {"app_name": app_name, "app_id": app_id}
-                yield from self._set_metrics_from_json(
+                yield from self._samples_from_json(
                     labels, application_diff_aggregated_metrics, SPARK_APPLICATION_DIFF_METRICS
                 )
-                yield from self._set_metrics_from_json(
+                yield from self._samples_from_json(
                     labels, application_gauge_aggregated_metrics, SPARK_APPLICATION_GAUGE_METRICS
                 )
 
@@ -198,7 +198,7 @@ class SparkCollector:
                         "stage_id": stage_id,
                     }
 
-                    yield from self._set_metrics_from_json(labels, stage, SPARK_STAGE_METRICS)
+                    yield from self._samples_from_json(labels, stage, SPARK_STAGE_METRICS)
 
                     if self._task_summary_metrics and status == "ACTIVE":
                         stage_response = self._rest_request_to_json(
@@ -218,7 +218,7 @@ class SparkCollector:
                                     quantiles="0.5,0.75,0.99",
                                 )
 
-                                self._set_task_summary_from_json(
+                                yield from self._task_summary_samples_from_json(
                                     labels, tasks_summary_response, SPARK_TASK_SUMMARY_METRICS
                                 )
                             except Exception:
@@ -235,7 +235,7 @@ class SparkCollector:
                 base_url = self._get_request_url(tracking_url)
                 executors = self._rest_request_to_json(base_url, SPARK_APPS_PATH, app_id, "executors")
                 labels = {"app_name": app_name, "app_id": app_id}
-                yield from self._set_metrics_from_json(
+                yield from self._samples_from_json(
                     labels,
                     {
                         "count": len(executors),
@@ -257,7 +257,7 @@ class SparkCollector:
                 response = self._rest_request_to_json(base_url, SPARK_APPS_PATH, app_id, "storage/rdd")
                 labels = {"app_name": app_name, "app_id": app_id}
                 for rdd in response:
-                    yield from self._set_metrics_from_json(labels, rdd, SPARK_RDD_METRICS)
+                    yield from self._samples_from_json(labels, rdd, SPARK_RDD_METRICS)
             except Exception:
                 logger.exception("Could not gather Spark RDD metrics")
 
@@ -273,7 +273,7 @@ class SparkCollector:
                 labels = {"app_name": app_name, "app_id": app_id}
 
                 # NOTE: response is a dict
-                yield from self._set_metrics_from_json(labels, response, SPARK_STREAMING_STATISTICS_METRICS)
+                yield from self._samples_from_json(labels, response, SPARK_STREAMING_STATISTICS_METRICS)
             except Exception:
                 logger.exception("Could not gather Spark streaming metrics")
 
@@ -320,7 +320,7 @@ class SparkCollector:
                     batch_metrics.update(self._get_last_batches_metrics(batches, completed_batches, 3))
                     batch_metrics.update(self._get_last_batches_metrics(batches, completed_batches, 10))
                     batch_metrics.update(self._get_last_batches_metrics(batches, completed_batches, 25))
-                    yield from self._set_metrics_from_json(labels, batch_metrics, SPARK_STREAMING_BATCHES_METRICS)
+                    yield from self._samples_from_json(labels, batch_metrics, SPARK_STREAMING_BATCHES_METRICS)
             except Exception:
                 logger.exception("Could not gather Spark batch metrics for application")
 
@@ -354,7 +354,7 @@ class SparkCollector:
                 logger.exception("Could not gather structured streaming metrics for application")
 
     @staticmethod
-    def _set_task_summary_from_json(
+    def _task_summary_samples_from_json(
         labels: Dict[str, str], response_json: Dict[str, List[int]], metrics: Dict[str, str]
     ) -> Iterable[Sample]:
         quantile_index = 0
@@ -373,7 +373,7 @@ class SparkCollector:
             quantile_index += 1
 
     @staticmethod
-    def _set_metrics_from_json(
+    def _samples_from_json(
         labels: Dict[str, str], response_json: Dict[Any, Any], metrics: Dict[str, str]
     ) -> Iterable[Sample]:
         """
