@@ -61,6 +61,7 @@ class PythonEbpfProfiler(ProfilerBase):
         *,
         add_versions: bool,
         user_stacks_pages: Optional[int] = None,
+        verbose: bool,
     ):
         super().__init__(frequency, duration, profiler_state)
         self.process: Optional[Popen] = None
@@ -69,6 +70,7 @@ class PythonEbpfProfiler(ProfilerBase):
         self.user_stacks_pages = user_stacks_pages
         self._kernel_offsets: Dict[str, int] = {}
         self._metadata = python.PythonMetadata(self._profiler_state.stop_event)
+        self._verbose = verbose
 
     @classmethod
     def _pyperf_error(cls, process: Popen) -> NoReturn:
@@ -125,13 +127,17 @@ class PythonEbpfProfiler(ProfilerBase):
             offset = self._kernel_offsets["task_struct_stack"] = self._get_offset(self._GET_STACK_OFFSET_RESOURCE)
             return offset
 
-    def _offset_args(self) -> List[str]:
-        return [
+    def _pyperf_base_command(self) -> List[str]:
+        cmd = [
+            resource_path(self.PYPERF_RESOURCE),
             "--fs-offset",
             str(self._kernel_fs_offset()),
             "--stack-offset",
             str(self._kernel_stack_offset()),
         ]
+        if self._verbose:
+            cmd.extend(["-v", "4"])
+        return cmd
 
     def test(self) -> None:
         self._ebpf_environment()
@@ -142,15 +148,14 @@ class PythonEbpfProfiler(ProfilerBase):
         # Run the process and check if the output file is properly created.
         # Wait up to 10sec for the process to terminate.
         # Allow cancellation via the stop_event.
-        cmd = [
-            resource_path(self.PYPERF_RESOURCE),
+        cmd = self._pyperf_base_command() + [
             "--output",
             str(self.output_path),
             "-F",
             "1",
             "--duration",
             "1",
-        ] + self._offset_args()
+        ]
         process = start_process(cmd, via_staticx=True)
         try:
             poll_process(process, self._POLL_TIMEOUT, self._profiler_state.stop_event)
@@ -162,8 +167,7 @@ class PythonEbpfProfiler(ProfilerBase):
 
     def start(self) -> None:
         logger.info("Starting profiling of Python processes with PyPerf")
-        cmd = [
-            resource_path(self.PYPERF_RESOURCE),
+        cmd = self._pyperf_base_command() + [
             "--output",
             str(self.output_path),
             "-F",
@@ -173,14 +177,12 @@ class PythonEbpfProfiler(ProfilerBase):
             "--symbols-map-size",
             str(self._SYMBOLS_MAP_SIZE),
             # Duration is irrelevant here, we want to run continuously.
-        ] + self._offset_args()
+        ]
         if self._profiler_state.insert_dso_name:
             cmd.extend(["--insert-dso-name"])
 
         if self.user_stacks_pages is not None:
             cmd.extend(["--user-stacks-pages", str(self.user_stacks_pages)])
-
-        cmd.extend(["-v", "9"])
 
         for f in glob.glob(f"{str(self.output_path)}.*"):
             os.unlink(f)

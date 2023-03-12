@@ -324,10 +324,8 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         ProfilerArgument(
             "--python-pyperf-verbose",
             dest="python_pyperf_verbose",
-            default=None,
-            type=nonnegative_integer,
-            help="Number of user stack-pages that PyPerf will collect, this controls the maximum stack depth of native "
-            "user frames. Pass 0 to disable user native stacks altogether.",
+            action="store_true",
+            help="Enable PyPerf in verbose mode (max verbosity)",
         ),
     ],
     supported_profiling_modes=["cpu"],
@@ -346,6 +344,7 @@ class PythonProfiler(ProfilerInterface):
         python_mode: str,
         python_add_versions: bool,
         python_pyperf_user_stacks_pages: Optional[int],
+        python_pyperf_rebose: bool,
     ):
         if python_mode == "py-spy":
             python_mode = "pyspy"
@@ -364,6 +363,7 @@ class PythonProfiler(ProfilerInterface):
                 profiler_state,
                 python_add_versions,
                 python_pyperf_user_stacks_pages,
+                python_pyperf_rebose,
             )
         else:
             self._ebpf_profiler = None
@@ -387,6 +387,7 @@ class PythonProfiler(ProfilerInterface):
             profiler_state: ProfilerState,
             add_versions: bool,
             user_stacks_pages: Optional[int],
+            verbose: bool,
         ) -> Optional[PythonEbpfProfiler]:
             try:
                 profiler = PythonEbpfProfiler(
@@ -395,6 +396,7 @@ class PythonProfiler(ProfilerInterface):
                     profiler_state,
                     add_versions=add_versions,
                     user_stacks_pages=user_stacks_pages,
+                    verbose=verbose,
                 )
                 profiler.test()
                 return profiler
