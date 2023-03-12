@@ -344,7 +344,7 @@ class PythonProfiler(ProfilerInterface):
         python_mode: str,
         python_add_versions: bool,
         python_pyperf_user_stacks_pages: Optional[int],
-        python_pyperf_rebose: bool,
+        python_pyperf_verbose: bool,
     ):
         if python_mode == "py-spy":
             python_mode = "pyspy"
@@ -363,7 +363,7 @@ class PythonProfiler(ProfilerInterface):
                 profiler_state,
                 python_add_versions,
                 python_pyperf_user_stacks_pages,
-                python_pyperf_rebose,
+                python_pyperf_verbose,
             )
         else:
             self._ebpf_profiler = None
