@@ -52,6 +52,7 @@ class PythonEbpfProfiler(ProfilerBase):
     _DUMP_TIMEOUT = 5  # seconds
     _POLL_TIMEOUT = 10  # seconds
     _GET_OFFSETS_TIMEOUT = 5  # seconds
+    _STDERR_READ_SIZE = 65536  # bytes read every cycle from stderr
 
     def __init__(
         self,
@@ -217,7 +218,7 @@ class PythonEbpfProfiler(ProfilerBase):
             # also, makes sure its output pipe doesn't fill up.
             # using read1() which performs just a single read() call and doesn't read until EOF
             # (unlike Popen.communicate())
-            logger.debug(f"PyPerf output: {self.process.stderr.read1()}")  # type: ignore
+            logger.debug(f"PyPerf output: {self.process.stderr.read1(self._STDERR_READ_SIZE)}")  # type: ignore
             return output
         except TimeoutError:
             # error flow :(
