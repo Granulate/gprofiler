@@ -136,6 +136,7 @@ class PythonEbpfProfiler(ProfilerBase):
             str(self._kernel_stack_offset()),
         ]
         if self._verbose:
+            # 4 is the max verbosityLevel in PyPerf.
             cmd.extend(["-v", "4"])
         return cmd
 
