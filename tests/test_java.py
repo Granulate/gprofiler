@@ -249,8 +249,6 @@ def test_hotspot_error_file(
     caplog: LogCaptureFixture,
     profiler_state: ProfilerState,
 ) -> None:
-    if platform.machine() == "aarch64":
-        pytest.xfail("These tests do not work on aarch64 https://github.com/Granulate/gprofiler/issues/721")
     start_async_profiler = AsyncProfiledProcess.start_async_profiler
 
     # Simulate crashing process
@@ -269,8 +267,9 @@ def test_hotspot_error_file(
     assert "Found Hotspot error log" in caplog.text
     assert "OpenJDK" in caplog.text
     assert "SIGBUS" in caplog.text
-    assert "libpthread.so" in caplog.text
-    assert "memory_usage_in_bytes:" in caplog.text
+    if platform.machine() != "aarch64":
+        assert "libpthread.so" in caplog.text
+        assert "memory_usage_in_bytes:" in caplog.text
     assert "Java profiling has been disabled, will avoid profiling any new java process" in caplog.text
     assert profiler._safemode_disable_reason is not None
 
