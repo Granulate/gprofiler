@@ -6,7 +6,7 @@
 set -euo pipefail
 
 VERSION=add_method_modifiers
-GIT_REV="3b60db24f5825a55f7ad9dd0aa3487049ad3bb77"
+GIT_REV="b8696a23ba7da780b66c11196599793dd4e37d18"
 
 git clone --depth 1 -b "$VERSION" https://github.com/mpozniak95/async-profiler.git && cd async-profiler && git reset --hard "$GIT_REV"
 
