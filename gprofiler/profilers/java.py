@@ -1172,9 +1172,9 @@ class JavaProfiler(SpawningProcessProfilerBase):
             return
 
         contents = open(error_file).read()
-        if self._java_full_hserr:
-            logger.warning(f"Found Hotspot error log for pid {pid} at {error_file}:\n{contents}")
-        else:
+        # msg = f"Found Hotspot error log for pid {pid} at {error_file}:\n"
+        msg = "Found Hotspot error log"
+        if not self._java_full_hserr:
             m = VM_INFO_REGEX.search(contents)
             vm_info = m[1] if m else ""
             m = SIGINFO_REGEX.search(contents)
@@ -1185,14 +1185,12 @@ class JavaProfiler(SpawningProcessProfilerBase):
             native_frames = m[1] if m else ""
             m = CONTAINER_INFO_REGEX.search(contents)
             container_info = m[1] if m else ""
-            logger.warning(
-                f"Found Hotspot error log for pid {pid} at {error_file}:\n"
-                f"VM info: {vm_info}\n"
-                f"siginfo: {siginfo}\n"
-                f"Problematic frame: {problematic_frame}\n"
-                f"native frames:\n{native_frames}\n"
-                f"container info:\n{container_info}"
-            )
+            contents =f"VM info: {vm_info}\n" + \
+                      f"siginfo: {siginfo}\n" + \
+                      f"Problematic frame: {problematic_frame}\n" + \
+                      f"native frames:\n{native_frames}\n" + \
+                      f"container info:\n{container_info}"
+        logger.warning(msg, pid=pid, hs_err_file=error_file, hs_err=contents)
 
         self._disable_profiling(JavaSafemodeOptions.HSERR)
 
