@@ -580,8 +580,6 @@ def test_java_attach_socket_missing(
     """
     Tests that we get the proper JattachMissingSocketException when the attach socket is deleted.
     """
-    if platform.machine() == "aarch64":
-        pytest.xfail("This test fails on aarch64 https://github.com/Granulate/gprofiler/issues/722")
     with make_java_profiler(
         profiler_state,
         duration=1,
