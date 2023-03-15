@@ -51,10 +51,10 @@ from tests.utils import assert_jvm_flags_equal, run_gprofiler_in_container_for_o
             {
                 "exe": "/usr/local/openjdk-8/bin/java",
                 "execfn": "/usr/local/openjdk-8/bin/java",
-                "java_version": 'openjdk version "1.8.0_275"\n'
-                "OpenJDK Runtime Environment (build 1.8.0_275-b01)\n"
-                "OpenJDK 64-Bit Server VM (build 25.275-b01, mixed mode)",
-                "libjvm_elfid": "buildid:0542486ff00153ca0bcf9f2daea9a36c428d6cde",
+                "java_version": 'openjdk version "1.8.0_322"\n'
+                "OpenJDK Runtime Environment (build 1.8.0_322-b06)\n"
+                "OpenJDK 64-Bit Server VM (build 25.322-b06, mixed mode)",
+                "libjvm_elfid": "buildid:622795512a2c037aec4d7ca6da05527dae86e460",
                 "jvm_flags": [
                     {
                         "name": "CICompilerCount",
