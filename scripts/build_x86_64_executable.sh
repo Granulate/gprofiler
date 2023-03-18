@@ -5,8 +5,8 @@
 #
 set -euo pipefail
 
-# pyspy & rbspy, using the same builder for both pyspy and rbspy since they share build dependencies - rust:1.58-alpine3.15
-RUST_BUILDER_VERSION=@sha256:b61698ea823c6f9bc726272d7783867d89e79ca87e9944998739ce619da7699a
+# pyspy & rbspy, using the same builder for both pyspy and rbspy since they share build dependencies - rust:1.59-alpine3.15
+RUST_BUILDER_VERSION=@sha256:65b63b7d003f7a492cc8e550a4830aaa1f4155b74387549a82985c8efb3d0e88
 # perf - ubuntu:16.04 (IIRC for older glibc, to support older kernels)
 UBUNTU_VERSION_1604=@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c
 # phpspy & pyperf - ubuntu:20.04
