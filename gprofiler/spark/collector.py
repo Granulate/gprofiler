@@ -348,11 +348,11 @@ class SparkCollector:
 
                     # Parse through the HTML to grab the application driver's link
                     app_url = self._get_standalone_app_url(app_id)
-                    logger.debug(f"app_url is: {app_url}")
+                    logger.debug("Retrieved standalone app URL", app_url=app_url)
 
                     if app_id and app_name and app_url:
                         running_apps[app_id] = (app_name, app_url)
-                        logger.debug(f"Application URL: {app_url}")
+                        logger.debug("Added app to running apps", app_id=app_id, app_name=app_name, app_url=app_url)
                 except KeyError:
                     logger.exception("Key error was found while iterating applications.")
                 except Exception:
