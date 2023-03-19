@@ -199,7 +199,7 @@ class PythonEbpfProfiler(ProfilerBase):
             assert process.stdout is not None and process.stderr is not None
             stdout = process.stdout.read()
             stderr = process.stderr.read()
-            logger.error(f"PyPerf failed to start. stdout {stdout!r} stderr {stderr!r}")
+            logger.error("PyPerf failed to start", stdout=stdout, stderr=stderr)
             raise
         else:
             self.process = process
@@ -218,7 +218,7 @@ class PythonEbpfProfiler(ProfilerBase):
             # also, makes sure its output pipe doesn't fill up.
             # using read1() which performs just a single read() call and doesn't read until EOF
             # (unlike Popen.communicate())
-            logger.debug(f"PyPerf output: {self.process.stderr.read1(self._STDERR_READ_SIZE)}")  # type: ignore
+            logger.debug("PyPerf dump output", stderr=self.process.stderr.read1(self._STDERR_READ_SIZE))  # type: ignore
             return output
         except TimeoutError:
             # error flow :(
