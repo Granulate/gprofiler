@@ -728,6 +728,19 @@ class SparkSampler(object):
                         return value_property.text
         return default
 
+    def _guess_standalone_master_webapp_address(self, process: psutil.Process) -> str:
+        """
+        Selects the master address for a standalone cluster.
+        Uses master_address if given.
+        """
+        if self._master_address:
+            return self._master_address
+        else:
+            master_process_args = process.cmdline()
+            master_ip = master_process_args[master_process_args.index("--host") + 1]
+            master_port = master_process_args[master_process_args.index("--webui-port") + 1]
+            return f"{str(master_ip)}:{str(master_port)}"
+
     def _guess_yarn_resource_manager_webapp_address(self, resource_manager_process: psutil.Process) -> str:
         config = self._get_yarn_config(resource_manager_process)
 
@@ -748,19 +761,6 @@ class SparkSampler(object):
         else:
             host_name = self._get_yarn_host_name(resource_manager_process)
             return host_name + ":8088"
-
-    def _guess_standalone_master_webapp_address(self, process: psutil.Process) -> str:
-        """
-        Selects the master address for a standalone cluster.
-        Uses master_address if given.
-        """
-        if self._master_address:
-            return self._master_address
-        else:
-            master_process_args = process.cmdline()
-            master_ip = master_process_args[master_process_args.index("--host") + 1]
-            master_port = master_process_args[master_process_args.index("--webui-port") + 1]
-            return f"{str(master_ip)}:{str(master_port)}"
 
     def _guess_mesos_master_webapp_address(self, process: psutil.Process) -> str:
         """
