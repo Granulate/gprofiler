@@ -34,7 +34,6 @@ YARN_RUNNING_APPLICATION_SPECIFIER = "RUNNING"
 
 SPARK_MASTER_STATE_PATH = "/json/"
 SPARK_MASTER_APP_PATH = "/app/"
-SPARK_STANDALONE_SERVICE_CHECK = "spark.standalone_master.can_connect"
 
 # COMMON urls
 YARN_APPS_PATH = "ws/v1/cluster/apps"
@@ -336,7 +335,7 @@ class SparkCollector:
         Return a dictionary of {app_id: (app_name, tracking_url)} for the running Spark applications
         """
         metrics_json = self._rest_request_to_json(
-            self._master_address, SPARK_MASTER_STATE_PATH, SPARK_STANDALONE_SERVICE_CHECK
+            self._master_address, SPARK_MASTER_STATE_PATH
         )
         running_apps = {}
 
@@ -369,7 +368,7 @@ class SparkCollector:
         fetch JSON data from HTTP interface.
         """
         app_page = self._rest_request(
-            self._master_address, SPARK_MASTER_APP_PATH, SPARK_STANDALONE_SERVICE_CHECK, appId=app_id
+            self._master_address, SPARK_MASTER_APP_PATH, appId=app_id
         )
         dom = BeautifulSoup(app_page.text, "html.parser")
 
