@@ -366,9 +366,9 @@ def format_as_short_iso8601(dt: datetime.datetime) -> str:
     """
     Format a datetime object as ISO 8601. If the timezone is UTC, indicate it with a Z suffix instead of +00:00.
     """
-    s = dt.isoformat(timespec='seconds')
-    if s.endswith('+00:00'):
-        s = s[:-6] + 'Z'
+    s = dt.isoformat(timespec="seconds")
+    if s.endswith("+00:00"):
+        s = s[:-6] + "Z"
     return s
 
 
