@@ -20,11 +20,9 @@ from gprofiler.spark.metrics import (
     SPARK_APPLICATION_GAUGE_METRICS,
     SPARK_EXECUTORS_METRICS,
     SPARK_RUNNING_APPS_COUNT_METRIC,
-    SPARK_STAGE_METRICS,
     SPARK_STREAMING_BATCHES_METRICS,
     SPARK_STREAMING_STATISTICS_METRICS,
     SPARK_STRUCTURED_STREAMING_METRICS,
-    SPARK_TASK_SUMMARY_METRICS,
     YARN_CLUSTER_METRICS,
     YARN_NODES_METRICS,
 )
@@ -67,7 +65,6 @@ class SparkCollector:
         self._cluster_metrics = cluster_metrics
         self._applications_metrics = applications_metrics
         self._streaming_metrics = streaming_metrics
-        self._task_summary_metrics = True
         self._last_iteration_app_job_metrics: Dict[str, Dict[str, Any]] = {}
 
     def collect(self) -> Iterable[Sample]:
@@ -118,7 +115,7 @@ class SparkCollector:
             logger.exception("Could not gather yarn nodes metrics")
 
     def _running_applications_count_metric(self, running_apps: Dict[str, Any]) -> Iterable[Sample]:
-        yield Sample(name=SPARK_RUNNING_APPS_COUNT_METRIC, value=len(running_apps), labels=[])
+        yield Sample(name=SPARK_RUNNING_APPS_COUNT_METRIC, value=len(running_apps), labels={})
 
     def _spark_application_metrics(self, running_apps: Dict[str, Tuple[str, str]]) -> Iterable[Sample]:
         """
@@ -305,25 +302,6 @@ class SparkCollector:
                             logger.debug("Unknown metric_name encountered: '%s'", str(metric_name))
             except Exception:
                 logger.exception("Could not gather structured streaming metrics for application")
-
-    @staticmethod
-    def _task_summary_samples_from_json(
-        labels: Dict[str, str], response_json: Dict[str, List[int]], metrics: Dict[str, str]
-    ) -> Iterable[Sample]:
-        quantile_index = 0
-        if response_json is None:
-            return
-        quantiles_list = response_json.get("quantiles")
-        if not quantiles_list:
-            return
-
-        for quantile in quantiles_list:
-            for status, metric in metrics.items():
-                metric_status = response_json.get(status)
-                if metric_status and metric_status[quantile_index] is not None:
-                    yield Sample({**labels, "quantile": str(quantile)}, metric, metric_status[quantile_index])
-
-            quantile_index += 1
 
     @staticmethod
     def _samples_from_json(
