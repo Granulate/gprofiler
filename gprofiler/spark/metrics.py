@@ -85,9 +85,6 @@ SPARK_STAGE_METRICS = {
         "diskBytesSpilled",
     )
 }
-SPARK_RDD_METRICS = {
-    metric: f"spark_rdd_{metric}" for metric in ("numPartitions", "numCachedPartitions", "memoryUsed", "diskUsed")
-}
 SPARK_TASK_SUMMARY_METRICS = {
     metric: f"spark_stage_tasks_summary_{metric}"
     for metric in (
@@ -158,7 +155,6 @@ SPARK_STREAMING_BATCHES_METRICS = {
     "avg25_batchDuration": "spark_app_streaming_batchDuration_avg25",
 }
 SPARK_EXECUTORS_METRICS = {"count": "spark_executors_count", "activeCount": "spark_executors_active_count"}
-
 SPARK_AGGREGATED_STAGE_METRICS = {
     "failed_tasks": "spark_aggregated_stage_failed_tasks",
     "active_tasks": "spark_aggregated_stage_active_tasks",
@@ -166,5 +162,4 @@ SPARK_AGGREGATED_STAGE_METRICS = {
     "failed_stages": "spark_aggregated_stage_failed_stages",
     "active_stages": "spark_aggregated_stage_active_stages",
 }
-
-SPARK_RUNNING_APPS_COUNT_METRIC = {"running_applications": "spark_num_applications_running"}
+SPARK_RUNNING_APPS_COUNT_METRIC = "spark_num_applications_running"

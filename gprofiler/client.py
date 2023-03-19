@@ -15,6 +15,7 @@ from gprofiler import __version__
 from gprofiler.exceptions import APIError
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_hostname
+from gprofiler.metrics import MetricsSnapshot
 from gprofiler.utils import get_iso8601_format_time, get_iso8601_format_time_from_epoch_time
 
 if TYPE_CHECKING:
@@ -229,14 +230,18 @@ class APIClient(BaseAPIClient):
             }
         )
 
-    def submit_spark_metrics(self, timestamp: int, metrics: List[Dict[str, Any]]) -> Dict:
+    def submit_spark_metrics(self, snapshot: MetricsSnapshot) -> Dict:
         return self._request_url(
             "POST",
             f"{self._server_address}/telemetry/gprofiler/spark/v1/update",
-            {
-                "format_version": 0,
-                "timestamp": timestamp,
-                "metrics": metrics,
-            },
+            bake_metrics_payload(snapshot),
             timeout=self._timeout,
         )
+
+
+def bake_metrics_payload(snapshot: MetricsSnapshot) -> Dict[str, Any]:
+    return {
+        "format_version": 0,
+        "timestamp": int(snapshot.timestamp.timestamp()),
+        "metrics": [sample.__dict__ for sample in snapshot.samples],
+    }
