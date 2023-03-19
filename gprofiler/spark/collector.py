@@ -368,8 +368,6 @@ class SparkCollector:
         Due to a bug, we need to parse the HTML manually because we cannot
         fetch JSON data from HTTP interface.
         """
-        # Checking if the app_id is correct
-        logger.debug(f"Getting app_id: {app_id}")
         app_page = self._rest_request(
             self._master_address, SPARK_MASTER_APP_PATH, SPARK_STANDALONE_SERVICE_CHECK, appId=app_id
         )
