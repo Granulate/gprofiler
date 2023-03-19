@@ -20,7 +20,7 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_hostname
 from gprofiler.metrics import MetricsSnapshot
 from gprofiler.spark.collector import SparkCollector
-from gprofiler.spark.mode import SPARK_STANDALONE_MODE, SPARK_MESOS_MODE, SPARK_YARN_MODE
+from gprofiler.spark.mode import SPARK_MESOS_MODE, SPARK_STANDALONE_MODE, SPARK_YARN_MODE
 from gprofiler.utils import get_iso8601_format_time
 from gprofiler.utils.fs import escape_filename
 from gprofiler.utils.process import search_for_process

@@ -15,11 +15,11 @@ from bs4 import BeautifulSoup
 from gprofiler.log import get_logger_adapter
 from gprofiler.metrics import Sample
 from gprofiler.spark.metrics import (
-    SPARK_APPLICATION_DIFF_METRICS,
     SPARK_AGGREGATED_STAGE_METRICS,
-    SPARK_RUNNING_APPS_COUNT_METRIC,
+    SPARK_APPLICATION_DIFF_METRICS,
     SPARK_APPLICATION_GAUGE_METRICS,
     SPARK_EXECUTORS_METRICS,
+    SPARK_RUNNING_APPS_COUNT_METRIC,
     SPARK_STAGE_METRICS,
     SPARK_STREAMING_BATCHES_METRICS,
     SPARK_STREAMING_STATISTICS_METRICS,
@@ -28,7 +28,7 @@ from gprofiler.spark.metrics import (
     YARN_CLUSTER_METRICS,
     YARN_NODES_METRICS,
 )
-from gprofiler.spark.mode import SPARK_STANDALONE_MODE, SPARK_MESOS_MODE, SPARK_YARN_MODE
+from gprofiler.spark.mode import SPARK_MESOS_MODE, SPARK_STANDALONE_MODE, SPARK_YARN_MODE
 
 # Application type and states to collect
 YARN_SPARK_APPLICATION_SPECIFIER = "SPARK"
@@ -178,9 +178,7 @@ class SparkCollector:
                 response = self._rest_request_to_json(base_url, SPARK_APPS_PATH, app_id, "stages")
                 logger.debug("Got response for stage metrics for app %s", app_id)
             except Exception as e:
-                logger.exception(
-                    "Exception occurred while trying to retrieve stage metrics", extra={"exception": e}
-                )
+                logger.exception("Exception occurred while trying to retrieve stage metrics", extra={"exception": e})
                 return
 
             aggregated_metrics = dict.fromkeys(SPARK_AGGREGATED_STAGE_METRICS.keys(), 0)
@@ -420,7 +418,6 @@ class SparkCollector:
 
         if metrics_json.get("apps"):
             if metrics_json["apps"].get("app") is not None:
-
                 for app_json in metrics_json["apps"]["app"]:
                     app_id = app_json.get("id")
                     tracking_url = app_json.get("trackingUrl")
