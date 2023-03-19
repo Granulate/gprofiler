@@ -169,7 +169,7 @@ class SparkCollector:
         """
         for app_id, (app_name, tracking_url) in running_apps.items():
             tags = {"app_name": str(app_name), "app_id": str(app_id)}
-            logger.debug("Gathering stage metrics for app %s", app_id)
+            logger.debug("Gathering stage metrics for app", app_id=app_id)
             try:
                 base_url = self._get_request_url(tracking_url)
                 response = self._rest_request_to_json(base_url, SPARK_APPS_PATH, app_id, "stages")
