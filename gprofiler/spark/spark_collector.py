@@ -109,7 +109,7 @@ class SparkCollector:
 
             if self._applications_metrics:
                 spark_apps = self._get_running_apps()
-                self._running_applications_length_metric(collected_metrics, spark_apps)
+                self._running_applications_count_metric(collected_metrics, spark_apps)
                 self._spark_application_metrics(collected_metrics, spark_apps)
                 self._spark_stage_metrics(collected_metrics, spark_apps)
                 self._spark_executor_metrics(collected_metrics, spark_apps)
@@ -154,7 +154,7 @@ class SparkCollector:
         except Exception:
             logger.exception("Could not gather yarn nodes metrics")
 
-    def _running_applications_length_metric(
+    def _running_applications_count_metric(
         self, collected_metrics: Dict[str, Dict[str, Any]], running_apps: Dict[str, Tuple[str, str]]
     ) -> None:
         self._set_individual_metric(
