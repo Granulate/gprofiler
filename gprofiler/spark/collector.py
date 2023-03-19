@@ -168,7 +168,7 @@ class SparkCollector:
         Get metrics for each Spark stage.
         """
         for app_id, (app_name, tracking_url) in running_apps.items():
-            tags = {"app_name": str(app_name), "app_id": str(app_id)}
+            labels = {"app_name": str(app_name), "app_id": str(app_id)}
             logger.debug("Gathering stage metrics for app", app_id=app_id)
             try:
                 base_url = self._get_request_url(tracking_url)
@@ -189,7 +189,7 @@ class SparkCollector:
                     aggregated_metrics["active_stages"] += 1
                 elif curr_stage_status == "FAILED":
                     aggregated_metrics["failed_stages"] += 1
-            yield from self._samples_from_json(tags, aggregated_metrics, SPARK_AGGREGATED_STAGE_METRICS)
+            yield from self._samples_from_json(labels, aggregated_metrics, SPARK_AGGREGATED_STAGE_METRICS)
 
     def _spark_executor_metrics(self, running_apps: Dict[str, Tuple[str, str]]) -> Iterable[Sample]:
         """
