@@ -61,6 +61,8 @@ def test_python_select_by_libpython(
         "3.9-musl-python",
         "3.10-glibc-python",
         "3.10-musl-python",
+        "3.11-glibc-python",
+        "3.11-musl-python",
         "2.7-glibc-uwsgi",
         "2.7-musl-uwsgi",
         "3.7-glibc-uwsgi",
@@ -82,6 +84,9 @@ def test_python_matrix(
 
     if python_version == "2.7" and profiler_type == "pyperf" and app == "uwsgi":
         pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/485")
+
+    if python_version == "3.11" and profiler_type == "pyperf":
+        pytest.xfail("PyPerf does not support 3.11 - https://github.com/Granulate/gprofiler/issues/727")
 
     with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None, False) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
