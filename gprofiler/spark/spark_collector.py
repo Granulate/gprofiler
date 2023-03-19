@@ -120,9 +120,7 @@ class SparkCollector:
 
                 # Get the rdd metrics
                 if not self._low_cardinality:
-                    """
-                    RDD metrics are not collected in low cardinality mode.
-                    """
+                    # RDD metrics are not collected in low cardinality mode.
                     self._spark_rdd_metrics(collected_metrics, spark_apps)
 
             for metric in collected_metrics.values():
