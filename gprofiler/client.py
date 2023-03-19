@@ -16,7 +16,7 @@ from gprofiler.exceptions import APIError
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_hostname
 from gprofiler.metrics import MetricsSnapshot
-from gprofiler.utils import get_iso8601_format_time, get_iso8601_format_time_from_epoch_time
+from gprofiler.utils import format_as_short_iso8601, get_iso8601_format_time, get_iso8601_format_time_from_epoch_time
 
 if TYPE_CHECKING:
     from gprofiler.system_metrics import Metrics
@@ -242,6 +242,6 @@ class APIClient(BaseAPIClient):
 def bake_metrics_payload(snapshot: MetricsSnapshot) -> Dict[str, Any]:
     return {
         "format_version": 0,
-        "timestamp": int(snapshot.timestamp.timestamp()),
+        "timestamp": format_as_short_iso8601(snapshot.timestamp),
         "metrics": [sample.__dict__ for sample in snapshot.samples],
     }
