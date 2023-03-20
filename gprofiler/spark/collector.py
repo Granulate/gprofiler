@@ -373,7 +373,6 @@ class SparkCollector:
         app_detail_ui_links = dom.find_all("a", string="Application Detail UI")
 
         if app_detail_ui_links and len(app_detail_ui_links) == 1:
-            logger.debug("There are running apps...")
             return app_detail_ui_links[0].attrs["href"]
 
     def _yarn_init(self) -> Dict[str, Tuple[str, str]]:
