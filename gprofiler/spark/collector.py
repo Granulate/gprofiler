@@ -339,25 +339,24 @@ class SparkCollector:
         metrics_json = self._rest_request_to_json(self._master_address, SPARK_MASTER_STATE_PATH)
         running_apps = {}
 
-        if metrics_json.get("activeapps") is not None:
-            for app in metrics_json["activeapps"]:
-                try:
-                    app_id = app["id"]
-                    app_name = app["name"]
+        for app in metrics_json.get("activeapps", []):
+            try:
+                app_id = app["id"]
+                app_name = app["name"]
 
-                    # Parse through the HTML to grab the application driver's link
-                    app_url = self._get_standalone_app_url(app_id)
-                    logger.debug("Retrieved standalone app URL", app_url=app_url)
+                # Parse through the HTML to grab the application driver's link
+                app_url = self._get_standalone_app_url(app_id)
+                logger.debug("Retrieved standalone app URL", app_url=app_url)
 
-                    if app_id and app_name and app_url:
-                        running_apps[app_id] = (app_name, app_url)
-                        logger.debug("Added app to running apps", app_id=app_id, app_name=app_name, app_url=app_url)
-                except KeyError:
-                    logger.exception("Key error was found while iterating applications.")
-                except Exception:
-                    # it's possible for the requests to fail if the job
-                    # completed since we got the list of apps.  Just continue
-                    pass
+                if app_id and app_name and app_url:
+                    running_apps[app_id] = (app_name, app_url)
+                    logger.debug("Added app to running apps", app_id=app_id, app_name=app_name, app_url=app_url)
+            except KeyError:
+                logger.exception("Key error was found while iterating applications.")
+            except Exception:
+                # it's possible for the requests to fail if the job
+                # completed since we got the list of apps.  Just continue
+                pass
 
         return running_apps
 
