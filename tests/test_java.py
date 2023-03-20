@@ -32,6 +32,7 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import (
     JAVA_SAFEMODE_ALL,
     AsyncProfiledProcess,
+    AsyncProfilerStartStatus,
     JavaFlagCollectionOptions,
     JavaProfiler,
     frequency_to_ap_interval,
@@ -121,7 +122,7 @@ def test_async_profiler_already_running(
             ap_safemode=0,
             ap_args="",
         ) as ap_proc:
-            assert ap_proc.start_async_profiler(frequency_to_ap_interval(11))
+            assert ap_proc.start_async_profiler(frequency_to_ap_interval(11)) == AsyncProfilerStartStatus.STARTED_BY_US
         assert any("libasyncProfiler.so" in m.path for m in process.memory_maps())
         # run "status"
         with AsyncProfiledProcessForTests(
@@ -249,7 +250,9 @@ def test_hotspot_error_file(
     start_async_profiler = AsyncProfiledProcess.start_async_profiler
 
     # Simulate crashing process
-    def start_async_profiler_and_crash(self: AsyncProfiledProcess, *args: Any, **kwargs: Any) -> bool:
+    def start_async_profiler_and_crash(
+        self: AsyncProfiledProcess, *args: Any, **kwargs: Any
+    ) -> AsyncProfilerStartStatus:
         result = start_async_profiler(self, *args, **kwargs)
         self.process.send_signal(signal.SIGBUS)
         return result
@@ -358,7 +361,10 @@ def test_async_profiler_stops_after_given_timeout(
         ap_safemode=0,
         ap_args="",
     ) as ap_proc:
-        assert ap_proc.start_async_profiler(frequency_to_ap_interval(11), ap_timeout=timeout_s)
+        assert (
+            ap_proc.start_async_profiler(frequency_to_ap_interval(11), ap_timeout=timeout_s)
+            == AsyncProfilerStartStatus.STARTED_BY_US
+        )
 
         ap_proc.status_async_profiler()
         assert "Profiling is running for " in cast_away_optional(ap_proc.read_output())
@@ -538,7 +544,9 @@ def test_java_appid_and_metadata_before_process_exits(
     start_async_profiler = AsyncProfiledProcess.start_async_profiler
 
     # Make the process exit before profiling ends
-    def start_async_profiler_and_interrupt(self: AsyncProfiledProcess, *args: Any, **kwargs: Any) -> bool:
+    def start_async_profiler_and_interrupt(
+        self: AsyncProfiledProcess, *args: Any, **kwargs: Any
+    ) -> AsyncProfilerStartStatus:
         result = start_async_profiler(self, *args, **kwargs)
         time.sleep(3)
         self.process.send_signal(signal.SIGINT)
