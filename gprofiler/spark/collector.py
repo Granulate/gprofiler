@@ -334,6 +334,8 @@ class SparkCollector:
         """
         Return a dictionary of {app_id: (app_name, tracking_url)} for the running Spark applications
         """
+        # Parsing the master address json object:
+        # https://github.com/apache/spark/blob/67a254c7ed8c5c3321e8bed06294bc2c9a2603de/core/src/main/scala/org/apache/spark/deploy/JsonProtocol.scala#L202
         metrics_json = self._rest_request_to_json(self._master_address, SPARK_MASTER_STATE_PATH)
         running_apps = {}
 
