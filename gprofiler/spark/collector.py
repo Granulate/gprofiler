@@ -202,7 +202,7 @@ class SparkCollector:
                 yield from self._samples_from_json(
                     labels,
                     {
-                        "count": len(executors) - 1,  # -1 for the driver
+                        "count": len(executors) - 1,  # Spark reports the driver as an executor, we discount it.
                         "activeCount": len([executor for executor in executors if executor["activeTasks"] > 0]),
                     },
                     SPARK_EXECUTORS_METRICS,
