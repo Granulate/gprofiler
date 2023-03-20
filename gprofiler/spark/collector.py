@@ -334,9 +334,7 @@ class SparkCollector:
         """
         Return a dictionary of {app_id: (app_name, tracking_url)} for the running Spark applications
         """
-        metrics_json = self._rest_request_to_json(
-            self._master_address, SPARK_MASTER_STATE_PATH
-        )
+        metrics_json = self._rest_request_to_json(self._master_address, SPARK_MASTER_STATE_PATH)
         running_apps = {}
 
         if metrics_json.get("activeapps") is not None:
@@ -366,10 +364,9 @@ class SparkCollector:
         Return the application URL from the app info page on the Spark master.
         Due to a bug, we need to parse the HTML manually because we cannot
         fetch JSON data from HTTP interface.
+        Hence, we decided to carry logic from Datadog's Spark integration.
         """
-        app_page = self._rest_request(
-            self._master_address, SPARK_MASTER_APP_PATH, appId=app_id
-        )
+        app_page = self._rest_request(self._master_address, SPARK_MASTER_APP_PATH, appId=app_id)
         dom = BeautifulSoup(app_page.text, "html.parser")
 
         app_detail_ui_links = dom.find_all("a", string="Application Detail UI")
