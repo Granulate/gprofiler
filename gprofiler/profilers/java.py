@@ -1126,11 +1126,20 @@ class JavaProfiler(SpawningProcessProfilerBase):
         jattach_timeout: int,
         mcache: int,
         collect_meminfo: bool,
+        include_method_modifiers: bool = False,
     ) -> AsyncProfiledProcess:
         ap_proc: Optional[AsyncProfiledProcess] = self._pid_to_ap_proc.get(process.pid, None)
         if ap_proc is None:
             ap_proc = AsyncProfiledProcess(
-                process, profiler_state, mode, ap_safemode, ap_args, jattach_timeout, mcache, collect_meminfo
+                process,
+                profiler_state,
+                mode,
+                ap_safemode,
+                ap_args,
+                jattach_timeout,
+                mcache,
+                collect_meminfo,
+                include_method_modifiers,
             )
             ap_proc.setup()
             self._pid_to_ap_proc[process.pid] = ap_proc
