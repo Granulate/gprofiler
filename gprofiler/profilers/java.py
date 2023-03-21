@@ -1406,7 +1406,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
     def _stop_profiling_for_pid(self, pid: int) -> None:
         ap_proc = self._pid_to_ap_proc.pop(pid, None)
         if ap_proc is not None:
-            ap_proc.stop_async_profiler(False)
+            if is_process_running(ap_proc.process):
+                ap_proc.stop_async_profiler(False)
             ap_proc.teardown()
 
     def snapshot(self) -> ProcessToProfileData:
