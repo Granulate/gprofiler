@@ -8,19 +8,18 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"  # https://stackoverflow.com/a/246128
 
 if [ -z ${NO_APT_INSTALL+x} ]; then
-   if [ "$(uname -m)" = "aarch64" ]; then
+  sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io php
+  if [ "$(uname -m)" = "aarch64" ]; then
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends  python3-dev  ruby3.0 build-essential
     curl -SL -o dotnet.tar.gz https://dotnetcli.blob.core.windows.net/dotnet/Sdk/master/dotnet-sdk-latest-linux-arm64.tar.gz
     sudo mkdir -p /usr/share/dotnet
     sudo tar -zxf dotnet.tar.gz -C /usr/share/dotnet
-    sudo ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
-    sudo DEBIAN_FRONTEND=noninteractive apt-get update
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io php ruby3.0
-    mkdir -vp ~/.docker/cli-plugins/
-    curl --silent -L "https://github.com/docker/buildx/releases/download/v0.10.2/buildx-v0.10.2.linux-arm64" > ~/.docker/cli-plugins/docker-buildx
-    chmod a+x ~/.docker/cli-plugins/docker-buildx
+    if ! [ -L "/usr/bin/dotnet" ] ; then
+      sudo ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
+    fi
   else
-    sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io php ruby2.7 dotnet-sdk-6.0
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends ruby2.7 dotnet-sdk-6.0
   fi
 fi
 

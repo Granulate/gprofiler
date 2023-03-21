@@ -4,7 +4,6 @@
 #
 import logging
 import os
-import platform
 import shutil
 import signal
 import subprocess
@@ -44,6 +43,7 @@ from tests.utils import (
     _application_docker_container,
     assert_function_in_collapsed,
     assert_jvm_flags_equal,
+    is_aarch64,
     is_function_in_collapsed,
     is_pattern_in_collapsed,
     log_record_extra,
@@ -152,7 +152,7 @@ def test_java_async_profiler_cpu_mode(
     """
     Run Java in a container and enable async-profiler in CPU mode, make sure we get kernel stacks.
     """
-    if platform.machine() == "aarch64":
+    if is_aarch64():
         pytest.xfail("This test is not working on aarch64 https://github.com/Granulate/gprofiler/issues/723")
     with make_java_profiler(
         profiler_state,
@@ -267,7 +267,7 @@ def test_hotspot_error_file(
     assert "Found Hotspot error log" in caplog.text
     assert "OpenJDK" in caplog.text
     assert "SIGBUS" in caplog.text
-    if platform.machine() != "aarch64":
+    if not is_aarch64():
         assert "libpthread.so" in caplog.text
         assert "memory_usage_in_bytes:" in caplog.text
     assert "Java profiling has been disabled, will avoid profiling any new java process" in caplog.text
@@ -383,7 +383,7 @@ def test_sanity_other_jvms(
     profiler_state: ProfilerState,
 ) -> None:
 
-    if platform.machine() == "aarch64":
+    if is_aarch64():
         pytest.xfail(
             "Different JVMs are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
         )
@@ -1071,7 +1071,7 @@ def test_collect_cmdline_and_env_jvm_flags(
     1. Tests collections jvm flags from env & commandline origins and reporting the correct origin
     2. Tests collecting only specific flags
     """
-    if platform.machine() == "aarch64":
+    if is_aarch64():
         pytest.xfail(
             "Different jvm flags are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
         )

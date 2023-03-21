@@ -13,7 +13,7 @@ from docker.models.images import Image
 
 from gprofiler.utils.collapsed_format import parse_one_collapsed
 from tests.conftest import AssertInCollapsed
-from tests.utils import assert_jvm_flags_equal, run_gprofiler_in_container_for_one_session
+from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_container_for_one_session
 
 
 @pytest.mark.parametrize(
@@ -201,6 +201,9 @@ def test_app_metadata(
         # don't check JVM flags in direct comparison, as they might change a bit across machines due to ergonomics
         actual_jvm_flags = metadata["application_metadata"][idx].pop("jvm_flags")
         expected_jvm_flags = expected_metadata.pop("jvm_flags")
+        if is_aarch64():
+            actual_jvm_flags.pop("libjvm_elfid")
+            expected_jvm_flags.pop("libjvm_elfid")
         assert_jvm_flags_equal(actual_jvm_flags=actual_jvm_flags, expected_jvm_flags=expected_jvm_flags)
 
     # values from the current test container
