@@ -101,10 +101,19 @@ class SparkSampler:
         if self._master_address:
             return self._master_address
         else:
-            master_process_args = process.cmdline()
-            master_ip = master_process_args[master_process_args.index("--host") + 1]
-            master_port = master_process_args[master_process_args.index("--webui-port") + 1]
+            master_ip = self._get_master_process_arg_value(process, "--host")
+            master_port = self._get_master_process_arg_value(process, "--webui-port")
             return f"{master_ip}:{master_port}"
+
+    @staticmethod
+    def _get_master_process_arg_value(process: psutil.Process, arg_name: str) -> Optional[str]:
+        process_args = process.cmdline()
+        if arg_name in process_args:
+            try:
+                return process_args[process_args.index(arg_name) + 1]
+            except IndexError as e:
+                logger.exception("Could not find value for argument", exception=e, arg_name=arg_name)
+        return None
 
     def _guess_yarn_resource_manager_webapp_address(self, resource_manager_process: psutil.Process) -> str:
         config = self._get_yarn_config(resource_manager_process)
