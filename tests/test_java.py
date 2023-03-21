@@ -472,12 +472,14 @@ def test_java_noexec_dirs(
     # should use this path instead of /tmp/gprofiler_tmp/...
 
     jattach_loads = filter_jattach_load_records(caplog.records)
-    # 2 entries - start and stop
-    assert len(jattach_loads) == 2
+    # 3 entries - start and dump and stop
+    assert len(jattach_loads) == 3
     # 3rd part of commandline to AP - shall begin with non-default directory
     assert all(
         log_record_extra(jl)["command"][3].startswith("/run/gprofiler_tmp/async-profiler-") for jl in jattach_loads
     )
+    # test the invoked async-profiler actions against the sequence start, dump, stop
+    assert [log_record_extra(jl)["command"][5].split(",", 1)[0] for jl in jattach_loads] == ["start", "dump", "stop"]
 
 
 @pytest.mark.parametrize("in_container", [True])
@@ -521,10 +523,12 @@ def test_java_symlinks_in_paths(
         assert_collapsed(snapshot_pid_collapsed(profiler, application_pid))
 
     jattach_loads = filter_jattach_load_records(caplog.records)
-    # 2 entries - start and stop
-    assert len(jattach_loads) == 2
+    # 3 entries - start and dump and stop
+    assert len(jattach_loads) == 3
     # 3rd part of commandline to AP - shall begin with the final, resolved path.
     assert all(log_record_extra(jl)["command"][3].startswith("/run/final_tmp/gprofiler_tmp/") for jl in jattach_loads)
+    # test the invoked async-profiler actions against the sequence start, dump, stop
+    assert [log_record_extra(jl)["command"][5].split(",", 1)[0] for jl in jattach_loads] == ["start", "dump", "stop"]
 
 
 @pytest.mark.parametrize("in_container", [True])  # only in container is enough
