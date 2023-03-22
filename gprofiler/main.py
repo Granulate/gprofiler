@@ -57,6 +57,7 @@ from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLo
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     atomically_symlink,
+    disable_core_files,
     get_iso8601_format_time,
     grab_gprofiler_mutex,
     is_root,
@@ -572,6 +573,14 @@ def parse_cmd_args() -> configargparse.Namespace:
         help="Whether to upload the profiling results to the server",
     )
 
+    parser.add_argument(
+        "--dont-disable-core-files",
+        action="store_false",
+        dest="disable_core_files",
+        help="Do not disable creation of coredumps for processes started by the profiler. By default, we disable,"
+        " to refrain from generating core files which consume disk space, in case any of the executed profilers crash.",
+    )
+
     subparsers = parser.add_subparsers(dest="subcommand")
     upload_file = subparsers.add_parser("upload-file")
     upload_file.add_argument(
@@ -900,6 +909,8 @@ def main() -> None:
 
     setup_signals()
     reset_umask()
+    if args.disable_core_files:
+        disable_core_files()
     # assume we run in the root cgroup (when containerized, that's our view)
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
 
