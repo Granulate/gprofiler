@@ -580,7 +580,8 @@ def test_java_attach_socket_missing(
     profiler_state: ProfilerState,
 ) -> None:
     """
-    Tests that we get the proper JattachMissingSocketException when the attach socket is deleted.
+    Tests that we get the proper JattachSocketMissingException when the attach socket is deleted.
+    This indicates that socket won't be recreated and we won't be able to utilize jattach.
     """
 
     with make_java_profiler(

@@ -503,6 +503,7 @@ class AsyncProfiledProcess:
         self._include_method_modifiers = ",includemm" if include_method_modifiers else ""
         self._started_by_us = False
         self._setup_state: Optional[bool] = None
+        self._jattach_socket_disabled = False
 
     def _find_rw_exec_dir(self, available_dirs: Sequence[str]) -> str:
         """
@@ -697,6 +698,8 @@ class AsyncProfiledProcess:
                 raise JattachTimeout(*args, timeout=self._jattach_timeout) from None
             elif e.stderr == b"Could not start attach mechanism: No such file or directory\n":
                 # this is true for jattach_hotspot
+                # in this case socket won't be recreated and jattach calls are useless
+                self._jattach_socket_disabled = True
                 raise JattachSocketMissingException(*args) from None
             else:
                 raise JattachException(*args) from None
@@ -773,6 +776,9 @@ class AsyncProfiledProcess:
 
     def is_started_by_us(self) -> bool:
         return self._started_by_us
+
+    def is_jattach_socket_disabled(self) -> bool:
+        return self._jattach_socket_disabled
 
 
 @register_profiler(
@@ -1407,7 +1413,10 @@ class JavaProfiler(SpawningProcessProfilerBase):
         ap_proc = self._pid_to_ap_proc.pop(pid, None)
         if ap_proc is not None:
             if is_process_running(ap_proc.process):
-                ap_proc.stop_async_profiler(False)
+                if not ap_proc.is_jattach_socket_disabled():
+                    ap_proc.stop_async_profiler(False)
+                else:
+                    logger.debug("Profiled PID lost jattach socket; async profiler won't be stopped immediately")
             ap_proc.teardown()
 
     def snapshot(self) -> ProcessToProfileData:
