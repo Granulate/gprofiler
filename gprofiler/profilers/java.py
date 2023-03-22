@@ -102,6 +102,11 @@ def frequency_to_ap_interval(frequency: int) -> int:
 
 @functools.lru_cache(maxsize=1024)
 def needs_musl_ap_cached(process: Process) -> bool:
+    """
+    AP needs musl build if the JVM itself is built against musl. If the JVM is built against glibc,
+    we need the glibc build of AP. For this reason we also check for glibc-compat, which is an indicator
+    for glibc-based JVM despite having musl loaded.
+    """
     maps = process.memory_maps()
     return is_musl(process, maps) and not any("glibc-compat" in m.path for m in maps)
 
