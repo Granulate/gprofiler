@@ -946,7 +946,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
     def _is_zing_vm_supported(self, jvm_version: JvmVersion) -> bool:
         # Zing >= 18 is assumed to support AsyncGetCallTrace per
         # https://github.com/jvm-profiling-tools/async-profiler/issues/153#issuecomment-452038960
-        assert jvm_version.zing_major is not None  # it's Zing so should be non-None.
+        assert jvm_version.zing_version is not None  # it's Zing so should be non-None.
         if jvm_version.zing_version.major < 18:
             return False
 
@@ -961,6 +961,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
                 return jvm_version.zing_version.micro >= 101
 
             # others are faulty with ZVM-17168.
+            return False
 
         # others are considered okay.
         return True
