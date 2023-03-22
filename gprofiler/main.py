@@ -57,7 +57,6 @@ from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLo
 from gprofiler.utils import (
     TEMPORARY_STORAGE_PATH,
     atomically_symlink,
-    disable_core_files,
     get_iso8601_format_time,
     grab_gprofiler_mutex,
     is_root,
@@ -67,6 +66,10 @@ from gprofiler.utils import (
 )
 from gprofiler.utils.fs import escape_filename
 from gprofiler.utils.proxy import get_https_proxy
+
+if is_linux():
+    from gprofiler.utils.linux import disable_core_files
+
 
 logger: logging.LoggerAdapter
 
@@ -886,6 +889,23 @@ def init_pid_file(pid_file: str) -> None:
     Path(pid_file).write_text(str(os.getpid()))
 
 
+def setup_env(should_disable_core_files: bool, pid_file: str) -> None:
+    """
+    Set up gProfiler's environment.
+    """
+    setup_signals()
+    reset_umask()
+
+    if is_linux():
+        if should_disable_core_files:
+            disable_core_files()
+
+        try:
+            init_pid_file(pid_file)
+        except Exception:
+            logger.exception(f"Failed to write pid to '{pid_file}', continuing anyway")
+
+
 def main() -> None:
     args = parse_cmd_args()
     if is_windows():
@@ -907,18 +927,10 @@ def main() -> None:
         remote_logs_handler,
     )
 
-    setup_signals()
-    reset_umask()
-    if args.disable_core_files:
-        disable_core_files()
+    setup_env(args.disable_core_files, args.pid_file)
+
     # assume we run in the root cgroup (when containerized, that's our view)
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
-
-    if is_linux():
-        try:
-            init_pid_file(args.pid_file)
-        except Exception:
-            logger.exception(f"Failed to write pid to '{args.pid_file}', continuing anyway")
 
     if args.databricks_job_name_as_service_name:
         # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag

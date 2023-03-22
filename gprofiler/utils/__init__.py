@@ -9,7 +9,6 @@ import logging
 import os
 import random
 import re
-import resource
 import shutil
 import signal
 import socket
@@ -452,13 +451,6 @@ def reset_umask() -> None:
     Resets our umask back to a sane value.
     """
     os.umask(0o022)
-
-
-def disable_core_files() -> None:
-    """
-    Prevents core files from being generated for processes executed by us.
-    """
-    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
 
 def limit_frequency(
