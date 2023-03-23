@@ -917,7 +917,9 @@ def main() -> None:
             args.service_name = f"databricks-{databricks_client.job_name}"
 
     try:
-        logger.info("Running gProfiler", commandline=" ".join(sys.argv[1:]), arguments=args.__dict__)
+        logger.info(
+            "Running gProfiler", version=__version__, commandline=" ".join(sys.argv[1:]), arguments=args.__dict__
+        )
 
         if args.controller_pid is not None:
             try:
