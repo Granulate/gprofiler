@@ -20,7 +20,7 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_hostname
 from gprofiler.metrics import MetricsSnapshot
 from gprofiler.spark.collector import SparkCollector
-from gprofiler.spark.mode import SPARK_DRIVER_MODE, SPARK_MESOS_MODE, SPARK_YARN_MODE
+from gprofiler.spark.mode import SPARK_MESOS_MODE, SPARK_STANDALONE_MODE, SPARK_YARN_MODE
 from gprofiler.utils import get_iso8601_format_time
 from gprofiler.utils.fs import escape_filename
 from gprofiler.utils.process import search_for_process
@@ -93,16 +93,27 @@ class SparkSampler:
                         return value_property.text
         return default
 
-    def _guess_driver_application_master_address(self, process: psutil.Process) -> str:
+    def _guess_standalone_master_webapp_address(self, process: psutil.Process) -> str:
         """
-        Selects the master address for a org.apache.spark.deploy.master.Master running on this node.
-        Uses master_address if given, or defaults to my hostname.
+        Selects the master address for a standalone cluster.
+        Uses master_address if given.
         """
-        if self._master_address is not None:
+        if self._master_address:
             return self._master_address
         else:
-            host_name = get_hostname()
-            return host_name + ":4040"
+            master_ip = self._get_master_process_arg_value(process, "--host")
+            master_port = self._get_master_process_arg_value(process, "--webui-port")
+            return f"{master_ip}:{master_port}"
+
+    @staticmethod
+    def _get_master_process_arg_value(process: psutil.Process, arg_name: str) -> Optional[str]:
+        process_args = process.cmdline()
+        if arg_name in process_args:
+            try:
+                return process_args[process_args.index(arg_name) + 1]
+            except IndexError:
+                logger.exception("Could not find value for argument", arg_name=arg_name)
+        return None
 
     def _guess_yarn_resource_manager_webapp_address(self, resource_manager_process: psutil.Process) -> str:
         config = self._get_yarn_config(resource_manager_process)
@@ -221,8 +232,8 @@ class SparkSampler:
             spark_cluster_mode = SPARK_YARN_MODE
             webapp_url = self._guess_yarn_resource_manager_webapp_address(spark_master_process)
         elif "org.apache.spark.deploy.master.Master" in spark_master_process.cmdline():
-            spark_cluster_mode = SPARK_DRIVER_MODE
-            webapp_url = self._guess_driver_application_master_address(spark_master_process)
+            spark_cluster_mode = SPARK_STANDALONE_MODE
+            webapp_url = self._guess_standalone_master_webapp_address(spark_master_process)
         elif "mesos-master" in process_exe(spark_master_process):
             spark_cluster_mode = SPARK_MESOS_MODE
             webapp_url = self._guess_mesos_master_webapp_address(spark_master_process)
