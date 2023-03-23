@@ -223,7 +223,7 @@ def test_java_safemode_build_number_check(
     application_docker_container: Container,
     application_process: Optional[Popen],
     profiler_state: ProfilerState,
-) -> None:  
+) -> None:
     with make_java_profiler(profiler_state) as profiler:
         process = profiler._select_processes_to_profile()[0]
         jvm_version = parse_jvm_version(get_java_version(process, profiler._profiler_state.stop_event))

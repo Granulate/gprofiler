@@ -352,7 +352,7 @@ def application_docker_image(
 ) -> Iterable[Image]:
     if is_aarch64():
         if runtime == "java":
-            if (application_image_tag == "j9" or application_image_tag == "zing"):
+            if application_image_tag == "j9" or application_image_tag == "zing":
                 pytest.xfail(
                     "Different JVMs are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
                 )

@@ -203,7 +203,7 @@ def test_app_metadata(
         expected_jvm_flags = expected_metadata.pop("jvm_flags")
         if is_aarch64():
             # libjvm_elfid differs on aarch64
-            expected_metadata["libjvm_elfid"] = 'buildid:33a1021cade63f16e30726be4111f20c34444764'
+            expected_metadata["libjvm_elfid"] = "buildid:33a1021cade63f16e30726be4111f20c34444764"
         assert_jvm_flags_equal(actual_jvm_flags=actual_jvm_flags, expected_jvm_flags=expected_jvm_flags)
 
     # values from the current test container
