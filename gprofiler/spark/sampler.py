@@ -112,7 +112,7 @@ class SparkSampler:
             try:
                 return process_args[process_args.index(arg_name) + 1]
             except IndexError as e:
-                logger.exception("Could not find value for argument", exception=e, arg_name=arg_name)
+                logger.exception("Could not find value for argument", arg_name=arg_name)
         return None
 
     def _guess_yarn_resource_manager_webapp_address(self, resource_manager_process: psutil.Process) -> str:
