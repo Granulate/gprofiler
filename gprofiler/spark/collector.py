@@ -11,6 +11,7 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
+from requests import HTTPError
 
 from gprofiler.log import get_logger_adapter
 from gprofiler.metrics import Sample
