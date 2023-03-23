@@ -111,7 +111,7 @@ class SparkSampler:
         if arg_name in process_args:
             try:
                 return process_args[process_args.index(arg_name) + 1]
-            except IndexError as e:
+            except IndexError:
                 logger.exception("Could not find value for argument", arg_name=arg_name)
         return None
 
