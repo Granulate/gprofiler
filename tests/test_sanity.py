@@ -155,7 +155,7 @@ def test_python_ebpf(
         pytest.skip("This test doesn't support aarch64 architecture!")
 
     _ = assert_app_id  # Required for mypy unused argument warning
-    with PythonEbpfProfiler(1000, 5, profiler_state, add_versions=True) as profiler:
+    with PythonEbpfProfiler(1000, 5, profiler_state, add_versions=True, verbose=False) as profiler:
         try:
             process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         except UnicodeDecodeError as e:
