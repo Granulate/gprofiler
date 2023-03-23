@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
+import platform
 import re
 import subprocess
 from contextlib import contextmanager
@@ -164,6 +165,10 @@ def is_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) 
 def is_pattern_in_collapsed(pattern: str, collapsed: StackToSampleCount) -> bool:
     regex = re.compile(pattern, re.IGNORECASE)
     return any(regex.search(record) is not None for record in collapsed.keys())
+
+
+def is_aarch64() -> bool:
+    return True if platform.machine() == "aarch64" else False
 
 
 def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) -> None:

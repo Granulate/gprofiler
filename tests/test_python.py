@@ -3,7 +3,6 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
-import platform
 
 import psutil
 import pytest
@@ -17,6 +16,7 @@ from tests.utils import (
     is_pattern_in_collapsed,
     snapshot_pid_collapsed,
     snapshot_pid_profile,
+    is_aarch64,
 )
 
 
@@ -89,7 +89,7 @@ def test_python_matrix(
     if python_version == "3.11" and profiler_type == "pyperf":
         pytest.xfail("PyPerf does not support 3.11 - https://github.com/Granulate/gprofiler/issues/727")
 
-    if platform.machine() == "aarch64":
+    if is_aarch64():
         # pyperf is not working on aarch right now https://github.com/Granulate/gprofiler/issues/499
         if profiler_type == "pyperf":
             pytest.skip("PyPerf doesn't support aarch64 architecture!")
@@ -97,7 +97,10 @@ def test_python_matrix(
         if python_version == "2.7" and profiler_type == "py-spy" and app == "uwsgi":
             pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/713")
 
-        if python_version in ["3.7", "3.8", "3.9", "3.10"] and profiler_type == "py-spy" and libc == "musl":
+        if python_version == "3.11" and profiler_type == "py-spy" and app == "glibc":
+            pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/740")
+
+        if python_version in ["3.7", "3.8", "3.9", "3.10", "3.11"] and profiler_type == "py-spy" and libc == "musl":
             pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/714")
 
     with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None, False) as profiler:
@@ -153,7 +156,7 @@ def test_dso_name_in_pyperf_profile(
     profiler_state: ProfilerState,
 ) -> None:
     # pyperf is not working on aarch right now https://github.com/Granulate/gprofiler/issues/499
-    if platform.machine() == "aarch64" and profiler_type == "pyperf":
+    if is_aarch64() and profiler_type == "pyperf":
         pytest.skip("PyPerf doesn't support aarch64 architecture!")
 
     with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None, False) as profiler:
