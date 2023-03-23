@@ -8,6 +8,7 @@ import os
 import re
 import secrets
 import signal
+from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
@@ -968,7 +969,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._include_method_modifiers = java_include_method_modifiers
         # keep ap_process instances to enable continuous profiling
         self._pid_to_ap_proc: Dict[int, Optional[AsyncProfiledProcess]] = {}
-        self._cumulative_stacks: StackToSampleCount = StackToSampleCount()
+        # keep stacks recorded for each pid to properly derive stacks for the profiling duration
+        self._pid_to_dumped_stacks: Dict[int, StackToSampleCount] = defaultdict(StackToSampleCount)
 
     def _init_ap_mode(self, profiling_mode: str, ap_mode: str) -> None:
         assert profiling_mode in ("cpu", "allocation"), "async-profiler support only cpu/allocation profiling modes"
@@ -1279,14 +1281,16 @@ class JavaProfiler(SpawningProcessProfilerBase):
                 raise Exception(
                     f"async-profiler is still running in {ap_proc.process.pid}, even after trying to stop it!"
                 )
-        self._cumulative_stacks.clear()
+        # discard saved dump stacks for process we're (re)starting here
+        self._pid_to_dumped_stacks.pop(ap_proc.process.pid, None)
         return AsyncProfilerStartStatus.STARTED_BY_US
 
-    def _get_adjusted_output_stacks(self, input_stacks: StackToSampleCount) -> StackToSampleCount:
+    def _get_adjusted_output_stacks(self, pid: int, input_stacks: StackToSampleCount) -> StackToSampleCount:
         adjusted_stacks = StackToSampleCount(input_stacks)
-        if len(self._cumulative_stacks) > 0:
-            adjusted_stacks -= self._cumulative_stacks
-        self._cumulative_stacks = input_stacks
+        dumped_stacks = self._pid_to_dumped_stacks[pid]
+        if len(dumped_stacks) > 0:
+            adjusted_stacks -= dumped_stacks
+        self._pid_to_dumped_stacks[pid] = input_stacks
         return adjusted_stacks
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str, duration: int) -> StackToSampleCount:
@@ -1319,8 +1323,9 @@ class JavaProfiler(SpawningProcessProfilerBase):
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
             # TODO: adjust output for cumulative frame count - async-profiler doesn't reset it
             # TODO: account for dump skew - time between last dump output and the next call to snapshot()
-            stacks = self._get_adjusted_output_stacks(parse_one_collapsed(output, comm))
-            return stacks
+            dumped_stacks = parse_one_collapsed(output, comm)
+            adjusted_stacks = self._get_adjusted_output_stacks(ap_proc.process.pid, dumped_stacks)
+            return adjusted_stacks
 
     def _check_hotspot_error(self, ap_proc: AsyncProfiledProcess) -> None:
         pid = ap_proc.process.pid
@@ -1451,6 +1456,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
 
     def _stop_profiling_for_pid(self, pid: int) -> None:
         ap_proc = self._pid_to_ap_proc.pop(pid, None)
+        self._pid_to_dumped_stacks.pop(pid, None)
         if ap_proc is not None:
             if is_process_running(ap_proc.process):
                 if not ap_proc.is_jattach_socket_disabled():
