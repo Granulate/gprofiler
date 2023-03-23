@@ -353,10 +353,15 @@ class SparkCollector:
                     logger.debug("Added app to running apps", app_id=app_id, app_name=app_name, app_url=app_url)
             except KeyError:
                 logger.exception("Key error was found while iterating applications.")
-            except Exception:
-                # it's possible for the requests to fail if the job
-                # completed since we got the list of apps.  Just continue
-                pass
+            except HTTPError as e:
+                if e.response.status_code == 404:
+                    # it's possible for the requests to fail if the job
+                    # completed since we got the list of apps.  Just continue
+                    pass
+                else:
+                    logger.exception("HTTP error was found while iterating applications.", exception=e)
+            except Exception as e:
+                logger.exception("Error was found while iterating applications.", exception=e)
 
         return running_apps
 
