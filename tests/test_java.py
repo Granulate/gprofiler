@@ -176,8 +176,6 @@ def test_java_async_profiler_musl_and_cpu(
     Run Java in an Alpine-based container and enable async-profiler in CPU mode, make sure that musl profiling
     works and that we get kernel stacks.
     """
-    if is_aarch64():
-        pytest.xfail("This test does not work on aarch64 https://github.com/Granulate/gprofiler/issues/743")
     with make_java_profiler(profiler_state, frequency=999) as profiler:
         assert is_musl(psutil.Process(application_pid))
 

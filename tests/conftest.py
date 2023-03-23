@@ -351,10 +351,13 @@ def application_docker_image(
     application_image_tag: str,
 ) -> Iterable[Image]:
     if is_aarch64():
-        if (application_image_tag == "j9" or application_image_tag == "zing") and runtime == "java":
-            pytest.xfail(
-                "Different JVMs are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
-            )
+        if runtime == "java":
+            if (application_image_tag == "j9" or application_image_tag == "zing"):
+                pytest.xfail(
+                    "Different JVMs are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
+                )
+            if application_image_tag == "musl":
+                pytest.xfail("This test does not work on aarch64 https://github.com/Granulate/gprofiler/issues/743")
     yield _build_image(docker_client, **application_docker_image_configs[image_name(runtime, application_image_tag)])
 
 
