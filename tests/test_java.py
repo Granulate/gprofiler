@@ -176,6 +176,8 @@ def test_java_async_profiler_musl_and_cpu(
     Run Java in an Alpine-based container and enable async-profiler in CPU mode, make sure that musl profiling
     works and that we get kernel stacks.
     """
+    if is_aarch64():
+        pytest.xfail("This test does not work on aarch64 https://github.com/Granulate/gprofiler/issues/743")
     with make_java_profiler(profiler_state, frequency=999) as profiler:
         assert is_musl(psutil.Process(application_pid))
 
@@ -223,7 +225,7 @@ def test_java_safemode_build_number_check(
     application_docker_container: Container,
     application_process: Optional[Popen],
     profiler_state: ProfilerState,
-) -> None:
+) -> None:  
     with make_java_profiler(profiler_state) as profiler:
         process = profiler._select_processes_to_profile()[0]
         jvm_version = parse_jvm_version(get_java_version(process, profiler._profiler_state.stop_event))
