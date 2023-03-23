@@ -358,9 +358,9 @@ class SparkCollector:
                     # completed since we got the list of apps.  Just continue
                     pass
                 else:
-                    logger.exception("HTTP error was found while iterating applications.", exception=e)
-            except Exception as e:
-                logger.exception("Error was found while iterating applications.", exception=e)
+                    logger.exception("HTTP error was found while iterating applications.")
+            except Exception:
+                logger.exception("Error was found while iterating applications.")
 
         return running_apps
 
