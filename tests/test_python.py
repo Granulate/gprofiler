@@ -13,10 +13,10 @@ from gprofiler.profilers.python import PythonProfiler
 from tests.conftest import AssertInCollapsed
 from tests.utils import (
     assert_function_in_collapsed,
+    is_aarch64,
     is_pattern_in_collapsed,
     snapshot_pid_collapsed,
     snapshot_pid_profile,
-    is_aarch64,
 )
 
 
