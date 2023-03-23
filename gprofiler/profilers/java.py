@@ -947,7 +947,9 @@ class JavaProfiler(SpawningProcessProfilerBase):
         # Zing >= 18 is assumed to support AsyncGetCallTrace per
         # https://github.com/jvm-profiling-tools/async-profiler/issues/153#issuecomment-452038960
         assert jvm_version.zing_version is not None  # it's Zing so should be non-None.
-        if jvm_version.zing_version.major < 18:
+
+        # until proven otherwise, we assume ZVM-17168 is affecting 18, 19.
+        if jvm_version.zing_version.major < 20:
             return False
 
         # try to filter versions exhibiting ZVM-17168, from Zing release notes https://docs.azul.com/prime/release-notes
