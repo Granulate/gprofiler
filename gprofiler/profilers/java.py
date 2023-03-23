@@ -632,6 +632,9 @@ class AsyncProfiledProcess:
             return f",alloc={interval}"
         return f",interval={interval}"
 
+    def _get_ap_recycle_args(self, ap_timeout: int) -> str:
+        return f",recycle,timeout={ap_timeout}"
+
     def _get_start_cmd(self, interval: int, ap_timeout: int) -> List[str]:
         return self._get_base_cmd() + [
             f"start,event={self._mode}"
@@ -650,18 +653,20 @@ class AsyncProfiledProcess:
             f"{self._get_extra_ap_args()}"
         ]
 
-    def _get_dump_cmd(self, ap_timeout: int) -> List[str]:
+    def _get_dump_cmd(self, ap_timeout: int = 0) -> List[str]:
         return self._get_base_cmd() + [
             f"dump"
             f",log={self._log_path_process}"
             f"{self._get_ap_output_args()}"
-            f",timeout={ap_timeout}"
+            f"{self._get_ap_recycle_args(ap_timeout)}"
             f"{',lib' if self._profiler_state.insert_dso_name else ''}{',meminfolog' if self._collect_meminfo else ''}"
             f"{self._get_extra_ap_args()}"
         ]
 
-    def _get_status_cmd(self) -> List[str]:
-        return self._get_base_cmd() + ["status" f"{self._get_ap_output_args()}"]
+    def _get_status_cmd(self, ap_timeout: int = 0) -> List[str]:
+        return self._get_base_cmd() + [
+            "status" f"{self._get_ap_output_args()}" f"{self._get_ap_recycle_args(ap_timeout)}"
+        ]
 
     def _read_ap_log(self) -> str:
         if not os.path.exists(self._log_path_host):
@@ -946,9 +951,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._jattach_jcmd_runner = JattachJcmdRunner(
             stop_event=self._profiler_state.stop_event, jattach_timeout=self._jattach_timeout
         )
-        # TODO: disable timeout until support for restart is added in async-profiler
-        # self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
-        self._ap_timeout = 0
+        self._ap_timeout = self._duration + self._AP_EXTRA_TIMEOUT_S
         application_identifiers.ApplicationIdentifiers.init_java(self._jattach_jcmd_runner)
         self._metadata = JavaMetadata(
             self._profiler_state.stop_event, self._jattach_jcmd_runner, self._collect_jvm_flags
