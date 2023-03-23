@@ -241,7 +241,7 @@ class APIClient(BaseAPIClient):
 
 def bake_metrics_payload(snapshot: MetricsSnapshot) -> Dict[str, Any]:
     return {
-        "format_version": 2,
+        "format_version": 1,
         "timestamp": get_iso8601_format_time(snapshot.timestamp),
         "metrics": [sample.__dict__ for sample in snapshot.samples],
     }
