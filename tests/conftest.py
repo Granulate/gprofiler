@@ -3,7 +3,6 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
-import platform
 import stat
 import subprocess
 from contextlib import _GeneratorContextManager, contextmanager
