@@ -1018,8 +1018,27 @@ class JavaProfiler(SpawningProcessProfilerBase):
     def _is_zing_vm_supported(self, jvm_version: JvmVersion) -> bool:
         # Zing >= 18 is assumed to support AsyncGetCallTrace per
         # https://github.com/jvm-profiling-tools/async-profiler/issues/153#issuecomment-452038960
-        assert jvm_version.zing_major is not None  # it's Zing so should be non-None.
-        return jvm_version.zing_major >= 18
+        assert jvm_version.zing_version is not None  # it's Zing so should be non-None.
+
+        # until proven otherwise, we assume ZVM-17168 is affecting 18, 19.
+        if jvm_version.zing_version.major < 20:
+            return False
+
+        # try to filter versions exhibiting ZVM-17168, from Zing release notes https://docs.azul.com/prime/release-notes
+        # it seems that the Zing 20 product line has it, so we filter it out here.
+        if jvm_version.zing_version.major == 20:
+            if jvm_version.zing_version.minor >= 10:
+                # Fixed at 20.10.0.0 - https://docs.azul.com/prime/release-notes#prime_stream_20_10_0_0
+                return True
+            if jvm_version.zing_version.minor == 8:
+                # Fixed at 20.08.101.0 - https://docs.azul.com/prime/release-notes#prime_stable_20_08_101_0
+                return jvm_version.zing_version.micro >= 101
+
+            # others are faulty with ZVM-17168.
+            return False
+
+        # others are considered okay.
+        return True
 
     def _check_jvm_supported_extended(self, jvm_version: JvmVersion) -> bool:
         if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
