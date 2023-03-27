@@ -29,12 +29,12 @@ from tests.conftest import AssertInCollapsed
 from tests.utils import (
     RUNTIME_PROFILERS,
     assert_function_in_collapsed,
+    is_aarch64,
     make_java_profiler,
     run_gprofiler_in_container_for_one_session,
     snapshot_pid_collapsed,
     start_gprofiler_in_container_for_one_session,
     wait_for_gprofiler_container,
-    is_aarch64,
 )
 
 
