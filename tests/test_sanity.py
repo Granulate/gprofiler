@@ -3,7 +3,6 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
-import platform
 import re
 import time
 from contextlib import _GeneratorContextManager
@@ -35,6 +34,7 @@ from tests.utils import (
     snapshot_pid_collapsed,
     start_gprofiler_in_container_for_one_session,
     wait_for_gprofiler_container,
+    is_aarch64,
 )
 
 
@@ -151,7 +151,7 @@ def test_python_ebpf(
     no_kernel_headers: Any,
     profiler_state: ProfilerState,
 ) -> None:
-    if platform.machine() == "aarch64":
+    if is_aarch64():
         pytest.skip("This test doesn't support aarch64 architecture!")
 
     _ = assert_app_id  # Required for mypy unused argument warning
