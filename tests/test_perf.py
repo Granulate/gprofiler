@@ -58,7 +58,9 @@ def test_perf_fp_dwarf_smart(
     with system_profiler as profiler:
         process_profile = snapshot_pid_profile(profiler, application_pid)
         process_collapsed = process_profile.stacks
-
+        with open("perf.txt","a") as f:
+            f.write(str(process_collapsed))
+            f.write("")
         if runtime == "native_dwarf":
             # app is built with DWARF info and without FP, so we expect to see a callstack only in DWARF or smart modes.
             assert is_function_in_collapsed(";recursive;recursive;recursive;recursive;", process_collapsed) ^ bool(
