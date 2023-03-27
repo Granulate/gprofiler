@@ -101,8 +101,14 @@ def frequency_to_ap_interval(frequency: int) -> int:
 
 
 @functools.lru_cache(maxsize=1024)
-def is_musl_cached(process: Process) -> bool:
-    return is_musl(process)
+def needs_musl_ap_cached(process: Process) -> bool:
+    """
+    AP needs musl build if the JVM itself is built against musl. If the JVM is built against glibc,
+    we need the glibc build of AP. For this reason we also check for glibc-compat, which is an indicator
+    for glibc-based JVM despite having musl loaded.
+    """
+    maps = process.memory_maps()
+    return is_musl(process, maps) and not any("glibc-compat" in m.path for m in maps)
 
 
 JAVA_SAFEMODE_ALL = "all"  # magic value for *all* options from JavaSafemodeOptions
@@ -461,7 +467,7 @@ class AsyncProfiledProcess:
         self._ap_dir_host = os.path.join(
             self._find_rw_exec_dir(POSSIBLE_AP_DIRS),
             f"async-profiler-{get_ap_version()}",
-            "musl" if self._is_musl() else "glibc",
+            "musl" if self._needs_musl_ap() else "glibc",
         )
 
         self._libap_path_host = os.path.join(self._ap_dir_host, "libasyncProfiler.so")
@@ -541,9 +547,11 @@ class AsyncProfiledProcess:
                 return realpath
         return None
 
-    def _is_musl(self) -> bool:
-        # Is target process musl-based?
-        return is_musl_cached(self.process)
+    def _needs_musl_ap(self) -> bool:
+        """
+        Should we use the musl build of AP for this process?
+        """
+        return needs_musl_ap_cached(self.process)
 
     def _copy_libap(self) -> None:
         # copy *is* racy with respect to other processes running in the same namespace, because they all use
@@ -557,7 +565,7 @@ class AsyncProfiledProcess:
             if not os.path.exists(self._libap_path_host):
                 # atomically copy it
                 libap_resource = resource_path(
-                    os.path.join("java", "musl" if self._is_musl() else "glibc", "libasyncProfiler.so")
+                    os.path.join("java", "musl" if self._needs_musl_ap() else "glibc", "libasyncProfiler.so")
                 )
                 os.chmod(
                     libap_resource, 0o755
@@ -946,8 +954,27 @@ class JavaProfiler(SpawningProcessProfilerBase):
     def _is_zing_vm_supported(self, jvm_version: JvmVersion) -> bool:
         # Zing >= 18 is assumed to support AsyncGetCallTrace per
         # https://github.com/jvm-profiling-tools/async-profiler/issues/153#issuecomment-452038960
-        assert jvm_version.zing_major is not None  # it's Zing so should be non-None.
-        return jvm_version.zing_major >= 18
+        assert jvm_version.zing_version is not None  # it's Zing so should be non-None.
+
+        # until proven otherwise, we assume ZVM-17168 is affecting 18, 19.
+        if jvm_version.zing_version.major < 20:
+            return False
+
+        # try to filter versions exhibiting ZVM-17168, from Zing release notes https://docs.azul.com/prime/release-notes
+        # it seems that the Zing 20 product line has it, so we filter it out here.
+        if jvm_version.zing_version.major == 20:
+            if jvm_version.zing_version.minor >= 10:
+                # Fixed at 20.10.0.0 - https://docs.azul.com/prime/release-notes#prime_stream_20_10_0_0
+                return True
+            if jvm_version.zing_version.minor == 8:
+                # Fixed at 20.08.101.0 - https://docs.azul.com/prime/release-notes#prime_stable_20_08_101_0
+                return jvm_version.zing_version.micro >= 101
+
+            # others are faulty with ZVM-17168.
+            return False
+
+        # others are considered okay.
+        return True
 
     def _check_jvm_supported_extended(self, jvm_version: JvmVersion) -> bool:
         if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
