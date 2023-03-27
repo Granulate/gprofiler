@@ -10,27 +10,31 @@ from typing import Any, Dict, Iterable, List, Tuple, Union
 from urllib.parse import urljoin, urlparse
 
 import requests
+from bs4 import BeautifulSoup
+from requests import HTTPError
 
 from gprofiler.log import get_logger_adapter
 from gprofiler.metrics import Sample
 from gprofiler.spark.metrics import (
+    SPARK_AGGREGATED_STAGE_METRICS,
     SPARK_APPLICATION_DIFF_METRICS,
     SPARK_APPLICATION_GAUGE_METRICS,
     SPARK_EXECUTORS_METRICS,
-    SPARK_RDD_METRICS,
-    SPARK_STAGE_METRICS,
+    SPARK_RUNNING_APPS_COUNT_METRIC,
     SPARK_STREAMING_BATCHES_METRICS,
     SPARK_STREAMING_STATISTICS_METRICS,
     SPARK_STRUCTURED_STREAMING_METRICS,
-    SPARK_TASK_SUMMARY_METRICS,
     YARN_CLUSTER_METRICS,
     YARN_NODES_METRICS,
 )
-from gprofiler.spark.mode import SPARK_DRIVER_MODE, SPARK_MESOS_MODE, SPARK_YARN_MODE
+from gprofiler.spark.mode import SPARK_MESOS_MODE, SPARK_STANDALONE_MODE, SPARK_YARN_MODE
 
 # Application type and states to collect
 YARN_SPARK_APPLICATION_SPECIFIER = "SPARK"
 YARN_RUNNING_APPLICATION_SPECIFIER = "RUNNING"
+
+SPARK_MASTER_STATE_PATH = "/json"
+SPARK_MASTER_APP_PATH = "/app/"
 
 # COMMON urls
 YARN_APPS_PATH = "ws/v1/cluster/apps"
@@ -61,7 +65,6 @@ class SparkCollector:
         self._cluster_metrics = cluster_metrics
         self._applications_metrics = applications_metrics
         self._streaming_metrics = streaming_metrics
-        self._task_summary_metrics = True
         self._last_iteration_app_job_metrics: Dict[str, Dict[str, Any]] = {}
 
     def collect(self) -> Iterable[Sample]:
@@ -70,21 +73,20 @@ class SparkCollector:
                 if self._cluster_mode == SPARK_YARN_MODE:
                     yield from self._yarn_cluster_metrics()
                     yield from self._yarn_nodes_metrics()
-                elif self._cluster_mode == SPARK_DRIVER_MODE:
-                    pass
+                elif self._cluster_mode == SPARK_STANDALONE_MODE:
+                    # Standalone mode will always need to collect the application metrics.
+                    self._applications_metrics = True
 
             if self._applications_metrics:
                 spark_apps = self._get_running_apps()
                 yield from self._spark_application_metrics(spark_apps)
                 yield from self._spark_stage_metrics(spark_apps)
                 yield from self._spark_executor_metrics(spark_apps)
+                yield from self._running_applications_count_metric(spark_apps)
                 if self._streaming_metrics:
                     yield from self._spark_batches_streams_metrics(spark_apps)
                     yield from self._spark_streaming_statistics_metrics(spark_apps)
                     yield from self._spark_structured_streams_metrics(spark_apps)
-
-                # Get the rdd metrics
-                yield from self._spark_rdd_metrics(spark_apps)
 
             logger.debug("Succeeded gathering spark metrics")
         except Exception:
@@ -111,6 +113,9 @@ class SparkCollector:
                 yield from self._samples_from_json(labels, node, YARN_NODES_METRICS)
         except Exception:
             logger.exception("Could not gather yarn nodes metrics")
+
+    def _running_applications_count_metric(self, running_apps: Dict[str, Any]) -> Iterable[Sample]:
+        yield Sample(name=SPARK_RUNNING_APPS_COUNT_METRIC, value=len(running_apps), labels={})
 
     def _spark_application_metrics(self, running_apps: Dict[str, Tuple[str, str]]) -> Iterable[Sample]:
         """
@@ -163,47 +168,28 @@ class SparkCollector:
         Get metrics for each Spark stage.
         """
         for app_id, (app_name, tracking_url) in running_apps.items():
+            labels = {"app_name": str(app_name), "app_id": str(app_id)}
+            logger.debug("Gathering stage metrics for app", app_id=app_id)
             try:
                 base_url = self._get_request_url(tracking_url)
                 response = self._rest_request_to_json(base_url, SPARK_APPS_PATH, app_id, "stages")
+                logger.debug("Got response for stage metrics for app %s", app_id)
+            except Exception as e:
+                logger.exception("Exception occurred while trying to retrieve stage metrics", extra={"exception": e})
+                return
 
-                for stage in response:
-                    status = stage.get("status")
-                    stage_id = stage.get("stageId")
-                    labels = {
-                        "app_name": app_name,
-                        "app_id": app_id,
-                        "status": status.lower(),
-                        "stage_id": stage_id,
-                    }
-
-                    yield from self._samples_from_json(labels, stage, SPARK_STAGE_METRICS)
-
-                    if self._task_summary_metrics and status == "ACTIVE":
-                        stage_response = self._rest_request_to_json(
-                            base_url, SPARK_APPS_PATH, app_id, "stages", str(stage_id), details="false", status="ACTIVE"
-                        )
-
-                        for attempt in stage_response:
-                            try:
-                                tasks_summary_response = self._rest_request_to_json(
-                                    base_url,
-                                    SPARK_APPS_PATH,
-                                    app_id,
-                                    "stages",
-                                    str(stage_id),
-                                    str(attempt.get("attemptId")),
-                                    "taskSummary",
-                                    quantiles="0.5,0.75,0.99",
-                                )
-
-                                yield from self._task_summary_samples_from_json(
-                                    labels, tasks_summary_response, SPARK_TASK_SUMMARY_METRICS
-                                )
-                            except Exception:
-                                logger.exception("Could not gather spark tasks summary for stage. Skipped.")
-            except Exception:
-                logger.exception("Could not gather spark stages metrics")
+            aggregated_metrics = dict.fromkeys(SPARK_AGGREGATED_STAGE_METRICS.keys(), 0)
+            for stage in response:
+                curr_stage_status = stage["status"]
+                aggregated_metrics["failed_tasks"] += stage["numFailedTasks"]
+                if curr_stage_status == "PENDING":
+                    aggregated_metrics["pending_stages"] += 1
+                elif curr_stage_status == "ACTIVE":
+                    aggregated_metrics["active_tasks"] += stage["numActiveTasks"]
+                    aggregated_metrics["active_stages"] += 1
+                elif curr_stage_status == "FAILED":
+                    aggregated_metrics["failed_stages"] += 1
+            yield from self._samples_from_json(labels, aggregated_metrics, SPARK_AGGREGATED_STAGE_METRICS)
 
     def _spark_executor_metrics(self, running_apps: Dict[str, Tuple[str, str]]) -> Iterable[Sample]:
         """
@@ -217,28 +203,13 @@ class SparkCollector:
                 yield from self._samples_from_json(
                     labels,
                     {
-                        "count": len(executors),
+                        "count": len(executors) - 1,  # Spark reports the driver as an executor, we discount it.
                         "activeCount": len([executor for executor in executors if executor["activeTasks"] > 0]),
                     },
                     SPARK_EXECUTORS_METRICS,
                 )
             except Exception:
                 logger.exception("Could not gather spark executors metrics")
-
-    def _spark_rdd_metrics(self, running_apps: Dict[str, Tuple[str, str]]) -> Iterable[Sample]:
-        """
-        Get metrics for each Spark RDD.
-        """
-
-        for app_id, (app_name, tracking_url) in running_apps.items():
-            try:
-                base_url = self._get_request_url(tracking_url)
-                response = self._rest_request_to_json(base_url, SPARK_APPS_PATH, app_id, "storage/rdd")
-                labels = {"app_name": app_name, "app_id": app_id}
-                for rdd in response:
-                    yield from self._samples_from_json(labels, rdd, SPARK_RDD_METRICS)
-            except Exception:
-                logger.exception("Could not gather Spark RDD metrics")
 
     def _spark_streaming_statistics_metrics(self, running_apps: Dict[str, Tuple[str, str]]) -> Iterable[Sample]:
         """
@@ -333,25 +304,6 @@ class SparkCollector:
                 logger.exception("Could not gather structured streaming metrics for application")
 
     @staticmethod
-    def _task_summary_samples_from_json(
-        labels: Dict[str, str], response_json: Dict[str, List[int]], metrics: Dict[str, str]
-    ) -> Iterable[Sample]:
-        quantile_index = 0
-        if response_json is None:
-            return
-        quantiles_list = response_json.get("quantiles")
-        if not quantiles_list:
-            return
-
-        for quantile in quantiles_list:
-            for status, metric in metrics.items():
-                metric_status = response_json.get(status)
-                if metric_status and metric_status[quantile_index] is not None:
-                    yield Sample({**labels, "quantile": str(quantile)}, metric, metric_status[quantile_index])
-
-            quantile_index += 1
-
-    @staticmethod
     def _samples_from_json(
         labels: Dict[str, str], response_json: Dict[Any, Any], metrics: Dict[str, str]
     ) -> Iterable[Sample]:
@@ -372,32 +324,60 @@ class SparkCollector:
         if self._cluster_mode == SPARK_YARN_MODE:
             running_apps = self._yarn_init()
             return self._get_spark_app_ids(running_apps)
-        elif self._cluster_mode == SPARK_DRIVER_MODE:
-            return self._driver_init()
+        elif self._cluster_mode == SPARK_STANDALONE_MODE:
+            return self._standalone_init()
         elif self._cluster_mode == SPARK_MESOS_MODE:
             return self._mesos_init()
         else:
             raise ValueError(f"Invalid cluster mode {self._cluster_mode!r}")
 
-    def _driver_init(self) -> Dict[str, Tuple[str, str]]:
+    def _standalone_init(self) -> Dict[str, Tuple[str, str]]:
         """
         Return a dictionary of {app_id: (app_name, tracking_url)} for the running Spark applications
         """
-        return self._driver_get_apps(status=YARN_RUNNING_APPLICATION_SPECIFIER)
+        # Parsing the master address json object:
+        # https://github.com/apache/spark/blob/67a254c7ed8c5c3321e8bed06294bc2c9a2603de/core/src/main/scala/org/apache/spark/deploy/JsonProtocol.scala#L202
+        metrics_json = self._rest_request_to_json(self._master_address, SPARK_MASTER_STATE_PATH)
+        running_apps = {}
 
-    def _driver_get_apps(self, *args: Any, **kwargs: Any) -> Dict[str, Tuple[str, str]]:
+        for app in metrics_json.get("activeapps", []):
+            try:
+                app_id = app["id"]
+                app_name = app["name"]
+
+                # Parse through the HTML to grab the application driver's link
+                app_url = self._get_standalone_app_url(app_id)
+                logger.debug("Retrieved standalone app URL", app_url=app_url)
+
+                if app_id and app_name and app_url:
+                    running_apps[app_id] = (app_name, app_url)
+                    logger.debug("Added app to running apps", app_id=app_id, app_name=app_name, app_url=app_url)
+            except HTTPError as e:
+                if e.response.status_code == 404:
+                    # it's possible for the requests to fail if the job
+                    # completed since we got the list of apps.  Just continue
+                    pass
+                else:
+                    logger.exception("HTTP error was found while iterating applications.")
+            except Exception:
+                logger.exception("Error was found while iterating applications.")
+
+        return running_apps
+
+    def _get_standalone_app_url(self, app_id: str) -> Any:
         """
-        Return a dictionary of {app_id: (app_name, tracking_url)} for the Spark applications
+        Return the application URL from the app info page on the Spark master.
+        Due to a bug, we need to parse the HTML manually because we cannot
+        fetch JSON data from HTTP interface.
+        Hence, we decided to carry logic from Datadog's Spark integration.
         """
-        app_list = {}
-        metrics_json = self._rest_request_to_json(self._master_address, SPARK_APPS_PATH, *args, **kwargs)
+        app_page = self._rest_request(self._master_address, SPARK_MASTER_APP_PATH, appId=app_id)
+        dom = BeautifulSoup(app_page.text, "html.parser")
 
-        for app_json in metrics_json:
-            app_id = str(app_json.get("id"))
-            app_name = str(app_json.get("name"))
-            app_list[app_id] = (app_name, self._master_address)
+        app_detail_ui_links = dom.find_all("a", string="Application Detail UI")
 
-        return app_list
+        if app_detail_ui_links and len(app_detail_ui_links) == 1:
+            return app_detail_ui_links[0].attrs["href"]
 
     def _yarn_init(self) -> Dict[str, Tuple[str, str]]:
         """
@@ -414,7 +394,6 @@ class SparkCollector:
 
         if metrics_json.get("apps"):
             if metrics_json["apps"].get("app") is not None:
-
                 for app_json in metrics_json["apps"]["app"]:
                     app_id = app_json.get("id")
                     tracking_url = app_json.get("trackingUrl")
