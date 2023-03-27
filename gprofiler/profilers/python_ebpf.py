@@ -8,7 +8,7 @@ import resource
 import signal
 from pathlib import Path
 from subprocess import Popen
-from typing import Dict, List, NoReturn, Optional
+from typing import Dict, List, Optional, Tuple
 
 from granulate_utils.linux.ns import is_running_in_init_pid
 from psutil import NoSuchProcess, Process
@@ -23,6 +23,7 @@ from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.utils import (
     poll_process,
     random_prefix,
+    reap_process,
     resource_path,
     run_process,
     start_process,
@@ -74,19 +75,14 @@ class PythonEbpfProfiler(ProfilerBase):
         self._verbose = verbose
 
     @classmethod
-    def _pyperf_error(cls, process: Popen) -> NoReturn:
-        # opened in pipe mode, so these aren't None.
-        assert process.stdout is not None
-        assert process.stderr is not None
-
-        stdout = process.stdout.read().decode()
-        stderr = process.stderr.read().decode()
-        raise PythonEbpfError(process.returncode, process.args, stdout, stderr)
-
-    @classmethod
     def _check_output(cls, process: Popen, output_path: Path) -> None:
         if not glob.glob(f"{str(output_path)}.*"):
-            cls._pyperf_error(process)
+            # opened in pipe mode, so these aren't None.
+            assert process.stdout is not None
+            assert process.stderr is not None
+            stdout = process.stdout.read().decode()
+            stderr = process.stderr.read().decode()
+            raise PythonEbpfError(process.returncode, process.args, stdout, stderr)
 
     @staticmethod
     def _ebpf_environment() -> None:
@@ -224,8 +220,9 @@ class PythonEbpfProfiler(ProfilerBase):
             # error flow :(
             logger.warning("PyPerf dead/not responding, killing it")
             process = self.process  # save it
-            self._terminate()
-            self._pyperf_error(process)
+            exit_status, stderr, stdout = self._terminate()
+            assert exit_status is not None, "PyPerf didn't exit after _terminate()!"
+            raise PythonEbpfError(exit_status, process.args, stdout, stderr)
 
     def snapshot(self) -> ProcessToProfileData:
         if self._profiler_state.stop_event.wait(self._duration):
@@ -254,21 +251,23 @@ class PythonEbpfProfiler(ProfilerBase):
             profiles[pid] = ProfileData(parsed[pid], appid, app_metadata, container_name)
         return profiles
 
-    def _terminate(self) -> Optional[int]:
-        code = None
+    def _terminate(self) -> Tuple[Optional[int], str, str]:
         if self.is_running():
             assert self.process is not None  # for mypy
             self.process.terminate()  # okay to call even if process is already dead
-            code = self.process.wait()
+            exit_status, stdout, stderr = reap_process(self.process)
             self.process = None
+            return exit_status, stdout, stderr
 
         assert self.process is None  # means we're not running
-        return code
+        return None, "", ""
 
     def stop(self) -> None:
-        code = self._terminate()
-        if code is not None:
-            logger.info("Finished profiling Python processes with PyPerf")
+        exit_status, stdout, stderr = self._terminate()
+        if exit_status is not None:
+            logger.info(
+                "Finished profiling Python processes with PyPerf", exit_status=exit_status, stdout=stdout, stderr=stderr
+            )
 
     def is_running(self) -> bool:
         return self.process is not None
