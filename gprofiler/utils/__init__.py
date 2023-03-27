@@ -205,14 +205,25 @@ def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> P
     return Path(output_files[0])
 
 
-def _reap_process(process: Popen, kill_signal: signal.Signals) -> Tuple[int, str, str]:
-    # kill the process and read its output so far
-    process.send_signal(kill_signal)
+def reap_process(process: Popen) -> Tuple[int, str, str]:
+    """
+    Safely reap a proecss. This function expects the process to be exited or exiting.
+    It uses communicate() instead of wait() to avoid the possible deadlock in wait()
+    (see https://docs.python.org/3/library/subprocess.html#subprocess.Popen.wait, and see
+    ticket https://github.com/Granulate/gprofiler/issues/744).
+    """
     stdout, stderr = process.communicate()
-    logger.debug(f"({process.args!r}) was killed by us with signal {kill_signal} due to timeout or stop request")
     returncode = process.poll()
     assert returncode is not None  # only None if child has not terminated
     return returncode, stdout, stderr
+
+
+def _kill_and_reap_proecss(process: Popen, kill_signal: signal.Signals) -> Tuple[int, str, str]:
+    process.send_signal(kill_signal)
+    logger.debug(
+        f"({process.args!r}) was killed by us with signal {kill_signal} due to timeout or stop request, reaping it"
+    )
+    return reap_process(process)
 
 
 def run_process(
@@ -252,11 +263,11 @@ def run_process(
                             assert timeout is not None
                             raise
         except TimeoutExpired:
-            returncode, stdout, stderr = _reap_process(process, kill_signal)
+            returncode, stdout, stderr = _kill_and_reap_proecss(process, kill_signal)
             assert timeout is not None
             reraise_exc = CalledProcessTimeoutError(timeout, returncode, cmd, stdout, stderr)
         except BaseException as e:  # noqa
-            returncode, stdout, stderr = _reap_process(process, kill_signal)
+            returncode, stdout, stderr = _kill_and_reap_proecss(process, kill_signal)
             reraise_exc = e
         retcode = process.poll()
         assert retcode is not None  # only None if child has not terminated
