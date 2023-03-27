@@ -220,8 +220,8 @@ class PHPSpyProfiler(ProfilerBase):
             logger.info(
                 "Finished profiling PHP processes with phpspy",
                 exit_code=exit_code,
-                stdout=stdout,
-                stderr=self._filter_phpspy_stderr(stderr),
+                stdout=stdout.decode(),
+                stderr=self._filter_phpspy_stderr(stderr.decode()),
             )
 
     def _filter_phpspy_stderr(self, stderr: str) -> str:

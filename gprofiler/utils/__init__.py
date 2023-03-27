@@ -205,7 +205,7 @@ def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> P
     return Path(output_files[0])
 
 
-def reap_process(process: Popen) -> Tuple[int, str, str]:
+def reap_process(process: Popen) -> Tuple[int, bytes, bytes]:
     """
     Safely reap a proecss. This function expects the process to be exited or exiting.
     It uses communicate() instead of wait() to avoid the possible deadlock in wait()
@@ -218,7 +218,7 @@ def reap_process(process: Popen) -> Tuple[int, str, str]:
     return returncode, stdout, stderr
 
 
-def _kill_and_reap_proecss(process: Popen, kill_signal: signal.Signals) -> Tuple[int, str, str]:
+def _kill_and_reap_proecss(process: Popen, kill_signal: signal.Signals) -> Tuple[int, bytes, bytes]:
     process.send_signal(kill_signal)
     logger.debug(
         f"({process.args!r}) was killed by us with signal {kill_signal} due to timeout or stop request, reaping it"
@@ -238,8 +238,9 @@ def run_process(
     stdin: bytes = None,
     **kwargs: Any,
 ) -> "CompletedProcess[bytes]":
-    stdout = None
-    stderr = None
+    stdout: Optional[bytes] = None
+    stderr: Optional[bytes] = None
+
     reraise_exc: Optional[BaseException] = None
     with start_process(cmd, via_staticx, **kwargs) as process:
         try:

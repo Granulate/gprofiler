@@ -257,7 +257,7 @@ class PythonEbpfProfiler(ProfilerBase):
             self.process.terminate()  # okay to call even if process is already dead
             exit_status, stdout, stderr = reap_process(self.process)
             self.process = None
-            return exit_status, stdout, stderr
+            return exit_status, stdout.decode(), stderr.decode()
 
         assert self.process is None  # means we're not running
         return None, "", ""
