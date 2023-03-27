@@ -21,10 +21,10 @@ from gprofiler.profilers.perf import (
 from gprofiler.utils import wait_event
 from tests.utils import (
     assert_function_in_collapsed,
+    is_aarch64,
     is_function_in_collapsed,
     snapshot_pid_collapsed,
     snapshot_pid_profile,
-    is_aarch64,
 )
 
 
