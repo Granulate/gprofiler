@@ -218,6 +218,7 @@ def _reap_process(process: Popen, kill_signal: signal.Signals) -> Tuple[int, str
 
 def run_process(
     cmd: Union[str, List[str]],
+    *,
     stop_event: Event = None,
     suppress_log: bool = False,
     via_staticx: bool = False,
