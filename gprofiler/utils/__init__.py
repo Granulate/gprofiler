@@ -225,7 +225,6 @@ def run_process(
     check: bool = True,
     timeout: int = None,
     kill_signal: signal.Signals = signal.SIGTERM if is_windows() else signal.SIGKILL,
-    communicate: bool = True,
     stdin: bytes = None,
     **kwargs: Any,
 ) -> "CompletedProcess[bytes]":
@@ -239,20 +238,13 @@ def run_process(
                 process.stdin.write(stdin)
             if stop_event is None:
                 assert timeout is None, f"expected no timeout, got {timeout!r}"
-                if communicate:
-                    # wait for stderr & stdout to be closed
-                    stdout, stderr = process.communicate()
-                else:
-                    # just wait for the process to exit
-                    process.wait()
+                # wait for stderr & stdout to be closed
+                stdout, stderr = process.communicate()
             else:
                 end_time = (time.monotonic() + timeout) if timeout is not None else None
                 while True:
                     try:
-                        if communicate:
-                            stdout, stderr = process.communicate(timeout=1)
-                        else:
-                            process.wait(timeout=1)
+                        stdout, stderr = process.communicate(timeout=1)
                         break
                     except TimeoutExpired:
                         if stop_event.is_set():
