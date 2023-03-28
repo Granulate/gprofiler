@@ -92,7 +92,7 @@ def test_python_matrix(
     if is_aarch64():
         # pyperf is not working on aarch right now https://github.com/Granulate/gprofiler/issues/499
         if profiler_type == "pyperf":
-            pytest.skip("PyPerf doesn't support aarch64 architecture!")
+            pytest.skip("PyPerf doesn't support aarch64 architecture, see https://github.com/Granulate/gprofiler/issues/499")
 
         if python_version == "2.7" and profiler_type == "py-spy" and app == "uwsgi":
             pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/713")
