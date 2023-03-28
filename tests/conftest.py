@@ -598,7 +598,7 @@ def pytest_collection_modifyitems(session: pytest.Session, config: Config, items
 @fixture
 def python_version(in_container: bool, application_docker_container: Container) -> Optional[str]:
     if in_container:
-        exit_code, output = application_docker_container.exec_run(cmd="python3 --version")
+        exit_code, output = application_docker_container.exec_run(cmd="python --version")
         if exit_code != 0:
             return None
     else:
