@@ -90,7 +90,6 @@ def test_python_matrix(
         pytest.xfail("PyPerf does not support 3.11 - https://github.com/Granulate/gprofiler/issues/727")
 
     if is_aarch64():
-        # pyperf is not working on aarch right now https://github.com/Granulate/gprofiler/issues/499
         if profiler_type == "pyperf":
             pytest.skip("PyPerf doesn't support aarch64 architecture, see https://github.com/Granulate/gprofiler/issues/499")
 
@@ -155,7 +154,6 @@ def test_dso_name_in_pyperf_profile(
     insert_dso_name: bool,
     profiler_state: ProfilerState,
 ) -> None:
-    # pyperf is not working on aarch right now https://github.com/Granulate/gprofiler/issues/499
     if is_aarch64() and profiler_type == "pyperf":
         pytest.skip("PyPerf doesn't support aarch64 architecture, see https://github.com/Granulate/gprofiler/issues/499")
 
