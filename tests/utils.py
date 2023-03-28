@@ -168,7 +168,11 @@ def is_pattern_in_collapsed(pattern: str, collapsed: StackToSampleCount) -> bool
 
 
 def is_aarch64() -> bool:
+<<<<<<< HEAD
     return True if platform.machine() == "aarch64" else False
+=======
+    return platform.machine() == "aarch64"
+>>>>>>> origin/master
 
 
 def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) -> None:
