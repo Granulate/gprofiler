@@ -152,7 +152,7 @@ def test_python_ebpf(
     profiler_state: ProfilerState,
 ) -> None:
     if is_aarch64():
-        pytest.skip("This test doesn't support aarch64 architecture!")
+        pytest.skip("PyPerf doesn't support aarch64 architecture, see https://github.com/Granulate/gprofiler/issues/499")
 
     _ = assert_app_id  # Required for mypy unused argument warning
     with PythonEbpfProfiler(1000, 5, profiler_state, add_versions=True, verbose=False) as profiler:
