@@ -29,6 +29,7 @@ from tests.conftest import AssertInCollapsed
 from tests.utils import (
     RUNTIME_PROFILERS,
     assert_function_in_collapsed,
+    is_aarch64,
     make_java_profiler,
     run_gprofiler_in_container_for_one_session,
     snapshot_pid_collapsed,
@@ -150,6 +151,11 @@ def test_python_ebpf(
     no_kernel_headers: Any,
     profiler_state: ProfilerState,
 ) -> None:
+    if is_aarch64():
+        pytest.skip(
+            "PyPerf doesn't support aarch64 architecture, see https://github.com/Granulate/gprofiler/issues/499"
+        )
+
     _ = assert_app_id  # Required for mypy unused argument warning
     with PythonEbpfProfiler(1000, 5, profiler_state, add_versions=True, verbose=False) as profiler:
         try:

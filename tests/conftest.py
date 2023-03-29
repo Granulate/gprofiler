@@ -603,7 +603,7 @@ def python_version(in_container: bool, application_docker_container: Container) 
             return None
     else:
         # If not running in a container the test application runs on host
-        output = subprocess.check_output("python --version", stderr=subprocess.STDOUT, shell=True)
+        output = subprocess.check_output("python3 --version", stderr=subprocess.STDOUT, shell=True)
 
     # Output is expected to look like e.g. "Python 3.9.7"
     return cast(str, output.decode().strip().split()[-1])

@@ -13,6 +13,7 @@ from gprofiler.profilers.python import PythonProfiler
 from tests.conftest import AssertInCollapsed
 from tests.utils import (
     assert_function_in_collapsed,
+    is_aarch64,
     is_pattern_in_collapsed,
     snapshot_pid_collapsed,
     snapshot_pid_profile,
@@ -88,6 +89,18 @@ def test_python_matrix(
     if python_version == "3.11" and profiler_type == "pyperf":
         pytest.xfail("PyPerf does not support 3.11 - https://github.com/Granulate/gprofiler/issues/727")
 
+    if is_aarch64():
+        if profiler_type == "pyperf":
+            pytest.skip(
+                "PyPerf doesn't support aarch64 architecture, see https://github.com/Granulate/gprofiler/issues/499"
+            )
+
+        if python_version == "2.7" and profiler_type == "py-spy" and app == "uwsgi":
+            pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/713")
+
+        if python_version in ["3.7", "3.8", "3.9", "3.10", "3.11"] and profiler_type == "py-spy" and libc == "musl":
+            pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/714")
+
     with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None, False) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
 
@@ -140,6 +153,11 @@ def test_dso_name_in_pyperf_profile(
     insert_dso_name: bool,
     profiler_state: ProfilerState,
 ) -> None:
+    if is_aarch64() and profiler_type == "pyperf":
+        pytest.skip(
+            "PyPerf doesn't support aarch64 architecture, see https://github.com/Granulate/gprofiler/issues/499"
+        )
+
     with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None, False) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
     python_version, _, _ = application_image_tag.split("-")
