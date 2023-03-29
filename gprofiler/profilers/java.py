@@ -800,7 +800,7 @@ class AsyncProfiledProcess:
             dest="java_full_hserr",
             action="store_true",
             default=False,
-            help="Show full hs_err log if it occurs",
+            help="Log the full hs_err instead of excerpts only, if one is found for a profiled Java application",
         ),
     ],
     supported_profiling_modes=["cpu", "allocation"],
@@ -1185,11 +1185,13 @@ class JavaProfiler(SpawningProcessProfilerBase):
             native_frames = m[1] if m else ""
             m = CONTAINER_INFO_REGEX.search(contents)
             container_info = m[1] if m else ""
-            contents =f"VM info: {vm_info}\n" + \
-                      f"siginfo: {siginfo}\n" + \
-                      f"Problematic frame: {problematic_frame}\n" + \
-                      f"native frames:\n{native_frames}\n" + \
-                      f"container info:\n{container_info}"
+            contents = (
+                f"VM info: {vm_info}\n"
+                + f"siginfo: {siginfo}\n"
+                + f"Problematic frame: {problematic_frame}\n"
+                + f"native frames:\n{native_frames}\n"
+                + f"container info:\n{container_info}"
+            )
         logger.warning(msg, pid=pid, hs_err_file=error_file, hs_err=contents)
 
         self._disable_profiling(JavaSafemodeOptions.HSERR)
