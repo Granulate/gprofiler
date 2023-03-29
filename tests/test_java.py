@@ -265,11 +265,13 @@ def test_hotspot_error_file(
         profiler.snapshot()
 
     assert "Found Hotspot error log" in caplog.text
-    assert "OpenJDK" in caplog.text
-    assert "SIGBUS" in caplog.text
+    log_record = next(filter(lambda r: r.message == "Found Hotspot error log", caplog.records))
+    log_extras = log_record_extra(log_record)
+    assert "OpenJDK" in log_extras["hs_err"]
+    assert "SIGBUS" in log_extras["hs_err"]
     if not is_aarch64():
-        assert "libpthread.so" in caplog.text
-        assert "memory_usage_in_bytes:" in caplog.text
+        assert "libpthread.so" in log_extras["hs_err"]
+        assert "memory_usage_in_bytes:" in log_extras["hs_err"]
     assert "Java profiling has been disabled, will avoid profiling any new java process" in caplog.text
     assert profiler._safemode_disable_reason is not None
 

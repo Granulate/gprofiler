@@ -809,6 +809,13 @@ class AsyncProfiledProcess:
             "disable collection of JVM flags. Defaults to '%(default)s'",
         ),
         ProfilerArgument(
+            "--java-full-hserr",
+            dest="java_full_hserr",
+            action="store_true",
+            default=False,
+            help="Log the full hs_err instead of excerpts only, if one is found for a profiled Java application",
+        ),
+        ProfilerArgument(
             "--java-include-method-modifiers",
             dest="java_include_method_modifiers",
             action="store_true",
@@ -854,6 +861,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_mode: str,
         java_async_profiler_report_meminfo: bool,
         java_collect_jvm_flags: str,
+        java_full_hserr: bool,
         java_include_method_modifiers: bool,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
@@ -892,6 +900,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._profiler_state.stop_event, self._jattach_jcmd_runner, self._collect_jvm_flags
         )
         self._report_meminfo = java_async_profiler_report_meminfo
+        self._java_full_hserr = java_full_hserr
         self._include_method_modifiers = java_include_method_modifiers
 
     def _init_ap_mode(self, profiling_mode: str, ap_mode: str) -> None:
@@ -1205,24 +1214,26 @@ class JavaProfiler(SpawningProcessProfilerBase):
             return
 
         contents = open(error_file).read()
-        m = VM_INFO_REGEX.search(contents)
-        vm_info = m[1] if m else ""
-        m = SIGINFO_REGEX.search(contents)
-        siginfo = m[1] if m else ""
-        m = PROBLEMATIC_FRAME_REGEX.search(contents)
-        problematic_frame = m[1] if m else ""
-        m = NATIVE_FRAMES_REGEX.search(contents)
-        native_frames = m[1] if m else ""
-        m = CONTAINER_INFO_REGEX.search(contents)
-        container_info = m[1] if m else ""
-        logger.warning(
-            f"Found Hotspot error log for pid {pid} at {error_file}:\n"
-            f"VM info: {vm_info}\n"
-            f"siginfo: {siginfo}\n"
-            f"Problematic frame: {problematic_frame}\n"
-            f"native frames:\n{native_frames}\n"
-            f"container info:\n{container_info}"
-        )
+        msg = "Found Hotspot error log"
+        if not self._java_full_hserr:
+            m = VM_INFO_REGEX.search(contents)
+            vm_info = m[1] if m else ""
+            m = SIGINFO_REGEX.search(contents)
+            siginfo = m[1] if m else ""
+            m = PROBLEMATIC_FRAME_REGEX.search(contents)
+            problematic_frame = m[1] if m else ""
+            m = NATIVE_FRAMES_REGEX.search(contents)
+            native_frames = m[1] if m else ""
+            m = CONTAINER_INFO_REGEX.search(contents)
+            container_info = m[1] if m else ""
+            contents = (
+                f"VM info: {vm_info}\n"
+                + f"siginfo: {siginfo}\n"
+                + f"Problematic frame: {problematic_frame}\n"
+                + f"native frames:\n{native_frames}\n"
+                + f"container info:\n{container_info}"
+            )
+        logger.warning(msg, pid=pid, hs_err_file=error_file, hs_err=contents)
 
         self._disable_profiling(JavaSafemodeOptions.HSERR)
 
