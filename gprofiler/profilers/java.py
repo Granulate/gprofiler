@@ -1172,7 +1172,6 @@ class JavaProfiler(SpawningProcessProfilerBase):
             return
 
         contents = open(error_file).read()
-        # msg = f"Found Hotspot error log for pid {pid} at {error_file}:\n"
         msg = "Found Hotspot error log"
         if not self._java_full_hserr:
             m = VM_INFO_REGEX.search(contents)
