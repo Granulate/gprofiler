@@ -26,8 +26,8 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
             {
                 "exe": "/usr/local/bin/python3.6",
                 "execfn": "/usr/local/bin/python",
-                "libpython_elfid": "buildid:0ef3fce0ef90d8f40ad9236793d30081001ee898",
-                "exe_elfid": "buildid:a04b9016e15a247fbc21c91260c13e17a458ed33",
+                "libpython_elfid": "buildid:64b7f8a37ff81f574936de12c263aade340ed3db" if is_aarch64() else  "buildid:0ef3fce0ef90d8f40ad9236793d30081001ee898",
+                "exe_elfid": "buildid:d627b889c0ac0642ea715651ebb7436ce1ee7444" if is_aarch64() else "buildid:a04b9016e15a247fbc21c91260c13e17a458ed33",
                 "python_version": "Python 3.6.15",
                 "sys_maxunicode": None,
             },
@@ -54,7 +54,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
                 "java_version": 'openjdk version "1.8.0_322"\n'
                 "OpenJDK Runtime Environment (build 1.8.0_322-b06)\n"
                 "OpenJDK 64-Bit Server VM (build 25.322-b06, mixed mode)",
-                "libjvm_elfid": "buildid:622795512a2c037aec4d7ca6da05527dae86e460",
+                "libjvm_elfid": "buildid:33a1021cade63f16e30726be4111f20c34444764" if is_aarch64() else "buildid:622795512a2c037aec4d7ca6da05527dae86e460"
                 "jvm_flags": [
                     {
                         "name": "CICompilerCount",
@@ -201,9 +201,6 @@ def test_app_metadata(
         # don't check JVM flags in direct comparison, as they might change a bit across machines due to ergonomics
         actual_jvm_flags = metadata["application_metadata"][idx].pop("jvm_flags")
         expected_jvm_flags = expected_metadata.pop("jvm_flags")
-        if is_aarch64():
-            # libjvm_elfid differs on aarch64
-            expected_metadata["libjvm_elfid"] = "buildid:33a1021cade63f16e30726be4111f20c34444764"
         assert_jvm_flags_equal(actual_jvm_flags=actual_jvm_flags, expected_jvm_flags=expected_jvm_flags)
 
     # values from the current test container
