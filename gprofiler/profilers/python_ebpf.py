@@ -8,7 +8,7 @@ import resource
 import signal
 from pathlib import Path
 from subprocess import Popen
-from typing import Dict, List, NoReturn, Optional
+from typing import Dict, List, Optional, Tuple
 
 from granulate_utils.linux.ns import is_running_in_init_pid
 from psutil import NoSuchProcess, Process
@@ -23,6 +23,7 @@ from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.utils import (
     poll_process,
     random_prefix,
+    reap_process,
     resource_path,
     run_process,
     start_process,
@@ -52,6 +53,7 @@ class PythonEbpfProfiler(ProfilerBase):
     _DUMP_TIMEOUT = 5  # seconds
     _POLL_TIMEOUT = 10  # seconds
     _GET_OFFSETS_TIMEOUT = 5  # seconds
+    _STDERR_READ_SIZE = 65536  # bytes read every cycle from stderr
 
     def __init__(
         self,
@@ -61,6 +63,7 @@ class PythonEbpfProfiler(ProfilerBase):
         *,
         add_versions: bool,
         user_stacks_pages: Optional[int] = None,
+        verbose: bool,
     ):
         super().__init__(frequency, duration, profiler_state)
         self.process: Optional[Popen] = None
@@ -69,21 +72,17 @@ class PythonEbpfProfiler(ProfilerBase):
         self.user_stacks_pages = user_stacks_pages
         self._kernel_offsets: Dict[str, int] = {}
         self._metadata = python.PythonMetadata(self._profiler_state.stop_event)
-
-    @classmethod
-    def _pyperf_error(cls, process: Popen) -> NoReturn:
-        # opened in pipe mode, so these aren't None.
-        assert process.stdout is not None
-        assert process.stderr is not None
-
-        stdout = process.stdout.read().decode()
-        stderr = process.stderr.read().decode()
-        raise PythonEbpfError(process.returncode, process.args, stdout, stderr)
+        self._verbose = verbose
 
     @classmethod
     def _check_output(cls, process: Popen, output_path: Path) -> None:
         if not glob.glob(f"{str(output_path)}.*"):
-            cls._pyperf_error(process)
+            # opened in pipe mode, so these aren't None.
+            assert process.stdout is not None
+            assert process.stderr is not None
+            stdout = process.stdout.read().decode()
+            stderr = process.stderr.read().decode()
+            raise PythonEbpfError(process.returncode, process.args, stdout, stderr)
 
     @staticmethod
     def _ebpf_environment() -> None:
@@ -125,13 +124,18 @@ class PythonEbpfProfiler(ProfilerBase):
             offset = self._kernel_offsets["task_struct_stack"] = self._get_offset(self._GET_STACK_OFFSET_RESOURCE)
             return offset
 
-    def _offset_args(self) -> List[str]:
-        return [
+    def _pyperf_base_command(self) -> List[str]:
+        cmd = [
+            resource_path(self.PYPERF_RESOURCE),
             "--fs-offset",
             str(self._kernel_fs_offset()),
             "--stack-offset",
             str(self._kernel_stack_offset()),
         ]
+        if self._verbose:
+            # 4 is the max verbosityLevel in PyPerf.
+            cmd.extend(["-v", "4"])
+        return cmd
 
     def test(self) -> None:
         self._ebpf_environment()
@@ -142,15 +146,14 @@ class PythonEbpfProfiler(ProfilerBase):
         # Run the process and check if the output file is properly created.
         # Wait up to 10sec for the process to terminate.
         # Allow cancellation via the stop_event.
-        cmd = [
-            resource_path(self.PYPERF_RESOURCE),
+        cmd = self._pyperf_base_command() + [
             "--output",
             str(self.output_path),
             "-F",
             "1",
             "--duration",
             "1",
-        ] + self._offset_args()
+        ]
         process = start_process(cmd, via_staticx=True)
         try:
             poll_process(process, self._POLL_TIMEOUT, self._profiler_state.stop_event)
@@ -162,8 +165,7 @@ class PythonEbpfProfiler(ProfilerBase):
 
     def start(self) -> None:
         logger.info("Starting profiling of Python processes with PyPerf")
-        cmd = [
-            resource_path(self.PYPERF_RESOURCE),
+        cmd = self._pyperf_base_command() + [
             "--output",
             str(self.output_path),
             "-F",
@@ -173,7 +175,7 @@ class PythonEbpfProfiler(ProfilerBase):
             "--symbols-map-size",
             str(self._SYMBOLS_MAP_SIZE),
             # Duration is irrelevant here, we want to run continuously.
-        ] + self._offset_args()
+        ]
         if self._profiler_state.insert_dso_name:
             cmd.extend(["--insert-dso-name"])
 
@@ -193,7 +195,7 @@ class PythonEbpfProfiler(ProfilerBase):
             assert process.stdout is not None and process.stderr is not None
             stdout = process.stdout.read()
             stderr = process.stderr.read()
-            logger.error(f"PyPerf failed to start. stdout {stdout!r} stderr {stderr!r}")
+            logger.error("PyPerf failed to start", stdout=stdout, stderr=stderr)
             raise
         else:
             self.process = process
@@ -212,14 +214,15 @@ class PythonEbpfProfiler(ProfilerBase):
             # also, makes sure its output pipe doesn't fill up.
             # using read1() which performs just a single read() call and doesn't read until EOF
             # (unlike Popen.communicate())
-            logger.debug(f"PyPerf output: {self.process.stderr.read1()}")  # type: ignore
+            logger.debug("PyPerf dump output", stderr=self.process.stderr.read1(self._STDERR_READ_SIZE))  # type: ignore
             return output
         except TimeoutError:
             # error flow :(
             logger.warning("PyPerf dead/not responding, killing it")
             process = self.process  # save it
-            self._terminate()
-            self._pyperf_error(process)
+            exit_status, stderr, stdout = self._terminate()
+            assert exit_status is not None, "PyPerf didn't exit after _terminate()!"
+            raise PythonEbpfError(exit_status, process.args, stdout, stderr)
 
     def snapshot(self) -> ProcessToProfileData:
         if self._profiler_state.stop_event.wait(self._duration):
@@ -248,21 +251,23 @@ class PythonEbpfProfiler(ProfilerBase):
             profiles[pid] = ProfileData(parsed[pid], appid, app_metadata, container_name)
         return profiles
 
-    def _terminate(self) -> Optional[int]:
-        code = None
+    def _terminate(self) -> Tuple[Optional[int], str, str]:
         if self.is_running():
             assert self.process is not None  # for mypy
             self.process.terminate()  # okay to call even if process is already dead
-            code = self.process.wait()
+            exit_status, stdout, stderr = reap_process(self.process)
             self.process = None
+            return exit_status, stdout.decode(), stderr.decode()
 
         assert self.process is None  # means we're not running
-        return code
+        return None, "", ""
 
     def stop(self) -> None:
-        code = self._terminate()
-        if code is not None:
-            logger.info("Finished profiling Python processes with PyPerf")
+        exit_status, stdout, stderr = self._terminate()
+        if exit_status is not None:
+            logger.info(
+                "Finished profiling Python processes with PyPerf", exit_status=exit_status, stdout=stdout, stderr=stderr
+            )
 
     def is_running(self) -> bool:
         return self.process is not None

@@ -50,7 +50,7 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
-from gprofiler.spark.spark_collector import SparkSampler
+from gprofiler.spark.sampler import SparkSampler
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import Metrics, NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
 from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLoggerInterface
@@ -66,6 +66,10 @@ from gprofiler.utils import (
 )
 from gprofiler.utils.fs import escape_filename
 from gprofiler.utils.proxy import get_https_proxy
+
+if is_linux():
+    from gprofiler.utils.linux import disable_core_files
+
 
 logger: logging.LoggerAdapter
 
@@ -572,6 +576,14 @@ def parse_cmd_args() -> configargparse.Namespace:
         help="Whether to upload the profiling results to the server",
     )
 
+    parser.add_argument(
+        "--dont-disable-core-files",
+        action="store_false",
+        dest="disable_core_files",
+        help="Do not disable creation of coredumps for processes started by the profiler. By default, we disable,"
+        " to refrain from generating core files which consume disk space, in case any of the executed profilers crash.",
+    )
+
     subparsers = parser.add_subparsers(dest="subcommand")
     upload_file = subparsers.add_parser("upload-file")
     upload_file.add_argument(
@@ -877,6 +889,23 @@ def init_pid_file(pid_file: str) -> None:
     Path(pid_file).write_text(str(os.getpid()))
 
 
+def setup_env(should_disable_core_files: bool, pid_file: str) -> None:
+    """
+    Set up gProfiler's environment.
+    """
+    setup_signals()
+    reset_umask()
+
+    if is_linux():
+        if should_disable_core_files:
+            disable_core_files()
+
+        try:
+            init_pid_file(pid_file)
+        except Exception:
+            logger.exception(f"Failed to write pid to '{pid_file}', continuing anyway")
+
+
 def main() -> None:
     args = parse_cmd_args()
     if is_windows():
@@ -898,16 +927,10 @@ def main() -> None:
         remote_logs_handler,
     )
 
-    setup_signals()
-    reset_umask()
+    setup_env(args.disable_core_files, args.pid_file)
+
     # assume we run in the root cgroup (when containerized, that's our view)
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
-
-    if is_linux():
-        try:
-            init_pid_file(args.pid_file)
-        except Exception:
-            logger.exception(f"Failed to write pid to '{args.pid_file}', continuing anyway")
 
     if args.databricks_job_name_as_service_name:
         # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
@@ -917,7 +940,9 @@ def main() -> None:
             args.service_name = f"databricks-{databricks_client.job_name}"
 
     try:
-        logger.info("Running gProfiler", commandline=" ".join(sys.argv[1:]), arguments=args.__dict__)
+        logger.info(
+            "Running gProfiler", version=__version__, commandline=" ".join(sys.argv[1:]), arguments=args.__dict__
+        )
 
         if args.controller_pid is not None:
             try:

@@ -43,6 +43,7 @@ from tests.utils import (
     _application_docker_container,
     assert_function_in_collapsed,
     assert_jvm_flags_equal,
+    is_aarch64,
     is_function_in_collapsed,
     is_pattern_in_collapsed,
     log_record_extra,
@@ -151,6 +152,8 @@ def test_java_async_profiler_cpu_mode(
     """
     Run Java in a container and enable async-profiler in CPU mode, make sure we get kernel stacks.
     """
+    if is_aarch64():
+        pytest.xfail("This test is not working on aarch64 https://github.com/Granulate/gprofiler/issues/723")
     with make_java_profiler(
         profiler_state,
         frequency=999,
@@ -266,8 +269,9 @@ def test_hotspot_error_file(
     log_extras = log_record_extra(log_record)
     assert "OpenJDK" in log_extras["hs_err"]
     assert "SIGBUS" in log_extras["hs_err"]
-    assert "libpthread.so" in log_extras["hs_err"]
-    assert "memory_usage_in_bytes:" in log_extras["hs_err"]
+    if not is_aarch64():
+        assert "libpthread.so" in log_extras["hs_err"]
+        assert "memory_usage_in_bytes:" in log_extras["hs_err"]
     assert "Java profiling has been disabled, will avoid profiling any new java process" in caplog.text
     assert profiler._safemode_disable_reason is not None
 
@@ -380,6 +384,12 @@ def test_sanity_other_jvms(
     search_for: str,
     profiler_state: ProfilerState,
 ) -> None:
+
+    if is_aarch64():
+        pytest.xfail(
+            "Different JVMs are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
+        )
+
     with make_java_profiler(
         profiler_state,
         frequency=99,
@@ -572,7 +582,6 @@ def test_java_attach_socket_missing(
     """
     Tests that we get the proper JattachMissingSocketException when the attach socket is deleted.
     """
-
     with make_java_profiler(
         profiler_state,
         duration=1,
@@ -1064,6 +1073,10 @@ def test_collect_cmdline_and_env_jvm_flags(
     1. Tests collections jvm flags from env & commandline origins and reporting the correct origin
     2. Tests collecting only specific flags
     """
+    if is_aarch64():
+        pytest.xfail(
+            "Different jvm flags are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
+        )
     with make_java_profiler(profiler_state, java_collect_jvm_flags="SelfDestructTimer,PrintCodeCache") as profiler:
         # When running a container manually we can't use application_pid fixture as it will come from the fixture
         # container and not from the manually started one
@@ -1135,3 +1148,18 @@ def test_collect_none_jvm_flags(
 ) -> None:
     with make_java_profiler(profiler_state, java_collect_jvm_flags=JavaFlagCollectionOptions.NONE) as profiler:
         assert profiler._metadata.get_jvm_flags_serialized(psutil.Process(application_pid)) == expected_flags
+
+
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("include_mmm", [True, False])
+def test_including_method_modifiers(
+    application_pid: int,
+    profiler_state: ProfilerState,
+    include_mmm: bool,
+) -> None:
+    with make_java_profiler(profiler_state, java_include_method_modifiers=include_mmm) as profiler:
+        collapsed = snapshot_pid_collapsed(profiler, application_pid)
+        if include_mmm:
+            assert is_function_in_collapsed("private static Fibonacci.fibonacci(I)J_[j]", collapsed)
+        else:
+            assert not is_function_in_collapsed("private static Fibonacci.fibonacci(I)J_[j]", collapsed)
