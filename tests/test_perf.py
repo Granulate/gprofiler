@@ -369,6 +369,14 @@ def test_get_average_frame_count(samples: str, count: float) -> None:
             ),
             id="mixed_java_stack",
         ),
+        pytest.param(
+            "   1234 std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator() (/path/to/envoy)\n",  # noqa
+            dict(
+                dso_true="std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator() (/path/to/envoy)",  # noqa
+                dso_false="std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()",  # noqa
+            ),
+            id="frame_with_space_parenthesis",
+        ),
     ],
 )
 def test_collapse_stack_consider_dso(stack: str, insert_dso_name: bool, outcome_dict: Dict[str, str]) -> None:

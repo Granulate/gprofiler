@@ -44,7 +44,7 @@ DEFAULT_PERF_DWARF_STACK_SIZE = 8192
 # ffffffff81082227 mmput+0x57 ([kernel.kallsyms])
 # 0 [unknown] ([unknown])
 # 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
-FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \(\[?(.*?)\]?\)$")
+FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*) \(\[?(.*?)\]?\)$")
 SAMPLE_REGEX = re.compile(
     r"\s*(?P<comm>.+?)\s+(?P<pid>[\d-]+)/(?P<tid>[\d-]+)(?:\s+\[(?P<cpu>\d+)])?\s+(?P<time>\d+\.\d+):\s+"
     r"(?:(?P<freq>\d+)\s+)?(?P<event_family>[\w\-_/]+):(?:(?P<event>[\w-]+):)?(?P<suffix>[^\n]*)(?:\n(?P<stack>.*))?",
