@@ -10,6 +10,7 @@ from threading import Event, Thread
 from typing import Optional
 
 from granulate_utils.metrics.sampler import BigDataSampler
+from gprofiler.metadata.system_metadata import get_hostname
 
 from gprofiler.client import APIClient, bake_metrics_payload
 from gprofiler.log import get_logger_adapter
@@ -48,7 +49,7 @@ class SparkSampler:
         else:
             logger.debug("Output directory is None. Will add metrics to queue")
         self._client = api_client
-        self._spark_sampler = BigDataSampler(logger, self._master_address, self._spark_mode, self._applications_metrics)
+        self._spark_sampler = BigDataSampler(logger, get_hostname(), self._master_address, self._spark_mode, self._applications_metrics)
 
     def start(self) -> None:
         self._stop_event.clear()
