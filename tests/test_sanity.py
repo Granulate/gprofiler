@@ -281,3 +281,30 @@ def test_container_name_when_stopped(
     collapsed_text = wait_for_gprofiler_container(container, output_collapsed)
     assert "py-spy> Stopped sampling because process exited" in container.logs().decode()
     assert f";{application_container_name};python" in collapsed_text
+
+
+@pytest.mark.parametrize("in_container", [False])
+@pytest.mark.parametrize("runtime", ["java"])
+@pytest.mark.parametrize("profiler_type", ["ap"])
+def test_profiling_provided_pids(
+        docker_client: DockerClient,
+        gprofiler_docker_image: Image,
+        output_directory: Path,
+        output_collapsed: Path,
+        runtime_specific_args: List[str],
+        profiler_flags: List[str],
+        application_factory: Callable[[], _GeneratorContextManager],
+        profiler_type: str,
+) -> None:
+    """
+    Tests that gprofiler will profile only processes provided via flag --pids
+    """
+    with application_factory() as pid1:
+        with application_factory() as pid2:
+            profiler_flags.extend(["--pids", str(pid1)])
+            container = start_gprofiler_in_container_for_one_session(
+                docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags
+            )
+            wait_for_gprofiler_container(container, output_collapsed)
+            assert f"Profiling process {pid1} with async-profiler" in container.logs().decode()
+            assert f"Profiling process {pid2} with async-profiler" not in container.logs().decode()

@@ -15,7 +15,7 @@ import traceback
 from pathlib import Path
 from threading import Event
 from types import FrameType, TracebackType
-from typing import Iterable, Optional, Type, cast
+from typing import Iterable, List, Optional, Type, cast
 
 import configargparse
 import humanfriendly
@@ -117,6 +117,7 @@ class GProfiler:
         duration: int,
         profile_api_version: str,
         profiling_mode: str,
+        pids_to_profile: List[int],
         profile_spawned_processes: bool = True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         controller_process: Optional[Process] = None,
@@ -153,6 +154,7 @@ class GProfiler:
             profile_spawned_processes,
             bool(user_args.get("insert_dso_name")),
             profiling_mode,
+            pids_to_profile,
             container_names_client,
         )
         self.system_profiler, self.process_profilers = get_profilers(user_args, profiler_state=self._profiler_state)
@@ -521,6 +523,14 @@ def parse_cmd_args() -> configargparse.Namespace:
     parser.add_argument(
         "--rotating-output", action="store_true", default=False, help="Keep only the last profile result"
     )
+    parser.add_argument(
+        "--pids",
+        dest="pids_to_profile",
+        action="append",
+        default=list(),
+        type=int,
+        help="List of processes that will be filtered to profile",
+    )
 
     _add_profilers_arguments(parser)
 
@@ -791,6 +801,9 @@ def parse_cmd_args() -> configargparse.Namespace:
     if args.nodejs_mode in ("perf", "attach-maps") and args.perf_mode not in ("fp", "smart"):
         parser.error("--nodejs-mode perf or attach-maps requires --perf-mode 'fp' or 'smart'")
 
+    if args.profile_spawned_processes and len(args.pids_to_profile) > 0:
+        parser.error("--pids is not allowed when profiling spawned processes")
+
     return args
 
 
@@ -1048,6 +1061,7 @@ def main() -> None:
             args.duration,
             args.profile_api_version,
             args.profiling_mode,
+            args.pids_to_profile,
             args.profile_spawned_processes,
             remote_logs_handler,
             controller_process,

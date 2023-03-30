@@ -1,5 +1,5 @@
 from threading import Event
-from typing import Optional
+from typing import List, Optional
 
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.utils import TemporaryDirectoryWithMode
@@ -15,6 +15,7 @@ class ProfilerState:
         profile_spawned_processes: bool,
         insert_dso_name: bool,
         profiling_mode: str,
+        pids_to_profile: List[int],
         container_names_client: Optional[ContainerNamesClient],
     ) -> None:
         self._stop_event = stop_event
@@ -24,6 +25,7 @@ class ProfilerState:
         self._temporary_dir = TemporaryDirectoryWithMode(dir=storage_dir, mode=0o755)
         self._storage_dir = self._temporary_dir.name
         self._container_names_client = container_names_client
+        self._pids_to_profile = pids_to_profile
 
     @property
     def stop_event(self) -> Event:
@@ -48,6 +50,14 @@ class ProfilerState:
     @property
     def container_names_client(self) -> Optional[ContainerNamesClient]:
         return self._container_names_client
+
+    @property
+    def pids_to_profile(self) -> Optional[List[int]]:
+        print(f"Marcin debug {self._pids_to_profile}")
+        if len(self._pids_to_profile) > 0:
+            return self._pids_to_profile
+        else:
+            return None
 
     def get_container_name(self, pid: int) -> str:
         if self._container_names_client is not None:
