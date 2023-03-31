@@ -1,7 +1,7 @@
 # these need to be defined before any FROM - otherwise, the ARGs expand to empty strings.
 
-# pyspy & rbspy, using the same builder for both pyspy and rbspy since they share build dependencies - rust:1.58-alpine3.15
-ARG RUST_BUILDER_VERSION=@sha256:b61698ea823c6f9bc726272d7783867d89e79ca87e9944998739ce619da7699a
+# pyspy & rbspy, using the same builder for both pyspy and rbspy since they share build dependencies - rust:1.59-alpine3.15
+ARG RUST_BUILDER_VERSION=@sha256:65b63b7d003f7a492cc8e550a4830aaa1f4155b74387549a82985c8efb3d0e88
 # pyperf - ubuntu 20.04
 ARG PYPERF_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
 # perf - ubuntu:16.04
@@ -24,7 +24,7 @@ ARG GPROFILER_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a5
 # node-package-builder-musl alpine
 ARG NODE_PACKAGE_BUILDER_MUSL=@sha256:69704ef328d05a9f806b6b8502915e6a0a4faa4d72018dc42343f511490daf8a
 # node-package-builder-glibc - centos/devtoolset-7-toolchain-centos7:latest
-ARG NODE_PACKAGE_BUILDER_GLIBC=/devtoolset-7-toolchain-centos7@sha256:24d4c230cb1fe8e68cefe068458f52f69a1915dd6f6c3ad18aa37c2b8fa3e4e1
+ARG NODE_PACKAGE_BUILDER_GLIBC=centos/devtoolset-7-toolchain-centos7@sha256:24d4c230cb1fe8e68cefe068458f52f69a1915dd6f6c3ad18aa37c2b8fa3e4e1
 
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
@@ -56,10 +56,11 @@ RUN mv "/tmp/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /tmp/rbs
 FROM mcr.microsoft.com/dotnet/sdk${DOTNET_BUILDER} as dotnet-builder
 WORKDIR /tmp
 RUN apt-get update && \
-  dotnet tool install --global dotnet-trace
+  dotnet tool install --global dotnet-trace --version 6.0.351802
 
 RUN cp -r "$HOME/.dotnet" "/tmp/dotnet"
 COPY scripts/dotnet_prepare_dependencies.sh .
+COPY scripts/dotnet_trace_dependencies.txt .
 RUN ./dotnet_prepare_dependencies.sh
 
 # perf
@@ -162,9 +163,14 @@ COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
 
 # node-package-builder-glibc
-FROM centos${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
-USER 0
+FROM ${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
 WORKDIR /tmp
+COPY scripts/fix_centos8.sh .
+USER 0
+RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
+        ./fix_centos8.sh; \
+        yum groupinstall -y "Development Tools"; \
+    fi
 COPY scripts/node_builder_glibc_env.sh .
 RUN ./node_builder_glibc_env.sh
 COPY scripts/build_node_package.sh .
@@ -176,6 +182,7 @@ USER 1001
 FROM golang${BURN_BUILDER_GOLANG} AS burn-builder
 WORKDIR /tmp
 COPY scripts/burn_build.sh .
+COPY scripts/burn_version.txt .
 RUN ./burn_build.sh
 
 # the gProfiler image itself, at last.

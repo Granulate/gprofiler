@@ -13,7 +13,7 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 
-from gprofiler.merge import parse_one_collapsed
+from gprofiler.utils.collapsed_format import parse_one_collapsed
 from tests.utils import RUNTIME_PROFILERS, _no_errors, run_gprofiler_in_container
 
 

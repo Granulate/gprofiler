@@ -11,15 +11,15 @@ from collections import Counter, defaultdict
 from functools import lru_cache
 from pathlib import Path
 from subprocess import Popen
-from threading import Event
 from typing import List, Optional, Pattern, cast
 
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProcessToStackSampleCounters, ProfileData
 from gprofiler.log import get_logger_adapter
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils import random_prefix, resource_path, start_process, wait_event
+from gprofiler.utils import random_prefix, reap_process, resource_path, start_process, wait_event
 
 logger = get_logger_adapter(__name__)
 # Currently tracing only php-fpm, TODO: support mod_php in apache.
@@ -59,19 +59,14 @@ class PHPSpyProfiler(ProfilerBase):
         self,
         frequency: int,
         duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
-        insert_dso_name: bool,
-        profiling_mode: str,
-        profile_spawned_processes: bool,
+        profiler_state: ProfilerState,
         php_process_filter: str,
         php_mode: str,
     ):
         assert php_mode == "phpspy", "PHP profiler should not be initialized, wrong php_mode value given"
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
-        _ = profile_spawned_processes  # Required for mypy unused argument warning
+        super().__init__(frequency, duration, profiler_state)
         self._process: Optional[Popen] = None
-        self._output_path = Path(self._storage_dir) / f"phpspy.{random_prefix()}.col"
+        self._output_path = Path(self._profiler_state.storage_dir) / f"phpspy.{random_prefix()}.col"
         self._process_filter = php_process_filter
 
     def start(self) -> None:
@@ -103,7 +98,7 @@ class PHPSpyProfiler(ProfilerBase):
         # parsing.
         # If an error occurs after this stage it's probably a spied _process specific and not phpspy general error.
         try:
-            wait_event(self.poll_timeout, self._stop_event, lambda: os.path.exists(self._output_path))
+            wait_event(self.poll_timeout, self._profiler_state.stop_event, lambda: os.path.exists(self._output_path))
         except TimeoutError:
             process.kill()
             assert process.stdout is not None and process.stderr is not None
@@ -122,7 +117,7 @@ class PHPSpyProfiler(ProfilerBase):
 
         # Ignoring type since _process.stderr is typed as Optional[IO[Any]] which doesn't have the `read1` method.
         stderr = self._process.stderr.read1().decode()  # type: ignore
-        self._process_stderr(stderr)
+        logger.debug("phpspy stderr", stderr=self._filter_phpspy_stderr(stderr))
 
     def _dump(self) -> Path:
         assert self._process is not None, "profiling not started!"
@@ -133,7 +128,7 @@ class PHPSpyProfiler(ProfilerBase):
             if output_files:
                 break
 
-            if self._stop_event.wait(0.1):
+            if self._profiler_state.stop_event.wait(0.1):
                 raise StopEventSetException()
 
         # All the snapshot samples should be in a single file
@@ -160,7 +155,7 @@ class PHPSpyProfiler(ProfilerBase):
         return ";".join(reversed(parsed_frames))
 
     @classmethod
-    def _parse_phpspy_output(cls, phpspy_output: str) -> ProcessToProfileData:
+    def _parse_phpspy_output(cls, phpspy_output: str, profiler_state: ProfilerState) -> ProcessToProfileData:
         def extract_metadata_section(re_expr: Pattern, metadata_line: str) -> str:
             match = re_expr.match(metadata_line)
             if not match:
@@ -202,38 +197,37 @@ class PHPSpyProfiler(ProfilerBase):
             # TODO: appid & app metadata for php!
             appid = None
             app_metadata = None
-            profiles[pid] = ProfileData(results[pid], appid, app_metadata)
+            profiles[pid] = ProfileData(results[pid], appid, app_metadata, profiler_state.get_container_name(pid))
 
         return profiles
 
     def snapshot(self) -> ProcessToProfileData:
-        if self._stop_event.wait(self._duration):
+        if self._profiler_state.stop_event.wait(self._duration):
             raise StopEventSetException()
         stderr = self._process.stderr.read1().decode()  # type: ignore
-        self._process_stderr(stderr)
+        logger.debug("phpspy stderr", stderr=self._filter_phpspy_stderr(stderr))
 
         phpspy_output_path = self._dump()
         phpspy_output_text = phpspy_output_path.read_text()
         phpspy_output_path.unlink()
-        return self._parse_phpspy_output(phpspy_output_text)
-
-    def _terminate(self) -> Optional[int]:
-        code = None
-        if self._process is not None:
-            self._process.terminate()
-            code = self._process.wait()
-            self._process = None
-        return code
+        return self._parse_phpspy_output(phpspy_output_text, self._profiler_state)
 
     def stop(self) -> None:
-        code = self._terminate()
-        if code is not None:
-            logger.info("Finished profiling PHP processes with phpspy")
+        if self._process is not None:
+            self._process.terminate()
+            exit_code, stdout, stderr = reap_process(self._process)
+            self._process = None
+            logger.info(
+                "Finished profiling PHP processes with phpspy",
+                exit_code=exit_code,
+                stdout=stdout.decode(),
+                stderr=self._filter_phpspy_stderr(stderr.decode()),
+            )
 
-    def _process_stderr(self, stderr: str) -> None:
+    def _filter_phpspy_stderr(self, stderr: str) -> str:
         skip_re = self._get_stderr_skip_regex()
         log_lines = [line for line in stderr.splitlines() if skip_re.search(line) is None]
-        logger.debug("phpspy stderr", phpspy_stderr="\n".join(log_lines))
+        return "\n".join(log_lines)
 
     @staticmethod
     @lru_cache(maxsize=1)

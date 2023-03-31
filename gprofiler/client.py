@@ -14,6 +14,8 @@ from requests import Session
 from gprofiler import __version__
 from gprofiler.exceptions import APIError
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.system_metadata import get_hostname
+from gprofiler.metrics import MetricsSnapshot
 from gprofiler.utils import get_iso8601_format_time, get_iso8601_format_time_from_epoch_time
 
 if TYPE_CHECKING:
@@ -21,62 +23,33 @@ if TYPE_CHECKING:
 
 logger = get_logger_adapter(__name__)
 
-GRANULATE_SERVER_HOST = "https://profiler.granulate.io"
+DEFAULT_API_SERVER_ADDRESS = "https://api.granulate.io"
+DEFAULT_PROFILER_SERVER_ADDRESS = "https://profiler.granulate.io"
 DEFAULT_REQUEST_TIMEOUT = 5
 DEFAULT_UPLOAD_TIMEOUT = 120
 
 
-class APIClient:
-    BASE_PATH = "api"
-
+class BaseAPIClient:
     def __init__(
         self,
-        host: str,
-        key: str,
-        service: str,
         curlify_requests: bool,
-        hostname: str,
-        upload_timeout: int,
-        version: str = "v1",
     ):
-        self._host: str = host
-        self._upload_timeout = upload_timeout
-        self._version: str = version
-        self._key = key
-        self._service = service
         self._curlify = curlify_requests
-        self._hostname = hostname
-
         self._init_session()
-        logger.info(f"The connection to the server was successfully established (service {service!r})")
 
     def _init_session(self) -> None:
         self._session: Session = requests.Session()
-        self._session.headers.update({"GPROFILER-API-KEY": self._key, "GPROFILER-SERVICE-NAME": self._service})
-
-        # Raises on failure
-        self.get_health()
-
-    def get_base_url(self, api_version: str = None) -> str:
-        version = api_version if api_version is not None else self._version
-        return "{}/{}/{}".format(self._host.rstrip("/"), self.BASE_PATH, version)
 
     def _get_query_params(self) -> List[Tuple[str, str]]:
-        return [
-            ("key", self._key),
-            ("service", self._service),
-            ("hostname", self._hostname),
-            ("timestamp", get_iso8601_format_time(datetime.datetime.utcnow())),
-        ]
+        return []
 
-    def _send_request(
+    def _request_url(
         self,
         method: str,
-        path: str,
+        url: str,
         data: Any,
         files: Dict = None,
         timeout: float = DEFAULT_REQUEST_TIMEOUT,
-        api_version: str = None,
         params: Dict[str, str] = None,
     ) -> Dict:
         opts: dict = {"headers": {}, "files": files, "timeout": timeout}
@@ -102,7 +75,7 @@ class APIClient:
 
         opts["params"] = self._get_query_params() + [(k, v) for k, v in params.items()]
 
-        resp = self._session.request(method, "{}/{}".format(self.get_base_url(api_version), path), **opts)
+        resp = self._session.request(method, url, **opts)
         if self._curlify:
             import curlify  # type: ignore  # import here as it's not always required.
 
@@ -129,6 +102,62 @@ class APIClient:
         else:
             resp.raise_for_status()
         return cast(dict, resp.json())
+
+
+class ProfilerAPIClient(BaseAPIClient):
+    BASE_PATH = "api"
+
+    def __init__(
+        self,
+        token: str,
+        service_name: str,
+        server_address: str,
+        curlify_requests: bool,
+        hostname: str,
+        upload_timeout: int,
+        version: str = "v1",
+    ):
+        self._server_address = server_address.rstrip("/")
+        self._upload_timeout = upload_timeout
+        self._version: str = version
+        self._key = token
+        self._service = service_name
+        self._hostname = hostname
+        super().__init__(curlify_requests)
+
+    def _init_session(self) -> None:
+        self._session: Session = requests.Session()
+        self._session.headers.update({"GPROFILER-API-KEY": self._key, "GPROFILER-SERVICE-NAME": self._service})
+
+        # Raises on failure
+        self.get_health()
+        logger.info(f"The connection to the server was successfully established (service {self._service!r})")
+
+    def get_base_url(self, api_version: str = None) -> str:
+        version = api_version if api_version is not None else self._version
+        return "{}/{}/{}".format(self._server_address.rstrip("/"), self.BASE_PATH, version)
+
+    def _get_query_params(self) -> List[Tuple[str, str]]:
+        return [
+            ("key", self._key),
+            ("service", self._service),
+            ("hostname", self._hostname),
+            ("timestamp", get_iso8601_format_time(datetime.datetime.utcnow())),
+        ]
+
+    def _send_request(
+        self,
+        method: str,
+        path: str,
+        data: Any,
+        files: Dict = None,
+        timeout: float = DEFAULT_REQUEST_TIMEOUT,
+        api_version: str = None,
+        params: Dict[str, str] = None,
+    ) -> Dict:
+        return self._request_url(
+            method, "{}/{}".format(self.get_base_url(api_version), path), data, files, timeout, params
+        )
 
     def get(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("GET", path, data, **kwargs)
@@ -174,3 +203,45 @@ class APIClient:
             api_version="v2" if profile_api_version is None else profile_api_version,
             params={"version": __version__},
         )
+
+
+class APIClient(BaseAPIClient):
+    def __init__(
+        self,
+        token: str,
+        service_name: str,
+        server_address: str = DEFAULT_API_SERVER_ADDRESS,
+        curlify_requests: bool = False,
+        timeout: int = DEFAULT_UPLOAD_TIMEOUT,
+    ):
+        self._token = token
+        self._service_name = service_name
+        self._server_address = server_address
+        self._timeout = timeout
+        super().__init__(curlify_requests)
+
+    def _init_session(self) -> None:
+        self._session = requests.Session()
+        self._session.headers.update(
+            {
+                "Authorization": f"Bearer {self._token}",
+                "X-Gprofiler-Service": self._service_name,
+                "X-GProfiler-Hostname": get_hostname(),
+            }
+        )
+
+    def submit_spark_metrics(self, snapshot: MetricsSnapshot) -> Dict:
+        return self._request_url(
+            "POST",
+            f"{self._server_address}/telemetry/gprofiler/spark/v1/update",
+            bake_metrics_payload(snapshot),
+            timeout=self._timeout,
+        )
+
+
+def bake_metrics_payload(snapshot: MetricsSnapshot) -> Dict[str, Any]:
+    return {
+        "format_version": 1,
+        "timestamp": get_iso8601_format_time(snapshot.timestamp),
+        "metrics": [sample.__dict__ for sample in snapshot.samples],
+    }
