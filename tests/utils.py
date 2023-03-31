@@ -342,6 +342,8 @@ def _application_docker_container(
     application_docker_capabilities: List[str],
     application_docker_command: Optional[List[str]] = None,
 ) -> Container:
+    if application_docker_command is None:
+        application_docker_command = []
     container: Container = start_container(
         docker_client,
         application_docker_image,
