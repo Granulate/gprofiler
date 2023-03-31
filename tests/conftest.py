@@ -214,10 +214,7 @@ def docker_client() -> DockerClient:
     for container in exited_container_list:
         exited_ids.append(container.id)
 
-    pruned_ids = []  # type: List[str]
-    pruned_container_list = docker_client.containers.prune(filters={"label": tests_id})
-    if pruned_container_list["ContainersDeleted"] is not None:
-        pruned_ids = pruned_ids + pruned_container_list["ContainersDeleted"]
+    pruned_ids = docker_client.containers.prune(filters={"label": tests_id}).get("ContainersDeleted", [])
 
     for id in exited_ids:
         if id not in pruned_ids:
