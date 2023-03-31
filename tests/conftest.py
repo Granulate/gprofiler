@@ -233,9 +233,9 @@ def docker_client() -> DockerClient:
 
     pruned_ids = docker_client.containers.prune(filters={"label": tests_id}).get("ContainersDeleted", [])
 
-    for id in exited_ids:
-        if id not in pruned_ids:
-            raise Exception(f"Container with id {id} has not been properly pruned")
+    for exited_id in exited_ids:
+        if exited_id not in pruned_ids:
+            raise Exception(f"Container with id {exited_id} has not been properly pruned")
 
 
 @fixture(scope="session")

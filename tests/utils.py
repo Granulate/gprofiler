@@ -342,13 +342,16 @@ def _application_docker_container(
     application_docker_capabilities: List[str],
     application_docker_command: Optional[List[str]] = None,
 ) -> Container:
-    container: Container = docker_client.containers.run(
+    container: Container = start_container(
+        docker_client,
         application_docker_image,
-        detach=True,
+        application_docker_command,
+        volumes=None,
+        privileged=False,
+        pid_mode="host",
         user="5555:6666",
         mounts=application_docker_mounts,
         cap_add=application_docker_capabilities,
-        command=application_docker_command,
     )
     while container.status != "running":
         if container.status == "exited":
