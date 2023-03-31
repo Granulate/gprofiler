@@ -218,7 +218,7 @@ def docker_client() -> DockerClient:
 
     for id in exited_ids:
         if id not in pruned_ids:
-            raise Exception("Container with id " + id + " has not been properly pruned")
+            raise Exception(f"Container with id {id} has not been properly pruned")
 
 
 @fixture(scope="session")
