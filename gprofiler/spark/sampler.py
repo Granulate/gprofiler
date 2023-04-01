@@ -68,12 +68,12 @@ class SparkSampler:
         while not self._stop_event.is_set():
             if self._spark_sampler is not None:
                 discovered = self._spark_sampler.discover()
-                if discovered is False:
+                if not discovered:
                     if timefn() - start_time >= FIND_CLUSTER_TIMEOUT_SECS:
                         logger.info("Timed out identifying Spark cluster. Stopping Spark collector.")
                         break
 
-                elif discovered is True:
+                elif discovered:
                     snapshot = self._spark_sampler.collect_loop_helper()
                     logger.debug("Collected Spark metrics", snapshot=snapshot)
                     # No need to submit samples that don't actually have a value:
