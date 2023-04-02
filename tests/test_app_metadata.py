@@ -55,6 +55,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
             },
         ),
         (
+            True,
             "java",
             "ap",
             {
