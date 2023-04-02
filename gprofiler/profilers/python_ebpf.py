@@ -80,6 +80,9 @@ class PythonEbpfProfiler(ProfilerBase):
             # opened in pipe mode, so these aren't None.
             assert process.stdout is not None
             assert process.stderr is not None
+            assert isinstance(process.args, list) and all(
+                isinstance(s, str) for s in process.args
+            ), process.args  # mypy
             stdout = process.stdout.read().decode()
             stderr = process.stderr.read().decode()
             raise PythonEbpfError(process.returncode, process.args, stdout, stderr)
@@ -222,6 +225,9 @@ class PythonEbpfProfiler(ProfilerBase):
             process = self.process  # save it
             exit_status, stderr, stdout = self._terminate()
             assert exit_status is not None, "PyPerf didn't exit after _terminate()!"
+            assert isinstance(process.args, list) and all(
+                isinstance(s, str) for s in process.args
+            ), process.args  # mypy
             raise PythonEbpfError(exit_status, process.args, stdout, stderr)
 
     def snapshot(self) -> ProcessToProfileData:
