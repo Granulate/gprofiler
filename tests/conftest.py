@@ -354,9 +354,9 @@ def application_docker_image(
 ) -> Iterable[Image]:
 
     if is_aarch64():
-        # if runtime == "nodejs":
-        #     if application_image_tag == "12-glibc":
-        #         pytest.xfail("DUPA2")
+        if runtime == "nodejs":
+            if application_image_tag == "12-glibc":
+                pytest.xfail("This test fails on aarch64, see https://github.com/Granulate/gprofiler/issues/758")
         if runtime == "java":
             if application_image_tag == "j9" or application_image_tag == "zing":
                 pytest.xfail(

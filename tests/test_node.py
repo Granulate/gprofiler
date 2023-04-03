@@ -35,8 +35,8 @@ def test_nodejs_attach_maps(
     runtime_specific_args: List[str],
     profiler_state: ProfilerState,
 ) -> None:
-    # if is_aarch64():
-    #     pytest.xfail("DUPA1")
+    if is_aarch64():
+        pytest.xfail("This test fails on aarch64 https://github.com/Granulate/gprofiler/issues/757")
     with SystemProfiler(
         1000,
         6,
