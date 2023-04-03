@@ -36,7 +36,7 @@ def test_nodejs_attach_maps(
     profiler_state: ProfilerState,
 ) -> None:
     if is_aarch64():
-        pytest.xfail("DUPA")
+        pytest.xfail("DUPA1")
     with SystemProfiler(
         1000,
         6,

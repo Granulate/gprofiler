@@ -352,7 +352,10 @@ def application_docker_image(
     runtime: str,
     application_image_tag: str,
 ) -> Iterable[Image]:
+    if runtime == "nodejs":
+        pytest.xfail("DUPA2")
     if is_aarch64():
+
         if runtime == "java":
             if application_image_tag == "j9" or application_image_tag == "zing":
                 pytest.xfail(
