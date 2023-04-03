@@ -268,13 +268,13 @@ def application_docker_image_configs() -> Mapping[str, Dict[str, Any]]:
             "": dict(
                 buildargs={
                     "NODE_RUNTIME_FLAGS": "--perf-prof --interpreted-frames-native-stack",
-                    "NODE_IMAGE_TAG": "@sha256:59531d2835edd5161c8f9512f9e095b1836f7a1fcb0ab73e005ec46047384911",
+                    "NODE_IMAGE_TAG": "@sha256:c21209748c829660e0b49cbd14d2f9d81ea82ffb02a8a7932ebacf70d01573a3",
                 }
             ),
             "without-flags": dict(
                 buildargs={
                     "NODE_RUNTIME_FLAGS": "",
-                    "NODE_IMAGE_TAG": "@sha256:01627afeb110b3054ba4a1405541ca095c8bfca1cb6f2be9479c767a2711879e",
+                    "NODE_IMAGE_TAG": "@sha256:c21209748c829660e0b49cbd14d2f9d81ea82ffb02a8a7932ebacf70d01573a3",
                 }
             ),
             "10-glibc": dict(buildargs={"NODE_IMAGE_TAG": ":10-slim"}),
