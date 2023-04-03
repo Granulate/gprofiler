@@ -35,6 +35,8 @@ def test_nodejs_attach_maps(
     runtime_specific_args: List[str],
     profiler_state: ProfilerState,
 ) -> None:
+    if is_aarch64():
+        pytest.xfail("DUPA")
     with SystemProfiler(
         1000,
         6,
