@@ -274,7 +274,7 @@ def application_docker_image_configs() -> Mapping[str, Dict[str, Any]]:
             "without-flags": dict(
                 buildargs={
                     "NODE_RUNTIME_FLAGS": "",
-                    "NODE_IMAGE_TAG": "@sha256:59531d2835edd5161c8f9512f9e095b1836f7a1fcb0ab73e005ec46047384911",
+                    "NODE_IMAGE_TAG": "@sha256:01627afeb110b3054ba4a1405541ca095c8bfca1cb6f2be9479c767a2711879e",
                 }
             ),
             "10-glibc": dict(buildargs={"NODE_IMAGE_TAG": ":10-slim"}),
