@@ -353,8 +353,6 @@ def application_docker_image(
     application_image_tag: str,
 ) -> Iterable[Image]:
     if is_aarch64():
-        with open("what.txt","a") as f:
-            f.write(str(locals()))
         if runtime == "java":
             if application_image_tag == "j9" or application_image_tag == "zing":
                 pytest.xfail(

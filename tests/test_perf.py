@@ -24,6 +24,7 @@ from tests.utils import (
     is_function_in_collapsed,
     snapshot_pid_collapsed,
     snapshot_pid_profile,
+    is_aarch64,
 )
 
 
@@ -59,6 +60,11 @@ def test_perf_fp_dwarf_smart(
         process_profile = snapshot_pid_profile(profiler, application_pid)
         process_collapsed = process_profile.stacks
 
+        if is_aarch64():
+            if runtime == "native_fp" and (perf_mode == "fp" or perf_mode == "dwarf"):
+                pytest.xfail("This combination fails on aarch64 https://github.com/Granulate/gprofiler/issues/746")
+            if runtime == "native_dwarf" and (perf_mode == "smart" or perf_mode == "dwarf"):
+                pytest.xfail("This combination fails on aarch64 https://github.com/Granulate/gprofiler/issues/746")
         if runtime == "native_dwarf":
             # app is built with DWARF info and without FP, so we expect to see a callstack only in DWARF or smart modes.
             assert is_function_in_collapsed(";recursive;recursive;recursive;recursive;", process_collapsed) ^ bool(

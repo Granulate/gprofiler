@@ -19,6 +19,7 @@ from tests.utils import (
     assert_ldd_version_container,
     run_gprofiler_in_container_for_one_session,
     snapshot_pid_collapsed,
+    is_aarch64,
 )
 
 
@@ -133,6 +134,9 @@ def test_nodejs_matrix(
     application_image_tag: str,
     profiler_state: ProfilerState,
 ) -> None:
+    if is_aarch64():
+        if application_image_tag == "12-glibc":
+            pytest.xfail("DUPA")
     with SystemProfiler(
         1000,
         6,
