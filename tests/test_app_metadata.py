@@ -48,7 +48,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
                 else "buildid:bf7da94bfdf3cb595ae0af450112076bdaaabee8",
                 "exe_elfid": "buildid:8a28e8baf87a769f077bf28c053811ce4ffbebed"
                 if is_aarch64()
-                else "buildid:3dd53a0b231fb14f1aaa81e10be000c58a09ee45",
+                else "buildid:cbc0ab21749fe48b904fff4e73b88413270bd8ba",
                 "ruby_version": "ruby 2.6.7p197 (2021-04-05 revision 67941) [aarch64-linux]"
                 if is_aarch64()
                 else "ruby 2.6.7p197 (2021-04-05 revision 67941) [x86_64-linux]",

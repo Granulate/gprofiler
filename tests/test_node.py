@@ -17,9 +17,9 @@ from tests.conftest import AssertInCollapsed
 from tests.utils import (
     assert_function_in_collapsed,
     assert_ldd_version_container,
+    is_aarch64,
     run_gprofiler_in_container_for_one_session,
     snapshot_pid_collapsed,
-    is_aarch64,
 )
 
 

@@ -114,7 +114,10 @@ def test_dotnet_trace(
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
     profiler_state: ProfilerState,
+    in_container: bool,
 ) -> None:
+    if is_aarch64() and not in_container:
+        pytest.xfail("This combination fails on aarch64, see https://github.com/Granulate/gprofiler/issues/755")
     with DotnetProfiler(1000, 3, profiler_state, "dotnet-trace") as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -126,7 +129,10 @@ def test_nodejs(
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
     profiler_state: ProfilerState,
+    in_container: bool,
 ) -> None:
+    if is_aarch64() and not in_container:
+        pytest.xfail("This combination fails on aarch64, see https://github.com/Granulate/gprofiler/issues/760")
     with SystemProfiler(
         1000,
         6,
@@ -197,7 +203,8 @@ def test_from_container(
 ) -> None:
     if runtime == "php" and not in_container:
         pytest.skip("Flaky https://github.com/Granulate/gprofiler/issues/630")
-
+    if is_aarch64() and runtime == "nodejs" and not in_container:
+        pytest.xfail("This combination fails on aarch64, see https://github.com/Granulate/gprofiler/issues/760")
     _ = application_pid  # Fixture only used for running the application.
     _ = assert_app_id  # Required for mypy unused argument warning
     collapsed_text = run_gprofiler_in_container_for_one_session(
