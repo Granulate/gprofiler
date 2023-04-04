@@ -19,7 +19,7 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils import random_prefix, reap_process, resource_path, start_process, wait_event
+from gprofiler.utils import random_prefix, reap_process, resource_path, start_process, wait_event, extend_cmd_with_pids
 
 logger = get_logger_adapter(__name__)
 # Currently tracing only php-fpm, TODO: support mod_php in apache.
@@ -87,6 +87,7 @@ class PHPSpyProfiler(ProfilerBase):
             str(self._output_path),
             # Duration is irrelevant here, we want to run continuously.
         ]
+        cmd = extend_cmd_with_pids(cmd, self._profiler_state)
 
         # importlib.resources doesn't provide a way to get a directory because it's not "a resource",
         # we use the same dir for required binaries, if they are not available.

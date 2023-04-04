@@ -35,7 +35,7 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils import reap_process, remove_path, run_process, start_process, wait_event, wait_for_file_by_prefix
+from gprofiler.utils import extend_cmd_with_pids, reap_process, remove_path, run_process, start_process, wait_event, wait_for_file_by_prefix
 from gprofiler.utils.perf import perf_path, valid_perf_pid
 
 logger = get_logger_adapter(__name__)
@@ -160,7 +160,10 @@ def merge_global_perfs(
 
     total_fp_samples = sum([sum(stacks.values()) for stacks in fp_perf.values()])
     total_dwarf_samples = sum([sum(stacks.values()) for stacks in dwarf_perf.values()])
-    fp_to_dwarf_sample_ratio = total_fp_samples / total_dwarf_samples
+    if total_dwarf_samples == 0:
+        fp_to_dwarf_sample_ratio = 0 # ratio can be 0 because if total_dwarf_samples is 0 then it will be never used
+    else:
+        fp_to_dwarf_sample_ratio = total_fp_samples / total_dwarf_samples
 
     # The FP perf is used here as the "main" perf, to which the DWARF perf is scaled.
     merged_pid_to_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
@@ -389,6 +392,8 @@ class SystemProfiler(ProfilerBase):
         self._node_processes: List[Process] = []
         self._node_processes_attached: List[Process] = []
         self._perf_memory_restart = perf_memory_restart
+        extra_args = []
+        extra_args = extend_cmd_with_pids(extra_args, self._profiler_state)
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
@@ -397,20 +402,21 @@ class SystemProfiler(ProfilerBase):
                 os.path.join(self._profiler_state.storage_dir, "perf.fp"),
                 False,
                 perf_inject,
-                [],
+                extra_args,
             )
             self._perfs.append(self._perf_fp)
         else:
             self._perf_fp = None
 
         if perf_mode in ("dwarf", "smart"):
+            extra_args.extend(["--call-graph", f"dwarf,{perf_dwarf_stack_size}"])
             self._perf_dwarf: Optional[PerfProcess] = PerfProcess(
                 self._frequency,
                 self._profiler_state.stop_event,
                 os.path.join(self._profiler_state.storage_dir, "perf.dwarf"),
                 True,
                 False,  # no inject in dwarf mode, yet
-                ["--call-graph", f"dwarf,{perf_dwarf_stack_size}"],
+                extra_args,
             )
             self._perfs.append(self._perf_dwarf)
         else:

@@ -21,6 +21,7 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers import python
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.utils import (
+    extend_cmd_with_pids,
     poll_process,
     random_prefix,
     reap_process,
@@ -132,6 +133,7 @@ class PythonEbpfProfiler(ProfilerBase):
             "--stack-offset",
             str(self._kernel_stack_offset()),
         ]
+        cmd = extend_cmd_with_pids(cmd, self._profiler_state)
         if self._verbose:
             # 4 is the max verbosityLevel in PyPerf.
             cmd.extend(["-v", "4"])

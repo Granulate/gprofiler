@@ -34,6 +34,7 @@ from psutil import Process
 
 from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.platform import is_linux, is_windows
+from gprofiler.profiler_state import ProfilerState
 
 if is_windows():
     import pythoncom
@@ -523,3 +524,10 @@ def merge_dicts(source: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any]:
         else:
             dest[key] = value
     return dest
+
+
+def extend_cmd_with_pids(cmd: List[str], profiler_state: ProfilerState) -> List[str]:
+    if profiler_state.pids_to_profile is not None:
+        for pid in profiler_state.pids_to_profile:
+            cmd.extend(["-p", str(pid)])
+    return cmd

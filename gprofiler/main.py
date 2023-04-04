@@ -528,8 +528,8 @@ def parse_cmd_args() -> configargparse.Namespace:
         dest="pids_to_profile",
         action="append",
         default=list(),
-        type=int,
-        help="List of processes that will be filtered to profile",
+        type=str,
+        help="Coma separated list of processes that will be filtered to profile",
     )
 
     _add_profilers_arguments(parser)
@@ -803,6 +803,14 @@ def parse_cmd_args() -> configargparse.Namespace:
 
     if args.profile_spawned_processes and len(args.pids_to_profile) > 0:
         parser.error("--pids is not allowed when profiling spawned processes")
+    
+    pids_to_profile = []
+    try:
+        for input in args.pids_to_profile:
+            pids_to_profile.extend([int(pid) for pid in input.split(',')])
+    except ValueError:
+        parser.error("--pids should be integer or coma separated list of integers f.e. --pids 13,452,2388")
+    setattr(args, "pids_to_profile", pids_to_profile)
 
     return args
 
