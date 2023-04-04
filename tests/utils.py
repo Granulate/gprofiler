@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
+import platform
 import re
 import subprocess
 from contextlib import contextmanager
@@ -166,6 +167,10 @@ def is_pattern_in_collapsed(pattern: str, collapsed: StackToSampleCount) -> bool
     return any(regex.search(record) is not None for record in collapsed.keys())
 
 
+def is_aarch64() -> bool:
+    return platform.machine() == "aarch64"
+
+
 def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) -> None:
     print(f"collapsed: {collapsed}")
     assert is_function_in_collapsed(function_name, collapsed), f"function {function_name!r} missing in collapsed data!"
@@ -204,6 +209,7 @@ def make_java_profiler(
     java_collect_spark_app_name_as_appid: bool = False,
     java_mode: str = "ap",
     java_collect_jvm_flags: str = JavaFlagCollectionOptions.DEFAULT,
+    java_full_hserr: bool = False,
     java_include_method_modifiers: bool = False,
 ) -> JavaProfiler:
     return JavaProfiler(
@@ -221,6 +227,7 @@ def make_java_profiler(
         java_mode=java_mode,
         java_async_profiler_report_meminfo=java_async_profiler_report_meminfo,
         java_collect_jvm_flags=java_collect_jvm_flags,
+        java_full_hserr=java_full_hserr,
         java_include_method_modifiers=java_include_method_modifiers,
     )
 

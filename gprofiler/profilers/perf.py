@@ -35,7 +35,7 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils import remove_path, run_process, start_process, wait_event, wait_for_file_by_prefix
+from gprofiler.utils import reap_process, remove_path, run_process, start_process, wait_event, wait_for_file_by_prefix
 from gprofiler.utils.perf import perf_path, valid_perf_pid
 
 logger = get_logger_adapter(__name__)
@@ -250,9 +250,9 @@ class PerfProcess:
     def stop(self) -> None:
         if self._process is not None:
             self._process.terminate()  # okay to call even if process is already dead
-            exit_code = self._process.wait()
+            exit_code, stdout, stderr = reap_process(self._process)
             self._process = None
-            logger.info(f"Stopped {self._log_name}", exit_code=exit_code)
+            logger.info(f"Stopped {self._log_name}", exit_code=exit_code, stderr=stderr, stdout=stdout)
 
     def is_running(self) -> bool:
         """

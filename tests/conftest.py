@@ -42,6 +42,7 @@ from tests.utils import (
     assert_function_in_collapsed,
     chmod_path_parts,
     find_application_pid,
+    is_aarch64,
 )
 
 
@@ -311,6 +312,8 @@ def application_docker_image_configs() -> Mapping[str, Dict[str, Any]]:
             "3.9-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.9-alpine"}),
             "3.10-glibc-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.10-slim"}),
             "3.10-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.10-alpine"}),
+            "3.11-glibc-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.11-slim"}),
+            "3.11-musl-python": dict(dockerfile="matrix.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "3.11-alpine"}),
             "2.7-glibc-uwsgi": dict(
                 dockerfile="uwsgi.Dockerfile", buildargs={"PYTHON_IMAGE_TAG": "2.7"}
             ),  # not slim - need gcc
@@ -349,6 +352,14 @@ def application_docker_image(
     runtime: str,
     application_image_tag: str,
 ) -> Iterable[Image]:
+    if is_aarch64():
+        if runtime == "java":
+            if application_image_tag == "j9" or application_image_tag == "zing":
+                pytest.xfail(
+                    "Different JVMs are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
+                )
+            if application_image_tag == "musl":
+                pytest.xfail("This test does not work on aarch64 https://github.com/Granulate/gprofiler/issues/743")
     yield _build_image(docker_client, **application_docker_image_configs[image_name(runtime, application_image_tag)])
 
 
@@ -592,7 +603,7 @@ def python_version(in_container: bool, application_docker_container: Container) 
             return None
     else:
         # If not running in a container the test application runs on host
-        output = subprocess.check_output("python --version", stderr=subprocess.STDOUT, shell=True)
+        output = subprocess.check_output("python3 --version", stderr=subprocess.STDOUT, shell=True)
 
     # Output is expected to look like e.g. "Python 3.9.7"
     return cast(str, output.decode().strip().split()[-1])

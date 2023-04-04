@@ -13,7 +13,7 @@ from docker.models.images import Image
 
 from gprofiler.utils.collapsed_format import parse_one_collapsed
 from tests.conftest import AssertInCollapsed
-from tests.utils import assert_jvm_flags_equal, run_gprofiler_in_container_for_one_session
+from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_container_for_one_session
 
 
 @pytest.mark.parametrize(
@@ -26,8 +26,12 @@ from tests.utils import assert_jvm_flags_equal, run_gprofiler_in_container_for_o
             {
                 "exe": "/usr/local/bin/python3.6",
                 "execfn": "/usr/local/bin/python",
-                "libpython_elfid": "buildid:0ef3fce0ef90d8f40ad9236793d30081001ee898",
-                "exe_elfid": "buildid:a04b9016e15a247fbc21c91260c13e17a458ed33",
+                "libpython_elfid": "buildid:64b7f8a37ff81f574936de12c263aade340ed3db"
+                if is_aarch64()
+                else "buildid:0ef3fce0ef90d8f40ad9236793d30081001ee898",
+                "exe_elfid": "buildid:d627b889c0ac0642ea715651ebb7436ce1ee7444"
+                if is_aarch64()
+                else "buildid:a04b9016e15a247fbc21c91260c13e17a458ed33",
                 "python_version": "Python 3.6.15",
                 "sys_maxunicode": None,
             },
@@ -51,10 +55,12 @@ from tests.utils import assert_jvm_flags_equal, run_gprofiler_in_container_for_o
             {
                 "exe": "/usr/local/openjdk-8/bin/java",
                 "execfn": "/usr/local/openjdk-8/bin/java",
-                "java_version": 'openjdk version "1.8.0_275"\n'
-                "OpenJDK Runtime Environment (build 1.8.0_275-b01)\n"
-                "OpenJDK 64-Bit Server VM (build 25.275-b01, mixed mode)",
-                "libjvm_elfid": "buildid:0542486ff00153ca0bcf9f2daea9a36c428d6cde",
+                "java_version": 'openjdk version "1.8.0_322"\n'
+                "OpenJDK Runtime Environment (build 1.8.0_322-b06)\n"
+                "OpenJDK 64-Bit Server VM (build 25.322-b06, mixed mode)",
+                "libjvm_elfid": "buildid:33a1021cade63f16e30726be4111f20c34444764"
+                if is_aarch64()
+                else "buildid:622795512a2c037aec4d7ca6da05527dae86e460",
                 "jvm_flags": [
                     {
                         "name": "CICompilerCount",

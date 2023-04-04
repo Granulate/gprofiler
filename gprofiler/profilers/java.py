@@ -101,8 +101,14 @@ def frequency_to_ap_interval(frequency: int) -> int:
 
 
 @functools.lru_cache(maxsize=1024)
-def is_musl_cached(process: Process) -> bool:
-    return is_musl(process)
+def needs_musl_ap_cached(process: Process) -> bool:
+    """
+    AP needs musl build if the JVM itself is built against musl. If the JVM is built against glibc,
+    we need the glibc build of AP. For this reason we also check for glibc-compat, which is an indicator
+    for glibc-based JVM despite having musl loaded.
+    """
+    maps = process.memory_maps()
+    return is_musl(process, maps) and not any("glibc-compat" in m.path for m in maps)
 
 
 JAVA_SAFEMODE_ALL = "all"  # magic value for *all* options from JavaSafemodeOptions
@@ -461,7 +467,7 @@ class AsyncProfiledProcess:
         self._ap_dir_host = os.path.join(
             self._find_rw_exec_dir(POSSIBLE_AP_DIRS),
             f"async-profiler-{get_ap_version()}",
-            "musl" if self._is_musl() else "glibc",
+            "musl" if self._needs_musl_ap() else "glibc",
         )
 
         self._libap_path_host = os.path.join(self._ap_dir_host, "libasyncProfiler.so")
@@ -541,9 +547,11 @@ class AsyncProfiledProcess:
                 return realpath
         return None
 
-    def _is_musl(self) -> bool:
-        # Is target process musl-based?
-        return is_musl_cached(self.process)
+    def _needs_musl_ap(self) -> bool:
+        """
+        Should we use the musl build of AP for this process?
+        """
+        return needs_musl_ap_cached(self.process)
 
     def _copy_libap(self) -> None:
         # copy *is* racy with respect to other processes running in the same namespace, because they all use
@@ -557,7 +565,7 @@ class AsyncProfiledProcess:
             if not os.path.exists(self._libap_path_host):
                 # atomically copy it
                 libap_resource = resource_path(
-                    os.path.join("java", "musl" if self._is_musl() else "glibc", "libasyncProfiler.so")
+                    os.path.join("java", "musl" if self._needs_musl_ap() else "glibc", "libasyncProfiler.so")
                 )
                 os.chmod(
                     libap_resource, 0o755
@@ -801,6 +809,13 @@ class AsyncProfiledProcess:
             "disable collection of JVM flags. Defaults to '%(default)s'",
         ),
         ProfilerArgument(
+            "--java-full-hserr",
+            dest="java_full_hserr",
+            action="store_true",
+            default=False,
+            help="Log the full hs_err instead of excerpts only, if one is found for a profiled Java application",
+        ),
+        ProfilerArgument(
             "--java-include-method-modifiers",
             dest="java_include_method_modifiers",
             action="store_true",
@@ -846,6 +861,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_mode: str,
         java_async_profiler_report_meminfo: bool,
         java_collect_jvm_flags: str,
+        java_full_hserr: bool,
         java_include_method_modifiers: bool,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
@@ -884,6 +900,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._profiler_state.stop_event, self._jattach_jcmd_runner, self._collect_jvm_flags
         )
         self._report_meminfo = java_async_profiler_report_meminfo
+        self._java_full_hserr = java_full_hserr
         self._include_method_modifiers = java_include_method_modifiers
 
     def _init_ap_mode(self, profiling_mode: str, ap_mode: str) -> None:
@@ -946,8 +963,27 @@ class JavaProfiler(SpawningProcessProfilerBase):
     def _is_zing_vm_supported(self, jvm_version: JvmVersion) -> bool:
         # Zing >= 18 is assumed to support AsyncGetCallTrace per
         # https://github.com/jvm-profiling-tools/async-profiler/issues/153#issuecomment-452038960
-        assert jvm_version.zing_major is not None  # it's Zing so should be non-None.
-        return jvm_version.zing_major >= 18
+        assert jvm_version.zing_version is not None  # it's Zing so should be non-None.
+
+        # until proven otherwise, we assume ZVM-17168 is affecting 18, 19.
+        if jvm_version.zing_version.major < 20:
+            return False
+
+        # try to filter versions exhibiting ZVM-17168, from Zing release notes https://docs.azul.com/prime/release-notes
+        # it seems that the Zing 20 product line has it, so we filter it out here.
+        if jvm_version.zing_version.major == 20:
+            if jvm_version.zing_version.minor >= 10:
+                # Fixed at 20.10.0.0 - https://docs.azul.com/prime/release-notes#prime_stream_20_10_0_0
+                return True
+            if jvm_version.zing_version.minor == 8:
+                # Fixed at 20.08.101.0 - https://docs.azul.com/prime/release-notes#prime_stable_20_08_101_0
+                return jvm_version.zing_version.micro >= 101
+
+            # others are faulty with ZVM-17168.
+            return False
+
+        # others are considered okay.
+        return True
 
     def _check_jvm_supported_extended(self, jvm_version: JvmVersion) -> bool:
         if jvm_version.version.major not in self.MINIMAL_SUPPORTED_VERSIONS:
@@ -1178,24 +1214,26 @@ class JavaProfiler(SpawningProcessProfilerBase):
             return
 
         contents = open(error_file).read()
-        m = VM_INFO_REGEX.search(contents)
-        vm_info = m[1] if m else ""
-        m = SIGINFO_REGEX.search(contents)
-        siginfo = m[1] if m else ""
-        m = PROBLEMATIC_FRAME_REGEX.search(contents)
-        problematic_frame = m[1] if m else ""
-        m = NATIVE_FRAMES_REGEX.search(contents)
-        native_frames = m[1] if m else ""
-        m = CONTAINER_INFO_REGEX.search(contents)
-        container_info = m[1] if m else ""
-        logger.warning(
-            f"Found Hotspot error log for pid {pid} at {error_file}:\n"
-            f"VM info: {vm_info}\n"
-            f"siginfo: {siginfo}\n"
-            f"Problematic frame: {problematic_frame}\n"
-            f"native frames:\n{native_frames}\n"
-            f"container info:\n{container_info}"
-        )
+        msg = "Found Hotspot error log"
+        if not self._java_full_hserr:
+            m = VM_INFO_REGEX.search(contents)
+            vm_info = m[1] if m else ""
+            m = SIGINFO_REGEX.search(contents)
+            siginfo = m[1] if m else ""
+            m = PROBLEMATIC_FRAME_REGEX.search(contents)
+            problematic_frame = m[1] if m else ""
+            m = NATIVE_FRAMES_REGEX.search(contents)
+            native_frames = m[1] if m else ""
+            m = CONTAINER_INFO_REGEX.search(contents)
+            container_info = m[1] if m else ""
+            contents = (
+                f"VM info: {vm_info}\n"
+                + f"siginfo: {siginfo}\n"
+                + f"Problematic frame: {problematic_frame}\n"
+                + f"native frames:\n{native_frames}\n"
+                + f"container info:\n{container_info}"
+            )
+        logger.warning(msg, pid=pid, hs_err_file=error_file, hs_err=contents)
 
         self._disable_profiling(JavaSafemodeOptions.HSERR)
 

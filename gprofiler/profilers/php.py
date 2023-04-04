@@ -19,7 +19,7 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils import random_prefix, resource_path, start_process, wait_event
+from gprofiler.utils import random_prefix, reap_process, resource_path, start_process, wait_event
 
 logger = get_logger_adapter(__name__)
 # Currently tracing only php-fpm, TODO: support mod_php in apache.
@@ -117,7 +117,7 @@ class PHPSpyProfiler(ProfilerBase):
 
         # Ignoring type since _process.stderr is typed as Optional[IO[Any]] which doesn't have the `read1` method.
         stderr = self._process.stderr.read1().decode()  # type: ignore
-        self._process_stderr(stderr)
+        logger.debug("phpspy stderr", stderr=self._filter_phpspy_stderr(stderr))
 
     def _dump(self) -> Path:
         assert self._process is not None, "profiling not started!"
@@ -205,30 +205,29 @@ class PHPSpyProfiler(ProfilerBase):
         if self._profiler_state.stop_event.wait(self._duration):
             raise StopEventSetException()
         stderr = self._process.stderr.read1().decode()  # type: ignore
-        self._process_stderr(stderr)
+        logger.debug("phpspy stderr", stderr=self._filter_phpspy_stderr(stderr))
 
         phpspy_output_path = self._dump()
         phpspy_output_text = phpspy_output_path.read_text()
         phpspy_output_path.unlink()
         return self._parse_phpspy_output(phpspy_output_text, self._profiler_state)
 
-    def _terminate(self) -> Optional[int]:
-        code = None
+    def stop(self) -> None:
         if self._process is not None:
             self._process.terminate()
-            code = self._process.wait()
+            exit_code, stdout, stderr = reap_process(self._process)
             self._process = None
-        return code
+            logger.info(
+                "Finished profiling PHP processes with phpspy",
+                exit_code=exit_code,
+                stdout=stdout.decode(),
+                stderr=self._filter_phpspy_stderr(stderr.decode()),
+            )
 
-    def stop(self) -> None:
-        code = self._terminate()
-        if code is not None:
-            logger.info("Finished profiling PHP processes with phpspy")
-
-    def _process_stderr(self, stderr: str) -> None:
+    def _filter_phpspy_stderr(self, stderr: str) -> str:
         skip_re = self._get_stderr_skip_regex()
         log_lines = [line for line in stderr.splitlines() if skip_re.search(line) is None]
-        logger.debug("phpspy stderr", phpspy_stderr="\n".join(log_lines))
+        return "\n".join(log_lines)
 
     @staticmethod
     @lru_cache(maxsize=1)
