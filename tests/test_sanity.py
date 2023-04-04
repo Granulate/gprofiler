@@ -129,10 +129,7 @@ def test_nodejs(
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
     profiler_state: ProfilerState,
-    in_container: bool,
 ) -> None:
-    if is_aarch64() and not in_container:
-        pytest.xfail("This combination fails on aarch64, see https://github.com/Granulate/gprofiler/issues/760")
     with SystemProfiler(
         1000,
         6,
