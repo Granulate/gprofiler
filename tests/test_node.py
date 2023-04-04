@@ -68,10 +68,7 @@ def test_nodejs_attach_maps_from_container(
     output_collapsed: Path,
     assert_collapsed: AssertInCollapsed,
     profiler_flags: List[str],
-    in_container: bool,
 ) -> None:
-    if is_aarch64 and not in_container:
-        pytest.xfail("DUPA")
     _ = application_pid  # Fixture only used for running the application.
     collapsed_text = run_gprofiler_in_container_for_one_session(
         docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags

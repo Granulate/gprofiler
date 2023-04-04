@@ -203,8 +203,6 @@ def test_from_container(
 ) -> None:
     if runtime == "php" and not in_container:
         pytest.skip("Flaky https://github.com/Granulate/gprofiler/issues/630")
-    if is_aarch64() and runtime == "nodejs" and not in_container:
-        pytest.xfail("This combination fails on aarch64, see https://github.com/Granulate/gprofiler/issues/760")
     _ = application_pid  # Fixture only used for running the application.
     _ = assert_app_id  # Required for mypy unused argument warning
     collapsed_text = run_gprofiler_in_container_for_one_session(
