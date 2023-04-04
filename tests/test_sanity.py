@@ -200,6 +200,7 @@ def test_from_container(
 ) -> None:
     if runtime == "php" and not in_container:
         pytest.skip("Flaky https://github.com/Granulate/gprofiler/issues/630")
+
     _ = application_pid  # Fixture only used for running the application.
     _ = assert_app_id  # Required for mypy unused argument warning
     collapsed_text = run_gprofiler_in_container_for_one_session(
