@@ -74,7 +74,7 @@ class SparkSampler:
                         break
 
                 elif discovered:
-                    snapshot = self._spark_sampler.collect_loop_helper()
+                    snapshot = self._spark_sampler.snapshot()
                     logger.debug("Collected Spark metrics", snapshot=snapshot)
                     # No need to submit samples that don't actually have a value:
                     if self._storage_dir is not None and snapshot is not None:
