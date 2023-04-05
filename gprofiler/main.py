@@ -806,8 +806,17 @@ def parse_cmd_args() -> configargparse.Namespace:
 
     pids_to_profile = []
     try:
-        for input in args.pids_to_profile:
-            pids_to_profile.extend([int(pid) for pid in input.split(",")])
+        if len(args.pids_to_profile) > 0:
+            for input in args.pids_to_profile:
+                pids = [int(pid) for pid in input.split(",")]
+                for pid in pids:
+                    try:
+                        Process(pid)
+                        pids_to_profile.append(pid)
+                    except NoSuchProcess:
+                        continue
+            if len(pids_to_profile) == 0:
+                parser.error("There aren't any alive processes from provided PID list")
     except ValueError:
         parser.error("--pids should be integer or coma separated list of integers f.e. --pids 13,452,2388")
     setattr(args, "pids_to_profile", pids_to_profile)
