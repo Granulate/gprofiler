@@ -53,7 +53,6 @@ class ProfilerState:
 
     @property
     def pids_to_profile(self) -> Optional[List[int]]:
-        print(f"Marcin debug {self._pids_to_profile}")
         if len(self._pids_to_profile) > 0:
             return self._pids_to_profile
         else:
