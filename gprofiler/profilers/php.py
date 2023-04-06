@@ -194,6 +194,8 @@ class PHPSpyProfiler(ProfilerBase):
 
         profiles: ProcessToProfileData = {}
         for pid in results:
+            # Because of https://github.com/Granulate/gprofiler/issues/763,
+            # for now we only filter output of phpspy to return only profiles from chosen pids
             if profiler_state.pids_to_profile is not None:
                 if pid not in profiler_state.pids_to_profile:
                     continue
