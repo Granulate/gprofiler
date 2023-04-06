@@ -227,8 +227,10 @@ class PySpyProfiler(SpawningProcessProfilerBase):
                 logger.error(f"Profiling with py-spy timed out on process {process.pid}")
                 raise
             except CalledProcessError as e:
+                assert isinstance(e.stderr, str), f"unexpected type {type(e.stderr)}"
+
                 if (
-                    b"Error: Failed to get process executable name. Check that the process is running.\n" in e.stderr
+                    "Error: Failed to get process executable name. Check that the process is running.\n" in e.stderr
                     and not is_process_running(process)
                 ):
                     logger.debug(f"Profiled process {process.pid} exited before py-spy could start")
