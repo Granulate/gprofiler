@@ -392,10 +392,10 @@ class SystemProfiler(ProfilerBase):
         self._node_processes: List[Process] = []
         self._node_processes_attached: List[Process] = []
         self._perf_memory_restart = perf_memory_restart
-        extra_args: List[str] = []
+        pid_args: List[str] = []
         if self._profiler_state.pids_to_profile is not None:
-            extra_args.append("--pid")
-            extra_args.append(",".join([str(pid) for pid in self._profiler_state.pids_to_profile]))
+            pid_args.append("--pid")
+            pid_args.append(",".join([str(pid) for pid in self._profiler_state.pids_to_profile]))
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
@@ -404,21 +404,20 @@ class SystemProfiler(ProfilerBase):
                 os.path.join(self._profiler_state.storage_dir, "perf.fp"),
                 False,
                 perf_inject,
-                extra_args,
+                pid_args,
             )
             self._perfs.append(self._perf_fp)
         else:
             self._perf_fp = None
 
         if perf_mode in ("dwarf", "smart"):
-            extra_args.extend(["--call-graph", f"dwarf,{perf_dwarf_stack_size}"])
             self._perf_dwarf: Optional[PerfProcess] = PerfProcess(
                 self._frequency,
                 self._profiler_state.stop_event,
                 os.path.join(self._profiler_state.storage_dir, "perf.dwarf"),
                 True,
                 False,  # no inject in dwarf mode, yet
-                extra_args,
+                pid_args + ["--call-graph", f"dwarf,{perf_dwarf_stack_size}"],
             )
             self._perfs.append(self._perf_dwarf)
         else:
