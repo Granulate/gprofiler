@@ -57,7 +57,7 @@ def test_perf_fp_dwarf_smart(
     application_docker_container: Container,
 ) -> None:
     if is_aarch64():
-        if runtime == "native_fp" and perf_mode == "fp": 
+        if runtime == "native_fp" and perf_mode == "fp":
             pytest.xfail("This combination fails on aarch64 https://github.com/Granulate/gprofiler/issues/746")
         if runtime == "native_fp" and perf_mode == "dwarf":
             pytest.xfail("This combination fails on aarch64 https://github.com/Granulate/gprofiler/issues/746")
@@ -68,7 +68,6 @@ def test_perf_fp_dwarf_smart(
     with system_profiler as profiler:
         process_profile = snapshot_pid_profile(profiler, application_pid)
         process_collapsed = process_profile.stacks
-
 
         if runtime == "native_dwarf":
             # app is built with DWARF info and without FP, so we expect to see a callstack only in DWARF or smart modes.
