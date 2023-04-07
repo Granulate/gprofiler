@@ -214,6 +214,9 @@ def application_process(
         yield None
         return
     else:
+        if is_aarch64():
+            if runtime == "dotnet":
+                pytest.xfail("This combination fails on aarch64, see https://github.com/Granulate/gprofiler/issues/755")
         with _application_process(command_line, check_app_exited) as popen:
             yield popen
 
@@ -354,8 +357,6 @@ def application_docker_image(
 ) -> Iterable[Image]:
 
     if is_aarch64():
-        if runtime == "dotnet":
-            pytest.xfail("This combination fails on aarch64, see https://github.com/Granulate/gprofiler/issues/755")
         if runtime == "nodejs":
             if application_image_tag == "12-glibc":
                 pytest.xfail("This test fails on aarch64, see https://github.com/Granulate/gprofiler/issues/758")
