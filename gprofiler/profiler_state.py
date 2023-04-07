@@ -16,7 +16,7 @@ class ProfilerState:
         self._temporary_dir = TemporaryDirectoryWithMode(dir=kwargs.pop("storage_dir"), mode=0o755)
         self._storage_dir = self._temporary_dir.name
         self._container_names_client: Optional[ContainerNamesClient] = kwargs.get("container_names_client", None)
-        self._pids_to_profile: List[int] = kwargs.pop("pids_to_profile")
+        self._pids_to_profile: Optional[List[int]] = kwargs.pop("pids_to_profile")
 
     @property
     def stop_event(self) -> Event:
