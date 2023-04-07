@@ -15,7 +15,7 @@ import traceback
 from pathlib import Path
 from threading import Event
 from types import FrameType, TracebackType
-from typing import Iterable, List, Optional, Type, cast
+from typing import Any, Iterable, Optional, Type, cast
 
 import configargparse
 import humanfriendly
@@ -38,7 +38,7 @@ from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.databricks_client import DatabricksClient
 from gprofiler.diagnostics import log_diagnostics, set_diagnostics
 from gprofiler.exceptions import APIError, NoProfilersEnabledError
-from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, positive_integer
+from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, integers_list, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import concatenate_from_external_file, concatenate_profiles, merge_profiles
 from gprofiler.metadata.application_identifiers import ApplicationIdentifiers
@@ -102,45 +102,26 @@ def sigint_handler(sig: int, frame: Optional[FrameType]) -> None:
 
 
 class GProfiler:
-    def __init__(
-        self,
-        output_dir: str,
-        flamegraph: bool,
-        rotating_output: bool,
-        profiler_api_client: Optional[ProfilerAPIClient],
-        collect_metrics: bool,
-        collect_metadata: bool,
-        enrichment_options: EnrichmentOptions,
-        state: State,
-        usage_logger: UsageLoggerInterface,
-        user_args: UserArgs,
-        duration: int,
-        profile_api_version: str,
-        profiling_mode: str,
-        pids_to_profile: List[int],
-        profile_spawned_processes: bool = True,
-        remote_logs_handler: Optional[RemoteLogsHandler] = None,
-        controller_process: Optional[Process] = None,
-        spark_sampler: Optional[SparkSampler] = None,
-    ):
-        self._output_dir = output_dir
-        self._flamegraph = flamegraph
-        self._rotating_output = rotating_output
-        self._profiler_api_client = profiler_api_client
-        self._state = state
-        self._remote_logs_handler = remote_logs_handler
-        self._profile_api_version = profile_api_version
-        self._collect_metrics = collect_metrics
-        self._collect_metadata = collect_metadata
-        self._enrichment_options = enrichment_options
+    def __init__(self, **kwargs: Any):
+        self._output_dir: str = kwargs.pop("output_dir")
+        self._flamegraph: bool = kwargs.pop("flamegraph")
+        self._rotating_output: bool = kwargs.pop("rotating_output")
+        self._profiler_api_client: Optional[ProfilerAPIClient] = kwargs.pop("profiler_api_client")
+        self._state: State = kwargs.pop("state")
+        self._remote_logs_handler: Optional[RemoteLogsHandler] = kwargs.get("remote_logs_handler", None)
+        self._profile_api_version: str = kwargs.pop("profile_api_version")
+        self._collect_metrics: bool = kwargs.pop("collect_metrics")
+        self._collect_metadata: bool = kwargs.pop("collect_metadata")
+        self._enrichment_options: EnrichmentOptions = kwargs.pop("enrichment_options")
+        self._user_args: UserArgs = kwargs.pop("user_args")
         self._static_metadata: Optional[Metadata] = None
         self._spawn_time = time.time()
         self._last_diagnostics = 0.0
         self._gpid = ""
-        self._controller_process = controller_process
-        self._duration = duration
-        if collect_metadata:
-            self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
+        self._controller_process: Optional[Process] = kwargs.get("controller_process", None)
+        self._duration: int = kwargs.pop("duration")
+        if self._collect_metadata:
+            self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=self._user_args)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
         # 1. accessible by everyone - for profilers that run code in target processes, like async-profiler
@@ -149,27 +130,29 @@ class GProfiler:
         # files unnecessarily.
         container_names_client = ContainerNamesClient() if self._enrichment_options.container_names else None
         profiler_state_kwargs = {
-            'stop_event': Event(),
-            'profile_spawned_processes': profile_spawned_processes,
-            'insert_dso_name': bool(user_args.get("insert_dso_name")),
-            'profiling_mode': profiling_mode,
-            'container_names_client': container_names_client,
-            'pids_to_profile': pids_to_profile,
-            'storage_dir': TEMPORARY_STORAGE_PATH
+            "stop_event": Event(),
+            "profile_spawned_processes": kwargs.get("profile_spawned_processes", True),
+            "insert_dso_name": bool(self._user_args.get("insert_dso_name")),
+            "profiling_mode": kwargs.pop("profiling_mode"),
+            "container_names_client": container_names_client,
+            "pids_to_profile": kwargs.pop("pids_to_profile"),
+            "storage_dir": TEMPORARY_STORAGE_PATH,
         }
         self._profiler_state = ProfilerState(**profiler_state_kwargs)
-        self.system_profiler, self.process_profilers = get_profilers(user_args, profiler_state=self._profiler_state)
-        self._usage_logger = usage_logger
-        if collect_metrics:
+        self.system_profiler, self.process_profilers = get_profilers(
+            self._user_args, profiler_state=self._profiler_state
+        )
+        self._usage_logger: UsageLoggerInterface = kwargs.pop("usage_logger")
+        if self._collect_metrics:
             self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(
                 self._profiler_state.stop_event
             )
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
 
-        self._spark_sampler = spark_sampler
+        self._spark_sampler: Optional[SparkSampler] = kwargs.get("spark_sampler", None)
 
-        if isinstance(self.system_profiler, NoopProfiler) and not self.process_profilers and not spark_sampler:
+        if isinstance(self.system_profiler, NoopProfiler) and not self.process_profilers and not self._spark_sampler:
             raise NoProfilersEnabledError()
 
     @property
@@ -527,10 +510,11 @@ def parse_cmd_args() -> configargparse.Namespace:
     parser.add_argument(
         "--pids",
         dest="pids_to_profile",
-        action="append",
-        default=list(),
-        type=str,
-        help="Coma separated list of processes that will be filtered to profile",
+        action="extend",
+        default=None,
+        type=integers_list,
+        help="Comma separated list of processes that will be filtered to profile,"
+        " given multiple times will append pids to one list",
     )
 
     _add_profilers_arguments(parser)
@@ -805,23 +789,6 @@ def parse_cmd_args() -> configargparse.Namespace:
     if args.profile_spawned_processes and len(args.pids_to_profile) > 0:
         parser.error("--pids is not allowed when profiling spawned processes")
 
-    pids_to_profile = []
-    try:
-        if len(args.pids_to_profile) > 0:
-            for input in args.pids_to_profile:
-                pids = [int(pid) for pid in input.split(",")]
-                for pid in pids:
-                    try:
-                        Process(pid)
-                        pids_to_profile.append(pid)
-                    except NoSuchProcess:
-                        continue
-            if len(pids_to_profile) == 0:
-                parser.error("There aren't any alive processes from provided PID list")
-    except ValueError:
-        parser.error("--pids should be integer or coma separated list of integers f.e. --pids 13,452,2388")
-    setattr(args, "pids_to_profile", pids_to_profile)
-
     return args
 
 
@@ -881,6 +848,18 @@ def verify_preconditions(args: configargparse.Namespace) -> None:
         # executable.
         print("--log-usage is available only when run as a container!", file=sys.stderr)
         sys.exit(1)
+
+    if args.pids_to_profile is not None:
+        pids_to_profile = []
+        for pid in args.pids_to_profile:
+            try:
+                Process(pid)
+                pids_to_profile.append(pid)
+            except NoSuchProcess:
+                continue
+        if len(pids_to_profile) == 0:
+            print("There aren't any alive processes from provided via --pid PID list")
+            sys.exit(1)
 
 
 def setup_signals() -> None:
@@ -1064,27 +1043,27 @@ def main() -> None:
 
         ApplicationIdentifiers.init(enrichment_options)
         set_diagnostics(args.diagnostics)
-
-        gprofiler = GProfiler(
-            args.output_dir,
-            args.flamegraph,
-            args.rotating_output,
-            profiler_api_client,
-            args.collect_metrics,
-            args.collect_metadata,
-            enrichment_options,
-            state,
-            usage_logger,
-            args.__dict__,
-            args.duration,
-            args.profile_api_version,
-            args.profiling_mode,
-            args.pids_to_profile,
-            args.profile_spawned_processes,
-            remote_logs_handler,
-            controller_process,
-            spark_sampler,
-        )
+        gprofiler_kwargs = {
+            "output_dir": args.output_dir,
+            "flamegraph": args.flamegraph,
+            "rotating_output": args.rotating_output,
+            "profiler_api_client": profiler_api_client,
+            "collect_metrics": args.collect_metrics,
+            "collect_metadata": args.collect_metadata,
+            "enrichment_options": enrichment_options,
+            "state": state,
+            "usage_logger": usage_logger,
+            "user_args": args.__dict__,
+            "duration": args.duration,
+            "profile_api_version": args.profile_api_version,
+            "profiling_mode": args.profiling_mode,
+            "pids_to_profile": args.pids_to_profile,
+            "profile_spawned_processes": args.profile_spawned_processes,
+            "remote_logs_handler": remote_logs_handler,
+            "controller_process": controller_process,
+            "spark_sampler": spark_sampler,
+        }
+        gprofiler = GProfiler(**gprofiler_kwargs)
         logger.info("gProfiler initialized and ready to start profiling")
         if args.continuous:
             gprofiler.run_continuous()
