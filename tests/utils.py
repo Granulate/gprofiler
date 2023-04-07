@@ -352,7 +352,7 @@ def _application_docker_container(
         volumes=None,
         privileged=False,
         pid_mode="host",
-        **extra_kwargs
+        **extra_kwargs,
     )
     while container.status != "running":
         if container.status == "exited":
