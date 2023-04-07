@@ -45,7 +45,7 @@ RUNTIME_PROFILERS = [
 def start_container(
     docker_client: DockerClient,
     image: Image,
-    command: List[str],
+    command: Optional[List[str]] = None,
     volumes: Dict[str, Dict[str, str]] = None,
     privileged: bool = False,
     pid_mode: Optional[str] = "host",
@@ -53,7 +53,6 @@ def start_container(
 ) -> Container:
     if volumes is None:
         volumes = {}
-
     return docker_client.containers.run(
         image,
         command,
@@ -342,8 +341,10 @@ def _application_docker_container(
     application_docker_capabilities: List[str],
     application_docker_command: Optional[List[str]] = None,
 ) -> Container:
-    if application_docker_command is None:
-        application_docker_command = []
+    extra_kwargs = {}
+    extra_kwargs["user"] = "5555:6666"
+    extra_kwargs["mounts"] = application_docker_mounts
+    extra_kwargs["cap_add"] = application_docker_capabilities
     container: Container = start_container(
         docker_client,
         application_docker_image,
@@ -351,9 +352,7 @@ def _application_docker_container(
         volumes=None,
         privileged=False,
         pid_mode="host",
-        user="5555:6666",
-        mounts=application_docker_mounts,
-        cap_add=application_docker_capabilities,
+        **extra_kwargs
     )
     while container.status != "running":
         if container.status == "exited":
