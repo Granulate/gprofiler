@@ -96,7 +96,7 @@ def profiler_state(tmp_path: Path, insert_dso_name: bool) -> ProfilerState:
         "insert_dso_name": insert_dso_name,
         "profiling_mode": CPU_PROFILING_MODE,
         "container_names_client": ContainerNamesClient,
-        "pids_to_profile": list(),
+        "pids_to_profile": None,
         "storage_dir": str(tmp_path),
     }
     return ProfilerState(**profiler_state_kwargs)
