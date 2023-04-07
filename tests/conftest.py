@@ -215,7 +215,7 @@ def application_process(
         return
     else:
         if is_aarch64():
-            if runtime == "dotnet":
+            if "dotnet" in command_line:
                 pytest.xfail("This combination fails on aarch64, see https://github.com/Granulate/gprofiler/issues/755")
         with _application_process(command_line, check_app_exited) as popen:
             yield popen
