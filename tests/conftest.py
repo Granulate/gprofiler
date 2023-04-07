@@ -354,6 +354,8 @@ def application_docker_image(
 ) -> Iterable[Image]:
 
     if is_aarch64():
+        if runtime == "dotnet":
+            pytest.xfail("This combination fails on aarch64, see https://github.com/Granulate/gprofiler/issues/755")
         if runtime == "nodejs":
             if application_image_tag == "12-glibc":
                 pytest.xfail("This test fails on aarch64, see https://github.com/Granulate/gprofiler/issues/758")
