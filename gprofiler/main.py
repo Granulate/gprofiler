@@ -148,15 +148,16 @@ class GProfiler:
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
         container_names_client = ContainerNamesClient() if self._enrichment_options.container_names else None
-        self._profiler_state = ProfilerState(
-            Event(),
-            TEMPORARY_STORAGE_PATH,
-            profile_spawned_processes,
-            bool(user_args.get("insert_dso_name")),
-            profiling_mode,
-            pids_to_profile,
-            container_names_client,
-        )
+        profiler_state_kwargs = {
+            'stop_event': Event(),
+            'profile_spawned_processes': profile_spawned_processes,
+            'insert_dso_name': bool(user_args.get("insert_dso_name")),
+            'profiling_mode': profiling_mode,
+            'container_names_client': container_names_client,
+            'pids_to_profile': pids_to_profile,
+            'storage_dir': TEMPORARY_STORAGE_PATH
+        }
+        self._profiler_state = ProfilerState(**profiler_state_kwargs)
         self.system_profiler, self.process_profilers = get_profilers(user_args, profiler_state=self._profiler_state)
         self._usage_logger = usage_logger
         if collect_metrics:

@@ -1,5 +1,5 @@
 from threading import Event
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.utils import TemporaryDirectoryWithMode
@@ -8,24 +8,15 @@ from gprofiler.utils import TemporaryDirectoryWithMode
 class ProfilerState:
     # Class for storing generic state parameters. These parameters are the same for each profiler.
     # Thanks to that class adding new state parameters to profilers won't result changing code in every profiler.
-    def __init__(
-        self,
-        stop_event: Event,
-        storage_dir: str,
-        profile_spawned_processes: bool,
-        insert_dso_name: bool,
-        profiling_mode: str,
-        pids_to_profile: List[int],
-        container_names_client: Optional[ContainerNamesClient],
-    ) -> None:
-        self._stop_event = stop_event
-        self._profile_spawned_processes = profile_spawned_processes
-        self._insert_dso_name = insert_dso_name
-        self._profiling_mode = profiling_mode
-        self._temporary_dir = TemporaryDirectoryWithMode(dir=storage_dir, mode=0o755)
+    def __init__(self, **kwargs: Any) -> None:
+        self._stop_event = kwargs.pop('stop_event')
+        self._profile_spawned_processes = kwargs.pop('profile_spawned_processes')
+        self._insert_dso_name = kwargs.pop('insert_dso_name')
+        self._profiling_mode = kwargs.pop('profiling_mode')
+        self._temporary_dir = TemporaryDirectoryWithMode(dir=kwargs.pop('storage_dir'), mode=0o755)
         self._storage_dir = self._temporary_dir.name
-        self._container_names_client = container_names_client
-        self._pids_to_profile = pids_to_profile
+        self._container_names_client = kwargs.pop('container_names_client')
+        self._pids_to_profile = kwargs.pop('pids_to_profile')
 
     @property
     def stop_event(self) -> Event:

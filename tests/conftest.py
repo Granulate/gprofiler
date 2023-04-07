@@ -90,9 +90,16 @@ def java_args() -> Tuple[str]:
 
 @fixture()
 def profiler_state(tmp_path: Path, insert_dso_name: bool) -> ProfilerState:
-    return ProfilerState(
-        Event(), str(tmp_path), False, insert_dso_name, CPU_PROFILING_MODE, list(), ContainerNamesClient()
-    )
+    profiler_state_kwargs = {
+        'stop_event': Event(),
+        'profile_spawned_processes': False,
+        'insert_dso_name': insert_dso_name,
+        'profiling_mode': CPU_PROFILING_MODE,
+        'container_names_client': ContainerNamesClient,
+        'pids_to_profile': list(),
+        'storage_dir': str(tmp_path)
+    }
+    return ProfilerState(**profiler_state_kwargs)
 
 
 def make_path_world_accessible(path: Path) -> None:
