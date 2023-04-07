@@ -857,6 +857,7 @@ def verify_preconditions(args: configargparse.Namespace) -> None:
                 pids_to_profile.append(pid)
             except NoSuchProcess:
                 continue
+        setattr(args, "pids_to_profile", pids_to_profile)
         if len(pids_to_profile) == 0:
             print("There aren't any alive processes from provided via --pid PID list")
             sys.exit(1)
