@@ -116,8 +116,6 @@ def test_dotnet_trace(
     profiler_state: ProfilerState,
     in_container: bool,
 ) -> None:
-    if is_aarch64() and not in_container:
-        pytest.xfail("This combination fails on aarch64, see https://github.com/Granulate/gprofiler/issues/755")
     with DotnetProfiler(1000, 3, profiler_state, "dotnet-trace") as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
