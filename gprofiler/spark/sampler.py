@@ -33,24 +33,22 @@ class SparkSampler:
         storage_dir: str,
         api_client: Optional[APIClient] = None,
     ):
-        self._master_address: Optional[str] = None
-        self._spark_mode: Optional[str] = None
         self._collection_thread: Optional[Thread] = None
         self._sample_period = sample_period
         # not the same instance as GProfiler._stop_event
         self._stop_event = Event()
-        self._spark_sampler: Optional[BigDataSampler] = None
         self._stop_collection = False
         self._is_running = False
-        self._applications_metrics = False
         self._storage_dir = storage_dir
         if self._storage_dir is not None:
             assert os.path.exists(self._storage_dir) and os.path.isdir(self._storage_dir)
         else:
             logger.debug("Output directory is None. Will add metrics to queue")
         self._client = api_client
-        self._spark_sampler = BigDataSampler(
-            logger, get_hostname(), self._master_address, self._spark_mode, self._applications_metrics
+
+        # TODO: master address, spark mode and applications metrics should be configurable in the future.
+        self._big_data_sampler: BigDataSampler = BigDataSampler(
+            logger, get_hostname(), None, None, False
         )
 
     def start(self) -> None:
@@ -65,19 +63,21 @@ class SparkSampler:
         ), "A valid API client or storage directory is required"
         timefn = time.monotonic
         start_time = timefn()
+        discovered = False
+
         while not self._stop_event.is_set():
-            if self._spark_sampler is not None:
-                discovered = self._spark_sampler.discover()
+            if self._big_data_sampler is not None:
                 if not discovered:
-                    if timefn() - start_time >= FIND_CLUSTER_TIMEOUT_SECS:
+                    if not (discovered := self._big_data_sampler.discover()) \
+                            and timefn() - start_time >= FIND_CLUSTER_TIMEOUT_SECS:
                         logger.info("Timed out identifying Spark cluster. Stopping Spark collector.")
                         break
 
                 elif discovered:
-                    snapshot = self._spark_sampler.snapshot()
-                    logger.debug("Collected Spark metrics", snapshot=snapshot)
+                    snapshot = self._big_data_sampler.snapshot()
+                    assert snapshot is not None, "Discovery succeeded, but sampler snapshot failed"
                     # No need to submit samples that don't actually have a value:
-                    if self._storage_dir is not None and snapshot is not None:
+                    if self._storage_dir is not None:
                         now = get_iso8601_format_time(datetime.now())
                         base_filename = os.path.join(self._storage_dir, f"spark_metric_{escape_filename(now)}")
                         with open(base_filename, "w") as f:
