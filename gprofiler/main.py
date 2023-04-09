@@ -621,6 +621,9 @@ def parse_cmd_args() -> configargparse.Namespace:
         connectivity.add_argument(
             "--curlify-requests", help="Log cURL commands for HTTP requests (used for debugging)", action="store_true"
         )
+        connectivity.add_argument(
+            "--no-verify", help="Do not verify server certificates", action="store_false", dest="verify"
+        )
 
     upload_file.set_defaults(func=send_collapsed_file_only)
 
@@ -916,7 +919,9 @@ def main() -> None:
     state = init_state()
 
     remote_logs_handler = (
-        RemoteLogsHandler(args.api_server, args.server_token, args.service_name) if _should_send_logs(args) else None
+        RemoteLogsHandler(args.api_server, args.server_token, args.service_name, args.verify)
+        if _should_send_logs(args)
+        else None
     )
     global logger
     logger = initial_root_logger_setup(
@@ -977,11 +982,12 @@ def main() -> None:
                 client_kwargs["upload_timeout"] = args.server_upload_timeout
             profiler_api_client = (
                 ProfilerAPIClient(
-                    args.server_token,
-                    args.service_name,
-                    args.server_host,
-                    args.curlify_requests,
-                    get_hostname(),
+                    token=args.server_token,
+                    service_name=args.service_name,
+                    server_address=args.server_host,
+                    curlify_requests=args.curlify_requests,
+                    hostname=get_hostname(),
+                    verify=args.verify,
                     **client_kwargs,
                 )
                 if args.upload_results
