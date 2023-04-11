@@ -73,7 +73,7 @@ class SparkSampler:
                         logger.info("Timed out identifying Spark cluster. Stopping Spark collector.")
                         break
 
-                elif discovered:
+                if discovered:
                     snapshot = self._big_data_sampler.snapshot()
                     assert snapshot is not None, "Discovery succeeded, but sampler snapshot failed"
                     # No need to submit samples that don't actually have a value:
