@@ -208,12 +208,15 @@ def check_app_exited() -> bool:
 
 @fixture
 def application_process(
-    in_container: bool, command_line: List[str], check_app_exited: bool
+    in_container: bool, command_line: List[str], check_app_exited: bool, runtime: str
 ) -> Iterator[Optional[subprocess.Popen]]:
     if in_container:
         yield None
         return
     else:
+        if is_aarch64():
+            if runtime == "dotnet":
+                pytest.xfail("This combination fails on aarch64, see https://github.com/Granulate/gprofiler/issues/755")
         with _application_process(command_line, check_app_exited) as popen:
             yield popen
 
@@ -352,7 +355,11 @@ def application_docker_image(
     runtime: str,
     application_image_tag: str,
 ) -> Iterable[Image]:
+
     if is_aarch64():
+        if runtime == "nodejs":
+            if application_image_tag == "12-glibc":
+                pytest.xfail("This test fails on aarch64, see https://github.com/Granulate/gprofiler/issues/758")
         if runtime == "java":
             if application_image_tag == "j9" or application_image_tag == "zing":
                 pytest.xfail(
