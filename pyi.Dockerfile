@@ -159,8 +159,8 @@ RUN yum install -y \
     yum clean all
 COPY ./scripts/openssl_build.sh .
 RUN ./openssl_build.sh
-COPY ./scripts/python310_build.sh .
-RUN ./python310_build.sh
+COPY ./scripts/python311_build.sh .
+RUN ./python311_build.sh
 
 # bcc part
 # TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
@@ -232,7 +232,7 @@ RUN set -e; \
 # needed for aarch64, scons & wheel are needed to build staticx
 RUN set -e; \
     if [ "$(uname -m)" = "aarch64" ]; then \
-         ln -s /usr/lib64/python3.10/lib-dynload /usr/lib/python3.10/lib-dynload; \
+         ln -s /usr/lib64/python3.11/lib-dynload /usr/lib/python3.11/lib-dynload; \
     fi
 RUN set -e; \
     if [ "$(uname -m)" = "aarch64" ]; then \
