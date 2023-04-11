@@ -208,14 +208,14 @@ def check_app_exited() -> bool:
 
 @fixture
 def application_process(
-    in_container: bool, command_line: List[str], check_app_exited: bool
+    in_container: bool, command_line: List[str], check_app_exited: bool, runtime: str
 ) -> Iterator[Optional[subprocess.Popen]]:
     if in_container:
         yield None
         return
     else:
         if is_aarch64():
-            if "dotnet" in command_line:
+            if runtime == "dotnet":
                 pytest.xfail("This combination fails on aarch64, see https://github.com/Granulate/gprofiler/issues/755")
         with _application_process(command_line, check_app_exited) as popen:
             yield popen

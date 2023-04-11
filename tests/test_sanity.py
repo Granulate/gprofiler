@@ -114,7 +114,6 @@ def test_dotnet_trace(
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
     profiler_state: ProfilerState,
-    in_container: bool,
 ) -> None:
     with DotnetProfiler(1000, 3, profiler_state, "dotnet-trace") as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
