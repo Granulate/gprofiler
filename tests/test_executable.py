@@ -129,6 +129,7 @@ def test_executable_not_privileged(
     exit_code, output = application_docker_container.exec_run(cmd=command, privileged=False, user="root:root")
 
     _no_errors(output.decode())
+    print(output.decode())
     assert exit_code == 0
 
     collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
