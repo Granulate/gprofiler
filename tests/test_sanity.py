@@ -311,7 +311,6 @@ def test_profiling_provided_pids(
                 profiler_flags,
             )
             wait_for_gprofiler_container(container, output_collapsed)
-            assert "selected 2 processes to profile" in container.logs().decode()
             assert "processes left after filtering: 1" in container.logs().decode()
             assert f"Profiling process {pid1} with async-profiler" in container.logs().decode()
             assert f"Profiling process {pid2} with async-profiler" not in container.logs().decode()

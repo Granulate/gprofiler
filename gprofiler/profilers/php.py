@@ -196,8 +196,8 @@ class PHPSpyProfiler(ProfilerBase):
         for pid in results:
             # Because of https://github.com/Granulate/gprofiler/issues/763,
             # for now we only filter output of phpspy to return only profiles from chosen pids
-            if profiler_state.pids_to_profile is not None:
-                if pid not in profiler_state.pids_to_profile:
+            if profiler_state.processes_to_profile is not None:
+                if pid not in [process.pid for process in profiler_state.processes_to_profile]:
                     continue
             # TODO: appid & app metadata for php!
             appid = None

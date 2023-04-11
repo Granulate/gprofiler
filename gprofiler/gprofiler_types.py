@@ -81,7 +81,7 @@ def integers_list(value_str: str) -> List[int]:
         pids = [int(pid) for pid in value_str.split(",")]
     except ValueError:
         raise configargparse.ArgumentTypeError(
-            "IntegerList should be a single integer, or comma separated list of integers f.e. 13,452,2388"
+            "Integer list should be a single integer, or comma separated list of integers f.e. 13,452,2388"
         )
     return pids
 

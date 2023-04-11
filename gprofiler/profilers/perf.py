@@ -393,9 +393,9 @@ class SystemProfiler(ProfilerBase):
         self._node_processes_attached: List[Process] = []
         self._perf_memory_restart = perf_memory_restart
         pid_args: List[str] = []
-        if self._profiler_state.pids_to_profile is not None:
+        if self._profiler_state.processes_to_profile is not None:
             pid_args.append("--pid")
-            pid_args.append(",".join([str(pid) for pid in self._profiler_state.pids_to_profile]))
+            pid_args.append(",".join([str(process.pid) for process in self._profiler_state.processes_to_profile]))
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(

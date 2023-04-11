@@ -1,5 +1,7 @@
 from threading import Event
-from typing import Any, List, Optional
+from typing import List, Optional
+
+from psutil import Process
 
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.utils import TemporaryDirectoryWithMode
@@ -8,15 +10,25 @@ from gprofiler.utils import TemporaryDirectoryWithMode
 class ProfilerState:
     # Class for storing generic state parameters. These parameters are the same for each profiler.
     # Thanks to that class adding new state parameters to profilers won't result changing code in every profiler.
-    def __init__(self, **kwargs: Any) -> None:
-        self._stop_event: Event = kwargs.pop("stop_event")
-        self._profile_spawned_processes: bool = kwargs.pop("profile_spawned_processes")
-        self._insert_dso_name: bool = kwargs.pop("insert_dso_name")
-        self._profiling_mode: str = kwargs.pop("profiling_mode")
-        self._temporary_dir = TemporaryDirectoryWithMode(dir=kwargs.pop("storage_dir"), mode=0o755)
+    def __init__(
+        self,
+        *,
+        stop_event: Event,
+        storage_dir: str,
+        profile_spawned_processes: bool,
+        insert_dso_name: bool,
+        profiling_mode: str,
+        container_names_client: Optional[ContainerNamesClient],
+        processes_to_profile: Optional[List[Process]],
+    ) -> None:
+        self._stop_event = stop_event
+        self._profile_spawned_processes = profile_spawned_processes
+        self._insert_dso_name = insert_dso_name
+        self._profiling_mode = profiling_mode
+        self._temporary_dir = TemporaryDirectoryWithMode(dir=storage_dir, mode=0o755)
         self._storage_dir = self._temporary_dir.name
-        self._container_names_client: Optional[ContainerNamesClient] = kwargs.get("container_names_client", None)
-        self._pids_to_profile: Optional[List[int]] = kwargs.pop("pids_to_profile")
+        self._container_names_client = container_names_client
+        self._processes_to_profile = processes_to_profile
 
     @property
     def stop_event(self) -> Event:
@@ -43,8 +55,8 @@ class ProfilerState:
         return self._container_names_client
 
     @property
-    def pids_to_profile(self) -> Optional[List[int]]:
-        return self._pids_to_profile
+    def processes_to_profile(self) -> Optional[List[Process]]:
+        return self._processes_to_profile
 
     def get_container_name(self, pid: int) -> str:
         if self._container_names_client is not None:
