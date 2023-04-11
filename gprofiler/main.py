@@ -786,7 +786,7 @@ def parse_cmd_args() -> configargparse.Namespace:
     if args.nodejs_mode in ("perf", "attach-maps") and args.perf_mode not in ("fp", "smart"):
         parser.error("--nodejs-mode perf or attach-maps requires --perf-mode 'fp' or 'smart'")
 
-    if args.profile_spawned_processes and len(args.pids_to_profile) > 0:
+    if args.profile_spawned_processes and args.pids_to_profile is not None:
         parser.error("--pids is not allowed when profiling spawned processes")
 
     return args
