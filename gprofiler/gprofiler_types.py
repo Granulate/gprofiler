@@ -6,7 +6,7 @@
 import re
 from collections import Counter
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, MutableMapping, Optional, Union
+from typing import Any, Callable, Dict, List, MutableMapping, Optional, Union
 
 import configargparse
 
@@ -73,6 +73,16 @@ def nonnegative_integer(value_str: str) -> int:
     if value < 0:
         raise configargparse.ArgumentTypeError("invalid non-negative integer value: {!r}".format(value))
     return value
+
+
+def integers_list(value_str: str) -> List[int]:
+    try:
+        pids = [int(pid) for pid in value_str.split(",")]
+    except ValueError:
+        raise configargparse.ArgumentTypeError(
+            "Integer list should be a single integer, or comma separated list of integers f.e. 13,452,2388"
+        )
+    return pids
 
 
 def integer_range(min_range: int, max_range: int) -> Callable[[str], int]:
