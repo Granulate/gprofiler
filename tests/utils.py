@@ -53,6 +53,7 @@ def start_container(
 ) -> Container:
     if volumes is None:
         volumes = {}
+
     return docker_client.containers.run(
         image,
         command,
@@ -351,7 +352,7 @@ def _application_docker_container(
         application_docker_image,
         application_docker_command,
         volumes=None,
-        privileged=False,
+        privileged=True,
         pid_mode="host",
         **extra_kwargs,
     )
