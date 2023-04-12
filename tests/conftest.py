@@ -74,8 +74,7 @@ def chdir(path: Path) -> Iterator[None]:
 
 @fixture(params=[False, True])
 def in_container(request: FixtureRequest) -> bool:
-    return cast(bool, request.param)  # type: ignore # SubRequest isn't exported yet,
-    # https://github.com/pytest-dev/pytest/issues/7469
+    return cast(bool, request.param)
 
 
 @fixture

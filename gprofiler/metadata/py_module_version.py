@@ -46,7 +46,7 @@ def _get_packages_dir(file_path: str) -> Optional[str]:
 def _get_metadata(dist: pkg_resources.Distribution) -> Dict[str, str]:
     """Based on pip._internal.utils.get_metadata"""
     metadata_name = "METADATA"
-    if isinstance(dist, pkg_resources.DistInfoDistribution) and dist.has_metadata(metadata_name):
+    if isinstance(dist, pkg_resources.DistInfoDistribution) and dist.has_metadata(metadata_name):  # type: ignore
         metadata = dist.get_metadata(metadata_name)
     elif dist.has_metadata("PKG-INFO"):
         metadata_name = "PKG-INFO"
@@ -109,7 +109,7 @@ def _files_from_legacy(dist: pkg_resources.Distribution) -> Optional[Iterator[st
         return None
     paths = (p for p in text.splitlines(keepends=False) if p)
     root = dist.location
-    info = dist.egg_info
+    info = dist.egg_info  # type: ignore
     if root is None or info is None:
         return paths
     try:
@@ -219,8 +219,8 @@ def _populate_packages_versions(packages_versions: Dict[str, Optional[Tuple[str,
     # This function resolves symlinks and makes paths absolute for comparison purposes which isn't required
     # for our usage.
     if hasattr(pkg_resources, "_normalize_cached"):
-        original__normalize_cache = pkg_resources._normalize_cached  # type: ignore
-        pkg_resources._normalize_cached = lambda path: path  # type: ignore
+        original__normalize_cache = pkg_resources._normalize_cached
+        pkg_resources._normalize_cached = lambda path: path
     else:
         global _warned_no__normalized_cached
         if not _warned_no__normalized_cached:
@@ -250,7 +250,7 @@ def _populate_packages_versions(packages_versions: Dict[str, Optional[Tuple[str,
                 packages_versions[module_path] = package_info
     finally:
         # Don't forget to restore the original implementation in case someone else uses this function
-        pkg_resources._normalize_cached = original__normalize_cache  # type: ignore
+        pkg_resources._normalize_cached = original__normalize_cache
 
 
 _exceptions_logged = 0
