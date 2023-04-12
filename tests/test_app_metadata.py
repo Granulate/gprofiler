@@ -205,7 +205,9 @@ def test_app_metadata(
 
     assert application_docker_container.name in metadata["containers"]
     # find its app metadata index - find a stack line from the app of this container
-    stack = next(filter(lambda l: application_docker_container.name in l and application_executable in l, lines[1:]))
+    stack = next(
+        filter(lambda line: application_docker_container.name in line and application_executable in line, lines[1:])
+    )
     # stack begins with index
     idx = int(stack.split(";")[0])
 

@@ -355,7 +355,6 @@ def application_docker_image(
     runtime: str,
     application_image_tag: str,
 ) -> Iterable[Image]:
-
     if is_aarch64():
         if runtime == "nodejs":
             if application_image_tag == "12-glibc":

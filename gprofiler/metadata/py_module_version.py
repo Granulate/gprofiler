@@ -46,7 +46,7 @@ def _get_packages_dir(file_path: str) -> Optional[str]:
 def _get_metadata(dist: pkg_resources.Distribution) -> Dict[str, str]:
     """Based on pip._internal.utils.get_metadata"""
     metadata_name = "METADATA"
-    if isinstance(dist, pkg_resources.DistInfoDistribution) and dist.has_metadata(metadata_name):  # type: ignore
+    if isinstance(dist, pkg_resources.DistInfoDistribution) and dist.has_metadata(metadata_name):
         metadata = dist.get_metadata(metadata_name)
     elif dist.has_metadata("PKG-INFO"):
         metadata_name = "PKG-INFO"
@@ -109,7 +109,7 @@ def _files_from_legacy(dist: pkg_resources.Distribution) -> Optional[Iterator[st
         return None
     paths = (p for p in text.splitlines(keepends=False) if p)
     root = dist.location
-    info = dist.egg_info  # type: ignore
+    info = dist.egg_info
     if root is None or info is None:
         return paths
     try:
