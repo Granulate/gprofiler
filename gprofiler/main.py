@@ -935,7 +935,6 @@ def pids_to_processes(args: configargparse.Namespace) -> Optional[List[Process]]
                 processes_to_profile.append(process)
             except NoSuchProcess:
                 continue
-        logger.info("Target PIDs given by --pids: ", pids=[process.pid for process in processes_to_profile])
         return processes_to_profile
     else:
         return None
@@ -943,6 +942,14 @@ def pids_to_processes(args: configargparse.Namespace) -> Optional[List[Process]]
 
 def main() -> None:
     args = parse_cmd_args()
+    processes_to_profile = pids_to_processes(args)
+
+    if is_windows():
+        args.perf_mode = "disabled"
+        args.pid_ns_check = False
+    if args.subcommand != "upload-file":
+        verify_preconditions(args, processes_to_profile)
+
     state = init_state()
 
     remote_logs_handler = (
@@ -956,14 +963,8 @@ def main() -> None:
         args.log_rotate_backup_count,
         remote_logs_handler,
     )
-
-    processes_to_profile = pids_to_processes(args)
-
-    if is_windows():
-        args.perf_mode = "disabled"
-        args.pid_ns_check = False
-    if args.subcommand != "upload-file":
-        verify_preconditions(args, processes_to_profile)
+    if processes_to_profile is not None:
+        logger.info("Target PIDs given by --pids: ", pids=[process.pid for process in processes_to_profile])
 
     setup_env(args.disable_core_files, args.pid_file)
 
