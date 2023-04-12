@@ -159,7 +159,7 @@ class GProfiler:
             processes_to_profile=processes_to_profile,
         )
         self.system_profiler, self.process_profilers = get_profilers(user_args, profiler_state=self._profiler_state)
-        self._usage_logger: UsageLoggerInterface = usage_logger
+        self._usage_logger = usage_logger
         if self._collect_metrics:
             self._system_metrics_monitor: SystemMetricsMonitorBase = SystemMetricsMonitor(
                 self._profiler_state.stop_event
@@ -167,7 +167,7 @@ class GProfiler:
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
 
-        self._spark_sampler: Optional[SparkSampler] = spark_sampler
+        self._spark_sampler = spark_sampler
 
         if isinstance(self.system_profiler, NoopProfiler) and not self.process_profilers and not self._spark_sampler:
             raise NoProfilersEnabledError()
@@ -868,7 +868,7 @@ def verify_preconditions(args: configargparse.Namespace, processes_to_profile: O
 
     if processes_to_profile is not None:
         if len(processes_to_profile) == 0:
-            print("There aren't any alive processes from provided via --pid PID list")
+            print("There aren't any alive processes provided via --pid PID list")
             sys.exit(1)
 
 
@@ -935,6 +935,7 @@ def pids_to_processes(args: configargparse.Namespace) -> Optional[List[Process]]
                 processes_to_profile.append(process)
             except NoSuchProcess:
                 continue
+        logger.info("Target PIDs given by --pids: ", pids=[process.pid for process in processes_to_profile])
         return processes_to_profile
     else:
         return None
@@ -942,12 +943,6 @@ def pids_to_processes(args: configargparse.Namespace) -> Optional[List[Process]]
 
 def main() -> None:
     args = parse_cmd_args()
-    processes_to_profile = pids_to_processes(args)
-    if is_windows():
-        args.perf_mode = "disabled"
-        args.pid_ns_check = False
-    if args.subcommand != "upload-file":
-        verify_preconditions(args, processes_to_profile)
     state = init_state()
 
     remote_logs_handler = (
@@ -961,6 +956,14 @@ def main() -> None:
         args.log_rotate_backup_count,
         remote_logs_handler,
     )
+
+    processes_to_profile = pids_to_processes(args)
+
+    if is_windows():
+        args.perf_mode = "disabled"
+        args.pid_ns_check = False
+    if args.subcommand != "upload-file":
+        verify_preconditions(args, processes_to_profile)
 
     setup_env(args.disable_core_files, args.pid_file)
 
