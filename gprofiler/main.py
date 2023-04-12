@@ -981,7 +981,7 @@ def main() -> None:
             "Running gProfiler", version=__version__, commandline=" ".join(sys.argv[1:]), arguments=args.__dict__
         )
         if processes_to_profile is not None:
-            logger.info("Target PIDs given by --pids: ", pids=[process.pid for process in processes_to_profile])
+            logger.info("Target PIDs given by --pids", pids=[process.pid for process in processes_to_profile])
         if args.controller_pid is not None:
             try:
                 controller_process: Optional[Process] = Process(args.controller_pid)
