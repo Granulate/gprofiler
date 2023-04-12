@@ -963,8 +963,6 @@ def main() -> None:
         args.log_rotate_backup_count,
         remote_logs_handler,
     )
-    if processes_to_profile is not None:
-        logger.info("Target PIDs given by --pids: ", pids=[process.pid for process in processes_to_profile])
 
     setup_env(args.disable_core_files, args.pid_file)
 
@@ -982,7 +980,8 @@ def main() -> None:
         logger.info(
             "Running gProfiler", version=__version__, commandline=" ".join(sys.argv[1:]), arguments=args.__dict__
         )
-
+        if processes_to_profile is not None:
+            logger.info("Target PIDs given by --pids: ", pids=[process.pid for process in processes_to_profile])
         if args.controller_pid is not None:
             try:
                 controller_process: Optional[Process] = Process(args.controller_pid)
