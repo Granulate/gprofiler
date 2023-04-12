@@ -218,22 +218,26 @@ class PerfProcess:
         return f"perf ({self._type} mode)"
 
     def _get_perf_cmd(self) -> List[str]:
-        return [
-            perf_path(),
-            "record",
-            "-F",
-            str(self._frequency),
-            "-g",
-            "-o",
-            self._output_path,
-            "--switch-output=signal",
-            # explicitly pass '-m', otherwise perf defaults to deriving this number from perf_event_mlock_kb,
-            # and it ends up using it entirely (and we want to spare some for async-profiler)
-            # this number scales linearly with the number of active cores (so we don't need to do this calculation
-            # here)
-            "-m",
-            str(self._mmap_sizes[self._type]),
-        ] + self._pid_args + self._extra_args
+        return (
+            [
+                perf_path(),
+                "record",
+                "-F",
+                str(self._frequency),
+                "-g",
+                "-o",
+                self._output_path,
+                "--switch-output=signal",
+                # explicitly pass '-m', otherwise perf defaults to deriving this number from perf_event_mlock_kb,
+                # and it ends up using it entirely (and we want to spare some for async-profiler)
+                # this number scales linearly with the number of active cores (so we don't need to do this calculation
+                # here)
+                "-m",
+                str(self._mmap_sizes[self._type]),
+            ]
+            + self._pid_args
+            + self._extra_args
+        )
 
     def start(self) -> None:
         logger.info(f"Starting {self._log_name}")
