@@ -160,7 +160,10 @@ def merge_global_perfs(
 
     total_fp_samples = sum([sum(stacks.values()) for stacks in fp_perf.values()])
     total_dwarf_samples = sum([sum(stacks.values()) for stacks in dwarf_perf.values()])
-    fp_to_dwarf_sample_ratio = total_fp_samples / total_dwarf_samples
+    if total_dwarf_samples == 0:
+        fp_to_dwarf_sample_ratio = 0.0  # ratio can be 0 because if total_dwarf_samples is 0 then it will be never used
+    else:
+        fp_to_dwarf_sample_ratio = total_fp_samples / total_dwarf_samples
 
     # The FP perf is used here as the "main" perf, to which the DWARF perf is scaled.
     merged_pid_to_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
@@ -193,6 +196,7 @@ class PerfProcess:
         is_dwarf: bool,
         inject_jit: bool,
         extra_args: List[str],
+        processes_to_profile: Optional[List[Process]],
     ):
         self._start_time = 0.0
         self._frequency = frequency
@@ -200,6 +204,12 @@ class PerfProcess:
         self._output_path = output_path
         self._type = "dwarf" if is_dwarf else "fp"
         self._inject_jit = inject_jit
+        self._pid_args = []
+        if processes_to_profile is not None:
+            self._pid_args.append("--pid")
+            self._pid_args.append(",".join([str(process.pid) for process in processes_to_profile]))
+        else:
+            self._pid_args.append("-a")
         self._extra_args = extra_args + (["-k", "1"] if self._inject_jit else [])
         self._process: Optional[Popen] = None
 
@@ -208,23 +218,26 @@ class PerfProcess:
         return f"perf ({self._type} mode)"
 
     def _get_perf_cmd(self) -> List[str]:
-        return [
-            perf_path(),
-            "record",
-            "-F",
-            str(self._frequency),
-            "-a",
-            "-g",
-            "-o",
-            self._output_path,
-            "--switch-output=signal",
-            # explicitly pass '-m', otherwise perf defaults to deriving this number from perf_event_mlock_kb,
-            # and it ends up using it entirely (and we want to spare some for async-profiler)
-            # this number scales linearly with the number of active cores (so we don't need to do this calculation
-            # here)
-            "-m",
-            str(self._mmap_sizes[self._type]),
-        ] + self._extra_args
+        return (
+            [
+                perf_path(),
+                "record",
+                "-F",
+                str(self._frequency),
+                "-g",
+                "-o",
+                self._output_path,
+                "--switch-output=signal",
+                # explicitly pass '-m', otherwise perf defaults to deriving this number from perf_event_mlock_kb,
+                # and it ends up using it entirely (and we want to spare some for async-profiler)
+                # this number scales linearly with the number of active cores (so we don't need to do this calculation
+                # here)
+                "-m",
+                str(self._mmap_sizes[self._type]),
+            ]
+            + self._pid_args
+            + self._extra_args
+        )
 
     def start(self) -> None:
         logger.info(f"Starting {self._log_name}")
@@ -398,6 +411,7 @@ class SystemProfiler(ProfilerBase):
                 False,
                 perf_inject,
                 [],
+                self._profiler_state.processes_to_profile,
             )
             self._perfs.append(self._perf_fp)
         else:
@@ -411,6 +425,7 @@ class SystemProfiler(ProfilerBase):
                 True,
                 False,  # no inject in dwarf mode, yet
                 ["--call-graph", f"dwarf,{perf_dwarf_stack_size}"],
+                self._profiler_state.processes_to_profile,
             )
             self._perfs.append(self._perf_dwarf)
         else:
