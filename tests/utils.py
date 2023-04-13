@@ -62,7 +62,7 @@ def start_container(
         pid_mode=pid_mode,
         userns_mode="host",
         volumes=volumes,
-        labels=[docker_client.test_id],
+        labels=[docker_client._gprofiler_test_id],
         stderr=True,
         detach=True,
         **extra_kwargs,
