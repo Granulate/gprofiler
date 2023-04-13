@@ -65,10 +65,9 @@ class SparkSampler:
 
         while not self._stop_event.is_set():
             if not discovered:
-                if (
-                    not (discovered := self._big_data_sampler.discover())
-                    and timefn() - start_time >= FIND_CLUSTER_TIMEOUT_SECS
-                ):
+                discovered = self._big_data_sampler.discover()
+
+            if not discovered and timefn() - start_time >= FIND_CLUSTER_TIMEOUT_SECS:
                     logger.info("Timed out identifying Spark cluster. Stopping Spark collector.")
                     break
 
