@@ -47,7 +47,7 @@ class SparkSampler:
         self._client = api_client
 
         # TODO: master address, spark mode and applications metrics should be configurable in the future.
-        self._big_data_sampler: BigDataSampler = BigDataSampler(logger, get_hostname(), None, None, False)
+        self._big_data_sampler = BigDataSampler(logger, get_hostname(), None, None, False)
 
     def start(self) -> None:
         self._stop_event.clear()
