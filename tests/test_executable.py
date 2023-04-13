@@ -14,7 +14,7 @@ from docker.models.containers import Container
 from docker.models.images import Image
 
 from gprofiler.utils.collapsed_format import parse_one_collapsed
-from tests.utils import RUNTIME_PROFILERS, _no_errors, is_aarch64, run_gprofiler_in_container
+from tests.utils import RUNTIME_PROFILERS, _no_errors, run_gprofiler_in_container
 
 
 @pytest.mark.parametrize(
@@ -108,8 +108,8 @@ def test_executable_not_privileged(
     Tests gProfiler with lower privileges: runs in a container, as root & with SYS_PTRACE,
     but nothing more.
     """
-    if is_aarch64():
-        pytest.skip("This does not work on aarch64: https://github.com/Granulate/gprofiler/issues/770")
+    # if is_aarch64():
+    #     pytest.skip("This does not work on aarch64: https://github.com/Granulate/gprofiler/issues/770")
     os.makedirs(str(output_directory), mode=0o755, exist_ok=True)
 
     mount_gprofiler_exe = str(output_directory / "gprofiler")

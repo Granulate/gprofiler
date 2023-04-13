@@ -186,18 +186,8 @@ def application_executable(runtime: str) -> str:
 @fixture
 def gprofiler_exe(request: FixtureRequest, tmp_path: Path) -> Path:
     precompiled = request.config.getoption("--executable")
-    if precompiled is not None:
-        return Path(precompiled)
-
-    with chdir(PARENT):
-        pyi_popen = subprocess.Popen(
-            ["pyinstaller", "--distpath", str(tmp_path), "pyinstaller.spec"],
-        )
-        pyi_popen.wait()
-
-    staticx_popen = subprocess.Popen(["staticx", tmp_path / "gprofiler", tmp_path / "gprofiler"])
-    staticx_popen.wait()
-    return tmp_path / "gprofiler"
+    assert precompiled is not None
+    return Path(precompiled)
 
 
 @fixture
