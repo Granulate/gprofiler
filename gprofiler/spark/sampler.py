@@ -68,8 +68,8 @@ class SparkSampler:
                 discovered = self._big_data_sampler.discover()
 
             if not discovered and timefn() - start_time >= FIND_CLUSTER_TIMEOUT_SECS:
-                    logger.info("Timed out identifying Spark cluster. Stopping Spark collector.")
-                    break
+                logger.info("Timed out identifying Spark cluster. Stopping Spark collector.")
+                break
 
             if discovered:
                 snapshot = self._big_data_sampler.snapshot()
