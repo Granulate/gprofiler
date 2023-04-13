@@ -342,16 +342,13 @@ def _application_docker_container(
     application_docker_capabilities: List[str],
     application_docker_command: Optional[List[str]] = None,
 ) -> Container:
-    extra_kwargs = {
-        "user": "5555:6666",
-        "mounts": application_docker_mounts,
-        "cap_add": application_docker_capabilities,
-    }
     container: Container = start_container(
         docker_client,
         application_docker_image,
         application_docker_command,
-        **extra_kwargs,
+        user="5555:6666",
+        mounts=application_docker_mounts,
+        cap_add=application_docker_capabilities,
     )
     while container.status != "running":
         if container.status == "exited":
