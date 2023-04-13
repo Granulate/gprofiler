@@ -108,8 +108,6 @@ def test_executable_not_privileged(
     Tests gProfiler with lower privileges: runs in a container, as root & with SYS_PTRACE,
     but nothing more.
     """
-    # if is_aarch64():
-    #     pytest.skip("This does not work on aarch64: https://github.com/Granulate/gprofiler/issues/770")
     os.makedirs(str(output_directory), mode=0o755, exist_ok=True)
 
     mount_gprofiler_exe = str(output_directory / "gprofiler")
