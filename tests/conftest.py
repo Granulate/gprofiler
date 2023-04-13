@@ -223,7 +223,7 @@ def application_process(
 def docker_client() -> DockerClient:
     tests_id = secrets.token_hex(5)
     docker_client = docker.from_env()
-    setattr(docker_client, "test_id", tests_id)
+    setattr(docker_client, "_gprofiler_test_id", tests_id)
     yield docker_client
 
     exited_ids = []  # type: List[str]
