@@ -35,7 +35,7 @@ from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import AsyncProfiledProcess, JattachJcmdRunner
 from gprofiler.state import init_state
-from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
+from tests import CONTAINERS_DIRECTORY, PHPSPY_DURATION
 from tests.utils import (
     _application_docker_container,
     _application_process,
