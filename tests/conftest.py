@@ -226,7 +226,7 @@ def docker_client() -> DockerClient:
     setattr(docker_client, "_gprofiler_test_id", tests_id)
     yield docker_client
 
-    exited_ids: Listr[str] = []
+    exited_ids: List[str] = []
     exited_container_list = docker_client.containers.list(filters={"status": "exited", "label": tests_id})
     for container in exited_container_list:
         exited_ids.append(container.id)

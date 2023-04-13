@@ -351,9 +351,6 @@ def _application_docker_container(
         docker_client,
         application_docker_image,
         application_docker_command,
-        volumes=None,
-        privileged=True,
-        pid_mode="host",
         **extra_kwargs,
     )
     while container.status != "running":
