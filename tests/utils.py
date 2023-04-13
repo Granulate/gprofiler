@@ -113,7 +113,9 @@ def run_privileged_container(
 ) -> str:
     container = None
     try:
-        container = start_container(docker_client, image, command, volumes, privileged=True, **extra_kwargs)
+        container = start_container(
+            docker_client, image, command, volumes, pid_mode="host", privileged=True, **extra_kwargs
+        )
         return wait_for_container(container)
 
     finally:
