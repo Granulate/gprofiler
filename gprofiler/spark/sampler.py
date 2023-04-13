@@ -64,28 +64,27 @@ class SparkSampler:
         discovered = False
 
         while not self._stop_event.is_set():
-            if self._big_data_sampler is not None:
-                if not discovered:
-                    if (
-                        not (discovered := self._big_data_sampler.discover())
-                        and timefn() - start_time >= FIND_CLUSTER_TIMEOUT_SECS
-                    ):
-                        logger.info("Timed out identifying Spark cluster. Stopping Spark collector.")
-                        break
+            if not discovered:
+                if (
+                    not (discovered := self._big_data_sampler.discover())
+                    and timefn() - start_time >= FIND_CLUSTER_TIMEOUT_SECS
+                ):
+                    logger.info("Timed out identifying Spark cluster. Stopping Spark collector.")
+                    break
 
-                if discovered:
-                    snapshot = self._big_data_sampler.snapshot()
-                    assert snapshot is not None, "Discovery succeeded, but sampler snapshot failed"
-                    # No need to submit samples that don't actually have a value:
-                    if self._storage_dir is not None:
-                        now = get_iso8601_format_time(datetime.now())
-                        base_filename = os.path.join(self._storage_dir, f"spark_metric_{escape_filename(now)}")
-                        with open(base_filename, "w") as f:
-                            json.dump(bake_metrics_payload(snapshot), f)
-                    if self._client is not None:
-                        self._client.submit_spark_metrics(snapshot)
+            if discovered:
+                snapshot = self._big_data_sampler.snapshot()
+                assert snapshot is not None, "Discovery succeeded, but sampler snapshot failed"
+                # No need to submit samples that don't actually have a value:
+                if self._storage_dir is not None:
+                    now = get_iso8601_format_time(datetime.now())
+                    base_filename = os.path.join(self._storage_dir, f"spark_metric_{escape_filename(now)}")
+                    with open(base_filename, "w") as f:
+                        json.dump(bake_metrics_payload(snapshot), f)
+                if self._client is not None:
+                    self._client.submit_spark_metrics(snapshot)
 
-                self._stop_event.wait(self._sample_period)
+            self._stop_event.wait(self._sample_period)
 
         self._is_running = False
 
