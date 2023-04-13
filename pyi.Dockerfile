@@ -145,7 +145,7 @@ RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
         ./fix_centos8.sh; \
     fi
 
-# python 3.10 installation
+# python 3.11 installation
 WORKDIR /python
 RUN yum install -y \
     bzip2-devel \
@@ -161,6 +161,7 @@ COPY ./scripts/openssl_build.sh .
 RUN ./openssl_build.sh
 COPY ./scripts/python311_build.sh .
 RUN ./python311_build.sh
+RUN ln -s /usr/bin/python3.11 /usr/bin/python3
 
 # bcc part
 # TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
