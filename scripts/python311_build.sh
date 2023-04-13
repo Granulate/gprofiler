@@ -8,5 +8,6 @@ set -euo pipefail
 wget https://www.python.org/ftp/python/3.11.3/Python-3.11.3.tgz
 tar -xzf Python-3.11.3.tgz
 cd Python-3.11.3
-./configure --enable-optimizations --enable-shared --prefix=/usr
+./configure --enable-optimizations --enable-shared --prefix=/usr LDFLAGS="-Wl,-rpath /usr/lib"
 make -j "$(nproc)" && make -j "$(nproc)" altinstall
+ln -s /usr/bin/python3.11 /usr/bin/python3
