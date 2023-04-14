@@ -160,8 +160,8 @@ RUN yum install -y \
 COPY ./scripts/openssl_build.sh .
 RUN ./openssl_build.sh
 COPY ./scripts/python311_build.sh .
-RUN ./python311_build.sh
-RUN ln -s /usr/bin/python3.11 /usr/bin/python3
+RUN ./python311_build.sh && \ 
+    ln -s /usr/bin/python3.11 /usr/bin/python3
 
 # bcc part
 # TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
