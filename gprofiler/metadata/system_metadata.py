@@ -1,4 +1,5 @@
 import array
+import codecs
 import errno
 import ipaddress
 import os
@@ -323,6 +324,10 @@ def _initialize_system_info() -> Any:
     libc_version = (UNKNOWN_VALUE, UNKNOWN_VALUE)
     mac_address = UNKNOWN_VALUE
     local_ip = UNKNOWN_VALUE
+
+    # ensure the "ascii" codec module is loaded - it used used by "distro" which is run in a separate
+    # mount namespace, unable to load the library if loaded lazily.
+    codecs.lookup("ascii")
 
     # move to host mount NS for distro & ldd.
     # now, distro will read the files on host.
