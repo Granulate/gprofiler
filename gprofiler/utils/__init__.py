@@ -238,11 +238,15 @@ def run_process(
     stdin: bytes = None,
     **kwargs: Any,
 ) -> "CompletedProcess[bytes]":
-    stdout: Optional[bytes] = None
-    stderr: Optional[bytes] = None
+    stdout: bytes
+    stderr: bytes
 
     reraise_exc: Optional[BaseException] = None
     with start_process(cmd, via_staticx, **kwargs) as process:
+        assert isinstance(process.args, str) or (
+            isinstance(process.args, list) and all(isinstance(s, str) for s in process.args)
+        ), process.args  # mypy
+
         try:
             if stdin is not None:
                 assert process.stdin is not None
@@ -266,7 +270,9 @@ def run_process(
         except TimeoutExpired:
             returncode, stdout, stderr = _kill_and_reap_process(process, kill_signal)
             assert timeout is not None
-            reraise_exc = CalledProcessTimeoutError(timeout, returncode, cmd, stdout, stderr)
+            reraise_exc = CalledProcessTimeoutError(
+                timeout, returncode, cmd, stdout.decode("latin-1"), stderr.decode("latin-1")
+            )
         except BaseException as e:  # noqa
             returncode, stdout, stderr = _kill_and_reap_process(process, kill_signal)
             reraise_exc = e
@@ -275,17 +281,20 @@ def run_process(
 
     result: CompletedProcess[bytes] = CompletedProcess(process.args, retcode, stdout, stderr)
 
+    # decoding stdout/stderr as latin-1 which should never raise UnicodeDecodeError.
     extra: Dict[str, Any] = {"exit_code": result.returncode}
     if not suppress_log:
         if result.stdout:
-            extra["stdout"] = result.stdout.decode()
+            extra["stdout"] = result.stdout.decode("latin-1")
         if result.stderr:
-            extra["stderr"] = result.stderr.decode()
+            extra["stderr"] = result.stderr.decode("latin-1")
     logger.debug("Command exited", command=process.args, **extra)
     if reraise_exc is not None:
         raise reraise_exc
     elif check and retcode != 0:
-        raise CalledProcessError(retcode, process.args, output=stdout, stderr=stderr)
+        raise CalledProcessError(
+            retcode, process.args, output=stdout.decode("latin-1"), stderr=stderr.decode("latin-1")
+        )
     return result
 
 

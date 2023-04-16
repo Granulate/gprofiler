@@ -35,7 +35,7 @@ from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import AsyncProfiledProcess, JattachJcmdRunner
 from gprofiler.state import init_state
-from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
+from tests import CONTAINERS_DIRECTORY, PHPSPY_DURATION
 from tests.utils import (
     _application_docker_container,
     _application_process,
@@ -90,7 +90,15 @@ def java_args() -> Tuple[str]:
 
 @fixture()
 def profiler_state(tmp_path: Path, insert_dso_name: bool) -> ProfilerState:
-    return ProfilerState(Event(), str(tmp_path), False, insert_dso_name, CPU_PROFILING_MODE, ContainerNamesClient())
+    return ProfilerState(
+        stop_event=Event(),
+        profile_spawned_processes=False,
+        insert_dso_name=insert_dso_name,
+        profiling_mode=CPU_PROFILING_MODE,
+        container_names_client=ContainerNamesClient(),
+        processes_to_profile=None,
+        storage_dir=str(tmp_path),
+    )
 
 
 def make_path_world_accessible(path: Path) -> None:
@@ -186,18 +194,8 @@ def application_executable(runtime: str) -> str:
 @fixture
 def gprofiler_exe(request: FixtureRequest, tmp_path: Path) -> Path:
     precompiled = request.config.getoption("--executable")
-    if precompiled is not None:
-        return Path(precompiled)
-
-    with chdir(PARENT):
-        pyi_popen = subprocess.Popen(
-            ["pyinstaller", "--distpath", str(tmp_path), "pyinstaller.spec"],
-        )
-        pyi_popen.wait()
-
-    staticx_popen = subprocess.Popen(["staticx", tmp_path / "gprofiler", tmp_path / "gprofiler"])
-    staticx_popen.wait()
-    return tmp_path / "gprofiler"
+    assert precompiled is not None
+    return Path(precompiled)
 
 
 @fixture
@@ -208,12 +206,15 @@ def check_app_exited() -> bool:
 
 @fixture
 def application_process(
-    in_container: bool, command_line: List[str], check_app_exited: bool
+    in_container: bool, command_line: List[str], check_app_exited: bool, runtime: str
 ) -> Iterator[Optional[subprocess.Popen]]:
     if in_container:
         yield None
         return
     else:
+        if is_aarch64():
+            if runtime == "dotnet":
+                pytest.xfail("This combination fails on aarch64, see https://github.com/Granulate/gprofiler/issues/755")
         with _application_process(command_line, check_app_exited) as popen:
             yield popen
 
@@ -352,7 +353,11 @@ def application_docker_image(
     runtime: str,
     application_image_tag: str,
 ) -> Iterable[Image]:
+
     if is_aarch64():
+        if runtime == "nodejs":
+            if application_image_tag == "12-glibc":
+                pytest.xfail("This test fails on aarch64, see https://github.com/Granulate/gprofiler/issues/758")
         if runtime == "java":
             if application_image_tag == "j9" or application_image_tag == "zing":
                 pytest.xfail(
