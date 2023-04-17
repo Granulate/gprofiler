@@ -624,9 +624,7 @@ class AsyncProfiledProcess:
             f"log={self._log_path_process}"
             f"{f',fdtransfer={self._fdtransfer_path}' if self._mode == 'cpu' else ''}"
             f",safemode={self._ap_safemode},timeout={ap_timeout}"
-            f"{',lib' if self._profiler_state.insert_dso_name else ''}"
-            f"{self._get_extra_ap_args()}",
-            str(self.process.pid),
+            f"{',lib' if self._profiler_state.insert_dso_name else ''}{self._get_extra_ap_args()}"
         ]
 
     def _get_stop_cmd(self, with_output: bool) -> List[str]:
@@ -634,8 +632,7 @@ class AsyncProfiledProcess:
             f"stop,log={self._log_path_process},mcache={self._mcache}"
             f"{self._get_ap_output_args() if with_output else ''}"
             f"{',lib' if self._profiler_state.insert_dso_name else ''}{',meminfolog' if self._collect_meminfo else ''}"
-            f"{self._get_extra_ap_args()}",
-            str(self.process.pid),
+            f"{self._get_extra_ap_args()}"
         ]
 
     def _read_ap_log(self) -> str:
@@ -654,7 +651,7 @@ class AsyncProfiledProcess:
         try:
             # kill jattach with SIGTERM if it hangs. it will go down
             run_process(
-                cmd,
+                cmd + [str(self.process.pid)],
                 stop_event=self._profiler_state.stop_event,
                 timeout=self._jattach_timeout,
                 kill_signal=signal.SIGTERM,
