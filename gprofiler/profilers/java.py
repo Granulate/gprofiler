@@ -237,7 +237,9 @@ class JattachJcmdRunner:
 
     def run(self, process: Process, cmd: str) -> str:
         return run_process(
-            [jattach_path(), str(process.pid), "jcmd", cmd], stop_event=self.stop_event, timeout=self.jattach_timeout
+            [asprof_path(), str(process.pid), "jcmd", "--jattach-cmd", cmd],
+            stop_event=self.stop_event,
+            timeout=self.jattach_timeout,
         ).stdout.decode()
 
 
@@ -390,8 +392,8 @@ class JavaMetadata(ApplicationMetadata):
 
 
 @functools.lru_cache(maxsize=1)
-def jattach_path() -> str:
-    return resource_path("java/jattach")
+def asprof_path() -> str:
+    return resource_path("java/asprof")
 
 
 @functools.lru_cache(maxsize=1)
@@ -471,7 +473,9 @@ class AsyncProfiledProcess:
         )
 
         self._libap_path_host = os.path.join(self._ap_dir_host, "libasyncProfiler.so")
+        self._asprof_path_host = os.path.join(self._ap_dir_host, "asprof")
         self._libap_path_process = remove_prefix(self._libap_path_host, self._process_root)
+        self._libap_dir_process = remove_prefix(self._ap_dir_host, self._process_root)
 
         # for other purposes - we can use storage_dir.
         self._storage_dir_host = resolve_proc_root_links(self._process_root, self._profiler_state.storage_dir)
@@ -570,6 +574,9 @@ class AsyncProfiledProcess:
                 os.chmod(
                     libap_resource, 0o755
                 )  # make it accessible for all; needed with PyInstaller, which extracts files as 0700
+                os.chmod(
+                    asprof_path(), 0o755
+                )  # make it accessible for all; needed with PyInstaller, which extracts files as 0700
                 safe_copy(libap_resource, self._libap_path_host)
 
     def _recreate_log(self) -> None:
@@ -589,11 +596,11 @@ class AsyncProfiledProcess:
 
     def _get_base_cmd(self) -> List[str]:
         return [
-            jattach_path(),
-            str(self.process.pid),
-            "load",
-            self._libap_path_process,
-            "true",
+            asprof_path(),
+            "jattach",
+            "-L",
+            self._libap_dir_process,
+            "--jattach-cmd",
         ]
 
     def _get_extra_ap_args(self) -> str:
@@ -617,7 +624,9 @@ class AsyncProfiledProcess:
             f"log={self._log_path_process}"
             f"{f',fdtransfer={self._fdtransfer_path}' if self._mode == 'cpu' else ''}"
             f",safemode={self._ap_safemode},timeout={ap_timeout}"
-            f"{',lib' if self._profiler_state.insert_dso_name else ''}{self._get_extra_ap_args()}"
+            f"{',lib' if self._profiler_state.insert_dso_name else ''}"
+            f"{self._get_extra_ap_args()}",
+            str(self.process.pid),
         ]
 
     def _get_stop_cmd(self, with_output: bool) -> List[str]:
@@ -625,7 +634,8 @@ class AsyncProfiledProcess:
             f"stop,log={self._log_path_process},mcache={self._mcache}"
             f"{self._get_ap_output_args() if with_output else ''}"
             f"{',lib' if self._profiler_state.insert_dso_name else ''}{',meminfolog' if self._collect_meminfo else ''}"
-            f"{self._get_extra_ap_args()}"
+            f"{self._get_extra_ap_args()}",
+            str(self.process.pid),
         ]
 
     def _read_ap_log(self) -> str:
@@ -683,7 +693,7 @@ class AsyncProfiledProcess:
             # run fdtransfer with accept timeout that's slightly greater than the jattach timeout - to make
             # sure that fdtransfer is still around for the full duration of jattach, in case the application
             # takes a while to accept & handle the connection.
-            [fdtransfer_path(), self._fdtransfer_path, str(self.process.pid), str(self._jattach_timeout + 5)],
+            [asprof_path(), "fdtransfer", "--fd-path", self._fdtransfer_path, str(self.process.pid)],
             stop_event=self._profiler_state.stop_event,
             timeout=self._FDTRANSFER_TIMEOUT,
         )
