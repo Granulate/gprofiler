@@ -5,7 +5,7 @@ ConfigArgParse==1.5.3
 distro==1.8.0
 setuptools==67.6.1  # For pkg_resources
 six==1.16.0
-packaging==23.0
+packaging==23.1
 pyelftools==0.29
 curlify==2.2.1
 retry==0.9.2

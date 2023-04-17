@@ -109,12 +109,14 @@ class ProfilerAPIClient(BaseAPIClient):
 
     def __init__(
         self,
+        *,
         token: str,
         service_name: str,
         server_address: str,
         curlify_requests: bool,
         hostname: str,
         upload_timeout: int,
+        verify: bool,
         version: str = "v1",
     ):
         self._server_address = server_address.rstrip("/")
@@ -123,10 +125,12 @@ class ProfilerAPIClient(BaseAPIClient):
         self._key = token
         self._service = service_name
         self._hostname = hostname
+        self._verify = verify
         super().__init__(curlify_requests)
 
     def _init_session(self) -> None:
         self._session: Session = requests.Session()
+        self._session.verify = self._verify
         self._session.headers.update({"GPROFILER-API-KEY": self._key, "GPROFILER-SERVICE-NAME": self._service})
 
         # Raises on failure
