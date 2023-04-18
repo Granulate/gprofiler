@@ -37,7 +37,6 @@ class SparkSampler:
         self._sample_period = sample_period
         # not the same instance as GProfiler._stop_event
         self._stop_event = Event()
-        self._stop_collection = False
         self._is_running = False
         self._storage_dir = storage_dir
         if self._storage_dir is not None:
