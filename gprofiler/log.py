@@ -91,6 +91,14 @@ class RemoteLogsHandler(BatchRequestsHandler):
 
         return metadata
 
+    def update_service_name(self, service_name: str) -> None:
+        """
+        Used to update the service name in services where it can change after gProfiler starts (for example, if the
+        service name is derived from the environment post inittialization).
+        The next batch sent will have the new service name.
+        """
+        self._service_name = service_name
+
 
 class _ExtraFormatter(logging.Formatter):
     FILTERED_EXTRA_KEYS = [NO_SERVER_LOG_KEY, NO_SERVER_EXTRA_KEY, CYCLE_ID_KEY]  # don't print those fields locally
