@@ -384,7 +384,6 @@ def test_sanity_other_jvms(
     search_for: str,
     profiler_state: ProfilerState,
 ) -> None:
-
     if is_aarch64():
         pytest.xfail(
             "Different JVMs are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
