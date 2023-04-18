@@ -650,6 +650,8 @@ class AsyncProfiledProcess:
                 kill_signal=signal.SIGTERM,
             )
         except CalledProcessError as e:  # catches CalledProcessTimeoutError as well
+            assert isinstance(e.stderr, str), f"unexpected type {type(e.stderr)}"
+
             ap_log = self._read_ap_log()
             try:
                 ap_loaded = (
@@ -661,7 +663,7 @@ class AsyncProfiledProcess:
             args = e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, ap_loaded
             if isinstance(e, CalledProcessTimeoutError):
                 raise JattachTimeout(*args, timeout=self._jattach_timeout) from None
-            elif e.stderr == b"Could not start attach mechanism: No such file or directory\n":
+            elif e.stderr == "Could not start attach mechanism: No such file or directory\n":
                 # this is true for jattach_hotspot
                 raise JattachSocketMissingException(*args) from None
             else:

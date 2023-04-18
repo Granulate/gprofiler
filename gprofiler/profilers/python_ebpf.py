@@ -80,6 +80,9 @@ class PythonEbpfProfiler(ProfilerBase):
             # opened in pipe mode, so these aren't None.
             assert process.stdout is not None
             assert process.stderr is not None
+            assert isinstance(process.args, list) and all(
+                isinstance(s, str) for s in process.args
+            ), process.args  # mypy
             stdout = process.stdout.read().decode()
             stderr = process.stderr.read().decode()
             raise PythonEbpfError(process.returncode, process.args, stdout, stderr)
@@ -222,6 +225,9 @@ class PythonEbpfProfiler(ProfilerBase):
             process = self.process  # save it
             exit_status, stderr, stdout = self._terminate()
             assert exit_status is not None, "PyPerf didn't exit after _terminate()!"
+            assert isinstance(process.args, list) and all(
+                isinstance(s, str) for s in process.args
+            ), process.args  # mypy
             raise PythonEbpfError(exit_status, process.args, stdout, stderr)
 
     def snapshot(self) -> ProcessToProfileData:
@@ -240,6 +246,11 @@ class PythonEbpfProfiler(ProfilerBase):
         for pid in parsed:
             try:
                 process = Process(pid)
+                # Because of https://github.com/Granulate/gprofiler/issues/764,
+                # for now we only filter output of pyperf to return only profiles from chosen pids
+                if self._profiler_state.processes_to_profile is not None:
+                    if process not in self._profiler_state.processes_to_profile:
+                        continue
                 appid = application_identifiers.get_python_app_id(process)
                 app_metadata = self._metadata.get_metadata(process)
                 container_name = self._profiler_state.get_container_name(pid)

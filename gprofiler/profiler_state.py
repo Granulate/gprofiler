@@ -1,5 +1,7 @@
 from threading import Event
-from typing import Optional
+from typing import List, Optional
+
+from psutil import Process
 
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.utils import TemporaryDirectoryWithMode
@@ -10,12 +12,14 @@ class ProfilerState:
     # Thanks to that class adding new state parameters to profilers won't result changing code in every profiler.
     def __init__(
         self,
+        *,
         stop_event: Event,
         storage_dir: str,
         profile_spawned_processes: bool,
         insert_dso_name: bool,
         profiling_mode: str,
         container_names_client: Optional[ContainerNamesClient],
+        processes_to_profile: Optional[List[Process]],
     ) -> None:
         self._stop_event = stop_event
         self._profile_spawned_processes = profile_spawned_processes
@@ -24,6 +28,7 @@ class ProfilerState:
         self._temporary_dir = TemporaryDirectoryWithMode(dir=storage_dir, mode=0o755)
         self._storage_dir = self._temporary_dir.name
         self._container_names_client = container_names_client
+        self._processes_to_profile = processes_to_profile
 
     @property
     def stop_event(self) -> Event:
@@ -48,6 +53,10 @@ class ProfilerState:
     @property
     def container_names_client(self) -> Optional[ContainerNamesClient]:
         return self._container_names_client
+
+    @property
+    def processes_to_profile(self) -> Optional[List[Process]]:
+        return self._processes_to_profile
 
     def get_container_name(self, pid: int) -> str:
         if self._container_names_client is not None:
