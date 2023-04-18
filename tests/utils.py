@@ -48,7 +48,7 @@ def start_container(
     command: Optional[List[str]] = None,
     volumes: Dict[str, Dict[str, str]] = None,
     privileged: bool = False,
-    pid_mode: Optional[str] = "",
+    pid_mode: Optional[str] = None,
     **extra_kwargs: Any,
 ) -> Container:
     if volumes is None:
