@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 from subprocess import Popen
 from typing import Callable, List, Mapping, Optional
+import yaml
 
 import pytest
 from docker import DockerClient
@@ -55,9 +56,12 @@ def test_spark(
                     + profiler_flags
             )
             run_gprofiler_in_container(docker_client, exec_container_image, command=command, volumes=volumes)
-            # Need to figure out the file name of the spark metrics file
+            # We do not know the name of the output file in advance.
             spark_metrics = next(Path(output_directory).glob("*spark*")).read_text()
-            
+            spark_metrics = yaml.safe_load(spark_metrics)['metrics']
+            # SparkPi runs 1 stage in SA mode.
+            assert spark_metrics['spark_aggregated_stage_active_stages'] == 1, "Active stages should be 1"
+
 
 @pytest.mark.parametrize(
     "runtime,profiler_type",
