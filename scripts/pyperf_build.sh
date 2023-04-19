@@ -5,17 +5,17 @@
 #
 set -euo pipefail
 
-git clone --depth 1 -b v1.2.6 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 6a995642d12287f26cbb97edd3d29e62a5fde337
-
-# (after clone, because we copy the licenses)
-# TODO support aarch64
-if [ "$(uname -m)" != "x86_64" ]; then
-    mkdir -p /bcc/root/share/bcc/examples/cpp/
-    touch /bcc/root/share/bcc/examples/cpp/PyPerf
-    exit 0
-fi
+git clone --depth 1 -b aarch64 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 846228b6e3f244732783540e3e0b868271902e2d
 
 mkdir build
 cd build
-cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root ..
+
+SHARED_ARG=""
+# need in aarch64 as mentioned here: https://github.com/iovisor/bcc/issues/3333#issuecomment-803432248
+# container mdoe doesn't want it - we don't have the libs bundled.
+# exe mode in x86_64 works fine so I don't change it.
+if [ "$(uname -m)" = "aarch64" ] && [ "$1" == "exe" ]; then
+    SHARED_ARG=" -DENABLE_LLVM_SHARED=1"
+fi
+cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root "$SHARED_ARG" ..
 make -C examples/cpp/pyperf -j -l VERBOSE=1 install

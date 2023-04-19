@@ -117,18 +117,14 @@ RUN ./build_node_package.sh
 FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-helpers
 WORKDIR /tmp
 
-RUN if [ "$(uname -m)" = "aarch64" ]; then \
-        exit 0; \
-    fi && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
-        clang-10 \
-        libelf-dev \
-        make \
-        build-essential \
-        llvm \
-        ca-certificates \
-        git
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    clang-10 \
+    libelf-dev \
+    make \
+    build-essential \
+    llvm \
+    ca-certificates \
+    git
 
 COPY --from=perf-builder /bpftool /bpftool
 
@@ -166,53 +162,45 @@ RUN ./python310_build.sh
 # TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
 
 RUN yum install -y git && yum clean all
+
 WORKDIR /bcc
-# these are needed to build PyPerf, which we don't build on Aarch64, hence not installing them here.
-RUN if [ "$(uname -m)" = "aarch64" ]; then exit 0; fi; yum install -y \
+
+# these are needed to build PyPerf
+RUN yum install -y \
     curl \
     cmake \
     patch \
     flex \
     bison \
-    zlib-devel.x86_64 \
+    zlib-devel \
     xz-devel \
     ncurses-devel \
     elfutils-libelf-devel && \
     yum clean all
 
-RUN if [ "$(uname -m)" = "aarch64" ]; \
-        then exit 0; \
-    fi && \
-    yum install -y centos-release-scl-rh && \
-    yum clean all
+RUN yum install -y centos-release-scl-rh && yum clean all
 # mostly taken from https://github.com/iovisor/bcc/blob/master/INSTALL.md#install-and-compile-llvm
-RUN if [ "$(uname -m)" = "aarch64" ]; \
-        then exit 0; \
-    fi && \
-    yum install -y devtoolset-8 \
-        llvm-toolset-7 \
-        llvm-toolset-7-llvm-devel \
-        llvm-toolset-7-llvm-static \
-        llvm-toolset-7-clang-devel \
-        devtoolset-8-elfutils-libelf-devel && \
+# on x86_64, the package is named llvm-toolset-7. on aarch64, it is named llvm-toolset-7.0...
+RUN if [ "$(uname -m)" = "aarch64" ]; then v="7.0"; else v="7"; fi; yum install -y devtoolset-8 \
+    llvm-toolset-$v \
+    llvm-toolset-$v-llvm-devel \
+    llvm-toolset-$v-llvm-static \
+    llvm-toolset-$v-clang-devel \
+    devtoolset-8-elfutils-libelf-devel && \
     yum clean all
 
 COPY ./scripts/libunwind_build.sh .
 # hadolint ignore=SC1091
-RUN if [ "$(uname -m)" = "aarch64" ]; then \
-        exit 0; \
-    fi && \
-    source scl_source enable devtoolset-8 && \
+RUN source scl_source enable devtoolset-8 && \
     ./libunwind_build.sh
+
+WORKDIR /bcc
 
 COPY ./scripts/pyperf_build.sh .
 # hadolint ignore=SC1091
-RUN set -e; \
-    if [ "$(uname -m)" != "aarch64" ]; then \
-        source scl_source enable devtoolset-8 llvm-toolset-7; \
-    fi && \
-    source ./pyperf_build.sh
-
+RUN if [ "$(uname -m)" = "aarch64" ]; then v="7.0"; else v="7"; fi && \
+    source scl_source enable devtoolset-8 "llvm-toolset-$v" && \
+    source ./pyperf_build.sh exe
 # gProfiler part
 
 WORKDIR /app
@@ -229,11 +217,13 @@ RUN set -e; \
         yum install -y glibc-static zlib-devel.aarch64 && \
         yum clean all; \
     fi
-# needed for aarch64, scons & wheel are needed to build staticx
+
 RUN set -e; \
     if [ "$(uname -m)" = "aarch64" ]; then \
          ln -s /usr/lib64/python3.10/lib-dynload /usr/lib/python3.10/lib-dynload; \
     fi
+
+# needed for aarch64, scons & wheel are needed to build staticx
 RUN set -e; \
     if [ "$(uname -m)" = "aarch64" ]; then \
         python3 -m pip install --no-cache-dir 'wheel==0.37.0' 'scons==4.2.0'; \
@@ -342,9 +332,8 @@ COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # using scl here to get the proper LD_LIBRARY_PATH set
 # hadolint ignore=SC2046,SC2086
 RUN set -e; \
-    if [ $(uname -m) != "aarch64" ]; then \
-        source scl_source enable devtoolset-8 llvm-toolset-7 ; \
-    fi && \
+    if [ $(uname -m) = "aarch64" ]; then v="7.0"; else v="7"; fi; \
+    source scl_source enable devtoolset-8 "llvm-toolset-$v" && \
     LIBS=$(./scripts/list_needed_libs.sh) && \
     staticx $LIBS dist/gprofiler dist/gprofiler
 

@@ -38,7 +38,6 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
-from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.platform import is_linux, is_windows
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProfilerInterface, SpawningProcessProfilerBase
@@ -295,9 +294,6 @@ class PySpyProfiler(SpawningProcessProfilerBase):
     # py-spy is like pyspy, it's confusing and I mix between them
     possible_modes=["auto", "pyperf", "pyspy", "py-spy", "disabled"],
     default_mode="auto",
-    # we build pyspy for both, pyperf only for x86_64.
-    # TODO: this inconsistency shows that py-spy and pyperf should have different Profiler classes,
-    # we should split them in the future.
     supported_archs=["x86_64", "aarch64"],
     supported_windows_archs=["AMD64"],
     profiler_mode_argument_help="Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), "
@@ -353,9 +349,9 @@ class PythonProfiler(ProfilerInterface):
 
         assert python_mode in ("auto", "pyperf", "pyspy"), f"unexpected mode: {python_mode}"
 
-        if get_arch() != "x86_64" or is_windows():
+        if is_windows():
             if python_mode == "pyperf":
-                logger.warning("PyPerf is supported only on x86_64, falling back to py-spy")
+                logger.warning("PyPerf is supported only on Linux, falling back to py-spy")
             python_mode = "pyspy"
 
         if python_mode in ("auto", "pyperf"):

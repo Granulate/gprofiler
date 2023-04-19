@@ -86,22 +86,21 @@ RUN apt-get update && \
   apt-get install -y --no-install-recommends \
     git \
     ca-certificates \
-    && \
-  if [ "$(uname -m)" != "aarch64" ]; then \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      curl \
-      build-essential \
-      iperf llvm-9-dev \
-      libclang-9-dev \
-      cmake \
-      python3 \
-      flex \
-      libfl-dev \
-      bison \
-      libelf-dev \
-      libz-dev \
-      liblzma-dev; \
-  fi
+  && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    curl \
+    build-essential \
+    iperf \
+    llvm-9-dev \
+    libclang-9-dev \
+    cmake \
+    python3 \
+    flex \
+    libfl-dev \
+    bison \
+    libelf-dev \
+    libz-dev \
+    liblzma-dev;
 
 # bcc helpers
 FROM bcc-builder-base AS bcc-helpers
@@ -120,15 +119,12 @@ FROM bcc-builder-base AS bcc-builder
 WORKDIR /tmp
 
 COPY ./scripts/libunwind_build.sh .
-RUN if [ "$(uname -m)" = "aarch64" ]; then \
-      exit 0; \
-    fi && \
-    ./libunwind_build.sh
+RUN ./libunwind_build.sh
 
 WORKDIR /bcc
 
 COPY ./scripts/pyperf_build.sh .
-RUN ./pyperf_build.sh
+RUN ./pyperf_build.sh container
 
 # phpspy
 FROM ubuntu${PHPSPY_BUILDER_UBUNTU} AS phpspy-builder
