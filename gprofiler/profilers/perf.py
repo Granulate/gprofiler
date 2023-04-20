@@ -4,12 +4,14 @@
 #
 
 import os
+import re
 import signal
 import time
+from collections import Counter, defaultdict
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from granulate_utils.golang import get_process_golang_version, is_golang_process
 from granulate_utils.linux.elf import is_statically_linked
@@ -19,19 +21,161 @@ from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
 from gprofiler.exceptions import StopEventSetException
-from gprofiler.gprofiler_types import AppMetadata, ProcessToProfileData, ProfileData, StackToSampleCount
+from gprofiler.gprofiler_types import (
+    AppMetadata,
+    ProcessToProfileData,
+    ProcessToStackSampleCounters,
+    ProfileData,
+    StackToSampleCount,
+)
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils import remove_path, run_process, start_process, wait_event, wait_for_file_by_prefix
+from gprofiler.utils import reap_process, remove_path, run_process, start_process, wait_event, wait_for_file_by_prefix
 from gprofiler.utils.perf import perf_path, valid_perf_pid
 
 logger = get_logger_adapter(__name__)
 
 DEFAULT_PERF_DWARF_STACK_SIZE = 8192
+# ffffffff81082227 mmput+0x57 ([kernel.kallsyms])
+# 0 [unknown] ([unknown])
+# 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
+FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \(\[?(.*?)\]?\)$")
+SAMPLE_REGEX = re.compile(
+    r"\s*(?P<comm>.+?)\s+(?P<pid>[\d-]+)/(?P<tid>[\d-]+)(?:\s+\[(?P<cpu>\d+)])?\s+(?P<time>\d+\.\d+):\s+"
+    r"(?:(?P<freq>\d+)\s+)?(?P<event_family>[\w\-_/]+):(?:(?P<event>[\w-]+):)?(?P<suffix>[^\n]*)(?:\n(?P<stack>.*))?",
+    re.MULTILINE | re.DOTALL,
+)
+
+
+def get_average_frame_count(samples: Iterable[str]) -> float:
+    """
+    Get the average frame count for all samples.
+    Avoids counting kernel frames because this function is used to determine whether FP stacks
+    or DWARF stacks are to be used. FP stacks are collected regardless of FP or DWARF, so we don't
+    count them in this heuristic.
+    """
+    frame_count_per_samples = []
+    for sample in samples:
+        kernel_split = sample.split("_[k];", 1)
+        if len(kernel_split) == 1:
+            kernel_split = sample.split("_[k] ", 1)
+
+        # Do we have any kernel frames in this sample?
+        if len(kernel_split) > 1:
+            # example: "a;b;c;d_[k];e_[k] 1" should return the same value as "a;b;c 1", so we don't
+            # add 1 to the frames count like we do in the other branch.
+            frame_count_per_samples.append(kernel_split[0].count(";"))
+        else:
+            # no kernel frames, so e.g "a;b;c 1" and frame count is one more than ";" count.
+            frame_count_per_samples.append(kernel_split[0].count(";") + 1)
+    return sum(frame_count_per_samples) / len(frame_count_per_samples)
+
+
+def add_highest_avg_depth_stacks_per_process(
+    dwarf_perf: ProcessToStackSampleCounters,
+    fp_perf: ProcessToStackSampleCounters,
+    fp_to_dwarf_sample_ratio: float,
+    merged_pid_to_stacks_counters: ProcessToStackSampleCounters,
+) -> None:
+    for pid, fp_collapsed_stacks_counters in fp_perf.items():
+        if pid not in dwarf_perf:
+            merged_pid_to_stacks_counters[pid] = fp_collapsed_stacks_counters
+            continue
+
+        fp_frame_count_average = get_average_frame_count(fp_collapsed_stacks_counters.keys())
+        dwarf_collapsed_stacks_counters = dwarf_perf[pid]
+        dwarf_frame_count_average = get_average_frame_count(dwarf_collapsed_stacks_counters.keys())
+        if fp_frame_count_average > dwarf_frame_count_average:
+            merged_pid_to_stacks_counters[pid] = fp_collapsed_stacks_counters
+        else:
+            dwarf_collapsed_stacks_counters = merge.scale_sample_counts(
+                dwarf_collapsed_stacks_counters, fp_to_dwarf_sample_ratio
+            )
+            merged_pid_to_stacks_counters[pid] = dwarf_collapsed_stacks_counters
+
+
+def _collapse_stack(comm: str, stack: str, insert_dso_name: bool = False) -> str:
+    """
+    Collapse a single stack from "perf".
+    """
+    funcs = [comm]
+    for line in reversed(stack.splitlines()):
+        m = FRAME_REGEX.match(line)
+        assert m is not None, f"bad line: {line}"
+        sym, dso = m.groups()
+        sym = sym.split("+")[0]  # strip the offset part.
+        if sym == "[unknown]" and dso != "unknown":
+            sym = f"({dso})"
+        # append kernel annotation
+        elif "kernel" in dso or "vmlinux" in dso:
+            sym += "_[k]"
+        elif insert_dso_name:
+            sym += f" ({dso})"
+        funcs.append(sym)
+    return ";".join(funcs)
+
+
+def _parse_perf_script(script: Optional[str], insert_dso_name: bool = False) -> ProcessToStackSampleCounters:
+    pid_to_collapsed_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
+
+    if script is None:
+        return pid_to_collapsed_stacks_counters
+
+    for sample in script.split("\n\n"):
+        try:
+            if sample.strip() == "":
+                continue
+            if sample.startswith("#"):
+                continue
+            match = SAMPLE_REGEX.match(sample)
+            if match is None:
+                raise Exception("Failed to match sample")
+            sample_dict = match.groupdict()
+
+            pid = int(sample_dict["pid"])
+            comm = sample_dict["comm"]
+            stack = sample_dict["stack"]
+            if stack is not None:
+                pid_to_collapsed_stacks_counters[pid][_collapse_stack(comm, stack, insert_dso_name)] += 1
+        except Exception:
+            logger.exception(f"Error processing sample: {sample}")
+    return pid_to_collapsed_stacks_counters
+
+
+def merge_global_perfs(
+    raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str], insert_dso_name: bool = False
+) -> ProcessToStackSampleCounters:
+    fp_perf = _parse_perf_script(raw_fp_perf, insert_dso_name)
+    dwarf_perf = _parse_perf_script(raw_dwarf_perf, insert_dso_name)
+
+    if raw_fp_perf is None:
+        return dwarf_perf
+    elif raw_dwarf_perf is None:
+        return fp_perf
+
+    total_fp_samples = sum([sum(stacks.values()) for stacks in fp_perf.values()])
+    total_dwarf_samples = sum([sum(stacks.values()) for stacks in dwarf_perf.values()])
+    if total_dwarf_samples == 0:
+        fp_to_dwarf_sample_ratio = 0.0  # ratio can be 0 because if total_dwarf_samples is 0 then it will be never used
+    else:
+        fp_to_dwarf_sample_ratio = total_fp_samples / total_dwarf_samples
+
+    # The FP perf is used here as the "main" perf, to which the DWARF perf is scaled.
+    merged_pid_to_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
+    add_highest_avg_depth_stacks_per_process(
+        dwarf_perf, fp_perf, fp_to_dwarf_sample_ratio, merged_pid_to_stacks_counters
+    )
+    total_merged_samples = sum([sum(stacks.values()) for stacks in merged_pid_to_stacks_counters.values()])
+    logger.debug(
+        f"Total FP samples: {total_fp_samples}; Total DWARF samples: {total_dwarf_samples}; "
+        f"FP to DWARF ratio: {fp_to_dwarf_sample_ratio}; Total merged samples: {total_merged_samples}"
+    )
+    return merged_pid_to_stacks_counters
 
 
 # TODO: automatically disable this profiler if can_i_use_perf_events() returns False?
@@ -52,6 +196,7 @@ class PerfProcess:
         is_dwarf: bool,
         inject_jit: bool,
         extra_args: List[str],
+        processes_to_profile: Optional[List[Process]],
     ):
         self._start_time = 0.0
         self._frequency = frequency
@@ -59,6 +204,12 @@ class PerfProcess:
         self._output_path = output_path
         self._type = "dwarf" if is_dwarf else "fp"
         self._inject_jit = inject_jit
+        self._pid_args = []
+        if processes_to_profile is not None:
+            self._pid_args.append("--pid")
+            self._pid_args.append(",".join([str(process.pid) for process in processes_to_profile]))
+        else:
+            self._pid_args.append("-a")
         self._extra_args = extra_args + (["-k", "1"] if self._inject_jit else [])
         self._process: Optional[Popen] = None
 
@@ -67,23 +218,26 @@ class PerfProcess:
         return f"perf ({self._type} mode)"
 
     def _get_perf_cmd(self) -> List[str]:
-        return [
-            perf_path(),
-            "record",
-            "-F",
-            str(self._frequency),
-            "-a",
-            "-g",
-            "-o",
-            self._output_path,
-            "--switch-output=signal",
-            # explicitly pass '-m', otherwise perf defaults to deriving this number from perf_event_mlock_kb,
-            # and it ends up using it entirely (and we want to spare some for async-profiler)
-            # this number scales linearly with the number of active cores (so we don't need to do this calculation
-            # here)
-            "-m",
-            str(self._mmap_sizes[self._type]),
-        ] + self._extra_args
+        return (
+            [
+                perf_path(),
+                "record",
+                "-F",
+                str(self._frequency),
+                "-g",
+                "-o",
+                self._output_path,
+                "--switch-output=signal",
+                # explicitly pass '-m', otherwise perf defaults to deriving this number from perf_event_mlock_kb,
+                # and it ends up using it entirely (and we want to spare some for async-profiler)
+                # this number scales linearly with the number of active cores (so we don't need to do this calculation
+                # here)
+                "-m",
+                str(self._mmap_sizes[self._type]),
+            ]
+            + self._pid_args
+            + self._extra_args
+        )
 
     def start(self) -> None:
         logger.info(f"Starting {self._log_name}")
@@ -109,9 +263,9 @@ class PerfProcess:
     def stop(self) -> None:
         if self._process is not None:
             self._process.terminate()  # okay to call even if process is already dead
-            exit_code = self._process.wait()
+            exit_code, stdout, stderr = reap_process(self._process)
             self._process = None
-            logger.info(f"Stopped {self._log_name}", exit_code=exit_code)
+            logger.info(f"Stopped {self._log_name}", exit_code=exit_code, stderr=stderr, stdout=stdout)
 
     def is_running(self) -> bool:
         """
@@ -232,22 +386,19 @@ class SystemProfiler(ProfilerBase):
         self,
         frequency: int,
         duration: int,
-        stop_event: Event,
-        storage_dir: str,
-        insert_dso_name: bool,
-        profiling_mode: str,
-        profile_spawned_processes: bool,
+        profiler_state: ProfilerState,
         perf_mode: str,
         perf_dwarf_stack_size: int,
         perf_inject: bool,
         perf_node_attach: bool,
         perf_memory_restart: bool,
     ):
-        super().__init__(frequency, duration, stop_event, storage_dir, insert_dso_name, profiling_mode)
-        _ = profile_spawned_processes  # Required for mypy unused argument warning
+        super().__init__(frequency, duration, profiler_state)
         self._perfs: List[PerfProcess] = []
-        self._metadata_collectors: List[PerfMetadata] = [GolangPerfMetadata(stop_event), NodePerfMetadata(stop_event)]
-        self._insert_dso_name = insert_dso_name
+        self._metadata_collectors: List[PerfMetadata] = [
+            GolangPerfMetadata(self._profiler_state.stop_event),
+            NodePerfMetadata(self._profiler_state.stop_event),
+        ]
         self._node_processes: List[Process] = []
         self._node_processes_attached: List[Process] = []
         self._perf_memory_restart = perf_memory_restart
@@ -255,11 +406,12 @@ class SystemProfiler(ProfilerBase):
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
                 self._frequency,
-                self._stop_event,
-                os.path.join(self._storage_dir, "perf.fp"),
+                self._profiler_state.stop_event,
+                os.path.join(self._profiler_state.storage_dir, "perf.fp"),
                 False,
                 perf_inject,
                 [],
+                self._profiler_state.processes_to_profile,
             )
             self._perfs.append(self._perf_fp)
         else:
@@ -268,11 +420,12 @@ class SystemProfiler(ProfilerBase):
         if perf_mode in ("dwarf", "smart"):
             self._perf_dwarf: Optional[PerfProcess] = PerfProcess(
                 self._frequency,
-                self._stop_event,
-                os.path.join(self._storage_dir, "perf.dwarf"),
+                self._profiler_state.stop_event,
+                os.path.join(self._profiler_state.storage_dir, "perf.dwarf"),
                 True,
                 False,  # no inject in dwarf mode, yet
                 ["--call-graph", f"dwarf,{perf_dwarf_stack_size}"],
+                self._profiler_state.processes_to_profile,
             )
             self._perfs.append(self._perf_dwarf)
         else:
@@ -333,7 +486,7 @@ class SystemProfiler(ProfilerBase):
             for perf in self._perfs:
                 perf.restart_if_rss_exceeded()
 
-        if self._stop_event.wait(self._duration):
+        if self._profiler_state.stop_event.wait(self._duration):
             raise StopEventSetException
 
         for perf in self._perfs:
@@ -341,10 +494,10 @@ class SystemProfiler(ProfilerBase):
 
         data = {
             k: self._generate_profile_data(v, k)
-            for k, v in merge.merge_global_perfs(
+            for k, v in merge_global_perfs(
                 self._perf_fp.wait_and_script() if self._perf_fp is not None else None,
                 self._perf_dwarf.wait_and_script() if self._perf_dwarf is not None else None,
-                self._insert_dso_name,
+                self._profiler_state.insert_dso_name,
             ).items()
         }
 
@@ -356,7 +509,7 @@ class SystemProfiler(ProfilerBase):
             appid = self._get_appid(pid)
         else:
             appid = None
-        return ProfileData(stacks, appid, metadata)
+        return ProfileData(stacks, appid, metadata, self._profiler_state.get_container_name(pid))
 
 
 class PerfMetadata(ApplicationMetadata):

@@ -4,12 +4,6 @@ set -euo pipefail
 
 MODULE_PATH=/tmp/module
 BUILD_TARGET_DIR=/tmp/module_build
-# TODO support aarch64
-if [ "$(uname -m)" = "aarch64" ]; then
-    mkdir -p $BUILD_TARGET_DIR
-    touch $BUILD_TARGET_DIR/linux-perf.js
-    exit 0
-fi
 
 GIT_REV=20eb88a
 git clone https://github.com/mmarchini-oss/node-linux-perf.git $MODULE_PATH
@@ -26,6 +20,10 @@ export NAN_PATH
 sed -i 's/node \-e \\"require('\''nan'\'')\\"/echo $NAN_PATH/g' binding.gyp
 rm -rf nan.tar.gz
 mkdir $BUILD_TARGET_DIR
+# Need to build with static libstdc++ to avoid https://github.com/Granulate/gprofiler/issues/604 centos7 issue. 
+if grep -q "CentOS Linux 8" /etc/os-release; then
+    export LDFLAGS="-static-libstdc++"
+fi
 node_versions=( "10.10.0" "11.0.0" )
 for node_version in "${node_versions[@]}"; do
     node-gyp configure --target="$node_version"  --build_v8_with_gn=false

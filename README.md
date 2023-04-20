@@ -74,6 +74,10 @@ Profiling using eBPF incurs lower overhead & provides kernel & native stacks.
 * `--no-php` or `--php-mode disabled`: Disable profilers for PHP.
 * `--php-proc-filter`: Process filter (`pgrep`) to select PHP processes for profiling (this is phpspy's `-P` option)
 
+### .NET profiling options
+* `--dotnet-mode=dotnet-trace`: Enable .NET profiling with dotnet-trace
+* `--no-dotnet` or `--dotnet-mode=disabled`: Disable profilers for .NET.
+
 ### Ruby profiling options
 * `--no-ruby` or `--ruby-mode disabled`: Disable profilers for Ruby.
 
@@ -161,15 +165,9 @@ The logs can then be viewed in their default location (`/var/log/gprofiler`).
 
 `TMPDIR` is added because gProfiler unpacks executables to `/tmp` by default; this is done by `staticx`. For cases where `/tmp` is marked with `noexec`, we add `TMPDIR=/proc/self/cwd` to have everything unpacked in your current working directory, which is surely executable before gProfiler was started in it.
 
-### Executable known issues
-The following platforms are currently not supported with the gProfiler executable:
-+ Alpine
-
-**Remark:** container-based execution works and can be used in those cases.
-
 ## Running as systemd service
 
-You can generate a systemd service configuration that [runs gProfiler as an executable](#running-as-an-executable) (and therefore, bears the same [known issues](#executable-known-issues)) by running:
+You can generate a systemd service configuration that [runs gProfiler as an executable](#running-as-an-executable) by running:
 
 ``` bash
 curl -s https://raw.githubusercontent.com/Granulate/gprofiler/master/deploy/systemd/create_systemd_service.sh | GPROFILER_TOKEN=<TOKEN> GPROFILER_SERVICE=<SERVICE_NAME> bash
@@ -231,6 +229,19 @@ helm show values .
 
 At the time of this writing, Fargate does not support `DAEMON` tasks (see [this](https://github.com/aws/containers-roadmap/issues/971) tracking issue).
 
+Since Fargate containers don't run with the full set of Linux capabilities, some of the profilers are not supported at all, and others require modifying the Fargate container definition to add the `SYS_PTRACE` capability, which is not included by default.
+
+| Runtime                    | Supported               |
+|----------------------------|-------------------------|
+| perf (native, Golang, ...) | No                      |
+| Java (async-profiler)      | Yes                     |
+| Python (py-spy)            | Yes (with `SYS_PTRACE`) |
+| Python (PyPerf eBPF)       | No                      |
+| Ruby (rbspy)               | Yes (with `SYS_PTRACE`) |
+| PHP (phpspy)               | Yes (with `SYS_PTRACE`) |
+| NodeJS (perf)              | No                      |
+| .NET (dotnet-trace)        | Yes                     |
+
 Furthermore, Fargate does not allow using `"pidMode": "host"` in the task definition (see documentation of `pidMode` [here](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_TaskDefinition.html)). Host PID is required for gProfiler to be able to profile processes running in other containers (in case of Fargate, other containers under the same `containerDefinition`).
 
 So in order to deploy gProfiler, we need to modify a container definition to include running gProfiler alongside the actual application. This can be done with the following steps:
@@ -251,7 +262,7 @@ So in order to deploy gProfiler, we need to modify a container definition to inc
     gProfiler and its installation process will send the outputs to your container's stdout & stderr. After verifying that everything works, you can append `> /dev/null 2>&1` to the gProfiler command parenthesis (in this example, before the `& python ...`) to prevent it from spamming your container logs.
 
     This requires your image to have `wget` installed - you can make sure `wget` is installed, or substitute the `wget` command with `curl -SL https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler --output /tmp/gprofiler`, or any other HTTP-downloader you wish.
-2. Add `linuxParameters` to the container definition (this goes directly in your entry in `containerDefinitinos`):
+2. This step is **required** if you wish to profile a runtime environment that requires `SYS_PTRACE` per the table mentioned above, in the beginning of the Fargate section. If you need to add `SYS_PTRACE` for your runtime environment - currently that's for Python, Ruby and PHP - add `linuxParameters` to the container definition (this goes directly in your entry in `containerDefinitinos`):
    ```
    "linuxParameters": {
      "capabilities": {
@@ -261,7 +272,6 @@ So in order to deploy gProfiler, we need to modify a container definition to inc
      },
    },
    ```
-   `SYS_PTRACE` is required by  various profilers, and Fargate by default denies it for containers.
 
 Alternatively, you can download gProfiler in your `Dockerfile` to avoid having to download it every time in run-time. Then you just need to invoke it upon container start-up.
 
@@ -318,33 +328,35 @@ By default, gProfiler's output is written to the Dataproc initialization script 
 If you wish to disable this behaviour, change the `enable-stdout` metadata variable value to "0" (the default is "1").
 
 ## Running on AWS EMR
-To run gProfiler on your AWS EMR cluster, you should create a bootstrap action that will launch the gProfiler on each
-node upon bootstrap. The full process should be:
-1. Create a bootstrap script (bash script) that will launch the gProfiler upon bootstrap, the script
-can look like this:
-```bash
-#!/bin/bash
-wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler_$(uname -m) -O gprofiler
-sudo chmod +x gprofiler
-sudo sh -c "setsid ./gprofiler -cu --token=\"<TOKEN>\" --service-name=\"<SERVICE NAME>\" > /dev/null 2>&1 &"
-```
-  Make sure to:
-  - Replace `<TOKEN>` with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
-  - Replace `<SERVICE>` with the service name you wish to use.
-2. Upload the script to an S3 bucket, for example: `s3://my-s3-bucket/gprofiler-bootstrap.sh`
-3. Create the EMR cluster with bootstrap-action to run the bootstrap script, this can be done both from the AWS Console and AWS CLI.
-   - AWS Console Example:
-     - Create an EMR Cluster from the AWS Console
-     - Select `Go to advanced options`
-     - Proceed to Step 3 - *General Cluster Settings*
-     - Expand *Bootstrap Actions* section
-     - Add Action of type *Custom Action*
-     - Fill in script location with the appropriate script location on your S3, for example `s3://my-s3-bucket/gprofiler-bootstrap.sh`
-     ![img](https://user-images.githubusercontent.com/33522503/153876647-5f844c46-8d62-4d89-b612-9616043f1825.png)
-   - AWS CLI Example:
-     ```bash
-     aws emr create-cluster --name MY-Cluster ... --bootstrap-actions "Path=s3://my-s3-bucket/gprofiler-bootstrap.sh"
+To run gProfiler on your AWS EMR cluster, add a bootstrap action that will launch gProfiler on each
+node when the cluster is provisioned. You will need to provide the token and service name as described below.
+
+1. Upload the [gProfiler bootstrap action file](./deploy/emr/gprofiler_action.sh) to an S3 bucket:
+
+   ```sh
+   aws s3 cp gprofiler_action.sh s3://<BUCKET>/gprofiler_action.sh
+   ```
+
+2. Add the bootstrap action when creating the cluster. You can do this with [the AWS Console or with the AWS CLI](https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-bootstrap.html?icmpid=docs_emr_help_panel_cluster-bootstrap#custom-bootstrap):
+
+   In the steps below, make sure to:
+     - Replace `<BUCKET>` with the bucket where `gprofiler_action.sh` was uploaded.
+     - Replace `<TOKEN>` with the token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/installation) site.
+     - Replace `<SERVICE>` with the service name you wish to use.
+
+   With AWS CLI:
+     ```sh
+     aws emr create-cluster --name "My cluster" ... --bootstrap-actions Path="s3://<BUCKET>/gprofiler_action.sh",Args="[--token=<TOKEN>,--service-name=<SERVICE>]"
      ```
+
+   With new AWS Console:
+     - Create a new cluster.
+     - Under **Bootstrap actions**, choose **Add**, and fill in the fields:
+       - **Name**: gProfiler
+       - **Script location**: `s3://<BUCKET>/gprofiler_action.sh`
+       - **Arguments**: `--token=<TOKEN> --service-name=<SERVICE>`
+       - Example: ![Add bootstrap action](./deploy/emr/add_bootstrap_action.png)
+     - Final result should look similar to this: ![Bootstrap actions](./deploy/emr/bootstrap_actions.png)
 
 ## Running via an Ansible playbook
 Download the [playbook](./deploy/ansible/gprofiler_playbook.yml) and run it this way:
@@ -455,17 +467,7 @@ Additionally, each frame has a suffix which designates the profiler it originate
 
 # Building
 
-Note: this process builds from source all of the profilers used by gProfiler. It's recommended to use machines with at least 8 cores and 16 GB of RAM (memory is more important, as your build may fail with OOM if you have less memory available).
-
-## Container
-
-* x86_64: `./scripts/build_x86_64_container.sh -t gprofiler` will create a local image `gprofiler`.
-* Aarch64: `./scripts/build_aarch64_container.sh`, you will need to set up buildx for building cross architecture before, if you're building on x86_64.
-
-## Executable
-
-* x86_64: `./scripts/build_x86_64_executable.sh` will build the executable into `build/x86_64/gprofiler`.
-* Aarch64: `./scripts/build_aarch64_executable.sh` will build the executable into `build/aarch64/gprofiler`. As with the Aarch64 container build - this can be used to cross-compile on x86_64, you just need to set up buildx for that, see notes above.
+Please refer to the [building](./CONTRIBUTING.md#building) section.
 
 # Contribute
 We welcome all feedback and suggestion through Github Issues:
@@ -476,7 +478,7 @@ We welcome all feedback and suggestion through Github Issues:
 1. Update `__version__` in `__init__.py`.
 2. Create a tag with the same version (after merging the `__version__` update) and push it.
 
-We recommend going through our [contribution guide](https://github.com/granulate/gprofiler/blob/master/CONTRIBUTING.md) for more details.
+We recommend going through our [contribution guide](./CONTRIBUTING.md) for more details.
 
 # Credits
 * [async-profiler](https://github.com/jvm-profiling-tools/async-profiler) by [Andrei Pangin](https://github.com/apangin). See [our fork](https://github.com/Granulate/async-profiler).

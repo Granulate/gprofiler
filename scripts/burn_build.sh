@@ -4,9 +4,10 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 set -euo pipefail
+DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 
-git clone -b v1.0.1g2 https://github.com/granulate/burn
+git clone -b "$(awk '/VERSION/{print $2}' <"${DIR}/burn_version.txt")" https://github.com/granulate/burn
 cd burn
-git reset --hard 40d34547e942c53b6b1d1dd660eaf6367d2b8489
+git reset --hard "$(awk '/COMMIT/{print $2}' <"${DIR}/burn_version.txt")"
 
 CGO_ENABLED=0 go build

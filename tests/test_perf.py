@@ -4,19 +4,24 @@
 #
 
 import logging
-from pathlib import Path
 from threading import Event
-from typing import cast
+from typing import Dict, cast
 
 import pytest
 from docker.models.containers import Container
 from pytest import LogCaptureFixture
 
-from gprofiler.consts import CPU_PROFILING_MODE
-from gprofiler.profilers.perf import DEFAULT_PERF_DWARF_STACK_SIZE, SystemProfiler
+from gprofiler.profiler_state import ProfilerState
+from gprofiler.profilers.perf import (
+    DEFAULT_PERF_DWARF_STACK_SIZE,
+    SystemProfiler,
+    _collapse_stack,
+    get_average_frame_count,
+)
 from gprofiler.utils import wait_event
 from tests.utils import (
     assert_function_in_collapsed,
+    is_aarch64,
     is_function_in_collapsed,
     snapshot_pid_collapsed,
     snapshot_pid_profile,
@@ -24,24 +29,15 @@ from tests.utils import (
 
 
 @pytest.fixture
-def insert_dso_name() -> bool:
-    return False
+def system_profiler(perf_mode: str, insert_dso_name: bool, profiler_state: ProfilerState) -> SystemProfiler:
+    return make_system_profiler(perf_mode, profiler_state)
 
 
-@pytest.fixture
-def system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) -> SystemProfiler:
-    return make_system_profiler(tmp_path, perf_mode, insert_dso_name)
-
-
-def make_system_profiler(tmp_path: Path, perf_mode: str, insert_dso_name: bool) -> SystemProfiler:
+def make_system_profiler(perf_mode: str, profiler_state: ProfilerState) -> SystemProfiler:
     return SystemProfiler(
         99,
         1,
-        Event(),
-        str(tmp_path),
-        insert_dso_name,
-        CPU_PROFILING_MODE,
-        False,
+        profiler_state,
         perf_mode=perf_mode,
         perf_inject=False,
         perf_dwarf_stack_size=DEFAULT_PERF_DWARF_STACK_SIZE,
@@ -58,9 +54,20 @@ def test_perf_fp_dwarf_smart(
     application_pid: int,
     runtime: str,
     perf_mode: str,
+    application_docker_container: Container,
 ) -> None:
+    if is_aarch64():
+        if runtime == "native_fp" and perf_mode == "fp":
+            pytest.xfail("This combination fails on aarch64 https://github.com/Granulate/gprofiler/issues/746")
+        if runtime == "native_fp" and perf_mode == "dwarf":
+            pytest.xfail("This combination fails on aarch64 https://github.com/Granulate/gprofiler/issues/746")
+        if runtime == "native_dwarf" and perf_mode == "smart":
+            pytest.xfail("This combination fails on aarch64 https://github.com/Granulate/gprofiler/issues/746")
+        if runtime == "native_dwarf" and perf_mode == "dwarf":
+            pytest.xfail("This combination fails on aarch64 https://github.com/Granulate/gprofiler/issues/746")
     with system_profiler as profiler:
-        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
+        process_profile = snapshot_pid_profile(profiler, application_pid)
+        process_collapsed = process_profile.stacks
 
         if runtime == "native_dwarf":
             # app is built with DWARF info and without FP, so we expect to see a callstack only in DWARF or smart modes.
@@ -77,6 +84,8 @@ def test_perf_fp_dwarf_smart(
         assert is_function_in_collapsed(";_start;__libc_start_main;main;", process_collapsed) ^ bool(
             perf_mode not in ("dwarf", "smart")
         )
+        # Check if container name is added to ProfileData
+        assert application_docker_container.name == process_profile.container_name
 
 
 def _restart_app_container(application_docker_container: Container) -> int:
@@ -242,3 +251,136 @@ def test_perf_restarted_if_killed(
         # starting message again (now appears twice)
         assert len(list(filter(lambda r: r.message == "Starting perf (fp mode)", caplog.records))) == 2
         assert len(list(filter(lambda r: r.message == "Starting perf (dwarf mode)", caplog.records))) == 2
+
+
+@pytest.mark.parametrize(
+    "samples,count",
+    [
+        (["a 1"], 1),
+        (["d_[k] 1"], 0),
+        (["d_[k];e_[k] 1"], 0),
+        (["a;b;c;d_[k] 1"], 3),
+        (["a;b;c;d_[k];e_[k] 1"], 3),
+        (["a 1", "a;b 1"], 1.5),
+        (["d_[k] 1", "a;d_[k] 1"], 0.5),
+    ],
+)
+def test_get_average_frame_count(samples: str, count: float) -> None:
+    assert get_average_frame_count(samples) == count
+
+
+@pytest.mark.parametrize("insert_dso_name", [False, True])
+@pytest.mark.parametrize(
+    "stack, outcome_dict",
+    [
+        pytest.param(
+            "	 7f80 operator new+0x0 (/lib/libstdc++.so)",
+            dict(
+                dso_true="operator new (/lib/libstdc++.so)",
+                dso_false="operator new",
+            ),
+            id="operator_new",
+        ),
+        pytest.param(
+            "	 5501 [unknown] (/bin/cat)",
+            dict(
+                dso_true="(/bin/cat)",
+                dso_false="(/bin/cat)",
+            ),
+            id="unknown_bin_cat",
+        ),
+        pytest.param(
+            "	 7fd4 [unknown] (/lib/libudev.so (deleted))",
+            dict(
+                dso_true="(/lib/libudev.so (deleted))",
+                dso_false="(/lib/libudev.so (deleted))",
+            ),
+            id="libudev_deleted",
+        ),
+        pytest.param(
+            "	 1c00 [unknown] ([unknown])",
+            dict(
+                dso_true="[unknown] (unknown)",
+                dso_false="[unknown]",
+            ),
+            id="uknown_unknown",
+        ),
+        pytest.param(
+            "	 7fdb [unknown] ([vdso])",
+            dict(
+                dso_true="(vdso)",
+                dso_false="(vdso)",
+            ),
+            id="unknown_vdso",
+        ),
+        pytest.param(
+            "	 7f51 __gettime+0x1 ([vdso])",
+            dict(
+                dso_true="__gettime (vdso)",
+                dso_false="__gettime",
+            ),
+            id="gettime_vdso",
+        ),
+        pytest.param(
+            "	 ffa5 dup_mm+0x3f5 ([kernel.kallsyms])",
+            dict(
+                dso_true="dup_mm_[k]",
+                dso_false="dup_mm_[k]",
+            ),
+            id="dup_mm_kernel",
+        ),
+        pytest.param(
+            "	 dbdb CancelableTask::Run()+0x3b (/root/node)",
+            dict(
+                dso_true="CancelableTask::Run() (/root/node)",
+                dso_false="CancelableTask::Run()",
+            ),
+            id="cancelable_task_run_node",
+        ),
+        pytest.param(
+            "	 4090 recursive+0x1e (/native)",
+            dict(
+                dso_true="recursive (/native)",
+                dso_false="recursive",
+            ),
+            id="recursive_native",
+        ),
+        pytest.param(
+            "	 7fa0 @plt+0x0 (/lib/libc.so)",
+            dict(
+                dso_true="@plt (/lib/libc.so)",
+                dso_false="@plt",
+            ),
+            id="plt_libc",
+        ),
+        pytest.param(
+            "	ff84 page_fault+0x34 ([kernel.kallsyms])\n"
+            "	7f6e [unknown] (/tmp/perf-123.map)\n"
+            "	fffc strncpy_from_user+0x4c ([kernel.kallsyms])\n"
+            "	7fae fstatat64+0xe (/lib/libc-2.33.so)\n"
+            "	0040 [unknown] ([unknown])",
+            dict(
+                dso_true="[unknown] (unknown);fstatat64 (/lib/libc-2.33.so);"
+                "strncpy_from_user_[k];(/tmp/perf-123.map);page_fault_[k]",
+                dso_false="[unknown];fstatat64;strncpy_from_user_[k];(/tmp/perf-123.map);page_fault_[k]",
+            ),
+            id="mixed_stack",
+        ),
+        pytest.param(
+            "	b7ac [unknown] ([unknown])\n"
+            "	7fae Resolver::_invokedynamic+0xbe (/opt/java/lib/libjvm.so)\n"
+            "	7f2f [unknown] (/tmp/perf-123.map)\n"
+            "	7f8e JavaMain+0xcfe (/opt/java/lib/libjli.so)\n"
+            "	7fdb start_thread+0xdb (/lib/libpthread-2.27.so)\n",
+            dict(
+                dso_true="start_thread (/lib/libpthread-2.27.so);JavaMain (/opt/java/lib/libjli.so);"
+                "(/tmp/perf-123.map);Resolver::_invokedynamic (/opt/java/lib/libjvm.so);[unknown] (unknown)",
+                dso_false="start_thread;JavaMain;(/tmp/perf-123.map);Resolver::_invokedynamic;[unknown]",
+            ),
+            id="mixed_java_stack",
+        ),
+    ],
+)
+def test_collapse_stack_consider_dso(stack: str, insert_dso_name: bool, outcome_dict: Dict[str, str]) -> None:
+    expected = f"program;{outcome_dict['dso_true' if insert_dso_name else 'dso_false']}"
+    assert expected == _collapse_stack("program", stack, insert_dso_name)

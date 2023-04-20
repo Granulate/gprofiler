@@ -8,7 +8,6 @@ import signal
 from collections import Counter, defaultdict
 from pathlib import Path
 from subprocess import CompletedProcess
-from threading import Event
 from typing import Any, Dict, List, Match, Optional, cast
 
 from granulate_utils.linux.elf import get_elf_id
@@ -22,7 +21,6 @@ from granulate_utils.linux.process import (
 from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PROCESSES_REGEX
 from psutil import NoSuchProcess, Process
 
-from gprofiler import merge
 from gprofiler.exceptions import (
     CalledProcessError,
     CalledProcessTimeoutError,
@@ -42,8 +40,10 @@ from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.platform import is_linux, is_windows
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProfilerInterface, SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
+from gprofiler.utils.collapsed_format import parse_one_collapsed_file
 
 if is_linux():
     from gprofiler.profilers.python_ebpf import PythonEbpfProfiler, PythonEbpfError
@@ -171,19 +171,13 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         self,
         frequency: int,
         duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
-        insert_dso_name: bool,
-        profiling_mode: str,
-        profile_spawned_processes: bool,
+        profiler_state: ProfilerState,
         *,
         add_versions: bool,
     ):
-        super().__init__(
-            frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes, profiling_mode
-        )
+        super().__init__(frequency, duration, profiler_state)
         self.add_versions = add_versions
-        self._metadata = PythonMetadata(self._stop_event)
+        self._metadata = PythonMetadata(self._profiler_state.stop_event)
 
     def _make_command(self, pid: int, output_path: str, duration: int) -> List[str]:
         command = [
@@ -213,16 +207,17 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             cmdline=process.cmdline(),
             no_extra_to_server=True,
         )
+        container_name = self._profiler_state.get_container_name(process.pid)
         appid = application_identifiers.get_python_app_id(process)
         app_metadata = self._metadata.get_metadata(process)
         comm = process_comm(process)
 
-        local_output_path = os.path.join(self._storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
+        local_output_path = os.path.join(self._profiler_state.storage_dir, f"pyspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):
             try:
                 run_process(
                     self._make_command(process.pid, local_output_path, duration),
-                    stop_event=self._stop_event,
+                    stop_event=self._profiler_state.stop_event,
                     timeout=duration + self._EXTRA_TIMEOUT,
                     kill_signal=signal.SIGTERM if is_windows() else signal.SIGKILL,
                 )
@@ -232,8 +227,10 @@ class PySpyProfiler(SpawningProcessProfilerBase):
                 logger.error(f"Profiling with py-spy timed out on process {process.pid}")
                 raise
             except CalledProcessError as e:
+                assert isinstance(e.stderr, str), f"unexpected type {type(e.stderr)}"
+
                 if (
-                    b"Error: Failed to get process executable name. Check that the process is running.\n" in e.stderr
+                    "Error: Failed to get process executable name. Check that the process is running.\n" in e.stderr
                     and not is_process_running(process)
                 ):
                     logger.debug(f"Profiled process {process.pid} exited before py-spy could start")
@@ -241,14 +238,15 @@ class PySpyProfiler(SpawningProcessProfilerBase):
                         self._profiling_error_stack("error", comm, "process exited before py-spy started"),
                         appid,
                         app_metadata,
+                        container_name,
                     )
                 raise
 
             logger.info(f"Finished profiling process {process.pid} with py-spy")
-            parsed = merge.parse_one_collapsed_file(Path(local_output_path), comm)
+            parsed = parse_one_collapsed_file(Path(local_output_path), comm)
             if self.add_versions:
                 parsed = _add_versions_to_process_stacks(process, parsed)
-            return ProfileData(parsed, appid, app_metadata)
+            return ProfileData(parsed, appid, app_metadata, container_name)
 
     def _select_processes_to_profile(self) -> List[Process]:
         filtered_procs = []
@@ -306,6 +304,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
     "pyspy (always use py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails)"
     " or disabled (no runtime profilers for Python).",
     profiler_arguments=[
+        # TODO should be prefixed with --python-
         ProfilerArgument(
             "--no-python-versions",
             dest="python_add_versions",
@@ -315,6 +314,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             "the name of the package and its version, and frames from Python built-in modules are displayed with "
             "Python's full version.",
         ),
+        # TODO should be prefixed with --python-
         ProfilerArgument(
             "--pyperf-user-stacks-pages",
             dest="python_pyperf_user_stacks_pages",
@@ -322,6 +322,12 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             type=nonnegative_integer,
             help="Number of user stack-pages that PyPerf will collect, this controls the maximum stack depth of native "
             "user frames. Pass 0 to disable user native stacks altogether.",
+        ),
+        ProfilerArgument(
+            "--python-pyperf-verbose",
+            dest="python_pyperf_verbose",
+            action="store_true",
+            help="Enable PyPerf in verbose mode (max verbosity)",
         ),
     ],
     supported_profiling_modes=["cpu"],
@@ -336,14 +342,11 @@ class PythonProfiler(ProfilerInterface):
         self,
         frequency: int,
         duration: int,
-        stop_event: Event,
-        storage_dir: str,
-        insert_dso_name: bool,
-        profiling_mode: str,
-        profile_spawned_processes: bool,
+        profiler_state: ProfilerState,
         python_mode: str,
         python_add_versions: bool,
         python_pyperf_user_stacks_pages: Optional[int],
+        python_pyperf_verbose: bool,
     ):
         if python_mode == "py-spy":
             python_mode = "pyspy"
@@ -359,13 +362,10 @@ class PythonProfiler(ProfilerInterface):
             self._ebpf_profiler = self._create_ebpf_profiler(
                 frequency,
                 duration,
-                stop_event,
-                storage_dir,
-                insert_dso_name,
-                profile_spawned_processes,
+                profiler_state,
                 python_add_versions,
                 python_pyperf_user_stacks_pages,
-                profiling_mode,
+                python_pyperf_verbose,
             )
         else:
             self._ebpf_profiler = None
@@ -374,11 +374,7 @@ class PythonProfiler(ProfilerInterface):
             self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(
                 frequency,
                 duration,
-                stop_event,
-                storage_dir,
-                insert_dso_name,
-                profiling_mode,
-                profile_spawned_processes,
+                profiler_state,
                 add_versions=python_add_versions,
             )
         else:
@@ -390,25 +386,19 @@ class PythonProfiler(ProfilerInterface):
             self,
             frequency: int,
             duration: int,
-            stop_event: Event,
-            storage_dir: str,
-            insert_dso_name: bool,
-            profile_spawned_processes: bool,
+            profiler_state: ProfilerState,
             add_versions: bool,
             user_stacks_pages: Optional[int],
-            profiling_mode: str,
+            verbose: bool,
         ) -> Optional[PythonEbpfProfiler]:
             try:
                 profiler = PythonEbpfProfiler(
                     frequency,
                     duration,
-                    stop_event,
-                    storage_dir,
-                    insert_dso_name,
-                    profile_spawned_processes,
-                    profiling_mode,
+                    profiler_state,
                     add_versions=add_versions,
                     user_stacks_pages=user_stacks_pages,
+                    verbose=verbose,
                 )
                 profiler.test()
                 return profiler

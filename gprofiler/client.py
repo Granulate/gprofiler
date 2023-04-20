@@ -9,11 +9,13 @@ from io import BytesIO
 from typing import IO, TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 import requests
+from granulate_utils.metrics import MetricsSnapshot
 from requests import Session
 
 from gprofiler import __version__
 from gprofiler.exceptions import APIError
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata.system_metadata import get_hostname
 from gprofiler.utils import get_iso8601_format_time, get_iso8601_format_time_from_epoch_time
 
 if TYPE_CHECKING:
@@ -107,12 +109,14 @@ class ProfilerAPIClient(BaseAPIClient):
 
     def __init__(
         self,
+        *,
         token: str,
         service_name: str,
         server_address: str,
         curlify_requests: bool,
         hostname: str,
         upload_timeout: int,
+        verify: bool,
         version: str = "v1",
     ):
         self._server_address = server_address.rstrip("/")
@@ -121,10 +125,12 @@ class ProfilerAPIClient(BaseAPIClient):
         self._key = token
         self._service = service_name
         self._hostname = hostname
+        self._verify = verify
         super().__init__(curlify_requests)
 
     def _init_session(self) -> None:
         self._session: Session = requests.Session()
+        self._session.verify = self._verify
         self._session.headers.update({"GPROFILER-API-KEY": self._key, "GPROFILER-SERVICE-NAME": self._service})
 
         # Raises on failure
@@ -224,17 +230,22 @@ class APIClient(BaseAPIClient):
             {
                 "Authorization": f"Bearer {self._token}",
                 "X-Gprofiler-Service": self._service_name,
+                "X-GProfiler-Hostname": get_hostname(),
             }
         )
 
-    def submit_spark_metrics(self, timestamp: int, metrics: List[Dict[str, Any]]) -> Dict:
+    def submit_spark_metrics(self, snapshot: MetricsSnapshot) -> Dict:
         return self._request_url(
             "POST",
             f"{self._server_address}/telemetry/gprofiler/spark/v1/update",
-            {
-                "format_version": 0,
-                "timestamp": timestamp,
-                "metrics": metrics,
-            },
+            bake_metrics_payload(snapshot),
             timeout=self._timeout,
         )
+
+
+def bake_metrics_payload(snapshot: MetricsSnapshot) -> Dict[str, Any]:
+    return {
+        "format_version": 1,
+        "timestamp": get_iso8601_format_time(snapshot.timestamp),
+        "metrics": [sample.__dict__ for sample in snapshot.samples],
+    }

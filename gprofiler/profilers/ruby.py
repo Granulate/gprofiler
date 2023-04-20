@@ -7,22 +7,22 @@ import functools
 import os
 import signal
 from pathlib import Path
-from threading import Event
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from granulate_utils.linux.elf import get_elf_id
 from granulate_utils.linux.process import get_mapped_dso_elf_id, is_process_basename_matching
 from psutil import Process
 
-from gprofiler import merge
 from gprofiler.exceptions import ProcessStoppedException, StopEventSetException
 from gprofiler.gprofiler_types import ProfileData
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
 from gprofiler.profilers.registry import register_profiler
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
+from gprofiler.utils.collapsed_format import parse_one_collapsed_file
 from gprofiler.utils.process import process_comm, search_proc_maps
 
 logger = get_logger_adapter(__name__)
@@ -65,24 +65,18 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
     RESOURCE_PATH = "ruby/rbspy"
     MAX_FREQUENCY = 100
     _EXTRA_TIMEOUT = 10  # extra time like given to py-spy
-    DETECTED_RUBY_PROCESSES_REGEX = r"(?:^.+/ruby[^/]*$)"
+    DETECTED_RUBY_PROCESSES_REGEX = r"(^.+/ruby[^/]*$)"
 
     def __init__(
         self,
         frequency: int,
         duration: int,
-        stop_event: Optional[Event],
-        storage_dir: str,
-        insert_dso_name: bool,
-        profiling_mode: str,
-        profile_spawned_processes: bool,
+        profiler_state: ProfilerState,
         ruby_mode: str,
     ):
-        super().__init__(
-            frequency, duration, stop_event, storage_dir, insert_dso_name, profile_spawned_processes, profiling_mode
-        )
+        super().__init__(frequency, duration, profiler_state)
         assert ruby_mode == "rbspy", "Ruby profiler should not be initialized, wrong ruby_mode value given"
-        self._metadata = RubyMetadata(self._stop_event)
+        self._metadata = RubyMetadata(self._profiler_state.stop_event)
 
     def _make_command(self, pid: int, output_path: str, duration: int) -> List[str]:
         return [
@@ -111,15 +105,16 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
             no_extra_to_server=True,
         )
         comm = process_comm(process)
+        container_name = self._profiler_state.get_container_name(process.pid)
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_ruby_app_id(process)
 
-        local_output_path = os.path.join(self._storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
+        local_output_path = os.path.join(self._profiler_state.storage_dir, f"rbspy.{random_prefix()}.{process.pid}.col")
         with removed_path(local_output_path):
             try:
                 run_process(
                     self._make_command(process.pid, local_output_path, duration),
-                    stop_event=self._stop_event,
+                    stop_event=self._profiler_state.stop_event,
                     timeout=duration + self._EXTRA_TIMEOUT,
                     kill_signal=signal.SIGKILL,
                 )
@@ -127,7 +122,9 @@ class RbSpyProfiler(SpawningProcessProfilerBase):
                 raise StopEventSetException
 
             logger.info(f"Finished profiling process {process.pid} with rbspy")
-            return ProfileData(merge.parse_one_collapsed_file(Path(local_output_path), comm), appid, app_metadata)
+            return ProfileData(
+                parse_one_collapsed_file(Path(local_output_path), comm), appid, app_metadata, container_name
+            )
 
     def _select_processes_to_profile(self) -> List[Process]:
         return pgrep_maps(self.DETECTED_RUBY_PROCESSES_REGEX)
