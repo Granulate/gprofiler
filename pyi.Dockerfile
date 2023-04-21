@@ -138,6 +138,19 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
       git \
       patchelf scons
 
+# build staticx dedicated for PyPerf and process PyPerf binary;
+# apply patch to ensure staticx bootloader propagates dump signal to actual PyPerf binary
+COPY scripts/staticx_for_pyperf_patch.diff staticx_for_pyperf_patch.diff
+# hadolint ignore=DL3003
+RUN if [ "$(uname -m)" = "aarch64" ]; then \
+      exit 0; \
+    fi && \
+    git clone -b v0.13.6 https://github.com/JonathonReinhart/staticx.git && \
+    cd staticx && \
+    git reset --hard 819d8eafecbaab3646f70dfb1e3e19f6bbc017f8 && \
+    git apply ../staticx_for_pyperf_patch.diff && \
+    python3 -m pip install --no-cache-dir .
+
 COPY --from=perf-builder /bpftool /bpftool
 
 COPY scripts/bcc_helpers_build.sh .
@@ -145,8 +158,6 @@ RUN ./bcc_helpers_build.sh
 
 # build bcc
 # TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
-WORKDIR /tmp
-
 COPY ./scripts/libunwind_build.sh .
 RUN if [ "$(uname -m)" = "aarch64" ]; then \
       exit 0; \
@@ -156,19 +167,6 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
 WORKDIR /bcc
 COPY ./scripts/pyperf_build.sh .
 RUN ./pyperf_build.sh
-
-# build staticx dedicated for PyPerf and process PyPerf binary;
-# apply patch to ensure staticx bootloader propagates dump signal to actual PyPerf binary
-COPY scripts/staticx_for_pyperf_patch.diff staticx_for_pyperf_patch.diff
-# hadolint ignore=DL3003
-RUN if [ "$(uname -m)" = "aarch64" ]; then \
-      exit 0; \
-    fi && \
-    git clone -b v0.13.8 https://github.com/JonathonReinhart/staticx.git && \
-    cd staticx && \
-    git reset --hard e12a69ee4d8d9c03a9cea7c333e32ab2858e5068 && \
-    git apply ../staticx_for_pyperf_patch.diff && \
-    python3 -m pip install --no-cache-dir .
 
 RUN if [ "$(uname -m)" != "aarch64" ]; then \
         staticx  ./root/share/bcc/examples/cpp/PyPerf  ./root/share/bcc/examples/cpp/PyPerf; \
