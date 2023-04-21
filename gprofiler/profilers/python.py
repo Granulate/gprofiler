@@ -355,7 +355,7 @@ class PythonProfiler(ProfilerInterface):
 
         if get_arch() != "x86_64" or is_windows():
             if python_mode == "pyperf":
-                logger.warning("PyPerf is supported only on x86_64, falling back to py-spy")
+                raise Exception(f"PyPerf is supported only on x86_64 (and not on this arch {get_arch()})")
             python_mode = "pyspy"
 
         if python_mode in ("auto", "pyperf"):

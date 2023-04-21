@@ -43,9 +43,15 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
             {
                 "exe": "/usr/local/bin/ruby",
                 "execfn": "/usr/local/bin/ruby",
-                "libruby_elfid": "buildid:bf7da94bfdf3cb595ae0af450112076bdaaabee8",
-                "exe_elfid": "buildid:cbc0ab21749fe48b904fff4e73b88413270bd8ba",
-                "ruby_version": "ruby 2.6.7p197 (2021-04-05 revision 67941) [x86_64-linux]",
+                "libruby_elfid": "buildid:3dd53a0b231fb14f1aaa81e10be000c58a09ee45"
+                if is_aarch64()
+                else "buildid:bf7da94bfdf3cb595ae0af450112076bdaaabee8",
+                "exe_elfid": "buildid:8a28e8baf87a769f077bf28c053811ce4ffbebed"
+                if is_aarch64()
+                else "buildid:cbc0ab21749fe48b904fff4e73b88413270bd8ba",
+                "ruby_version": "ruby 2.6.7p197 (2021-04-05 revision 67941) [aarch64-linux]"
+                if is_aarch64()
+                else "ruby 2.6.7p197 (2021-04-05 revision 67941) [x86_64-linux]",
             },
         ),
         (
@@ -199,7 +205,9 @@ def test_app_metadata(
 
     assert application_docker_container.name in metadata["containers"]
     # find its app metadata index - find a stack line from the app of this container
-    stack = next(filter(lambda l: application_docker_container.name in l and application_executable in l, lines[1:]))
+    stack = next(
+        filter(lambda line: application_docker_container.name in line and application_executable in line, lines[1:])
+    )
     # stack begins with index
     idx = int(stack.split(";")[0])
 
