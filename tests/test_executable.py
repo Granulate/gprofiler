@@ -185,6 +185,7 @@ def test_killing_spawned_processes(
     for pid in gprofiler_pids:
         os.kill(int(pid), signal.SIGKILL)
     processes_in_container = application_docker_container.top().get("Processes")
+    print(f"Processes left in container: {processes_in_container}")
     assert len(processes_in_container) == 1
     assert "py-spy record" not in str(processes_in_container)
     command = ["ls", "/tmp/gprofiler_tmp"]
