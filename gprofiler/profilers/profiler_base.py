@@ -171,6 +171,11 @@ class ProcessProfilerBase(ProfilerBase):
     def snapshot(self) -> ProcessToProfileData:
         processes_to_profile = self._select_processes_to_profile()
         logger.debug(f"{self.__class__.__name__}: selected {len(processes_to_profile)} processes to profile")
+        if self._profiler_state.processes_to_profile is not None and len(processes_to_profile) > 0:
+            processes_to_profile = [
+                process for process in processes_to_profile if process in self._profiler_state.processes_to_profile
+            ]
+            logger.debug(f"{self.__class__.__name__}: processes left after filtering: {len(processes_to_profile)}")
         self._notify_selected_processes(processes_to_profile)
 
         if not processes_to_profile:

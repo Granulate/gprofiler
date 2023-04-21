@@ -246,6 +246,11 @@ class PythonEbpfProfiler(ProfilerBase):
         for pid in parsed:
             try:
                 process = Process(pid)
+                # Because of https://github.com/Granulate/gprofiler/issues/764,
+                # for now we only filter output of pyperf to return only profiles from chosen pids
+                if self._profiler_state.processes_to_profile is not None:
+                    if process not in self._profiler_state.processes_to_profile:
+                        continue
                 appid = application_identifiers.get_python_app_id(process)
                 app_metadata = self._metadata.get_metadata(process)
                 container_name = self._profiler_state.get_container_name(pid)

@@ -21,6 +21,7 @@ from gprofiler.profilers.perf import (
 from gprofiler.utils import wait_event
 from tests.utils import (
     assert_function_in_collapsed,
+    is_aarch64,
     is_function_in_collapsed,
     snapshot_pid_collapsed,
     snapshot_pid_profile,
@@ -55,6 +56,15 @@ def test_perf_fp_dwarf_smart(
     perf_mode: str,
     application_docker_container: Container,
 ) -> None:
+    if is_aarch64():
+        if runtime == "native_fp" and perf_mode == "fp":
+            pytest.xfail("This combination fails on aarch64 https://github.com/Granulate/gprofiler/issues/746")
+        if runtime == "native_fp" and perf_mode == "dwarf":
+            pytest.xfail("This combination fails on aarch64 https://github.com/Granulate/gprofiler/issues/746")
+        if runtime == "native_dwarf" and perf_mode == "smart":
+            pytest.xfail("This combination fails on aarch64 https://github.com/Granulate/gprofiler/issues/746")
+        if runtime == "native_dwarf" and perf_mode == "dwarf":
+            pytest.xfail("This combination fails on aarch64 https://github.com/Granulate/gprofiler/issues/746")
     with system_profiler as profiler:
         process_profile = snapshot_pid_profile(profiler, application_pid)
         process_collapsed = process_profile.stacks
