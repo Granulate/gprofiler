@@ -56,12 +56,14 @@ jobs:
           - ubuntu:18.04
           - ubuntu:20.04
           - ubuntu:20.10
+          - ubuntu:22.04
           - centos:6
           - centos:7
           - centos:8
           - debian:8
           - debian:9
           - debian:10
+          - debian:11
     steps:
       - name: Set up Python 3.8
         uses: actions/setup-python@v2
