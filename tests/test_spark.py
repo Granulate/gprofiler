@@ -28,10 +28,11 @@ def _wait_container_to_start(container: Container) -> None:
 def test_spark_discovery(
     docker_client: DockerClient, application_docker_mounts: List[Mount], caplog: LogCaptureFixture
 ) -> None:
-    # Build the docker image that runs SparkPi
+    # Creating a logger because BigDataSampler requires one
     logger = logging.getLogger("test_spark_discovery")
     logger_adapter = logging.LoggerAdapter(logger, {"key": "value"})
     caplog.set_level(logging.DEBUG)
+    # Build the docker image that runs SparkPi
     spark_image = _build_image(docker_client=docker_client, runtime="spark")
     hostname = gethostname()
     container = docker_client.containers.run(
