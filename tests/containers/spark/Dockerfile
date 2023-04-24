@@ -1,3 +1,6 @@
+# This docker image is used by `tests/test_spark.py`.
+# It uses the official Spark docker image and runs the SparkPi example, with master only (no workers).
+
 FROM apache/spark
 
 # Runs SparkPi with 1000 as argument
