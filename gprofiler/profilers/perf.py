@@ -7,11 +7,13 @@ import os
 import re
 import signal
 import time
+import glob
 from collections import Counter, defaultdict
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
 from typing import Any, Dict, Iterable, List, Optional
+from tempfile import NamedTemporaryFile
 
 from granulate_utils.golang import get_process_golang_version, is_golang_process
 from granulate_utils.linux.elf import is_statically_linked
@@ -322,27 +324,35 @@ class PerfProcess:
             # (unlike Popen.communicate())
             assert self._process is not None and self._process.stderr is not None
             logger.debug(f"{self._log_name} run output", perf_stderr=self._process.stderr.read1())  # type: ignore
-
         try:
-            inject_data = Path(f"{str(perf_data)}.inject")
-            if self._inject_jit:
-                run_process(
-                    [perf_path(), "inject", "--jit", "-o", str(inject_data), "-i", str(perf_data)],
-                )
-                perf_data.unlink()
-                perf_data = inject_data
+            with NamedTemporaryFile(dir=os.path.dirname(self._output_path), suffix='.inject') as inject_data:
+                if self._inject_jit:
+                    run_process(
+                        [perf_path(), "inject", "--jit", "-o", str(inject_data), "-i", str(perf_data)],
+                    )
+                    perf_data = inject_data
 
-            perf_script_proc = run_process(
-                [perf_path(), "script", "-F", "+pid", "-i", str(perf_data)],
-                suppress_log=True,
+                perf_script_proc = run_process(
+                    [perf_path(), "script", "-F", "+pid", "-i", str(perf_data)],
+                    suppress_log=True,
+                )
+                return perf_script_proc.stdout.decode("utf8")
+        except Exception:
+            assert self._process is not None and self._process.stdout is not None and self._process.stderr is not None
+            logger.critical(
+                f"{self._log_name} failed to dump output",
+                perf_stdout=self._process.stdout.read(),
+                perf_stderr=self._process.stderr.read(),
+                perf_running=self.is_running(),
             )
-            return perf_script_proc.stdout.decode("utf8")
+            raise
         finally:
             perf_data.unlink()
-            if self._inject_jit:
-                # might be missing if it's already removed.
-                # might be existing if "perf inject" itself fails
-                remove_path(inject_data, missing_ok=True)
+            # always read its stderr
+            # using read1() which performs just a single read() call and doesn't read until EOF
+            # (unlike Popen.communicate())
+            assert self._process is not None and self._process.stderr is not None
+            logger.debug(f"{self._log_name} run output", perf_stderr=self._process.stderr.read1())  # type: ignore
 
 
 @register_profiler(
