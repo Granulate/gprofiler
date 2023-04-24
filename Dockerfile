@@ -77,48 +77,16 @@ COPY scripts/perf_build.sh .
 RUN ./perf_build.sh
 
 # pyperf (bcc)
-FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-builder-base
-
-# not cleaning apt lists here - they are used by subsequent layers that base
-# on bcc-builder-base.
-# hadolint ignore=DL3009
-RUN apt-get update && \
-  apt-get install -y --no-install-recommends \
-    git \
-    ca-certificates \
-    && \
-  if [ "$(uname -m)" != "aarch64" ]; then \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      curl \
-      build-essential \
-      iperf llvm-12-dev \
-      clang-12 libclang-12-dev \
-      cmake \
-      python3 \
-      flex \
-      libfl-dev \
-      bison \
-      libelf-dev \
-      libz-dev \
-      liblzma-dev; \
-  fi
-
-# bcc helpers
-FROM bcc-builder-base AS bcc-helpers
-WORKDIR /tmp
-
-RUN apt-get install -y --no-install-recommends \
-  clang-10 \
-  llvm-10
-
+FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-build
 COPY --from=perf-builder /bpftool /bpftool
 
+WORKDIR /bcc
+COPY scripts/staticx_patch.diff .
 COPY scripts/bcc_helpers_build.sh .
-RUN ./bcc_helpers_build.sh
+COPY scripts/pyperf_env.sh .
+RUN ./pyperf_env.sh
 
-FROM bcc-builder-base AS bcc-builder
 WORKDIR /tmp
-
 COPY ./scripts/libunwind_build.sh .
 RUN if [ "$(uname -m)" = "aarch64" ]; then \
       exit 0; \
@@ -126,8 +94,7 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
     ./libunwind_build.sh
 
 WORKDIR /bcc
-
-COPY ./scripts/pyperf_build.sh .
+COPY scripts/pyperf_build.sh .
 RUN ./pyperf_build.sh
 
 # phpspy
@@ -201,13 +168,13 @@ RUN set -e; \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=bcc-builder /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
-# copy licenses and notice file.
-COPY --from=bcc-builder /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
-COPY --from=bcc-builder /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
-COPY --from=bcc-builder /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
-COPY --from=bcc-helpers /bpf_get_fs_offset/get_fs_offset gprofiler/resources/python/pyperf/
-COPY --from=bcc-helpers /bpf_get_stack_offset/get_stack_offset gprofiler/resources/python/pyperf/
+# copy Pyperf, licenses and notice file.
+COPY --from=bcc-build /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
+COPY --from=bcc-build /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
+COPY --from=bcc-build /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
+COPY --from=bcc-build /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
+COPY --from=bcc-build /bpf_get_fs_offset/get_fs_offset gprofiler/resources/python/pyperf/
+COPY --from=bcc-build /bpf_get_stack_offset/get_stack_offset gprofiler/resources/python/pyperf/
 
 COPY --from=pyspy-builder /tmp/py-spy/py-spy gprofiler/resources/python/py-spy
 

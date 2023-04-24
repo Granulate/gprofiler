@@ -115,53 +115,16 @@ RUN ./build_node_package.sh
 # built on newer Ubuntu because they require new clang (newer than available in GPROFILER_BUILDER's CentOS 7)
 # these are only relevant for modern kernels, so there's no real reason to build them on CentOS 7 anyway.
 FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-build
-WORKDIR /tmp
-
-RUN if [ "$(uname -m)" = "aarch64" ]; then \
-        exit 0; \
-    fi && \
-    apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      curl \
-      build-essential \
-      iperf llvm-12-dev \
-      clang-12 libclang-12-dev \
-      cmake \
-      python3 python3-pip \
-      flex \
-      libfl-dev \
-      bison \
-      libelf-dev \
-      libz-dev \
-      liblzma-dev \
-      ca-certificates \
-      git \
-      patchelf scons
-
-# build staticx dedicated for PyPerf and process PyPerf binary;
-# apply patch to ensure staticx bootloader propagates dump signal to actual PyPerf binary
-COPY scripts/staticx_for_pyperf_patch.diff staticx_for_pyperf_patch.diff
-# apply patch removing calls to getpwnam and getgrnam,
-# to avoid crashing the staticx bootloader on ubuntu:22.04 and centos:8
-COPY scripts/staticx_patch.diff staticx_patch.diff
-
-# hadolint ignore=DL3003
-RUN if [ "$(uname -m)" = "aarch64" ]; then \
-      exit 0; \
-    fi && \
-    git clone -b v0.13.6 https://github.com/JonathonReinhart/staticx.git && \
-    cd staticx && \
-    git reset --hard 819d8eafecbaab3646f70dfb1e3e19f6bbc017f8 && \
-    git apply ../staticx_for_pyperf_patch.diff ../staticx_patch.diff && \
-    python3 -m pip install --no-cache-dir .
-
 COPY --from=perf-builder /bpftool /bpftool
 
+WORKDIR /bcc
+COPY scripts/staticx_for_pyperf_patch.diff .
+COPY scripts/staticx_patch.diff .
 COPY scripts/bcc_helpers_build.sh .
-RUN ./bcc_helpers_build.sh
+COPY scripts/pyperf_env.sh .
+RUN ./pyperf_env.sh --with-staticx
 
-# build bcc
-# TODO: copied from the main Dockerfile... but modified a lot. we'd want to share it some day.
+WORKDIR /tmp
 COPY ./scripts/libunwind_build.sh .
 RUN if [ "$(uname -m)" = "aarch64" ]; then \
       exit 0; \
@@ -169,12 +132,8 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
     ./libunwind_build.sh
 
 WORKDIR /bcc
-COPY ./scripts/pyperf_build.sh .
-RUN ./pyperf_build.sh
-
-RUN if [ "$(uname -m)" != "aarch64" ]; then \
-        staticx ./root/share/bcc/examples/cpp/PyPerf ./root/share/bcc/examples/cpp/PyPerf; \
-    fi
+COPY scripts/pyperf_build.sh .
+RUN ./pyperf_build.sh --with-staticx
 
 # gprofiler
 FROM centos${GPROFILER_BUILDER} AS build-prepare
