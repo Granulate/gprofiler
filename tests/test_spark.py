@@ -14,7 +14,10 @@ from docker.types import Mount
 from granulate_utils.metrics.sampler import BigDataSampler
 from pytest import LogCaptureFixture
 
+from gprofiler.log import get_logger_adapter
 from tests.conftest import _build_image
+
+logger = get_logger_adapter(__name__)
 
 
 def _wait_container_to_start(container: Container) -> None:
@@ -29,8 +32,6 @@ def test_spark_discovery(
     docker_client: DockerClient, application_docker_mounts: List[Mount], caplog: LogCaptureFixture
 ) -> None:
     # Creating a logger because BigDataSampler requires one
-    logger = logging.getLogger("test_spark_discovery")
-    logger_adapter = logging.LoggerAdapter(logger, {"key": "value"})
     caplog.set_level(logging.DEBUG)
     # Build the docker image that runs SparkPi
     spark_image = _build_image(docker_client=docker_client, runtime="spark")
@@ -40,7 +41,7 @@ def test_spark_discovery(
     )
     _wait_container_to_start(container)
     # Technically, the hostname may not be relevant because the spark runs in a container.
-    sampler = BigDataSampler(logger_adapter, hostname, None, None, False)
+    sampler = BigDataSampler(logger, hostname, None, None, False)
 
     discovered = sampler.discover()
     assert discovered, "BigDataSampler discover() failed to discover"
