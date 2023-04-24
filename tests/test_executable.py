@@ -21,48 +21,6 @@ from tests.utils import RUNTIME_PROFILERS, _no_errors, run_gprofiler_in_containe
     "runtime,profiler_type",
     RUNTIME_PROFILERS,
 )
-def test_spark(
-    gprofiler_exe: Path,
-    application_pid: int,
-    runtime_specific_args: List[str],
-    assert_collapsed: Callable[[Mapping[str, int]], None],
-    exec_container_image: Optional[Image],
-    docker_client: DockerClient,
-    output_directory: Path,
-    profiler_flags: List[str],
-    runtime: str,
-) -> None:
-    _ = application_pid
-    if exec_container_image is not None:
-        if "spark" in exec_container_image.tags:
-            gprofiler_inner_dir = Path("/app")
-            inner_output_dir = Path("/app/output")
-            cwd = Path(os.getenv("GITHUB_WORKSPACE", os.getcwd()))
-            volumes = {
-                str(output_directory): {"bind": str(inner_output_dir), "mode": "rw"},
-                str(cwd): {"bind": str(gprofiler_inner_dir), "mode": "rw"},
-            }
-
-            command = (
-                    [
-                        str(gprofiler_inner_dir / gprofiler_exe),
-                        "-v",
-                        "--collect-spark-metrics",
-                        "--output-dir",
-                        str(inner_output_dir),
-                    ]
-                    + runtime_specific_args
-                    + profiler_flags
-            )
-            run_gprofiler_in_container(docker_client, exec_container_image, command=command, volumes=volumes)
-            # Need to figure out the file name of the spark metrics file
-            spark_metrics = next(Path(output_directory).glob("*spark*")).read_text()
-            
-
-@pytest.mark.parametrize(
-    "runtime,profiler_type",
-    RUNTIME_PROFILERS,
-)
 def test_executable(
     gprofiler_exe: Path,
     application_pid: int,
