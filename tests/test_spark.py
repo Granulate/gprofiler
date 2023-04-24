@@ -10,7 +10,7 @@ from typing import List
 
 from docker import DockerClient
 from docker.models.containers import Container
-from docket.types import Mount
+from docker.types import Mount
 from granulate_utils.metrics.sampler import BigDataSampler
 from pytest import LogCaptureFixture
 
