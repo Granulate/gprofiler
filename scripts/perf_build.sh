@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # downloading the zip because the git is very large (this is also very large, but still smaller)
-curl -SL https://codeload.github.com/Granulate/linux/zip/6573d265c1dd86f691936c24fdee9592eeb9632f -o linux.zip
+curl -SL https://codeload.github.com/Granulate/linux/zip/fa066b8e9e6201f7913eb1d8073d625ff6aca171 -o linux.zip
 unzip -qq linux.zip
 rm linux.zip
 cd linux-*/
