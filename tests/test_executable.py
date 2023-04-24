@@ -19,8 +19,8 @@ from tests.utils import RUNTIME_PROFILERS, _no_errors, run_gprofiler_in_containe
 
 
 @pytest.mark.parametrize(
-    "runtime",
-    ["spark"],
+    "runtime,profiler_type",
+    RUNTIME_PROFILERS,
 )
 def test_spark(
     gprofiler_exe: Path,
