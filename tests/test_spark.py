@@ -17,7 +17,7 @@ from pytest import LogCaptureFixture
 from gprofiler.log import get_logger_adapter
 from tests.conftest import _build_image
 
-logger = get_logger_adapter(__name__)
+logger = get_logger_adapter("gprofiler_test")
 
 
 def _wait_container_to_start(container: Container) -> None:
