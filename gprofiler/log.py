@@ -49,11 +49,17 @@ class RemoteLogsHandler(BatchRequestsHandler):
 
     MAX_BUFFERED_RECORDS = 100 * 1000  # max number of records to buffer locally
 
-    def __init__(self, server_address: str, auth_token: str, service_name: str) -> None:
+    def __init__(self, server_address: str, auth_token: str, service_name: str, verify: bool) -> None:
         self._service_name = service_name
         url = urlparse(server_address)
         super().__init__(
-            Sender(application_name="gprofiler", auth_token=auth_token, scheme=url.scheme, server_address=url.netloc)
+            Sender(
+                application_name="gprofiler",
+                auth_token=auth_token,
+                scheme=url.scheme,
+                server_address=url.netloc,
+                verify=verify,
+            )
         )
 
     def emit(self, record: LogRecord) -> None:

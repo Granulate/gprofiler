@@ -227,8 +227,10 @@ class PySpyProfiler(SpawningProcessProfilerBase):
                 logger.error(f"Profiling with py-spy timed out on process {process.pid}")
                 raise
             except CalledProcessError as e:
+                assert isinstance(e.stderr, str), f"unexpected type {type(e.stderr)}"
+
                 if (
-                    b"Error: Failed to get process executable name. Check that the process is running.\n" in e.stderr
+                    "Error: Failed to get process executable name. Check that the process is running.\n" in e.stderr
                     and not is_process_running(process)
                 ):
                     logger.debug(f"Profiled process {process.pid} exited before py-spy could start")
@@ -353,7 +355,7 @@ class PythonProfiler(ProfilerInterface):
 
         if get_arch() != "x86_64" or is_windows():
             if python_mode == "pyperf":
-                logger.warning("PyPerf is supported only on x86_64, falling back to py-spy")
+                raise Exception(f"PyPerf is supported only on x86_64 (and not on this arch {get_arch()})")
             python_mode = "pyspy"
 
         if python_mode in ("auto", "pyperf"):
