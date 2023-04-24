@@ -337,15 +337,6 @@ class PerfProcess:
                     suppress_log=True,
                 )
                 return perf_script_proc.stdout.decode("utf8")
-        except Exception:
-            assert self._process is not None and self._process.stdout is not None and self._process.stderr is not None
-            logger.critical(
-                f"{self._log_name} failed to dump output",
-                perf_stdout=self._process.stdout.read(),
-                perf_stderr=self._process.stderr.read(),
-                perf_running=self.is_running(),
-            )
-            raise
         finally:
             perf_data.unlink()
             # always read its stderr
