@@ -3,17 +3,18 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
+import logging
 from socket import gethostname
 from time import sleep
 from typing import List
 
-from conftest import _build_image
 from docker import DockerClient
 from docker.models.containers import Container
 from docket.types import Mount
 from granulate_utils.metrics.sampler import BigDataSampler
 from pytest import LogCaptureFixture
-import logging
+
+from tests.conftest import _build_image
 
 
 def _wait_container_to_start(container: Container) -> None:
@@ -29,7 +30,7 @@ def test_spark_discovery(
 ) -> None:
     # Build the docker image that runs SparkPi
     logger = logging.getLogger("test_spark_discovery")
-    logger_adapter = logging.LoggerAdapter(logger, {'key': 'value'})
+    logger_adapter = logging.LoggerAdapter(logger, {"key": "value"})
     caplog.set_level(logging.DEBUG)
     spark_image = _build_image(docker_client=docker_client, runtime="spark")
     hostname = gethostname()
