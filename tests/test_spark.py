@@ -36,7 +36,7 @@ def test_spark_discovery(
     spark_image = _build_image(docker_client=docker_client, runtime="spark")
     hostname = gethostname()
     container = docker_client.containers.run(
-        spark_image, detach=True, mounts=application_docker_mounts, ports={"0.0.0.0": 0}, hostname=hostname
+        spark_image, detach=True, mounts=application_docker_mounts, network_mode="host", pid_mode="host"
     )
     _wait_container_to_start(container)
     # Technically, the hostname may not be relevant because the spark runs in a container.
