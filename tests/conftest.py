@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
+import secrets
 import stat
 import subprocess
 from contextlib import _GeneratorContextManager, contextmanager
@@ -221,7 +222,24 @@ def application_process(
 
 @fixture(scope="session")
 def docker_client() -> DockerClient:
-    return docker.from_env()
+    tests_id = secrets.token_hex(5)
+    docker_client = docker.from_env()
+    setattr(docker_client, "_gprofiler_test_id", tests_id)
+    yield docker_client
+
+    exited_ids: List[str] = []
+    exited_container_list = docker_client.containers.list(filters={"status": "exited", "label": tests_id})
+    for container in exited_container_list:
+        exited_ids.append(container.id)
+
+    pruned_ids = docker_client.containers.prune(filters={"label": tests_id}).get("ContainersDeleted", [])
+
+    for exited_id in exited_ids.copy():
+        if exited_id in pruned_ids:
+            exited_ids.remove(exited_id)
+
+    if len(exited_ids) > 0:
+        raise Exception(f"Containers with ids {exited_ids} have not been properly pruned")
 
 
 @fixture(scope="session")
