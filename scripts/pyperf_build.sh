@@ -20,7 +20,7 @@ fi
 if [ "$(uname -m)" = "aarch64" ]; then
     exit 0;
 fi
-git clone --depth 1 -b upgrade-bcc-reference https://github.com/marcin-ol/bcc.git && cd bcc && git reset --hard 863d545
+git clone --depth 1 -b upgrade-bcc-to-0.27 https://github.com/marcin-ol/bcc.git && cd bcc && git reset --hard e1657a1f
 
 # (after clone, because we copy the licenses)
 # TODO support aarch64
