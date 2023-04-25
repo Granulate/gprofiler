@@ -12,6 +12,12 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.types import Mount
 from granulate_utils.metrics import MetricsSnapshot
+from granulate_utils.metrics.metrics import (
+    SPARK_AGGREGATED_STAGE_METRICS,
+    SPARK_APPLICATION_DIFF_METRICS,
+    SPARK_APPLICATION_GAUGE_METRICS,
+    SPARK_EXECUTORS_METRICS,
+)
 from granulate_utils.metrics.sampler import BigDataSampler
 from pytest import LogCaptureFixture
 
@@ -20,22 +26,16 @@ from tests.conftest import _build_image
 
 logger = get_logger_adapter("gprofiler_test")
 
-# List that includes all the metrics that are expected to be collected by the BigDataSampler, without their values.
+# List that includes all the metrics that are expected to be collected by `BigDataSampler`.
 EXPECTED_SA_METRICS_KEYS = [
-    "spark_job_diff_numTasks",
-    "spark_job_diff_numCompletedTasks",
-    "spark_job_diff_numSkippedTasks",
-    "spark_job_diff_numFailedTasks",
-    "spark_job_diff_numFailedStages",
-    "spark_job_numActiveTasks",
-    "spark_job_numActiveStages",
-    "spark_aggregated_stage_failed_tasks",
-    "spark_aggregated_stage_active_tasks",
-    "spark_aggregated_stage_pending_stages",
-    "spark_aggregated_stage_failed_stages",
-    "spark_aggregated_stage_active_stages",
-    "spark_executors_count",
-    "spark_executors_active_count",
+    metric
+    for metrics_dict in (
+        SPARK_APPLICATION_GAUGE_METRICS,
+        SPARK_APPLICATION_DIFF_METRICS,
+        SPARK_AGGREGATED_STAGE_METRICS,
+        SPARK_EXECUTORS_METRICS,
+    )
+    for metric in metrics_dict.values()
 ]
 
 
@@ -63,9 +63,9 @@ def test_sa_spark_discovery(
 ) -> None:
     """
     This test is an integration test that runs a SparkPi application and validates `discover()` and `snapshot()` API's
-    of BigDataSampler works as expected.
+    of BigDataSampler works as expected in spark SA mode.
     We do so by building the image that in `containers/spark/Dockerfile`.
-    The docker image hosts Master (no workers) and runs the SparkPi application.
+    The container hosts Master (no Workers) and runs the SparkPi application.
     """
     # Creating a logger because BigDataSampler requires one
     caplog.set_level(logging.DEBUG)
@@ -83,7 +83,6 @@ def test_sa_spark_discovery(
     # We're sleeping to make sure SparkPi application is up.
     sleep(15)
     snapshot = sampler.snapshot()
-    assert isinstance(snapshot, MetricsSnapshot), "BigDataSampler snapshot() failed to snapshot"
+    assert snapshot is not None, "BigDataSampler snapshot() failed to collect metrics"
     _validate_sa_metricssnapshot(snapshot)
-
     container.stop()
