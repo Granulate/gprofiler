@@ -3,17 +3,17 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
+import glob
 import os
 import re
 import signal
 import time
-import glob
 from collections import Counter, defaultdict
 from pathlib import Path
 from subprocess import Popen
+from tempfile import NamedTemporaryFile
 from threading import Event
 from typing import Any, Dict, Iterable, List, Optional
-from tempfile import NamedTemporaryFile
 
 from granulate_utils.golang import get_process_golang_version, is_golang_process
 from granulate_utils.linux.elf import is_statically_linked
@@ -325,7 +325,7 @@ class PerfProcess:
             assert self._process is not None and self._process.stderr is not None
             logger.debug(f"{self._log_name} run output", perf_stderr=self._process.stderr.read1())  # type: ignore
         try:
-            with NamedTemporaryFile(dir=os.path.dirname(self._output_path), suffix='.inject') as inject_data:
+            with NamedTemporaryFile(dir=os.path.dirname(self._output_path), suffix=".inject") as inject_data:
                 if self._inject_jit:
                     run_process(
                         [perf_path(), "inject", "--jit", "-o", str(inject_data), "-i", str(perf_data)],
