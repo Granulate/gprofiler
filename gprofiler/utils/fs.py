@@ -6,12 +6,10 @@
 import errno
 import os
 import shutil
-from pathlib import Path
-from secrets import token_hex
 from tempfile import NamedTemporaryFile
 
 from gprofiler.platform import is_windows
-from gprofiler.utils import remove_path, run_process
+from gprofiler.utils import run_process
 
 
 def safe_copy(src: str, dst: str) -> None:
