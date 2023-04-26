@@ -8,6 +8,7 @@ import os
 import shutil
 from pathlib import Path
 from secrets import token_hex
+from tempfile import NamedTemporaryFile
 
 from gprofiler.platform import is_windows
 from gprofiler.utils import remove_path, run_process
@@ -27,19 +28,18 @@ def is_rw_exec_dir(path: str) -> bool:
     """
     Is 'path' rw and exec?
     """
-    # randomize the name - this function runs concurrently on paths of in same mnt namespace.
-    test_script = Path(path) / f"t-{token_hex(10)}.sh"
 
     # try creating & writing
     try:
+        test_script = NamedTemporaryFile(dir=path, suffix=".sh")
         os.makedirs(path, 0o755, exist_ok=True)
-        test_script.write_text("#!/bin/sh\nexit 0")
-        test_script.chmod(0o755)
+        with open(test_script.name, "w") as f:
+            f.write("#!/bin/sh\nexit 0")
+        os.chmod(test_script.name, 0o755)
     except OSError as e:
         if e.errno == errno.EROFS:
             # ro
             return False
-        remove_path(test_script)
         raise
 
     # try executing
