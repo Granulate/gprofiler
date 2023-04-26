@@ -9,13 +9,13 @@ from io import BytesIO
 from typing import IO, TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 import requests
+from granulate_utils.metrics import MetricsSnapshot
 from requests import Session
 
 from gprofiler import __version__
 from gprofiler.exceptions import APIError
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_hostname
-from gprofiler.metrics import MetricsSnapshot
 from gprofiler.utils import get_iso8601_format_time, get_iso8601_format_time_from_epoch_time
 
 if TYPE_CHECKING:
