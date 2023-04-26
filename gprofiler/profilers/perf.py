@@ -8,7 +8,6 @@ import re
 import signal
 import time
 from collections import Counter, defaultdict
-from pathlib import Path
 from subprocess import Popen
 from tempfile import NamedTemporaryFile
 from threading import Event
