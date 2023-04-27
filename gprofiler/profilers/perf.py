@@ -12,6 +12,7 @@ from subprocess import Popen
 from tempfile import NamedTemporaryFile
 from threading import Event
 from typing import Any, Dict, Iterable, List, Optional
+from pathlib import Path
 
 from granulate_utils.golang import get_process_golang_version, is_golang_process
 from granulate_utils.linux.elf import is_statically_linked
@@ -328,7 +329,7 @@ class PerfProcess:
                     run_process(
                         [perf_path(), "inject", "--jit", "-o", str(inject_data), "-i", str(perf_data)],
                     )
-                    perf_data = inject_data
+                    perf_data = Path(inject_data.name)
 
                 perf_script_proc = run_process(
                     [perf_path(), "script", "-F", "+pid", "-i", str(perf_data)],
