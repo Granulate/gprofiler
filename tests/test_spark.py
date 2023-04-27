@@ -99,7 +99,7 @@ def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: 
     assert snapshot is not None, "BigDataSampler snapshot() failed to collect metrics"
     _validate_sa_metricssnapshot(snapshot)
     assert any(
-        "Guessed cluster mode and master address" in message for message in caplog.messages
+        "Guessed settings" in message for message in caplog.messages
     ), "guessed cluster log was not printed to log"
 
 
