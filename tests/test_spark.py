@@ -4,10 +4,10 @@
 #
 
 import logging
-from socket import gethostname
 from time import sleep
 from typing import List
 
+import pytest
 from docker import DockerClient
 from docker.models.containers import Container
 from docker.types import Mount
@@ -60,18 +60,17 @@ def _validate_sa_metricssnapshot(snapshot: MetricsSnapshot) -> None:
         assert key in metric_keys, f"Metric {key} not found in snapshot"
 
 
-@fixure(scope="function")
+@pytest.fixture(scope="function")
 def sparkpi_container(docker_client: DockerClient, application_docker_mounts: List[Mount]) -> Container:
     # Build the docker image that runs SparkPi
     spark_image = _build_image(docker_client=docker_client, runtime="spark")
-    hostname = gethostname()
+    # TODO hostname = gethostname()
     container = docker_client.containers.run(
         spark_image,
         detach=True,
         mounts=application_docker_mounts,
         network_mode="host",
         pid_mode="host",
-        hostname=hostname,
         environment={"SPARK_MASTER_HOST": SPARK_MASTER_HOST},
     )
     _wait_container_to_start(container)
@@ -84,9 +83,7 @@ def sparkpi_container(docker_client: DockerClient, application_docker_mounts: Li
         container.remove()
 
 
-def test_sa_spark_discovered_mode(
-        caplog: LogCaptureFixture, sparkpi_container: Container
-) -> None:
+def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
     """
     This test is an integration test that runs a SparkPi application and validates `discover()` and `snapshot()` API's
     of BigDataSampler works as expected in spark SA mode.
@@ -94,18 +91,16 @@ def test_sa_spark_discovered_mode(
     The container hosts Master (no Workers) and runs the SparkPi application.
     """
     caplog.set_level(logging.DEBUG)
-    sampler = BigDataSampler(logger, hostname, None, None, False)
+    sampler = BigDataSampler(logger, "", None, None, False)
     assert sampler.discover(), "BigDataSampler discover() failed to in discover mode"
     snapshot = sampler.snapshot()
     assert snapshot is not None, "BigDataSampler snapshot() failed to collect metrics"
     _validate_sa_metricssnapshot(snapshot)
 
 
-def test_sa_spark_configured_mode(
-        caplog: LogCaptureFixture, sparkpi_container: Container
-) -> None:
+def test_sa_spark_configured_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
     caplog.set_level(logging.DEBUG)
-    sampler = BigDataSampler(logger, hostname, "spark", f"spark://{SPARK_MASTER_HOST}:7077", True)
+    sampler = BigDataSampler(logger, "", "spark", f"spark://{SPARK_MASTER_HOST}:7077", True)
     assert sampler.discover(), "discover() failed in configured mode"
     snapshot = sampler.snapshot()
     assert snapshot is not None, "snapshot() failed in configured mode"
