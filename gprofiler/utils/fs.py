@@ -46,8 +46,6 @@ def is_rw_exec_dir(path: str) -> bool:
     except PermissionError:
         # noexec
         return False
-    finally:
-        test_script.unlink()
 
     return True
 
