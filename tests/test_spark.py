@@ -100,7 +100,7 @@ def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: 
 
 def test_sa_spark_configured_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
     caplog.set_level(logging.DEBUG)
-    sampler = BigDataSampler(logger, "", f"spark://{SPARK_MASTER_HOST}:7077", "standalone", True)
+    sampler = BigDataSampler(logger, "", f"http://{SPARK_MASTER_HOST}:7077", "standalone", True)
     assert sampler.discover(), "discover() failed in configured mode"
     snapshot = sampler.snapshot()
     assert snapshot is not None, "snapshot() failed in configured mode"
