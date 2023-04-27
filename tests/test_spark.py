@@ -62,9 +62,11 @@ def _validate_sa_metricssnapshot(snapshot: MetricsSnapshot) -> None:
 
 @pytest.fixture(scope="function")
 def sparkpi_container(docker_client: DockerClient, application_docker_mounts: List[Mount]) -> Container:
-    # Build the docker image that runs SparkPi
+    """
+    This fixture is responsible for running a SparkPi application in a container.
+    See `containers/spark/Dockerfile`
+    """
     spark_image = _build_image(docker_client=docker_client, runtime="spark")
-    # TODO hostname = gethostname()
     container = docker_client.containers.run(
         spark_image,
         detach=True,
@@ -100,7 +102,7 @@ def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: 
 
 def test_sa_spark_configured_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
     caplog.set_level(logging.DEBUG)
-    sampler = BigDataSampler(logger, "", f"http://{SPARK_MASTER_HOST}:7077", "standalone", True)
+    sampler = BigDataSampler(logger, "", f"{SPARK_MASTER_HOST}:7077", "standalone", True)
     assert sampler.discover(), "discover() failed in configured mode"
     snapshot = sampler.snapshot()
     assert snapshot is not None, "snapshot() failed in configured mode"
