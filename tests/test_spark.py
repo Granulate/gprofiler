@@ -24,9 +24,10 @@ from pytest import LogCaptureFixture
 from gprofiler.log import get_logger_adapter
 from tests.conftest import _build_image
 
-logger = get_logger_adapter("gprofiler_test")
+# `BigDataSampler` receives a logger as an argument.
+logger = get_logger_adapter("gprofiler_spark_test")
 
-# List that includes all the metrics that are expected to be collected by `BigDataSampler`.
+# List that includes all the metrics that are expected to be collected by `BigDataSampler` in SA mode.
 EXPECTED_SA_METRICS_KEYS = [
     metric
     for metrics_dict in (
@@ -63,7 +64,7 @@ def _validate_sa_metricssnapshot(snapshot: MetricsSnapshot) -> None:
 @pytest.fixture(scope="function")
 def sparkpi_container(docker_client: DockerClient, application_docker_mounts: List[Mount]) -> Container:
     """
-    This fixture is responsible for running a SparkPi application in a container.
+    This fixture is responsible for running SparkPi application in a container.
     See `containers/spark/Dockerfile`
     """
     spark_image = _build_image(docker_client=docker_client, runtime="spark")
@@ -87,13 +88,12 @@ def sparkpi_container(docker_client: DockerClient, application_docker_mounts: Li
 
 def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
     """
-    This test is an integration test that runs a SparkPi application and validates `discover()` and `snapshot()` API's
-    of BigDataSampler works as expected in spark SA mode.
-    We do so by building the image that in `containers/spark/Dockerfile`.
-    The container hosts Master (no Workers) and runs the SparkPi application.
+    Validates `discover()` and `snapshot()` API's in discover mode.
+    In discover mode we do not know what's the cluster mode and master address.
     """
     caplog.set_level(logging.DEBUG)
     sampler = BigDataSampler(logger, "", None, None, False)
+    # First call to `discover()` should return True, and print a debug log we later on validate.
     assert sampler.discover(), "BigDataSampler discover() failed to in discover mode"
     snapshot = sampler.snapshot()
     assert snapshot is not None, "BigDataSampler snapshot() failed to collect metrics"
@@ -104,8 +104,13 @@ def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: 
 
 
 def test_sa_spark_configured_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
+    """
+    Validates `discover()` and `snapshot()` API's after manually configured `BigDataSampler` with cluster mode,
+    master address and enabling Applications Metrics Collector.
+    """
     caplog.set_level(logging.DEBUG)
     sampler = BigDataSampler(logger, "", f"{SPARK_MASTER_HOST}:8080", "standalone", True)
+    # First call to `discover()` should return True, and print a debug log we later on validate.
     assert sampler.discover(), "discover() failed in configured mode"
     snapshot = sampler.snapshot()
     assert snapshot is not None, "snapshot() failed in configured mode"
