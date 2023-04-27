@@ -98,6 +98,9 @@ def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: 
     snapshot = sampler.snapshot()
     assert snapshot is not None, "BigDataSampler snapshot() failed to collect metrics"
     _validate_sa_metricssnapshot(snapshot)
+    assert any(
+        "Guessed cluster mode and master address" in message for message in caplog.messages
+    ), "guessed cluster log was not printed to log"
 
 
 def test_sa_spark_configured_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
@@ -107,3 +110,7 @@ def test_sa_spark_configured_mode(caplog: LogCaptureFixture, sparkpi_container: 
     snapshot = sampler.snapshot()
     assert snapshot is not None, "snapshot() failed in configured mode"
     _validate_sa_metricssnapshot(snapshot)
+    assert any(
+        "No need to guess cluster mode and master address, manually configured" in message
+        for message in caplog.messages
+    ), "configured cluster log was not printed"
