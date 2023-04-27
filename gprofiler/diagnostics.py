@@ -36,7 +36,7 @@ def is_diagnostics() -> bool:
 
 def _log_containers() -> None:
     try:
-        cc = ContainersClient()
+        cc = ContainersClient(cri_in_subprocess=True)
     except NoContainerRuntimesError:
         logger.debug("No container runtimes found")
     else:

@@ -18,7 +18,7 @@ logger = get_logger_adapter(__name__)
 class ContainerNamesClient:
     def __init__(self) -> None:
         try:
-            self._containers_client: Optional[ContainersClient] = ContainersClient()
+            self._containers_client: Optional[ContainersClient] = ContainersClient(cri_in_subprocess=True)
             logger.info(f"Discovered container runtimes: {self._containers_client.get_runtimes()}")
         except NoContainerRuntimesError:
             logger.warning(

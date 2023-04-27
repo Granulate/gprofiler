@@ -1113,6 +1113,7 @@ def main() -> None:
         sys.exit(1)
 
     usage_logger.log_run()
+    assert "grpc" in sys.modules
 
 
 if __name__ == "__main__":
