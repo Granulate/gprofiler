@@ -8,11 +8,11 @@ import re
 import signal
 import time
 from collections import Counter, defaultdict
+from pathlib import Path
 from subprocess import Popen
 from tempfile import NamedTemporaryFile
 from threading import Event
 from typing import Any, Dict, Iterable, List, Optional
-from pathlib import Path
 
 from granulate_utils.golang import get_process_golang_version, is_golang_process
 from granulate_utils.linux.elf import is_statically_linked
