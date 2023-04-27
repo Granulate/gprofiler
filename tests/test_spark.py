@@ -88,7 +88,7 @@ def sparkpi_container(docker_client: DockerClient, application_docker_mounts: Li
 
 def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
     """
-    Validates `discover()` and `snapshot()` API's in discover mode.
+    Validates `BigDataSampler`s' `discover()` and `snapshot()` API's in discover mode.
     In discover mode we do not know what's the cluster mode and master address.
     """
     caplog.set_level(logging.DEBUG)
@@ -105,7 +105,7 @@ def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: 
 
 def test_sa_spark_configured_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
     """
-    Validates `discover()` and `snapshot()` API's after manually configured `BigDataSampler` with cluster mode,
+    Validates `BigDataSampler`s' `discover()` and `snapshot()` API's after manually configured `BigDataSampler` with cluster mode,
     master address and enabling Applications Metrics Collector.
     """
     caplog.set_level(logging.DEBUG)
