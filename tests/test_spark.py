@@ -76,7 +76,7 @@ def sparkpi_container(docker_client: DockerClient, application_docker_mounts: Li
     _wait_container_to_start(container)
     try:
         # We're sleeping to make sure SparkPi application is submitted and recognized by Master.
-        sleep(10)
+        sleep(15)
         yield container
     finally:
         container.stop()
@@ -100,7 +100,7 @@ def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: 
 
 def test_sa_spark_configured_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
     caplog.set_level(logging.DEBUG)
-    sampler = BigDataSampler(logger, "", "spark", f"spark://{SPARK_MASTER_HOST}:7077", True)
+    sampler = BigDataSampler(logger, "", f"spark://{SPARK_MASTER_HOST}:7077", "standalone", True)
     assert sampler.discover(), "discover() failed in configured mode"
     snapshot = sampler.snapshot()
     assert snapshot is not None, "snapshot() failed in configured mode"
