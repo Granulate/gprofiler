@@ -105,8 +105,8 @@ def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: 
 
 def test_sa_spark_configured_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
     """
-    Validates `BigDataSampler`s' `discover()` and `snapshot()` API's after manually configured `BigDataSampler` with cluster mode,
-    master address and enabling Applications Metrics Collector.
+    Validates `BigDataSampler`s' `discover()` and `snapshot()` API's after manually configured `BigDataSampler` with
+    cluster mode, master address and enabling Applications Metrics Collector.
     """
     caplog.set_level(logging.DEBUG)
     sampler = BigDataSampler(logger, "", f"{SPARK_MASTER_HOST}:8080", "standalone", True)
