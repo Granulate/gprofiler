@@ -41,6 +41,9 @@ EXPECTED_SA_METRICS_KEYS = [
 
 SPARK_MASTER_HOST = "127.0.0.1"
 
+DISCOVER_INTERVAL_SECS = 5
+DISCOVER_TIMEOUT_SECS = 60
+
 
 def _wait_container_to_start(container: Container) -> None:
     while container.status != "running":
@@ -78,8 +81,6 @@ def sparkpi_container(docker_client: DockerClient, application_docker_mounts: Li
     )
     _wait_container_to_start(container)
     try:
-        # We're sleeping to make sure SparkPi application is submitted and recognized by Master.
-        sleep(15)
         yield container
     finally:
         container.stop()
@@ -91,10 +92,17 @@ def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: 
     Validates `BigDataSampler`s' `discover()` and `snapshot()` API's in discover mode.
     In discover mode we do not know what's the cluster mode and master address.
     """
+    global DISCOVER_TIMEOUT_SECS
     caplog.set_level(logging.DEBUG)
     sampler = BigDataSampler(logger, "", None, None, False)
-    # First call to `discover()` should return True, and print a debug log we later on validate.
-    assert sampler.discover(), "BigDataSampler discover() failed to in discover mode"
+    discovered = sampler.discover()
+    # We want to make the discovery process as close as possible to the real world scenario.
+    while not (discovered := sampler.discover()) and DISCOVER_TIMEOUT_SECS > 0:
+        sleep(DISCOVER_INTERVAL_SECS)
+        DISCOVER_TIMEOUT_SECS -= DISCOVER_INTERVAL_SECS
+    assert discovered, "Failed to discover cluster mode and master address"
+    # Sleeping before calling `snapshot()` to make sure SparkPi application is submitted and recognized by Master.
+    sleep(15)
     snapshot = sampler.snapshot()
     assert snapshot is not None, "BigDataSampler snapshot() failed to collect metrics"
     _validate_sa_metricssnapshot(snapshot)
@@ -112,6 +120,8 @@ def test_sa_spark_configured_mode(caplog: LogCaptureFixture, sparkpi_container: 
     sampler = BigDataSampler(logger, "", f"{SPARK_MASTER_HOST}:8080", "standalone", True)
     # First call to `discover()` should return True, and print a debug log we later on validate.
     assert sampler.discover(), "discover() failed in configured mode"
+    # Sleeping before calling `snapshot()` to make sure SparkPi application is submitted and recognized by Master.
+    sleep(15)
     snapshot = sampler.snapshot()
     assert snapshot is not None, "snapshot() failed in configured mode"
     _validate_sa_metricssnapshot(snapshot)
