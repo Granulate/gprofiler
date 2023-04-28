@@ -473,7 +473,6 @@ class AsyncProfiledProcess:
         )
 
         self._libap_path_host = os.path.join(self._ap_dir_host, "libasyncProfiler.so")
-        self._asprof_path_host = os.path.join(self._ap_dir_host, "asprof")
         self._libap_path_process = remove_prefix(self._libap_path_host, self._process_root)
         self._libap_dir_process = remove_prefix(self._ap_dir_host, self._process_root)
 
@@ -573,9 +572,6 @@ class AsyncProfiledProcess:
                 )
                 os.chmod(
                     libap_resource, 0o755
-                )  # make it accessible for all; needed with PyInstaller, which extracts files as 0700
-                os.chmod(
-                    asprof_path(), 0o755
                 )  # make it accessible for all; needed with PyInstaller, which extracts files as 0700
                 safe_copy(libap_resource, self._libap_path_host)
 
