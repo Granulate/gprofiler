@@ -690,7 +690,15 @@ class AsyncProfiledProcess:
             # run fdtransfer with accept timeout that's slightly greater than the jattach timeout - to make
             # sure that fdtransfer is still around for the full duration of jattach, in case the application
             # takes a while to accept & handle the connection.
-            [asprof_path(), "fdtransfer", "--fd-path", self._fdtransfer_path, str(self.process.pid)],
+            [
+                asprof_path(),
+                "fdtransfer",
+                "--fd-path",
+                self._fdtransfer_path,
+                "--timeout",
+                str(self._jattach_timeout + 5),
+                str(self.process.pid),
+            ],
             stop_event=self._profiler_state.stop_event,
             timeout=self._FDTRANSFER_TIMEOUT,
         )
