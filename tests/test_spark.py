@@ -53,17 +53,6 @@ def _wait_container_to_start(container: Container) -> None:
         container.reload()
 
 
-def _validate_sa_metricssnapshot(snapshot: MetricsSnapshot) -> None:
-    """
-    Validates that the snapshot contains all the expected metrics.
-    """
-    samples = snapshot.samples
-    assert len(samples) != 0, "No samples found in snapshot"
-    metric_keys = [sample.name for sample in samples]
-    for key in EXPECTED_SA_METRICS_KEYS:
-        assert key in metric_keys, f"Metric {key} not found in snapshot"
-
-
 @pytest.fixture(scope="function")
 def sparkpi_container(docker_client: DockerClient, application_docker_mounts: List[Mount]) -> Container:
     """
@@ -85,6 +74,17 @@ def sparkpi_container(docker_client: DockerClient, application_docker_mounts: Li
     finally:
         container.stop()
         container.remove()
+
+
+def _validate_sa_metricssnapshot(snapshot: MetricsSnapshot) -> None:
+    """
+    Validates that the snapshot contains all the expected metrics.
+    """
+    samples = snapshot.samples
+    assert len(samples) != 0, "No samples found in snapshot"
+    metric_keys = [sample.name for sample in samples]
+    for key in EXPECTED_SA_METRICS_KEYS:
+        assert key in metric_keys, f"Metric {key} not found in snapshot"
 
 
 def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
