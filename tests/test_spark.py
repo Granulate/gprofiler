@@ -92,13 +92,13 @@ def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: 
     Validates `BigDataSampler`s' `discover()` and `snapshot()` API's in discover mode.
     In discover mode we do not know what's the cluster mode and master address.
     """
-    global DISCOVER_TIMEOUT_SECS
+    discover_timeout = DISCOVER_TIMEOUT_SECS
     caplog.set_level(logging.DEBUG)
     sampler = BigDataSampler(logger, "", None, None, False)
     # We want to make the discovery process as close as possible to the real world scenario.
-    while not (discovered := sampler.discover()) and DISCOVER_TIMEOUT_SECS > 0:
+    while not (discovered := sampler.discover()) and discover_timeout > 0:
         sleep(DISCOVER_INTERVAL_SECS)
-        DISCOVER_TIMEOUT_SECS -= DISCOVER_INTERVAL_SECS
+        discover_timeout -= DISCOVER_INTERVAL_SECS
     assert discovered, "Failed to discover cluster mode and master address"
     # Sleeping before calling `snapshot()` to make sure SparkPi application is submitted and recognized by Master.
     sleep(15)
