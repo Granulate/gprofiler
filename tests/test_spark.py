@@ -95,7 +95,6 @@ def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: 
     global DISCOVER_TIMEOUT_SECS
     caplog.set_level(logging.DEBUG)
     sampler = BigDataSampler(logger, "", None, None, False)
-    discovered = sampler.discover()
     # We want to make the discovery process as close as possible to the real world scenario.
     while not (discovered := sampler.discover()) and DISCOVER_TIMEOUT_SECS > 0:
         sleep(DISCOVER_INTERVAL_SECS)
