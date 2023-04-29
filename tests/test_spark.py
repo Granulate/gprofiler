@@ -23,6 +23,7 @@ from pytest import LogCaptureFixture
 
 from gprofiler.log import get_logger_adapter
 from tests.conftest import _build_image
+from tests.utils import _wait_container_to_start
 
 # `BigDataSampler` receives a logger as an argument.
 logger = get_logger_adapter("gprofiler_spark_test")
@@ -43,14 +44,6 @@ SPARK_MASTER_HOST = "127.0.0.1"
 
 DISCOVER_INTERVAL_SECS = 5
 DISCOVER_TIMEOUT_SECS = 60
-
-
-def _wait_container_to_start(container: Container) -> None:
-    while container.status != "running":
-        if container.status == "exited":
-            raise Exception(container.logs().decode())
-        sleep(1)
-        container.reload()
 
 
 @pytest.fixture(scope="function")
