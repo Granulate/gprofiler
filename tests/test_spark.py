@@ -16,9 +16,9 @@ from granulate_utils.metrics.metrics import (
     SPARK_APPLICATION_GAUGE_METRICS,
     SPARK_EXECUTORS_METRICS,
 )
-
 from granulate_utils.metrics.mode import SPARK_STANDALONE_MODE
 from granulate_utils.metrics.sampler import BigDataSampler
+from granulate_utils.metrics.spark import SparkRunningApps
 from pytest import LogCaptureFixture
 
 from gprofiler.log import get_logger_adapter
@@ -69,6 +69,17 @@ def sparkpi_container(docker_client: DockerClient) -> Container:
         container.remove()
 
 
+def _wait_for_sparkpi_to_start() -> None:
+    """
+    Waits for SparkPi to be recognized by Master.
+    Doing so using `SparkRunningApps` class, `get_running_apps()` method.
+    """
+    # cluster_mode: str, master_address: str, logger: logging.LoggerAdapter
+    running_apps = SparkRunningApps(SPARK_STANDALONE_MODE, f"http://{SPARK_MASTER_HOST}:8080", logger)
+    while not running_apps.get_running_apps():
+        sleep(1)
+
+
 def _validate_spark_sa_metricssnapshot(snapshot: MetricsSnapshot) -> None:
     """
     Validates that the snapshot contains all the expected metrics.
@@ -93,10 +104,10 @@ def test_spark_sa_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: 
         sleep(DISCOVER_INTERVAL_SECS)
         discover_timeout -= DISCOVER_INTERVAL_SECS
     assert discovered, "Failed to discover cluster mode and master address"
-    # Sleeping before calling `snapshot()` to make sure SparkPi application is submitted and recognized by Master.
-    sleep(15)
     assert sampler._master_address == f"http://{SPARK_MASTER_HOST}:8080", "wrong master address was discovered"
     assert sampler._cluster_mode == SPARK_STANDALONE_MODE, "wrong cluster mode was discovered"
+    # Need to wait for SparkPi to be recognized by Master.
+    _wait_for_sparkpi_to_start()
     snapshot = sampler.snapshot()
     assert snapshot is not None, "BigDataSampler snapshot() failed to collect metrics"
     _validate_spark_sa_metricssnapshot(snapshot)
@@ -114,8 +125,8 @@ def test_spark_sa_configured_mode(caplog: LogCaptureFixture, sparkpi_container: 
     sampler = BigDataSampler(logger, "", f"{SPARK_MASTER_HOST}:8080", "standalone", True)
     # First call to `discover()` should return True, and print a debug log we later on validate.
     assert sampler.discover(), "discover() failed in configured mode"
-    # Sleeping before calling `snapshot()` to make sure SparkPi application is submitted and recognized by Master.
-    sleep(15)
+    # Need to wait for SparkPi to be recognized by Master.
+    _wait_for_sparkpi_to_start()
     snapshot = sampler.snapshot()
     assert snapshot is not None, "snapshot() failed in configured mode"
     _validate_spark_sa_metricssnapshot(snapshot)
