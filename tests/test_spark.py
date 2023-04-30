@@ -22,8 +22,8 @@ from granulate_utils.metrics.sampler import BigDataSampler
 from pytest import LogCaptureFixture
 
 from gprofiler.log import get_logger_adapter
-from tests.conftest import _build_image
-from tests.utils import _wait_container_to_start
+from tests.conftest import build_image
+from tests.utils import wait_container_to_start
 
 # `BigDataSampler` receives a logger as an argument.
 logger = get_logger_adapter("gprofiler_spark_test")
@@ -52,7 +52,7 @@ def sparkpi_container(docker_client: DockerClient, application_docker_mounts: Li
     This fixture is responsible for running SparkPi application in a container.
     See `containers/spark/Dockerfile`
     """
-    spark_image = _build_image(docker_client=docker_client, runtime="spark")
+    spark_image = build_image(docker_client=docker_client, runtime="spark")
     container = docker_client.containers.run(
         spark_image,
         detach=True,
@@ -61,7 +61,7 @@ def sparkpi_container(docker_client: DockerClient, application_docker_mounts: Li
         pid_mode="host",
         environment={"SPARK_MASTER_HOST": SPARK_MASTER_HOST},
     )
-    _wait_container_to_start(container)
+    wait_container_to_start(container)
     try:
         yield container
     finally:

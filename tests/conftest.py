@@ -249,7 +249,7 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
     yield docker_client.images.get("gprofiler")
 
 
-def _build_image(
+def build_image(
     docker_client: DockerClient, runtime: str, dockerfile: str = "Dockerfile", **kwargs: Mapping[str, Any]
 ) -> Image:
     base_path = CONTAINERS_DIRECTORY / runtime
@@ -382,7 +382,7 @@ def application_docker_image(
                 )
             if application_image_tag == "musl":
                 pytest.xfail("This test does not work on aarch64 https://github.com/Granulate/gprofiler/issues/743")
-    yield _build_image(docker_client, **application_docker_image_configs[image_name(runtime, application_image_tag)])
+    yield build_image(docker_client, **application_docker_image_configs[image_name(runtime, application_image_tag)])
 
 
 @fixture

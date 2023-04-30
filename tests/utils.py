@@ -336,7 +336,7 @@ def _application_process(command_line: List[str], check_app_exited: bool) -> Ite
     _print_process_output(popen)
 
 
-def _wait_container_to_start(container: Container) -> None:
+def wait_container_to_start(container: Container) -> None:
     while container.status != "running":
         if container.status == "exited":
             raise Exception(container.logs().decode())
@@ -360,7 +360,7 @@ def _application_docker_container(
         mounts=application_docker_mounts,
         cap_add=application_docker_capabilities,
     )
-    _wait_container_to_start(container)
+    wait_container_to_start(container)
     yield container
     container.remove(force=True)
 
