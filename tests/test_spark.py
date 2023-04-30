@@ -46,7 +46,7 @@ DISCOVER_INTERVAL_SECS = 5
 DISCOVER_TIMEOUT_SECS = 60
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def sparkpi_container(docker_client: DockerClient, application_docker_mounts: List[Mount]) -> Container:
     """
     This fixture is responsible for running SparkPi application in a container.
