@@ -69,7 +69,7 @@ def sparkpi_container(docker_client: DockerClient) -> Container:
         container.remove()
 
 
-def _validate_sa_metricssnapshot(snapshot: MetricsSnapshot) -> None:
+def _validate_spark_sa_metricssnapshot(snapshot: MetricsSnapshot) -> None:
     """
     Validates that the snapshot contains all the expected metrics.
     """
@@ -80,7 +80,7 @@ def _validate_sa_metricssnapshot(snapshot: MetricsSnapshot) -> None:
         assert key in metric_keys, f"Metric {key} not found in snapshot"
 
 
-def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
+def test_spark_sa_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
     """
     Validates `BigDataSampler`s' `discover()` and `snapshot()` API's in discover mode.
     In discover mode we do not know what's the cluster mode and master address.
@@ -97,13 +97,13 @@ def test_sa_spark_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: 
     sleep(15)
     snapshot = sampler.snapshot()
     assert snapshot is not None, "BigDataSampler snapshot() failed to collect metrics"
-    _validate_sa_metricssnapshot(snapshot)
+    _validate_spark_sa_metricssnapshot(snapshot)
     assert any(
         "Guessed settings" in message for message in caplog.messages
     ), "guessed cluster log was not printed to log"
 
 
-def test_sa_spark_configured_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
+def test_spark_sa_configured_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
     """
     Validates `BigDataSampler`s' `discover()` and `snapshot()` API's after manually configured `BigDataSampler` with
     cluster mode, master address and enabling Applications Metrics Collector.
@@ -116,7 +116,7 @@ def test_sa_spark_configured_mode(caplog: LogCaptureFixture, sparkpi_container: 
     sleep(15)
     snapshot = sampler.snapshot()
     assert snapshot is not None, "snapshot() failed in configured mode"
-    _validate_sa_metricssnapshot(snapshot)
+    _validate_spark_sa_metricssnapshot(snapshot)
     assert any(
         "No need to guess cluster mode and master address, manually configured" in message
         for message in caplog.messages
