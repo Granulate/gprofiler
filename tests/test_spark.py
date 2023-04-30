@@ -83,7 +83,7 @@ def _wait_for_sparkpi_to_start() -> None:
         try:
             apps = running_apps.get_running_apps()
         except requests.exceptions.ConnectionError as e:
-            if 'Max retried exceeded' in str(e):
+            if 'Max retries exceeded' in str(e):
                 # Spark Master is not ready yet.
                 pass
             sleep(1)
