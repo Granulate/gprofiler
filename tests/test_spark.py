@@ -16,6 +16,8 @@ from granulate_utils.metrics.metrics import (
     SPARK_APPLICATION_GAUGE_METRICS,
     SPARK_EXECUTORS_METRICS,
 )
+
+from granulate_utils.metrics.mode import SPARK_STANDALONE_MODE
 from granulate_utils.metrics.sampler import BigDataSampler
 from pytest import LogCaptureFixture
 
@@ -93,6 +95,8 @@ def test_spark_sa_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: 
     assert discovered, "Failed to discover cluster mode and master address"
     # Sleeping before calling `snapshot()` to make sure SparkPi application is submitted and recognized by Master.
     sleep(15)
+    assert sampler._master_address == f"http://{SPARK_MASTER_HOST}:8080", "wrong master address was discovered"
+    assert sampler._cluster_mode == SPARK_STANDALONE_MODE, "wrong cluster mode was discovered"
     snapshot = sampler.snapshot()
     assert snapshot is not None, "BigDataSampler snapshot() failed to collect metrics"
     _validate_spark_sa_metricssnapshot(snapshot)
