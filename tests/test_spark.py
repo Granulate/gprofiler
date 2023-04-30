@@ -74,15 +74,19 @@ def _wait_for_sparkpi_to_start() -> None:
     """
     Waits for SparkPi to be recognized by Master.
     Doing so using `SparkRunningApps` class, `get_running_apps()` method.
+
+    Because Master is provisioning, it takes a few seconds until we receive a response from it.
     """
     running_apps = SparkRunningApps(SPARK_STANDALONE_MODE, f"http://{SPARK_MASTER_HOST}:8080", logger)
     apps: Dict[str, Tuple[str, str]] = {}
     while not apps:
         try:
             apps = running_apps.get_running_apps()
-        except Exception:
-            pass
-        sleep(1)
+        except requests.exceptions.ConnectionError as e:
+            if 'Max retried exceeded' in str(e):
+                # Spark Master is not ready yet.
+                pass
+            sleep(1)
 
 
 def _validate_spark_sa_metricssnapshot(snapshot: MetricsSnapshot) -> None:
