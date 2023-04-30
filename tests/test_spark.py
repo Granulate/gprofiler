@@ -8,6 +8,7 @@ from time import sleep
 from typing import Dict, Tuple
 
 import pytest
+import requests
 from docker import DockerClient
 from docker.models.containers import Container
 from granulate_utils.metrics import MetricsSnapshot
@@ -83,7 +84,7 @@ def _wait_for_sparkpi_to_start() -> None:
         try:
             apps = running_apps.get_running_apps()
         except requests.exceptions.ConnectionError as e:
-            if 'Max retries exceeded' in str(e):
+            if "Max retries exceeded" in str(e):
                 # Spark Master is not ready yet.
                 pass
             sleep(1)
