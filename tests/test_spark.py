@@ -108,7 +108,9 @@ def test_spark_sa_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: 
     """
     discover_timeout = DISCOVER_TIMEOUT_SECS
     caplog.set_level(logging.DEBUG)
-    sampler = BigDataSampler(logger, "", None, None, False)
+    sampler = BigDataSampler(
+        logger=logger, hostname="", master_address=None, cluster_mode=None, applications_metrics=False
+    )
     # We want to make the discovery process as close as possible to the real world scenario.
     while not (discovered := sampler.discover()) and discover_timeout > 0:
         sleep(DISCOVER_INTERVAL_SECS)
@@ -132,7 +134,13 @@ def test_spark_sa_configured_mode(caplog: LogCaptureFixture, sparkpi_container: 
     cluster mode, master address and enabling Applications Metrics Collector.
     """
     caplog.set_level(logging.DEBUG)
-    sampler = BigDataSampler(logger, "", f"{SPARK_MASTER_HOST}:8080", "standalone", True)
+    sampler = BigDataSampler(
+        logger=logger,
+        hostname="",
+        master_address=f"{SPARK_MASTER_HOST}:8080",
+        cluster_mode=SPARK_STANDALONE_MODE,
+        applications_metrics=True,
+    )
     # First call to `discover()` should return True, and print a debug log we later on validate.
     assert sampler.discover(), "discover() failed in configured mode"
     # Need to wait for SparkPi to be recognized by Master.
