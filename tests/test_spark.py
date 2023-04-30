@@ -5,12 +5,10 @@
 
 import logging
 from time import sleep
-from typing import List
 
 import pytest
 from docker import DockerClient
 from docker.models.containers import Container
-from docker.types import Mount
 from granulate_utils.metrics import MetricsSnapshot
 from granulate_utils.metrics.metrics import (
     SPARK_AGGREGATED_STAGE_METRICS,
