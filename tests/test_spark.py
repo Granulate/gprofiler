@@ -5,6 +5,7 @@
 
 import logging
 from time import sleep
+from typing import Dict, Tuple
 
 import pytest
 from docker import DockerClient
@@ -74,9 +75,13 @@ def _wait_for_sparkpi_to_start() -> None:
     Waits for SparkPi to be recognized by Master.
     Doing so using `SparkRunningApps` class, `get_running_apps()` method.
     """
-    # cluster_mode: str, master_address: str, logger: logging.LoggerAdapter
     running_apps = SparkRunningApps(SPARK_STANDALONE_MODE, f"http://{SPARK_MASTER_HOST}:8080", logger)
-    while not running_apps.get_running_apps():
+    apps: Dict[str, Tuple[str, str]] = {}
+    while not apps:
+        try:
+            apps = running_apps.get_running_apps()
+        except Exception:
+            pass
         sleep(1)
 
 
