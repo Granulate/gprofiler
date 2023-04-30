@@ -47,7 +47,7 @@ DISCOVER_TIMEOUT_SECS = 60
 
 
 @pytest.fixture
-def sparkpi_container(docker_client: DockerClient, application_docker_mounts: List[Mount]) -> Container:
+def sparkpi_container(docker_client: DockerClient) -> Container:
     """
     This fixture is responsible for running SparkPi application in a container.
     See `containers/spark/Dockerfile`
@@ -56,7 +56,7 @@ def sparkpi_container(docker_client: DockerClient, application_docker_mounts: Li
     container = docker_client.containers.run(
         spark_image,
         detach=True,
-        mounts=application_docker_mounts,
+        mounts=[],
         network_mode="host",
         pid_mode="host",
         environment={"SPARK_MASTER_HOST": SPARK_MASTER_HOST},
