@@ -88,6 +88,7 @@ def _wait_for_sparkpi_to_start() -> None:
                 # Spark Master is not ready yet.
                 pass
             sleep(1)
+    # We know that SparkPi is running, letting Master time to provision it.
     sleep(5)
 
 
