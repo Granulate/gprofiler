@@ -90,6 +90,7 @@ def _wait_for_sparkpi_to_start() -> None:
             sleep(1)
     sleep(5)
 
+
 def _validate_spark_sa_metricssnapshot(snapshot: MetricsSnapshot) -> None:
     """
     Validates that the snapshot contains all the expected metrics.
