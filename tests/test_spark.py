@@ -98,9 +98,17 @@ def _validate_spark_sa_metricssnapshot(snapshot: MetricsSnapshot) -> None:
     """
     samples = snapshot.samples
     assert len(samples) != 0, "No samples found in snapshot"
-    metric_keys = [sample.name for sample in samples]
-    for key in EXPECTED_SA_METRICS_KEYS:
-        assert key in metric_keys, f"Metric {key} not found in snapshot"
+    actual_metrics = {sample.name: sample.value for sample in samples}
+    # Creating a dict of the expected samples.
+    expected_metrics = dict.fromkeys(EXPECTED_SA_METRICS_KEYS, 0)
+    # Manually setting the expected values of some metrics.
+    expected_metrics["spark_aggregated_stage_active_stages"] = 1
+    expected_metrics["spark_num_applications_running"] = 1
+    expected_metrics["spark_job_diff_numTasks"] = 1000
+    expected_metrics["spark_job_numActiveStages"] = 1
+    for key, value in expected_metrics.items():
+        assert key in actual_metrics.keys(), f"Metric {key} not found in snapshot"
+        assert value == actual_metrics[key], f"Metric {key} has unexpected value"
 
 
 def test_spark_sa_discovered_mode(caplog: LogCaptureFixture, sparkpi_container: Container) -> None:
