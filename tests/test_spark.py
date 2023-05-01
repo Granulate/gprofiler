@@ -88,7 +88,7 @@ def _wait_for_sparkpi_to_start() -> None:
                 # Spark Master is not ready yet.
                 pass
             sleep(1)
-
+    sleep(5)
 
 def _validate_spark_sa_metricssnapshot(snapshot: MetricsSnapshot) -> None:
     """
