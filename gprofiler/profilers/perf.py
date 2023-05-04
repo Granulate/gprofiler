@@ -323,26 +323,22 @@ class PerfProcess:
             # (unlike Popen.communicate())
             assert self._process is not None and self._process.stderr is not None
             logger.debug(f"{self._log_name} run output", perf_stderr=self._process.stderr.read1())  # type: ignore
+
         try:
             with NamedTemporaryFile(dir=os.path.dirname(self._output_path), suffix=".inject") as inject_data:
                 if self._inject_jit:
                     run_process(
-                        [perf_path(), "inject", "--jit", "-o", str(inject_data), "-i", str(perf_data)],
+                        [perf_path(), "inject", "--jit", "-o", str(inject_data.name), "-i", str(perf_data)],
                     )
-                    perf_data = Path(inject_data.name)
+                    perf_script_input = Path(inject_data.name)
 
                 perf_script_proc = run_process(
-                    [perf_path(), "script", "-F", "+pid", "-i", str(perf_data)],
+                    [perf_path(), "script", "-F", "+pid", "-i", str(perf_script_input)],
                     suppress_log=True,
                 )
                 return perf_script_proc.stdout.decode("utf8")
         finally:
             perf_data.unlink()
-            # always read its stderr
-            # using read1() which performs just a single read() call and doesn't read until EOF
-            # (unlike Popen.communicate())
-            assert self._process is not None and self._process.stderr is not None
-            logger.debug(f"{self._log_name} run output", perf_stderr=self._process.stderr.read1())  # type: ignore
 
 
 @register_profiler(

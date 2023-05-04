@@ -30,11 +30,10 @@ def is_rw_exec_dir(path: str) -> bool:
     # try creating & writing
     try:
         os.makedirs(path, 0o755, exist_ok=True)
-        test_script = NamedTemporaryFile(dir=path, suffix=".sh")
-        with open(test_script.name, "w") as f:
-            f.write("#!/bin/sh\nexit 0")
-        os.chmod(test_script.name, 0o755)
-        test_script.file.close()
+        with NamedTemporaryFile(dir=path, suffix=".sh") as test_script:
+            with open(test_script.name, "w") as f:
+                f.write("#!/bin/sh\nexit 0")
+            os.chmod(test_script.name, 0o755)
     except OSError as e:
         if e.errno == errno.EROFS:
             # ro
