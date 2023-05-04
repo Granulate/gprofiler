@@ -47,8 +47,6 @@ def is_rw_exec_dir(path: str) -> bool:
             return False
         raise
 
-
-
     return True
 
 
