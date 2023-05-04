@@ -474,7 +474,6 @@ class AsyncProfiledProcess:
 
         self._libap_path_host = os.path.join(self._ap_dir_host, "libasyncProfiler.so")
         self._libap_path_process = remove_prefix(self._libap_path_host, self._process_root)
-        self._libap_dir_process = remove_prefix(self._ap_dir_host, self._process_root)
 
         # for other purposes - we can use storage_dir.
         self._storage_dir_host = resolve_proc_root_links(self._process_root, self._profiler_state.storage_dir)
@@ -595,7 +594,7 @@ class AsyncProfiledProcess:
             asprof_path(),
             "jattach",
             "-L",
-            self._libap_dir_process,
+            self._libap_path_process,
             "--jattach-cmd",
         ]
 

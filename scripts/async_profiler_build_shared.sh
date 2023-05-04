@@ -6,7 +6,7 @@
 set -euo pipefail
 
 VERSION=tryout-asprof-jattach-passthru
-GIT_REV="a0205eb8da773521ed958f59c84407534de29494"
+GIT_REV="cc438aab489df27bbd9a354861269ab7815be7d3"
 
 git clone --depth 1 -b "$VERSION" https://github.com/marcin-ol/async-profiler.git && cd async-profiler && git reset --hard "$GIT_REV"
 make all
