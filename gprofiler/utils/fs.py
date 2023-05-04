@@ -34,18 +34,20 @@ def is_rw_exec_dir(path: str) -> bool:
             with open(test_script.name, "w") as f:
                 f.write("#!/bin/sh\nexit 0")
             os.chmod(test_script.name, 0o755)
+            test_script.file.close()
+            # try executing
+            try:
+                run_process([str(test_script.name)], suppress_log=True)
+            except PermissionError:
+                # noexec
+                return False
     except OSError as e:
         if e.errno == errno.EROFS:
             # ro
             return False
         raise
 
-    # try executing
-    try:
-        run_process([str(test_script.name)], suppress_log=True)
-    except PermissionError:
-        # noexec
-        return False
+
 
     return True
 

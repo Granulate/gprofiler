@@ -326,6 +326,7 @@ class PerfProcess:
 
         try:
             with NamedTemporaryFile(dir=os.path.dirname(self._output_path), suffix=".inject") as inject_data:
+                perf_script_input = perf_data
                 if self._inject_jit:
                     run_process(
                         [perf_path(), "inject", "--jit", "-o", str(inject_data.name), "-i", str(perf_data)],
