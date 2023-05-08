@@ -179,6 +179,11 @@ def poll_process(process: Popen, timeout: float, stop_event: Event) -> None:
         raise
 
 
+def remove_files_by_prefix(prefix: str) -> None:
+    for f in glob.glob(f"{prefix}*"):
+        os.unlink(f)
+
+
 def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> Path:
     glob_pattern = f"{prefix}*"
     wait_event(timeout, stop_event, lambda: len(glob.glob(glob_pattern)) > 0)
