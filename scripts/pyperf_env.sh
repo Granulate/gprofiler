@@ -39,10 +39,6 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     patchelf scons
 
 if [ -n "$with_staticx" ]; then
-    apt-get install -y --no-install-recommends \
-        python3-pip ca-certificates git \
-        patchelf scons
-
     if [ "$(uname -m)" = "aarch64" ]; then
         exit 0;
     fi
@@ -61,12 +57,6 @@ if [ -n "$with_staticx" ]; then
 fi
 
 ./bcc_helpers_build.sh
-
-# cd /tmp
-# if [ "$(uname -m)" = "aarch64" ]; then
-#     exit 0
-# fi
-# ./libunwind_build.sh
 
 apt-get clean
 rm -rf /var/lib/apt/lists/*
