@@ -253,7 +253,7 @@ class PerfProcess:
         logger.info(f"Starting {self._log_name}")
         # remove old files, should they exist from previous runs
         remove_path(self._output_path, missing_ok=True)
-        process = start_process(self._get_perf_cmd(), via_staticx=False)
+        process = start_process(self._get_perf_cmd())
         try:
             wait_event(self._DUMP_TIMEOUT_S, self._stop_event, lambda: os.path.exists(self._output_path))
             self.start_time = time.monotonic()
