@@ -20,7 +20,7 @@ fi
 if [ "$(uname -m)" = "aarch64" ]; then
     exit 0;
 fi
-git clone --depth 1 -b upgrade-bcc-to-0.27 https://github.com/marcin-ol/bcc.git && cd bcc && git reset --hard e1657a1f
+git clone --depth 1 -b v1.3.0 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard fa7508600659622eac1fc309c7cdd7700ad2dff4
 
 # (after clone, because we copy the licenses)
 # TODO support aarch64
