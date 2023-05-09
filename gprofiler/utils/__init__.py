@@ -116,7 +116,7 @@ def wrap_callbacks(callbacks: List[Callable]) -> Callable:
 
 
 def start_process(
-    cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_death: bool = True, **kwargs: Any
+    cmd: Union[str, List[str]], via_staticx: bool = False, term_on_parent_death: bool = True, **kwargs: Any
 ) -> Popen:
     if isinstance(cmd, str):
         cmd = [cmd]

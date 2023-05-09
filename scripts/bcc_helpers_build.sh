@@ -15,10 +15,10 @@ fi
 
 LLVM_STRIP=llvm-strip
 if ! command -v "$LLVM_STRIP" > /dev/null 2>&1 ; then
-    LLVM_STRIP=llvm-strip-10
+    LLVM_STRIP=llvm-strip-12
 fi
 
-LIBBPF_MAKE_FLAGS="BPFTOOL=/bpftool CLANG=clang-10 LLVM_STRIP=$LLVM_STRIP CFLAGS=-static"
+LIBBPF_MAKE_FLAGS="BPFTOOL=/bpftool CLANG=clang-12 LLVM_STRIP=$LLVM_STRIP CFLAGS=-static"
 
 cd / && git clone -b v0.0.2 --depth=1 --recurse-submodules https://github.com/Jongy/bpf_get_fs_offset.git
 cd /bpf_get_fs_offset && git reset --hard 8326d39cf44845d4b643ed4267994afca8ccecb3
