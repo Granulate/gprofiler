@@ -977,7 +977,7 @@ def main() -> None:
     if args.databricks_job_name_as_service_name:
         # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
         args.service_name = "databricks"
-        databricks_client = DatabricksClient()
+        databricks_client = DatabricksClient(logger)
         if databricks_client.job_name is not None:
             args.service_name = f"databricks-{databricks_client.job_name}"
 
