@@ -457,6 +457,10 @@ def send_collapsed_file_only(args: configargparse.Namespace, client: ProfilerAPI
     )
 
 
+def prevent_removing_resources() -> None:
+    sys.exit()
+
+
 def parse_cmd_args() -> configargparse.Namespace:
     parser = configargparse.ArgumentParser(
         description="This is the gProfiler CLI documentation. You can access the general"
@@ -639,6 +643,9 @@ def parse_cmd_args() -> configargparse.Namespace:
 
     upload_file.set_defaults(func=send_collapsed_file_only)
 
+    extract_resources = subparsers.add_parser("extract-resources")
+    extract_resources.set_defaults(func=prevent_removing_resources)
+
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
 
@@ -794,7 +801,7 @@ def parse_cmd_args() -> configargparse.Namespace:
         if not args.service_name and not args.databricks_job_name_as_service_name:
             parser.error("Must provide --service-name when --upload-results is passed")
 
-    if not args.upload_results and not args.output_dir:
+    if not args.upload_results and not args.output_dir and not args.extract_resources:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
 
     if args.perf_dwarf_stack_size > 65528:
