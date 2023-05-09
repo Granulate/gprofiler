@@ -1,4 +1,4 @@
-name: Build gProfiler executable, test (if PR) and deploy (if tag)
+name: Build gProfiler executable, test (if PR) and deploy (if tag), build gProfiler container, run tests
 
 on:
   pull_request:
@@ -156,7 +156,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-container:
+  build-container-x64:
     runs-on: ubuntu-latest
     needs:
       - build-executable
@@ -167,10 +167,16 @@ jobs:
       with:
         submodules: true
 
+    - name: Download executables from the previous job
+      uses: actions/download-artifact@v2
+      with:
+        name: gprofiler
+        path: output/
+
     # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
     # more nicely. the tests will then be able to use the built image.
     - name: Build gProfiler image
-      run: ./scripts/build_x86_64_container.sh
+      run: ./scripts/build_x86_64_container.sh --build-arg EXE_PATH=output/gprofiler
 
     - name: Export gProfiler image
       run: mkdir -p output && docker image save gprofiler > output/gprofiler.img
@@ -183,7 +189,8 @@ jobs:
         retention-days: 1
 
   test:
-    needs: build-container
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    needs: build-container-x64
 
     runs-on: ubuntu-20.04  # for 3.10.0 python tag
 
@@ -222,16 +229,149 @@ jobs:
     - name: Download the executable from previous job
       uses: actions/download-artifact@v2
       with:
-        name: gprofiler.img
+        name: gprofiler
         path: output/
 
-    # used for next step (Copy resources ...) and also used in the tests themselves.
+    - name: Extract resources from gProfiler executable
+      run: ./output/gprofiler extract-resources
+
+    # used in the tests
     - name: Import gProfiler image
       run: docker image load < output/gprofiler.img
-
-    - name: Copy resources from gProfiler image
-      run: ./scripts/copy_resources_from_image.sh gprofiler
 
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
       run: NO_APT_INSTALL=1 ./tests/test.sh --ignore=tests/test_executable.py
+
+  build-docker-x64:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build-executable
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: Get and verify tag value
+        run: ./scripts/verify_tag.sh
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Download executables from the previous job
+        uses: actions/download-artifact@v2
+        with:
+          name: gprofiler
+          path: output/
+
+      # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
+      - name: Build and push
+        run: |
+          set -x
+          export DOCKER_BUILDKIT=1
+
+          BASE_IMAGE="${{ env.GH_REPO }}:${{ env.RELEASE_VERSION }}"
+          LATEST_IMAGE="${{ env.GH_REPO }}:latest"
+          X86_64_IMAGE="$BASE_IMAGE-x86_64"
+
+          # build & push x86_64
+          ./scripts/build_x86_64_container.sh --build-arg EXE_PATH=output/gprofiler -t "$X86_64_IMAGE"
+          docker push "$X86_64_IMAGE"
+
+  build-docker-aarch64:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build-executable-aarch64
+    runs-on: ["self-hosted", "ARM64"]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: Set up runner requirements
+        run: scripts/setup_runner_requirements.sh
+
+      - name: Get and verify tag value
+        run: ./scripts/verify_tag.sh
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Download executables from the previous job
+        uses: actions/download-artifact@v2
+        with:
+          name: gprofiler
+          path: output/
+
+      # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
+      - name: Build and push
+        run: |
+          set -x
+          export DOCKER_BUILDKIT=1
+
+          BASE_IMAGE="${{ env.GH_REPO }}:${{ env.RELEASE_VERSION }}"
+          LATEST_IMAGE="${{ env.GH_REPO }}:latest"
+          AARCH64_IMAGE="$BASE_IMAGE-aarch64"
+
+          # build & push Aarch64
+          ./scripts/build_aarch64_container.sh --build-arg EXE_PATH=output/gprofiler-aarch64 -t "$AARCH64_IMAGE" --push
+
+  push-manifest:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    needs:
+      - build-docker-x64
+      - build-docker-aarch64
+    steps:
+      # needed to set up env.GH_REPO etc
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: Get and verify tag value
+        run: ./scripts/verify_tag.sh
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Push manifest
+        run: |
+          set -x
+          export DOCKER_BUILDKIT=1
+
+          BASE_IMAGE="${{ env.GH_REPO }}:${{ env.RELEASE_VERSION }}"
+          LATEST_IMAGE="${{ env.GH_REPO }}:latest"
+          AARCH64_IMAGE="$BASE_IMAGE-aarch64"
+          X86_64_IMAGE="$BASE_IMAGE-x86_64"
+
+          docker pull $AARCH64_IMAGE
+          docker pull $X86_64_IMAGE
+
+          # create manifests for the tag + for 'latest'
+          docker manifest create "$BASE_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
+          docker manifest push "$BASE_IMAGE"
+          docker manifest create "$LATEST_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
+          docker manifest push "$LATEST_IMAGE"

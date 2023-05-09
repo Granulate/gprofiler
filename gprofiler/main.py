@@ -458,6 +458,7 @@ def send_collapsed_file_only(args: configargparse.Namespace, client: ProfilerAPI
 
 
 def prevent_removing_resources() -> None:
+    print("Exiting gprofiler to prevent PyInstaller from removing resources...")
     sys.exit()
 
 
@@ -776,7 +777,6 @@ def parse_cmd_args() -> configargparse.Namespace:
     )
 
     args = parser.parse_args()
-
     args.perf_inject = args.nodejs_mode == "perf"
     args.perf_node_attach = args.nodejs_mode == "attach-maps"
 
@@ -801,7 +801,7 @@ def parse_cmd_args() -> configargparse.Namespace:
         if not args.service_name and not args.databricks_job_name_as_service_name:
             parser.error("Must provide --service-name when --upload-results is passed")
 
-    if not args.upload_results and not args.output_dir and not args.extract_resources:
+    if not args.upload_results and not args.output_dir and "extract-resources" not in args.subcommand:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
 
     if args.perf_dwarf_stack_size > 65528:
@@ -1070,9 +1070,12 @@ def main() -> None:
             spark_sampler = None
 
         if hasattr(args, "func"):
-            assert args.subcommand == "upload-file"
-            args.func(args, profiler_api_client)
-            return
+            if args.subcommand == "extract-resources":
+                args.func()
+            else:
+                assert args.subcommand == "upload-file"
+                args.func(args, profiler_api_client)
+                return
 
         enrichment_options = EnrichmentOptions(
             profile_api_version=args.profile_api_version,

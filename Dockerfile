@@ -1,5 +1,6 @@
 FROM alpine as gprofiler
 ARG ARCH
+ARG EXE_PATH=build/${ARCH}/gprofiler
 ENV GPROFILER_IN_CONTAINER=1
-COPY build/${ARCH}/gprofiler /gprofiler
+COPY ${EXE_PATH} /gprofiler
 ENTRYPOINT ["/gprofiler"]
