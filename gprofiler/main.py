@@ -459,7 +459,7 @@ def send_collapsed_file_only(args: configargparse.Namespace, client: ProfilerAPI
 
 def prevent_removing_resources() -> None:
     print("Exiting gprofiler to prevent PyInstaller from removing resources...")
-    sys.exit()
+    os._exit(0)
 
 
 def parse_cmd_args() -> configargparse.Namespace:
