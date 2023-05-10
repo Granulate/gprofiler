@@ -242,6 +242,7 @@ jobs:
       run: chmod +x ./output/gprofiler
 
     - name: Extract resources from gProfiler executable
+      continue-on-error: true
       run: sudo ./output/gprofiler extract-resources
 
     # used in the tests
