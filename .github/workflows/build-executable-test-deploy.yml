@@ -232,6 +232,9 @@ jobs:
         name: gprofiler
         path: output/
 
+    - name: Add +x to gprofiler
+      run: chmod +x ./output/gprofiler
+
     - name: Extract resources from gProfiler executable
       run: ./output/gprofiler extract-resources
 
