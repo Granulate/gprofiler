@@ -237,7 +237,9 @@ class JattachJcmdRunner:
 
     def run(self, process: Process, cmd: str) -> str:
         return run_process(
-            [jattach_path(), str(process.pid), "jcmd", cmd], stop_event=self.stop_event, timeout=self.jattach_timeout
+            [asprof_path(), "jcmd", "--jattach-cmd", cmd, str(process.pid)],
+            stop_event=self.stop_event,
+            timeout=self.jattach_timeout,
         ).stdout.decode()
 
 
@@ -390,8 +392,8 @@ class JavaMetadata(ApplicationMetadata):
 
 
 @functools.lru_cache(maxsize=1)
-def jattach_path() -> str:
-    return resource_path("java/jattach")
+def asprof_path() -> str:
+    return resource_path("java/asprof")
 
 
 @functools.lru_cache(maxsize=1)
@@ -589,11 +591,11 @@ class AsyncProfiledProcess:
 
     def _get_base_cmd(self) -> List[str]:
         return [
-            jattach_path(),
-            str(self.process.pid),
-            "load",
+            asprof_path(),
+            "jattach",
+            "-L",
             self._libap_path_process,
-            "true",
+            "--jattach-cmd",
         ]
 
     def _get_extra_ap_args(self) -> str:
@@ -644,7 +646,7 @@ class AsyncProfiledProcess:
         try:
             # kill jattach with SIGTERM if it hangs. it will go down
             run_process(
-                cmd,
+                cmd + [str(self.process.pid)],
                 stop_event=self._profiler_state.stop_event,
                 timeout=self._jattach_timeout,
                 kill_signal=signal.SIGTERM,
@@ -683,7 +685,15 @@ class AsyncProfiledProcess:
             # run fdtransfer with accept timeout that's slightly greater than the jattach timeout - to make
             # sure that fdtransfer is still around for the full duration of jattach, in case the application
             # takes a while to accept & handle the connection.
-            [fdtransfer_path(), self._fdtransfer_path, str(self.process.pid), str(self._jattach_timeout + 5)],
+            [
+                asprof_path(),
+                "fdtransfer",
+                "--fd-path",
+                self._fdtransfer_path,
+                "--fdtransfer-timeout",
+                str(self._jattach_timeout + 5),
+                str(self.process.pid),
+            ],
             stop_event=self._profiler_state.stop_event,
             timeout=self._FDTRANSFER_TIMEOUT,
         )

@@ -184,11 +184,10 @@ COPY --from=phpspy-builder /tmp/phpspy/phpspy gprofiler/resources/php/phpspy
 COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
 COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/strings gprofiler/resources/php/strings
 
-COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/jattach gprofiler/resources/java/jattach
+COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/bin/asprof gprofiler/resources/java/asprof
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
-COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
-COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
-COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
+COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/lib/libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
+COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/lib/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
 COPY --from=node-package-builder-musl /tmp/module_build gprofiler/resources/node/module/musl
 COPY --from=node-package-builder-glibc /tmp/module_build gprofiler/resources/node/module/glibc
 

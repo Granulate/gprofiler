@@ -84,7 +84,7 @@ RUN ./async_profiler_build_shared.sh
 # a build step to ensure the minimum CentOS version that we require can "ldd" our libasyncProfiler.so file.
 FROM centos${AP_CENTOS_MIN} AS async-profiler-centos-min-test-glibc
 SHELL ["/bin/bash", "-c", "-euo", "pipefail"]
-COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/libasyncProfiler.so /libasyncProfiler.so
+COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/lib/libasyncProfiler.so /libasyncProfiler.so
 RUN if ldd /libasyncProfiler.so 2>&1 | grep -q "not found" ; then echo "libasyncProfiler.so is not compatible with minimum CentOS!"; readelf -Ws /libasyncProfiler.so; ldd /libasyncProfiler.so; exit 1; fi
 
 # async-profiler musl
@@ -246,11 +246,10 @@ COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/strings gprofiler
 COPY --from=async-profiler-builder-glibc /usr/bin/awk gprofiler/resources/php/awk
 COPY --from=async-profiler-builder-glibc /usr/bin/xargs gprofiler/resources/php/xargs
 
-COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/jattach gprofiler/resources/java/jattach
+COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/bin/asprof gprofiler/resources/java/asprof
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
 COPY --from=async-profiler-centos-min-test-glibc /libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
-COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
-COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
+COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/lib/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
 COPY --from=node-package-builder-musl /tmp/module_build gprofiler/resources/node/module/musl
 COPY --from=node-package-builder-glibc /tmp/module_build gprofiler/resources/node/module/glibc
 
