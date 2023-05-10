@@ -236,7 +236,7 @@ jobs:
       run: chmod +x ./output/gprofiler
 
     - name: Extract resources from gProfiler executable
-      run: ./output/gprofiler extract-resources
+      run: sudo ./output/gprofiler extract-resources
 
     # used in the tests
     - name: Import gProfiler image
