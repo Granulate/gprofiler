@@ -690,7 +690,7 @@ class AsyncProfiledProcess:
                 "fdtransfer",
                 "--fd-path",
                 self._fdtransfer_path,
-                "--timeout",
+                "--fdtransfer-timeout",
                 str(self._jattach_timeout + 5),
                 str(self.process.pid),
             ],
