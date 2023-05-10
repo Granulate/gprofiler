@@ -17,18 +17,17 @@ else
     exit 1
 fi
 
-if [ "$(uname -m)" = "aarch64" ]; then
-    exit 0;
-fi
-git clone --depth 1 -b v1.3.0 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard fa7508600659622eac1fc309c7cdd7700ad2dff4
-
-# (after clone, because we copy the licenses)
 # TODO support aarch64
 if [ "$(uname -m)" != "x86_64" ]; then
     mkdir -p /bcc/root/share/bcc/examples/cpp/
     touch /bcc/root/share/bcc/examples/cpp/PyPerf
+    mkdir -p /bcc/bcc/licenses
+    touch /bcc/bcc/LICENSE.txt
+    touch /bcc/bcc/NOTICE
     exit 0
 fi
+
+git clone --depth 1 -b v1.3.0 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard fa7508600659622eac1fc309c7cdd7700ad2dff4
 
 mkdir build
 cd build
