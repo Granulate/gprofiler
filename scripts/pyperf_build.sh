@@ -22,6 +22,7 @@ if [ "$(uname -m)" != "x86_64" ]; then
     mkdir -p /bcc/root/share/bcc/examples/cpp/
     touch /bcc/root/share/bcc/examples/cpp/PyPerf
     mkdir -p /bcc/root/licenses
+    mkdir -p /bcc/bcc
     touch /bcc/bcc/LICENSE.txt
     touch /bcc/bcc/NOTICE
     exit 0
