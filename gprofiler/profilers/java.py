@@ -237,7 +237,7 @@ class JattachJcmdRunner:
 
     def run(self, process: Process, cmd: str) -> str:
         return run_process(
-            [asprof_path(), str(process.pid), "jcmd", "--jattach-cmd", cmd],
+            [asprof_path(), "jcmd", "--jattach-cmd", cmd, str(process.pid)],
             stop_event=self.stop_event,
             timeout=self.jattach_timeout,
         ).stdout.decode()
