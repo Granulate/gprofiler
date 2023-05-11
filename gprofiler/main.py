@@ -460,7 +460,7 @@ def send_collapsed_file_only(args: configargparse.Namespace, client: ProfilerAPI
 
 def prevent_removing_resources(path: Path) -> None:
     print(f"Copying gprofiler resources to {path}")
-    shutil.copytree(resource_path(), path)
+    shutil.copytree(resource_path(), path, dirs_exist_ok=True)
     sys.exit(0)
 
 
@@ -803,16 +803,21 @@ def parse_cmd_args() -> configargparse.Namespace:
     if args.subcommand == "upload-file":
         args.upload_results = True
 
+    if args.subcommand == "extract-resources":
+        args.extract_resources = True
+    else:
+        args.extract_resources = False
+
     if args.upload_results:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
         if not args.service_name and not args.databricks_job_name_as_service_name:
             parser.error("Must provide --service-name when --upload-results is passed")
 
-    if not args.upload_results and not args.output_dir and "extract-resources" not in args.subcommand:
+    if not args.upload_results and not args.output_dir and not args.extract_resources:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
 
-    if "extract-resources" in args.subcommand and args.resources_dest == "":
+    if args.extract_resources and args.resources_dest == "":
         parser.error("Must provide --resources-dest when extract-resources")
 
     if args.perf_dwarf_stack_size > 65528:
