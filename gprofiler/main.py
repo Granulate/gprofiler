@@ -8,6 +8,7 @@ import logging
 import logging.config
 import logging.handlers
 import os
+import shutil
 import signal
 import sys
 import time
@@ -457,9 +458,10 @@ def send_collapsed_file_only(args: configargparse.Namespace, client: ProfilerAPI
     )
 
 
-def prevent_removing_resources() -> None:
-    print("Exiting gprofiler to prevent PyInstaller from removing resources...")
-    os.kill(os.getpid(), signal.SIGKILL)
+def prevent_removing_resources(path: Path) -> None:
+    print(f"Copying gprofiler resources to {path}")
+    shutil.copytree(resource_path(), path)
+    sys.exit(0)
 
 
 def parse_cmd_args() -> configargparse.Namespace:
@@ -646,6 +648,12 @@ def parse_cmd_args() -> configargparse.Namespace:
 
     extract_resources = subparsers.add_parser("extract-resources")
     extract_resources.set_defaults(func=prevent_removing_resources)
+    extract_resources.add_argument(
+        "--resources-dest",
+        dest="resources_dest",
+        default="",
+        help="Path to which the resources will be extracted",
+    )
 
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
@@ -803,6 +811,9 @@ def parse_cmd_args() -> configargparse.Namespace:
 
     if not args.upload_results and not args.output_dir and "extract-resources" not in args.subcommand:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
+
+    if "extract-resources" in args.subcommand and args.resources_dest == "":
+        parser.error("Must provide --resources-dest when extract-resources")
 
     if args.perf_dwarf_stack_size > 65528:
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
@@ -1071,7 +1082,7 @@ def main() -> None:
 
         if hasattr(args, "func"):
             if args.subcommand == "extract-resources":
-                args.func()
+                args.func(args.resources_dest)
             else:
                 assert args.subcommand == "upload-file"
                 args.func(args, profiler_api_client)
