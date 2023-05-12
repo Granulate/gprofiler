@@ -250,7 +250,7 @@ jobs:
 
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
-      run: NO_APT_INSTALL=1 sudo ./tests/test.sh --ignore=tests/test_executable.py
+      run: NO_APT_INSTALL=1 ./tests/test.sh --ignore=tests/test_executable.py
 
   build-docker-x64:
     if: startsWith(github.ref, 'refs/tags/')
