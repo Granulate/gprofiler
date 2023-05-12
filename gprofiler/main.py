@@ -23,6 +23,7 @@ import humanfriendly
 from granulate_utils.linux.ns import is_running_in_init_pid
 from granulate_utils.linux.process import is_process_running
 from granulate_utils.metadata import Metadata
+from granulate_utils.metadata.databricks_client import DatabricksClient
 from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
 
@@ -36,7 +37,6 @@ from gprofiler.client import (
 )
 from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.containers_client import ContainerNamesClient
-from gprofiler.databricks_client import DatabricksClient
 from gprofiler.diagnostics import log_diagnostics, set_diagnostics
 from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, integers_list, positive_integer
@@ -1000,7 +1000,7 @@ def main() -> None:
     if args.databricks_job_name_as_service_name:
         # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
         args.service_name = "databricks"
-        databricks_client = DatabricksClient()
+        databricks_client = DatabricksClient(logger)
         if databricks_client.job_name is not None:
             args.service_name = f"databricks-{databricks_client.job_name}"
 

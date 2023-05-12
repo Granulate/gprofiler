@@ -18,8 +18,10 @@ else
 fi
 
 if [ "$(uname -m)" = "aarch64" ]; then
+    ./bcc_helpers_build.sh  # it needs to create dummy files
     exit 0;
 fi
+
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     curl \
