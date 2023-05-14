@@ -429,11 +429,13 @@ def test_java_deleted_libjvm(
 def filter_jattach_load_records(records: List[LogRecord]) -> List[LogRecord]:
     def _filter_record(r: LogRecord) -> bool:
         # find the log record of
-        # Running command (command=['/app/gprofiler/resources/java/jattach', 'xxx', 'load', ....])
+        # Running command (command=['/app/gprofiler/resources/java/apsprof', 'jattach',
+        # '-L', '/path/to/libasyncProfiler.so', "--jattach-cmd", "start,..."])
         return (
             r.message == "Running command"
-            and "/jattach" in log_record_extra(r)["command"][0]
-            and "load" in log_record_extra(r)["command"][2]
+            and len(log_record_extra(r)["command"]) >= 6
+            and log_record_extra(r)["command"][1] == "jattach"
+            and any(map(lambda k: k in log_record_extra(r)["command"][5], ["start,", "stop,"]))
         )
 
     return list(filter(_filter_record, records))

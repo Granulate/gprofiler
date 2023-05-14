@@ -18,6 +18,7 @@ from gprofiler.utils import get_iso8601_format_time
 from gprofiler.utils.fs import escape_filename
 
 FIND_CLUSTER_TIMEOUT_SECS = 10 * 60
+DISCOVERY_INTERVAL_SECS = 5
 
 logger = get_logger_adapter(__name__)
 
@@ -82,7 +83,8 @@ class SparkSampler:
                 if self._client is not None:
                     self._client.submit_spark_metrics(snapshot)
 
-            self._stop_event.wait(self._sample_period)
+            # Interval differs, depends on whether the cluster is discovered or not
+            self._stop_event.wait(self._sample_period if discovered else DISCOVERY_INTERVAL_SECS)
 
         self._is_running = False
 
