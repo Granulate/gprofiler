@@ -196,8 +196,10 @@ def test_from_container(
     in_container: bool,
 ) -> None:
     if runtime == "php" and not in_container:
-        pytest.skip("Flaky https://github.com/Granulate/gprofiler/issues/630 and issue"
-                    "with phpspy grep: https://github.com/Granulate/gprofiler/issues/794")
+        pytest.skip(
+            "Flaky https://github.com/Granulate/gprofiler/issues/630 and issue"
+            "with phpspy grep: https://github.com/Granulate/gprofiler/issues/794"
+        )
     elif runtime == "php":
         pytest.xfail("Issue with phpspy grep https://github.com/Granulate/gprofiler/issues/794")
     if runtime == "dotnet":
