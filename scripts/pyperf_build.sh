@@ -27,8 +27,7 @@ if [ "$(uname -m)" != "x86_64" ]; then
     exit 0
 fi
 
-git clone --depth 1 -b v1.3.0 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard fa7508600659622eac1fc309c7cdd7700ad2dff4
-
+git clone --depth 1 -b python-3.11 https://github.com/marcin-ol/bcc.git && cd bcc && git reset --hard e30102ff9efe4551fda544b782c3793656daa9a5
 mkdir build
 cd build
 cmake -DPYTHON_CMD=python3 -DINSTALL_CPP_EXAMPLES=y -DCMAKE_INSTALL_PREFIX=/bcc/root -DBCC_CLOADER_KERNEL_HEADERLESS=1 ..
