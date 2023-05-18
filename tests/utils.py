@@ -39,6 +39,7 @@ RUNTIME_PROFILERS = [
     ("php", "phpspy"),
     ("ruby", "rbspy"),
     ("nodejs", "perf"),
+    ("dotnet", "dotnet-trace"),
 ]
 
 
