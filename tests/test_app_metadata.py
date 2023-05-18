@@ -190,6 +190,8 @@ def test_app_metadata(
     expected_metadata: Dict,
     application_executable: str,
 ) -> None:
+    if runtime == "dotnet":
+        pytest.xfail("Dotnet-trace doesn't work with alpine: https://github.com/Granulate/gprofiler/issues/795")
     run_gprofiler_in_container_for_one_session(
         docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags
     )
