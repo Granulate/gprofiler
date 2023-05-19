@@ -5,7 +5,7 @@
 #
 set -euo pipefail
 
-if [ "$1" == "--fast" ]; then
+if [ "$#" -gt 0 ] && [ "$1" == "--fast" ]; then
     with_staticx=""
     shift
 else

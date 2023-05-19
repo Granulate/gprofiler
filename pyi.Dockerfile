@@ -294,7 +294,7 @@ COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # using scl here to get the proper LD_LIBRARY_PATH set
 # hadolint ignore=SC2046,SC2086
 RUN set -e; \
-    if [ $(uname -m) != "aarch64" ] && [ echo $STATICX == "--with-staticx" ]; then \
+    if [ $(uname -m) != "aarch64" ] && [ "$STATICX" == "--with-staticx" ]; then \
         LIBS=$(./scripts/list_needed_libs.sh) && \
         staticx $LIBS dist/gprofiler dist/gprofiler ; \
     fi
