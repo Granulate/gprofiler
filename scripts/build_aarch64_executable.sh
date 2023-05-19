@@ -5,6 +5,13 @@
 #
 set -euo pipefail
 
+if [ "$#" -gt 0 ] && [ "$1" == "--fast" ]; then
+    with_staticx=""
+    shift
+else
+    with_staticx="--with-staticx"
+fi
+
 # ubuntu 20.04
 UBUNTU_VERSION=@sha256:82becede498899ec668628e7cb0ad87b6e1c371cb8a1e597d83a47fac21d6af3
 # rust:1.59-alpine3.15
@@ -36,4 +43,5 @@ docker buildx build --platform=linux/arm64 \
     --build-arg DOTNET_BUILDER=$DOTNET_BUILDER \
     --build-arg NODE_PACKAGE_BUILDER_MUSL=$ALPINE_VERSION \
     --build-arg NODE_PACKAGE_BUILDER_GLIBC=$NODE_PACKAGE_BUILDER_GLIBC \
+    --build-arg STATICX=$with_staticx \
     . -f pyi.Dockerfile --output type=local,dest=build/aarch64/ "$@"
