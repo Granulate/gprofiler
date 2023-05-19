@@ -5,6 +5,13 @@
 #
 set -euo pipefail
 
+if [ "$1" == "--fast" ]; then
+    with_staticx=""
+    shift
+else
+    with_staticx="--with-staticx"
+fi
+
 # pyspy & rbspy, using the same builder for both pyspy and rbspy since they share build dependencies - rust:1.59-alpine3.15
 RUST_BUILDER_VERSION=@sha256:65b63b7d003f7a492cc8e550a4830aaa1f4155b74387549a82985c8efb3d0e88
 # perf - ubuntu:16.04 (IIRC for older glibc, to support older kernels)
@@ -43,4 +50,5 @@ DOCKER_BUILDKIT=1 docker build -f pyi.Dockerfile --output type=local,dest=build/
     --build-arg DOTNET_BUILDER=$DOTNET_BUILDER \
     --build-arg NODE_PACKAGE_BUILDER_MUSL=$AP_BUILDER_ALPINE \
     --build-arg NODE_PACKAGE_BUILDER_GLIBC=$NODE_PACKAGE_BUILDER_GLIBC \
+    --build-arg STATICX=$with_staticx \
     . "$@"

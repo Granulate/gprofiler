@@ -115,6 +115,7 @@ RUN ./build_node_package.sh
 # built on newer Ubuntu because they require new clang (newer than available in GPROFILER_BUILDER's CentOS 7)
 # these are only relevant for modern kernels, so there's no real reason to build them on CentOS 7 anyway.
 FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-build
+ARG STATICX=""
 COPY --from=perf-builder /bpftool /bpftool
 
 WORKDIR /bcc
@@ -122,7 +123,7 @@ COPY scripts/staticx_for_pyperf_patch.diff .
 COPY scripts/staticx_patch.diff .
 COPY scripts/bcc_helpers_build.sh .
 COPY scripts/pyperf_env.sh .
-RUN ./pyperf_env.sh --with-staticx
+RUN ./pyperf_env.sh ${STATICX}
 
 WORKDIR /tmp
 COPY ./scripts/libunwind_build.sh .
@@ -133,7 +134,7 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
 
 WORKDIR /bcc
 COPY scripts/pyperf_build.sh .
-RUN ./pyperf_build.sh --with-staticx
+RUN ./pyperf_build.sh ${STATICX}
 
 # gprofiler
 FROM centos${GPROFILER_BUILDER} AS build-prepare
@@ -204,6 +205,9 @@ WORKDIR /app
 USER 1001
 
 FROM build-prepare as build-stage
+
+ARG STATICX=""
+ENV STATICX=${STATICX}
 
 COPY requirements.txt requirements.txt
 COPY granulate-utils/setup.py granulate-utils/requirements.txt granulate-utils/README.md granulate-utils/
@@ -290,7 +294,7 @@ COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # using scl here to get the proper LD_LIBRARY_PATH set
 # hadolint ignore=SC2046,SC2086
 RUN set -e; \
-    if [ $(uname -m) != "aarch64" ]; then \
+    if [ $(uname -m) != "aarch64" ] && [ echo $STATICX == "--with-staticx" ]; then \
         LIBS=$(./scripts/list_needed_libs.sh) && \
         staticx $LIBS dist/gprofiler dist/gprofiler ; \
     fi
