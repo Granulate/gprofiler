@@ -1032,7 +1032,12 @@ def main() -> None:
                 else None
             )
         except APIError as e:
-            logger.critical(f"Server error: {e}")
+            if "API key" in str(e):
+                logger.info("CRITICAL")
+                logger.critical(f"Server error: {e}")
+            else:
+                logger.info("NONCRITICAL")
+                logger.error(f"Server error: {e}")
             sys.exit(1)
         except RequestException as e:
             proxy = get_https_proxy()
