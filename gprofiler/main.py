@@ -783,7 +783,6 @@ def parse_cmd_args() -> configargparse.Namespace:
         help="Log extra verbose information, making the debugging of gProfiler easier",
     )
 
-
     args = parser.parse_args()
     args.perf_inject = args.nodejs_mode == "perf"
     args.perf_node_attach = args.nodejs_mode == "attach-maps"
