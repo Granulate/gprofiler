@@ -458,10 +458,9 @@ def send_collapsed_file_only(args: configargparse.Namespace, client: ProfilerAPI
     )
 
 
-def prevent_removing_resources(path: Path) -> None:
+def copy_resources(path: Path) -> None:
     print(f"Copying gprofiler resources to {path}")
     shutil.copytree(resource_path(), path, dirs_exist_ok=True)
-    sys.exit(0)
 
 
 def parse_cmd_args() -> configargparse.Namespace:
@@ -647,7 +646,7 @@ def parse_cmd_args() -> configargparse.Namespace:
     upload_file.set_defaults(func=send_collapsed_file_only)
 
     extract_resources = subparsers.add_parser("extract-resources")
-    extract_resources.set_defaults(func=prevent_removing_resources)
+    extract_resources.set_defaults(func=copy_resources)
     extract_resources.add_argument(
         "--resources-dest",
         dest="resources_dest",
@@ -783,6 +782,7 @@ def parse_cmd_args() -> configargparse.Namespace:
         action="store_true",
         help="Log extra verbose information, making the debugging of gProfiler easier",
     )
+
 
     args = parser.parse_args()
     args.perf_inject = args.nodejs_mode == "perf"
@@ -1088,6 +1088,7 @@ def main() -> None:
         if hasattr(args, "func"):
             if args.subcommand == "extract-resources":
                 args.func(args.resources_dest)
+                return
             else:
                 assert args.subcommand == "upload-file"
                 args.func(args, profiler_api_client)

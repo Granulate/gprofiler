@@ -6,10 +6,10 @@
 set -euo pipefail
 
 if [ "$#" -gt 0 ] && [ "$1" == "--fast" ]; then
-    with_staticx=""
+    with_staticx=false
     shift
 else
-    with_staticx="--with-staticx"
+    with_staticx=true
 fi
 
 # ubuntu 20.04

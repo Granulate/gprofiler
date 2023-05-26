@@ -30,7 +30,7 @@ fi
 PERF_RESOURCE="$SCRIPT_DIR/../gprofiler/resources/perf"
 if [ ! -f "$PERF_RESOURCE" ] && [[ "$*" != *"--executable"* ]]; then
     echo "perf resource not found: $(readlink -f "$PERF_RESOURCE")"
-    echo "Please run gprofiler_exe extract_resources --resources-dest=$SCRIPT_DIR/../gprofiler/resources/ to get all resources"
+    echo "Please run \"gprofiler extract-resources --resources-dest=$SCRIPT_DIR/../gprofiler/resources/\" to get all resources"
     exit 1
 fi
 
