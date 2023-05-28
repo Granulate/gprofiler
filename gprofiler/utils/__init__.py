@@ -116,7 +116,7 @@ def wrap_callbacks(callbacks: List[Callable]) -> Callable:
 
 
 def start_process(
-    cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_death: bool = True, **kwargs: Any
+    cmd: Union[str, List[str]], via_staticx: bool = False, term_on_parent_death: bool = True, **kwargs: Any
 ) -> Popen:
     if isinstance(cmd, str):
         cmd = [cmd]
@@ -177,6 +177,11 @@ def poll_process(process: Popen, timeout: float, stop_event: Event) -> None:
     except StopEventSetException:
         process.kill()
         raise
+
+
+def remove_files_by_prefix(prefix: str) -> None:
+    for f in glob.glob(f"{prefix}*"):
+        os.unlink(f)
 
 
 def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> Path:

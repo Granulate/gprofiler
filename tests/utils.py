@@ -336,6 +336,14 @@ def _application_process(command_line: List[str], check_app_exited: bool) -> Ite
     _print_process_output(popen)
 
 
+def wait_container_to_start(container: Container) -> None:
+    while container.status != "running":
+        if container.status == "exited":
+            raise Exception(container.logs().decode())
+        sleep(1)
+        container.reload()
+
+
 @contextmanager
 def _application_docker_container(
     docker_client: DockerClient,
@@ -352,11 +360,7 @@ def _application_docker_container(
         mounts=application_docker_mounts,
         cap_add=application_docker_capabilities,
     )
-    while container.status != "running":
-        if container.status == "exited":
-            raise Exception(container.logs().decode())
-        sleep(1)
-        container.reload()
+    wait_container_to_start(container)
     yield container
     container.remove(force=True)
 
