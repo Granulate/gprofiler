@@ -536,9 +536,11 @@ class GolangPerfMetadata(PerfMetadata):
         return is_golang_process(process)
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        metadata = {"golang_version": get_process_golang_version(process)}
+        metadata = {"golang_version": get_process_golang_version( process.create_time())}
+        print(metadata)
         self.add_exe_metadata(process, metadata)
         metadata.update(super().make_application_metadata(process))
+        print(metadata)
         return metadata
 
 
