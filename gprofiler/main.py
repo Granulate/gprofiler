@@ -49,7 +49,12 @@ from gprofiler.platform import is_linux, is_windows
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
-from gprofiler.profilers.registry import get_profilers_registry
+from gprofiler.profilers.registry import (
+    ProfilerConfig,
+    get_profilers_registry,
+    get_runtime_possible_modes,
+    get_sorted_profilers,
+)
 from gprofiler.spark.sampler import SparkSampler
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import Metrics, NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
@@ -816,29 +821,32 @@ def parse_cmd_args() -> configargparse.Namespace:
 
 
 def _add_profilers_arguments(parser: configargparse.ArgumentParser) -> None:
-    registry = get_profilers_registry()
-    for name, config in registry.items():
-        arg_group = parser.add_argument_group(name)
-        mode_var = f"{name.lower()}_mode"
+    for runtime, configs in get_profilers_registry().items():
+        arg_group = parser.add_argument_group(runtime)
+        mode_var = f"{runtime.lower().replace('-', '_')}_mode"
+        sorted_profilers = get_sorted_profilers(runtime)
+        # TODO: marcin-ol: organize options and usage for runtime - single source of runtime options?
+        preferred_profiler = sorted_profilers[0]
         arg_group.add_argument(
-            f"--{name.lower()}-mode",
+            f"--{runtime.lower()}-mode",
             dest=mode_var,
-            default=config.default_mode,
-            help=config.profiler_mode_help,
-            choices=config.possible_modes,
+            default=ProfilerConfig.ENABLED_MODE if len(sorted_profilers) > 1 else sorted_profilers[0].default_mode,
+            help=preferred_profiler.profiler_mode_help,
+            choices=get_runtime_possible_modes(runtime) + ProfilerConfig.DISABLED_MODES,
         )
         arg_group.add_argument(
-            f"--no-{name.lower()}",
+            f"--no-{runtime.lower()}",
             action="store_const",
             const="disabled",
             dest=mode_var,
             default=True,
-            help=config.disablement_help,
+            help=preferred_profiler.disablement_help,
         )
-        for arg in config.profiler_args:
-            profiler_arg_kwargs = arg.get_dict()
-            name = profiler_arg_kwargs.pop("name")
-            arg_group.add_argument(name, **profiler_arg_kwargs)
+        for config in configs:
+            for arg in config.profiler_args:
+                profiler_arg_kwargs = arg.get_dict()
+                name = profiler_arg_kwargs.pop("name")
+                arg_group.add_argument(name, **profiler_arg_kwargs)
 
 
 def verify_preconditions(args: configargparse.Namespace, processes_to_profile: Optional[List[Process]]) -> None:

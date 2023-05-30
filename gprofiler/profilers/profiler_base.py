@@ -48,6 +48,12 @@ class ProfilerInterface:
         """
         raise NotImplementedError
 
+    def check_readiness(self) -> bool:
+        """
+        Check that profiler is ready for use on current platform.
+        """
+        raise NotImplementedError
+
     def stop(self) -> None:
         pass
 
@@ -99,6 +105,9 @@ class ProfilerBase(ProfilerInterface):
             f"profiling mode: {profiler_state.profiling_mode}"
         )
 
+    def check_readiness(self) -> bool:
+        return True
+
 
 class NoopProfiler(ProfilerInterface):
     """
@@ -107,6 +116,9 @@ class NoopProfiler(ProfilerInterface):
 
     def snapshot(self) -> ProcessToProfileData:
         return {}
+
+    def check_readiness(self) -> bool:
+        return True
 
     @classmethod
     def is_noop_profiler(cls, profile_instance: ProfilerInterface) -> bool:

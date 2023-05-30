@@ -3,13 +3,18 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
+from pathlib import Path
+from typing import List
 
 import psutil
 import pytest
+from docker import DockerClient
+from docker.models.images import Image
 from granulate_utils.linux.process import is_musl
 
 from gprofiler.profiler_state import ProfilerState
-from gprofiler.profilers.python import PythonProfiler
+from gprofiler.profilers.python import PySpyProfiler, PythonProfiler
+from gprofiler.profilers.python_ebpf import PythonEbpfProfiler
 from tests.conftest import AssertInCollapsed
 from tests.utils import (
     assert_function_in_collapsed,
@@ -17,6 +22,8 @@ from tests.utils import (
     is_pattern_in_collapsed,
     snapshot_pid_collapsed,
     snapshot_pid_profile,
+    start_gprofiler_in_container_for_one_session,
+    wait_for_log,
 )
 
 
@@ -165,3 +172,39 @@ def test_dso_name_in_pyperf_profile(
     assert insert_dso_name == is_pattern_in_collapsed(
         rf"{interpreter_frame} \(.+?/libpython{python_version}.*?\.so.*?\)_\[pn\]", collapsed
     )
+
+
+@pytest.mark.parametrize(
+    "runtime,profiler_type,profiler_class_name",
+    [
+        ("python", "py-spy", PySpyProfiler.__name__),
+        ("python", "pyperf", PythonEbpfProfiler.__name__),
+        ("python", "auto", PythonEbpfProfiler.__name__),
+        ("python", "enabled", PythonEbpfProfiler.__name__),
+    ],
+)
+def test_select_specific_python_profiler(
+    docker_client: DockerClient,
+    gprofiler_docker_image: Image,
+    output_directory: Path,
+    output_collapsed: Path,
+    runtime_specific_args: List[str],
+    profiler_flags: List[str],
+    profiler_type: str,
+    profiler_class_name: str,
+) -> None:
+    """
+    Test that correct profiler class is selected as given by --python-mode argument.
+    """
+    if profiler_type == "pyperf" and is_aarch64():
+        pytest.xfail("PyPerf doesn't run on Aarch64 - https://github.com/Granulate/gprofiler/issues/499")
+    elif profiler_type == "enabled":
+        # make sure the default behavior, with implicit enabled mode leads to auto selection
+        profiler_flags.remove(f"--python-mode={profiler_type}")
+    profiler_flags.extend(["--no-perf"])
+    gprofiler = start_gprofiler_in_container_for_one_session(
+        docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags
+    )
+    wait_for_log(gprofiler, "gProfiler initialized and ready to start profiling", 0, timeout=7)
+    assert f"Initialized {profiler_class_name}".encode() in gprofiler.logs()
+    gprofiler.remove(force=True)

@@ -407,6 +407,9 @@ class PythonProfiler(ProfilerInterface):
                 logger.info("Python eBPF profiler initialization failed")
                 return None
 
+    def check_readiness(self) -> bool:
+        return True
+
     def start(self) -> None:
         if self._ebpf_profiler is not None:
             self._ebpf_profiler.start()
