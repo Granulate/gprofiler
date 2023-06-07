@@ -201,6 +201,14 @@ helm install --set gprofiler.token="GPROFILER_TOKEN" --set gprofiler.serviceName
 helm show values .
 ```
 
+### OpenShift SCCs
+
+If your OpenShift cluster uses [SCCs](https://docs.openshift.com/container-platform/4.12/authentication/managing-security-context-constraints.html), the gProfiler Pods might get an error `FailedCreate` with the reason `unable to validate against any security context constraint`.
+
+If this happens, we must grant the `privileged` SCC to the gProfiler DaemonSet to have the Pods scheduled.
+
+This is done by creating a `Role` that's allowed to use the `privileged` SCC, then granting that `Role` via a `RoleBinding` to a `ServiceAccount` that is used in gProfiler's `DaemonSet`. The 3 objects (`ServiceAccount`, `Role`, `RoleBinding`) can be found in [scc.yaml](deploy/k8s/openshift/scc.yaml). After applying that file, all you need to do is add `serviceAccountName: granulate-service-account` to the gProfiler Pod spec, re-apply the `DaemonSet` and verify that created Pods have the `openshift.io/scc: privileged` annotation, which means they have successfully used the SCC.
+
 ## Running as an ECS (Elastic Container Service) Daemon service
 
 ### Creating the ECS Task Definition

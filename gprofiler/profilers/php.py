@@ -93,7 +93,7 @@ class PHPSpyProfiler(ProfilerBase):
         phpspy_dir = os.path.dirname(phpspy_path)
         env = os.environ.copy()
         env["PATH"] = f"{env.get('PATH')}:{phpspy_dir}"
-        process = start_process(cmd, env=env, via_staticx=False)
+        process = start_process(cmd, env=env)
         # Executing phpspy, expecting the output file to be created, phpspy creates it at bootstrap after argument
         # parsing.
         # If an error occurs after this stage it's probably a spied _process specific and not phpspy general error.
