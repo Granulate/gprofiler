@@ -6,7 +6,7 @@ from subprocess import CompletedProcess
 from threading import Event
 
 from granulate_utils.linux.ns import get_process_nspid, run_in_ns
-from psutil import NoSuchProcess, Process
+from psutil import NoSuchProcess, Process, pid_exists
 
 from gprofiler.utils import run_process
 
@@ -28,8 +28,11 @@ def get_exe_version(
 
     try:
         cp = run_in_ns(["pid", "mnt"], _run_get_version, process.pid)
-    except FileNotFoundError:
-        raise NoSuchProcess(process.pid)
+    except FileNotFoundError as e:
+        if not pid_exists(process.pid):
+            raise NoSuchProcess(process.pid)
+        else:
+            raise e
 
     stdout = cp.stdout.decode().strip()
     # return stderr if stdout is empty, some apps print their version to stderr.
