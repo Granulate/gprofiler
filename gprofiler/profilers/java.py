@@ -243,7 +243,7 @@ class JattachJcmdRunner:
                 timeout=self.jattach_timeout,
             ).stdout.decode()
         except CalledProcessError as e:
-            if f"Process {process.pid} not found" in e:
+            if f"Process {process.pid} not found" in str(e):
                 raise NoSuchProcess(process.pid)
             raise e
 
