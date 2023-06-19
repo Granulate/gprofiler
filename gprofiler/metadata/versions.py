@@ -29,7 +29,7 @@ def get_exe_version(
     try:
         cp = run_in_ns(["pid", "mnt"], _run_get_version, process.pid)
     except FileNotFoundError as e:
-        if not pid_exists(process.pid):
+        if not process.is_running():
             raise NoSuchProcess(process.pid)
         else:
             raise e
