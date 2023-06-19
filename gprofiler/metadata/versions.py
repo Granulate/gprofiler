@@ -6,7 +6,7 @@ from subprocess import CompletedProcess
 from threading import Event
 
 from granulate_utils.linux.ns import get_process_nspid, run_in_ns
-from psutil import NoSuchProcess, Process, pid_exists
+from psutil import NoSuchProcess, Process
 
 from gprofiler.utils import run_process
 
