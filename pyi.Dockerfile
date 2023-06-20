@@ -287,7 +287,6 @@ COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # in some cases, when the application is lazily loading some DSOs, staticx doesn't handle it.
 # we use list_needed_libs.sh to list the dynamic dependencies of *all* of our resources,
 # and make staticx pack them as well.
-# hadolint ignore=SC2046,SC2086
 RUN set -e; \
     LIBS=$(./scripts/list_needed_libs.sh) && \
     staticx $LIBS dist/gprofiler dist/gprofiler.static
