@@ -260,6 +260,7 @@ def test_perf_restarted_if_killed(
         (["d_[k] 1"], 0),
         (["d_[k];e_[k] 1"], 0),
         (["a;b;c;d_[k] 1"], 3),
+        (["[unknown];[unknown];[unknown];a;b;c;d_[k] 1"], 3),
         (["a;b;c;d_[k];e_[k] 1"], 3),
         (["a 1", "a;b 1"], 1.5),
         (["d_[k] 1", "a;d_[k] 1"], 0.5),
