@@ -977,8 +977,8 @@ def main() -> None:
     if args.databricks_job_name_as_service_name:
         # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
         args.service_name = "databricks"
-        if get_name_from_metadata(DBXWebUIEnvWrapper(logger).all_props_dict) is not None:
-            args.service_name = f"databricks-{databricks_client.job_name}"
+        if service_suffix := get_name_from_metadata(DBXWebUIEnvWrapper(logger).all_props_dict) is not None:
+            args.service_name = f"databricks-{service_suffix}"
 
         if remote_logs_handler is not None:
             remote_logs_handler.update_service_name(args.service_name)
