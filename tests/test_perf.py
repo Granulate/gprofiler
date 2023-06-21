@@ -260,6 +260,8 @@ def test_perf_restarted_if_killed(
         (["d_[k] 1"], 0),
         (["d_[k];e_[k] 1"], 0),
         (["a;b;c;d_[k] 1"], 3),
+        # Tests if unknown frames are ignored when calculating avg frame count
+        # https://github.com/Granulate/gprofiler/issues/798
         (["[unknown];[unknown];[unknown];a;b;c;d_[k] 1"], 3),
         (["a;b;c;d_[k];e_[k] 1"], 3),
         (["a 1", "a;b 1"], 1.5),

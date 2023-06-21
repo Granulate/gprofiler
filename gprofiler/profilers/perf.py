@@ -73,14 +73,19 @@ def get_average_frame_count(samples: Iterable[str]) -> float:
         if len(kernel_split) == 1:
             kernel_split = sample.split("_[k] ", 1)
 
+        # Check if there are any "[unknown]" frames in this sample, if they are ignore it. This is helpful
+        # in perf_mode="smart", because DWARF stack can be deep but some of the frames might be unknown. In
+        # that situation we want to avoid counting unknown frames and then choose stacks that has better
+        # sum(frame_count_per_samples)/len(frame_count_per_samples) ratio
+        frame_count_in_sample = kernel_split[0].count(";") - kernel_split[0].count("[unknown]")
         # Do we have any kernel frames in this sample?
         if len(kernel_split) > 1:
             # example: "a;b;c;d_[k];e_[k] 1" should return the same value as "a;b;c 1", so we don't
             # add 1 to the frames count like we do in the other branch.
-            frame_count_per_samples.append(kernel_split[0].count(";") - kernel_split[0].count("[unknown]"))
+            frame_count_per_samples.append(frame_count_in_sample)
         else:
             # no kernel frames, so e.g "a;b;c 1" and frame count is one more than ";" count.
-            frame_count_per_samples.append(kernel_split[0].count(";") + 1 - kernel_split[0].count("[unknown]"))
+            frame_count_per_samples.append(frame_count_in_sample + 1)
     return sum(frame_count_per_samples) / len(frame_count_per_samples)
 
 
