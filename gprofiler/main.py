@@ -22,7 +22,7 @@ import humanfriendly
 from granulate_utils.linux.ns import is_running_in_init_pid
 from granulate_utils.linux.process import is_process_running
 from granulate_utils.metadata import Metadata
-from granulate_utils.metadata.databricks_client import DatabricksClient
+from granulate_utils.metadata.databricks_client import DBXWebUIEnvWrapper, get_name_from_metadata
 from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
 
@@ -977,8 +977,7 @@ def main() -> None:
     if args.databricks_job_name_as_service_name:
         # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
         args.service_name = "databricks"
-        databricks_client = DatabricksClient(logger)
-        if databricks_client.job_name is not None:
+        if get_name_from_metadata(DBXWebUIEnvWrapper(logger).all_props_dict) is not None:
             args.service_name = f"databricks-{databricks_client.job_name}"
 
         if remote_logs_handler is not None:
