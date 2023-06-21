@@ -2,7 +2,6 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import logging
 import sys
 from collections import defaultdict
 from typing import Any, Dict, Iterable, List, cast
@@ -11,6 +10,7 @@ import pytest
 from pytest import MonkeyPatch
 
 from gprofiler import profilers
+from gprofiler.gprofiler_types import ProcessToProfileData
 from gprofiler.profilers import registry
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProfilerBase
@@ -59,8 +59,10 @@ def _copy_of_registry(keys: Iterable[str] = []) -> Dict[str, List[ProfilerConfig
 
 class MockProfiler(ProfilerBase):
     def __init__(self, mock_mode: str = "", *args: Any, **kwargs: Any):
-        logging.warning(f"MOCKINIT/ args={list(*args)}, kwargs={dict(**kwargs)}")
         self.mock_mode = mock_mode
+
+    def snapshot(self) -> ProcessToProfileData:
+        return {}
 
 
 @pytest.mark.parametrize("profiler_mode", ["mock-perf", "mock-profiler", "disabled"])
@@ -122,12 +124,10 @@ def test_select_specific_runtime_profiler(
         _register_mock_profiler(
             "mock", profiler_name="mock-perf", profiler_class=MockPerf, possible_modes=["mock-perf", "disabled"]
         )
-        print(registry.profilers_config)
         from gprofiler.main import parse_cmd_args
 
         # replace command-line args to include mode we're targeting
         m.setattr(
-            # sys, "argv", sys.argv[:1] + ["--output-dir", "./", f"--{profiler_mode}-mode", profiler_mode, "--no-perf"]
             sys,
             "argv",
             sys.argv[:1] + ["--output-dir", "./", "--mock-mode", profiler_mode, "--no-perf"],

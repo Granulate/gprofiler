@@ -832,7 +832,7 @@ def _add_profilers_arguments(parser: configargparse.ArgumentParser) -> None:
             dest=mode_var,
             default=ProfilerConfig.ENABLED_MODE if len(sorted_profilers) > 1 else sorted_profilers[0].default_mode,
             help=preferred_profiler.profiler_mode_help,
-            choices=get_runtime_possible_modes(runtime) + ProfilerConfig.DISABLED_MODES,
+            choices=get_runtime_possible_modes(runtime),
         )
         arg_group.add_argument(
             f"--no-{runtime.lower()}",
