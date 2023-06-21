@@ -187,9 +187,12 @@ def test_app_metadata(
     assert_collapsed: AssertInCollapsed,
     profiler_flags: List[str],
     runtime: str,
+    profiler_type: str,
     expected_metadata: Dict,
     application_executable: str,
 ) -> None:
+    if profiler_type == "pyperf":
+        pytest.xfail("PyPerf doesn't run on Aarch64 - https://github.com/Granulate/gprofiler/issues/499")
     run_gprofiler_in_container_for_one_session(
         docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags
     )
