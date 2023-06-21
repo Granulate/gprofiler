@@ -9,9 +9,16 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"  # h
 
 if [ -z ${NO_APT_INSTALL+x} ]; then
   sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io php
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends openjdk-8-jdk python3 python3-pip php
   if [ "$(uname -m)" = "aarch64" ]; then
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends python3-dev ruby3.0 build-essential nodejs
+    sudo apt-get install ca-certificates curl gnupg
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    sudo chmod a+r /etc/apt/keyrings/docker.gpg
+    echo   "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+           "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" |   sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt-get update
+    sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends python3-dev ruby build-essential nodejs
     if ! [ -L "/usr/bin/dotnet" ] ; then
       # there is no dotnet apt package on aarch64
       curl -SL -o dotnet.tar.gz https://dotnetcli.blob.core.windows.net/dotnet/Sdk/master/dotnet-sdk-latest-linux-arm64.tar.gz
@@ -20,7 +27,7 @@ if [ -z ${NO_APT_INSTALL+x} ]; then
       sudo ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
     fi
   else
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends ruby2.7 dotnet-sdk-6.0
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends ruby2.7 dotnet-sdk-6.0 docker.io
   fi
 fi
 
