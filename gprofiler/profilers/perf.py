@@ -52,7 +52,18 @@ DEFAULT_PERF_DWARF_STACK_SIZE = 8192
 # ffffffff81082227 mmput+0x57 ([kernel.kallsyms])
 # 0 [unknown] ([unknown])
 # 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
-FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*) \(\[?(.*?)\]?\)$")
+FRAME_REGEX = re.compile(
+    r"""
+    ^\s*[0-9a-f]+[ ]                    # first a hexadecimal offset
+    (?P<symbol>.*)[ ]                   # a symbol name followed by a space
+    \(                                  # dso_name is enclosed in parentheses
+        (?P<dso_name>
+            \[[^]]+\]                   # accept either text enclosed in square brackets, e.g.: [vdso]
+            | [^)]+(?:[ ]\(deleted\))?  # OR library name, optionally followed by " (deleted)" tag
+        )
+    \)$""",
+    re.VERBOSE,
+)
 SAMPLE_REGEX = re.compile(
     r"\s*(?P<comm>.+?)\s+(?P<pid>[\d-]+)/(?P<tid>[\d-]+)(?:\s+\[(?P<cpu>\d+)])?\s+(?P<time>\d+\.\d+):\s+"
     r"(?:(?P<freq>\d+)\s+)?(?P<event_family>[\w\-_/]+):(?:(?P<event>[\w-]+):)?(?P<suffix>[^\n]*)(?:\n(?P<stack>.*))?",
@@ -121,6 +132,7 @@ def _collapse_stack(comm: str, stack: str, insert_dso_name: bool = False) -> str
         m = FRAME_REGEX.match(line)
         assert m is not None, f"bad line: {line}"
         sym, dso = m.groups()
+        dso = dso.strip("[]")
         sym = sym.split("+")[0]  # strip the offset part.
         if sym == "[unknown]" and dso != "unknown":
             sym = f"({dso})"
