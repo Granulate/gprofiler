@@ -236,11 +236,16 @@ class JattachJcmdRunner:
         self.jattach_timeout = jattach_timeout
 
     def run(self, process: Process, cmd: str) -> str:
-        return run_process(
-            [asprof_path(), "jcmd", "--jattach-cmd", cmd, str(process.pid)],
-            stop_event=self.stop_event,
-            timeout=self.jattach_timeout,
-        ).stdout.decode()
+        try:
+            return run_process(
+                [asprof_path(), "jcmd", "--jattach-cmd", cmd, str(process.pid)],
+                stop_event=self.stop_event,
+                timeout=self.jattach_timeout,
+            ).stdout.decode()
+        except CalledProcessError as e:
+            if f"Process {process.pid} not found" in str(e):
+                raise NoSuchProcess(process.pid)
+            raise e
 
 
 def is_java_basename(process: Process) -> bool:
