@@ -236,9 +236,16 @@ class JattachJcmdRunner:
         self.jattach_timeout = jattach_timeout
 
     def run(self, process: Process, cmd: str) -> str:
-        return run_process(
-            [jattach_path(), str(process.pid), "jcmd", cmd], stop_event=self.stop_event, timeout=self.jattach_timeout
-        ).stdout.decode()
+        try:
+            return run_process(
+                [asprof_path(), "jcmd", "--jattach-cmd", cmd, str(process.pid)],
+                stop_event=self.stop_event,
+                timeout=self.jattach_timeout,
+            ).stdout.decode()
+        except CalledProcessError as e:
+            if f"Process {process.pid} not found" in str(e):
+                raise NoSuchProcess(process.pid)
+            raise e
 
 
 def is_java_basename(process: Process) -> bool:
@@ -390,8 +397,8 @@ class JavaMetadata(ApplicationMetadata):
 
 
 @functools.lru_cache(maxsize=1)
-def jattach_path() -> str:
-    return resource_path("java/jattach")
+def asprof_path() -> str:
+    return resource_path("java/asprof")
 
 
 @functools.lru_cache(maxsize=1)
@@ -589,11 +596,11 @@ class AsyncProfiledProcess:
 
     def _get_base_cmd(self) -> List[str]:
         return [
-            jattach_path(),
-            str(self.process.pid),
-            "load",
+            asprof_path(),
+            "jattach",
+            "-L",
             self._libap_path_process,
-            "true",
+            "--jattach-cmd",
         ]
 
     def _get_extra_ap_args(self) -> str:
@@ -644,12 +651,14 @@ class AsyncProfiledProcess:
         try:
             # kill jattach with SIGTERM if it hangs. it will go down
             run_process(
-                cmd,
+                cmd + [str(self.process.pid)],
                 stop_event=self._profiler_state.stop_event,
                 timeout=self._jattach_timeout,
                 kill_signal=signal.SIGTERM,
             )
         except CalledProcessError as e:  # catches CalledProcessTimeoutError as well
+            assert isinstance(e.stderr, str), f"unexpected type {type(e.stderr)}"
+
             ap_log = self._read_ap_log()
             try:
                 ap_loaded = (
@@ -661,7 +670,7 @@ class AsyncProfiledProcess:
             args = e.returncode, e.cmd, e.stdout, e.stderr, self.process.pid, ap_log, ap_loaded
             if isinstance(e, CalledProcessTimeoutError):
                 raise JattachTimeout(*args, timeout=self._jattach_timeout) from None
-            elif e.stderr == b"Could not start attach mechanism: No such file or directory\n":
+            elif e.stderr == "Could not start attach mechanism: No such file or directory\n":
                 # this is true for jattach_hotspot
                 raise JattachSocketMissingException(*args) from None
             else:
@@ -681,7 +690,15 @@ class AsyncProfiledProcess:
             # run fdtransfer with accept timeout that's slightly greater than the jattach timeout - to make
             # sure that fdtransfer is still around for the full duration of jattach, in case the application
             # takes a while to accept & handle the connection.
-            [fdtransfer_path(), self._fdtransfer_path, str(self.process.pid), str(self._jattach_timeout + 5)],
+            [
+                asprof_path(),
+                "fdtransfer",
+                "--fd-path",
+                self._fdtransfer_path,
+                "--fdtransfer-timeout",
+                str(self._jattach_timeout + 5),
+                str(self.process.pid),
+            ],
             stop_event=self._profiler_state.stop_event,
             timeout=self._FDTRANSFER_TIMEOUT,
         )
@@ -838,6 +855,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         15: (Version("15.0.1"), 9),
         16: (Version("16"), 36),
         17: (Version("17.0.1"), 12),
+        19: (Version("19.0.2"), 7),
     }
 
     # extra timeout seconds to add to the duration itself.

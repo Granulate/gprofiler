@@ -93,7 +93,7 @@ class PHPSpyProfiler(ProfilerBase):
         phpspy_dir = os.path.dirname(phpspy_path)
         env = os.environ.copy()
         env["PATH"] = f"{env.get('PATH')}:{phpspy_dir}"
-        process = start_process(cmd, env=env, via_staticx=False)
+        process = start_process(cmd, env=env)
         # Executing phpspy, expecting the output file to be created, phpspy creates it at bootstrap after argument
         # parsing.
         # If an error occurs after this stage it's probably a spied _process specific and not phpspy general error.
@@ -194,6 +194,11 @@ class PHPSpyProfiler(ProfilerBase):
 
         profiles: ProcessToProfileData = {}
         for pid in results:
+            # Because of https://github.com/Granulate/gprofiler/issues/763,
+            # for now we only filter output of phpspy to return only profiles from chosen pids
+            if profiler_state.processes_to_profile is not None:
+                if pid not in [process.pid for process in profiler_state.processes_to_profile]:
+                    continue
             # TODO: appid & app metadata for php!
             appid = None
             app_metadata = None

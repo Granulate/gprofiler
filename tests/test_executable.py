@@ -14,7 +14,7 @@ from docker.models.containers import Container
 from docker.models.images import Image
 
 from gprofiler.utils.collapsed_format import parse_one_collapsed
-from tests.utils import RUNTIME_PROFILERS, _no_errors, run_gprofiler_in_container
+from tests.utils import RUNTIME_PROFILERS, _no_errors, is_aarch64, run_gprofiler_in_container
 
 
 @pytest.mark.parametrize(
@@ -36,6 +36,9 @@ def test_executable(
 
     if runtime == "php":
         pytest.skip("Flaky, https://github.com/Granulate/gprofiler/issues/630")
+
+    if runtime == "python" and any("pyperf" in flag for flag in profiler_flags) and is_aarch64():
+        pytest.xfail("PyPerf doesn't run on Aarch64 - https://github.com/Granulate/gprofiler/issues/499")
 
     if exec_container_image is not None:
         if "centos:6" in exec_container_image.tags and any("pyperf" in flag for flag in profiler_flags):
@@ -128,6 +131,7 @@ def test_executable_not_privileged(
     )
     exit_code, output = application_docker_container.exec_run(cmd=command, privileged=False, user="root:root")
 
+    print(output.decode())
     _no_errors(output.decode())
     assert exit_code == 0
 

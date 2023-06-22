@@ -1,0 +1,20 @@
+diff --git a/bootloader/main.c b/bootloader/main.c
+index 10d5fc9..ec90597 100644
+--- a/bootloader/main.c
++++ b/bootloader/main.c
+@@ -345,6 +345,7 @@ run_app(int argc, char **argv, char *prog_path)
+     /* Forward terminating signals to child */
+     setup_sig_handler(SIGINT);
+     setup_sig_handler(SIGTERM);
++    setup_sig_handler(SIGUSR2);
+     /* SIGKILL can't be caught */
+ 
+ 
+@@ -360,6 +361,7 @@ run_app(int argc, char **argv, char *prog_path)
+     /* Restore signal handlers */
+     restore_sig_handler(SIGINT);
+     restore_sig_handler(SIGTERM);
++    restore_sig_handler(SIGUSR2);
+ 
+     debug_printf("Child process terminated with wstatus=%d\n", wstatus);
+ 
