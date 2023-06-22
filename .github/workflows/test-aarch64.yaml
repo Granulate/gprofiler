@@ -1,0 +1,14 @@
+name: Aarch64 test
+
+on: pull_request
+
+jobs:
+  aarch64:
+    runs-on:
+      - self-hosted
+      - gprofiler
+
+    - name: Install dependencies
+      run: |
+        uname -a
+        uname -m
