@@ -8,7 +8,7 @@ jobs:
       - self-hosted
       - gprofiler
 
-  steps:
+    steps:
     - name: Install dependencies
       run: |
         uname -a
