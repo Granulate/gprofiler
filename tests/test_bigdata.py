@@ -35,7 +35,9 @@ DATAPROC_IMAGE_VERSION=2.0
 DATAPROC_IMAGE_BUILD=20230208-155100-RC01-2_0_deb10_20230127_081410-RC01
 """
 
-    with patch("granulate_utils.metadata.bigdata.dataproc.open", mock_open(read_data=environment_file_content)) as mopen:
+    with patch(
+        "granulate_utils.metadata.bigdata.dataproc.open", mock_open(read_data=environment_file_content)
+    ) as mopen:
         assert get_bigdata_info() == BigDataInfo("dataproc", "2.0")
         mopen.assert_called_once_with("/etc/environment", "r")
 

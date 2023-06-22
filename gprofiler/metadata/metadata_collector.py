@@ -1,12 +1,12 @@
 import datetime
 
 from granulate_utils.metadata import Metadata
+from granulate_utils.metadata.bigdata import get_bigdata_info
 from granulate_utils.metadata.cloud import get_static_cloud_instance_metadata
 
 from gprofiler import __version__
 from gprofiler.gprofiler_types import UserArgs
 from gprofiler.log import get_logger_adapter
-from granulate_utils.metadata.bigdata import get_bigdata_info
 from gprofiler.metadata.system_metadata import get_static_system_info
 
 logger = get_logger_adapter(__name__)
