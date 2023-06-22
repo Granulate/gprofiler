@@ -1003,6 +1003,9 @@ def main() -> None:
         if databricks_client.job_name is not None:
             args.service_name = f"databricks-{databricks_client.job_name}"
 
+        if remote_logs_handler is not None:
+            remote_logs_handler.update_service_name(args.service_name)
+
     try:
         logger.info(
             "Running gProfiler", version=__version__, commandline=" ".join(sys.argv[1:]), arguments=args.__dict__
