@@ -784,6 +784,7 @@ def parse_cmd_args() -> configargparse.Namespace:
     )
 
     args = parser.parse_args()
+
     args.perf_inject = args.nodejs_mode == "perf"
     args.perf_node_attach = args.nodejs_mode == "attach-maps"
 
@@ -1090,11 +1091,10 @@ def main() -> None:
         if hasattr(args, "func"):
             if args.subcommand == "extract-resources":
                 args.func(args.resources_dest)
-                return
             else:
                 assert args.subcommand == "upload-file"
                 args.func(args, profiler_api_client)
-                return
+            return
 
         enrichment_options = EnrichmentOptions(
             profile_api_version=args.profile_api_version,
