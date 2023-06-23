@@ -54,14 +54,12 @@ DEFAULT_PERF_DWARF_STACK_SIZE = 8192
 # 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
 FRAME_REGEX = re.compile(
     r"""
-    ^\s*[0-9a-f]+[ ]                    # first a hexadecimal offset
-    (?P<symbol>.*)[ ]                   # a symbol name followed by a space
-    \(                                  # dso_name is enclosed in parentheses
-        (?P<dso_name>
-            \[[^]]+\]                   # accept either text enclosed in square brackets, e.g.: [vdso]
-            | [^)]+(?:[ ]\(deleted\))?  # OR library name, optionally followed by " (deleted)" tag
-        )
-    \)$""",
+    ^\s*[0-9a-f]+[ ]                                 # first a hexadecimal offset
+    (?P<symbol>.*)[ ]                                # a symbol name followed by a space
+    \( (?:                                           # dso name is either:
+        \[ (?P<dso_brackets> [^]]+) \]               # - text enclosed in square brackets, e.g.: [vdso]
+        | (?P<dso_plain> [^)]+(?:[ ]\(deleted\))? )  # - OR library name, optionally followed by " (deleted)" tag
+    ) \)$""",
     re.VERBOSE,
 )
 SAMPLE_REGEX = re.compile(
@@ -131,8 +129,7 @@ def _collapse_stack(comm: str, stack: str, insert_dso_name: bool = False) -> str
     for line in reversed(stack.splitlines()):
         m = FRAME_REGEX.match(line)
         assert m is not None, f"bad line: {line}"
-        sym, dso = m.groups()
-        dso = dso.strip("[]")
+        sym, dso = m.group("symbol"), m.group("dso_brackets") or m.group("dso_plain")
         sym = sym.split("+")[0]  # strip the offset part.
         if sym == "[unknown]" and dso != "unknown":
             sym = f"({dso})"
