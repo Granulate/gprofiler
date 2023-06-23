@@ -196,7 +196,7 @@ def test_from_container(
     profiler_type: str,
     in_container: bool,
 ) -> None:
-    if profiler_type == "pyperf":
+    if profiler_type == "pyperf" and is_aarch64():
         pytest.xfail("PyPerf doesn't run on Aarch64 - https://github.com/Granulate/gprofiler/issues/499")
     if runtime == "php" and not in_container:
         pytest.skip("Flaky https://github.com/Granulate/gprofiler/issues/630")
