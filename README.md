@@ -187,6 +187,16 @@ Additionally, 2 more flags need to be added to gProfiler's commandline: `--disab
 * `--disable-pidns-check` is required because gProfiler won't run in the init PID NS.
 * `--perf-mode=none` is required because gProfiler will not have permissions to run system-wide `perf`, so we will profile only runtime processes, such as Java. See [perf-less mode](#perf-less-mode) for more information.
 
+### Databricks unique service names for job clusters
+By using `--databricks-job-name-as-service-name`, gProfiler will use the Job Clusters' Job Name as service name.
+In case gProfiler successfully managed to extract the Job Name, the service name will be `databricks-job-<JOB_NAME>`.
+By default, this functionality relies on `spark.databricks.clusterUsageTags.clusterAllTags` property
+to extract the Job Name.
+
+In case gProfiler spots this property is redacted, gProfiler will use the
+`spark.databricks.clusterUsageTags.clusterName` property as service name.
+
+
 ## Running as a Kubernetes DaemonSet
 See [gprofiler.yaml](deploy/k8s/gprofiler.yaml) for a basic template of a DaemonSet running gProfiler.
 Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in the appropriate location!
