@@ -750,7 +750,9 @@ def parse_cmd_args() -> configargparse.Namespace:
         dest="databricks_job_name_as_service_name",
         default=False,
         help="gProfiler will set service name to Databricks' job name on ephemeral clusters. It'll delay the beginning"
-        " of the profiling due to repeated waiting for Spark's metrics server.",
+        " of the profiling due to repeated waiting for Spark's metrics server."
+        " Note that in any case that the job name is not available due to redaction,"
+        " gProfiler will fallback to use the clusterName property.",
     )
 
     parser.add_argument(
