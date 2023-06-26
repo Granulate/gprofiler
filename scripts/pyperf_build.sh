@@ -27,7 +27,7 @@ if [ "$(uname -m)" != "x86_64" ]; then
     exit 0
 fi
 
-git clone --depth 1 -b v1.3.0 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard fa7508600659622eac1fc309c7cdd7700ad2dff4
+git clone --depth 1 -b master https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 598855b0e297e659f4f880a6fcf49dc173eb5631
 
 mkdir build
 cd build

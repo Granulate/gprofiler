@@ -86,9 +86,6 @@ def test_python_matrix(
     if python_version == "2.7" and profiler_type == "pyperf" and app == "uwsgi":
         pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/485")
 
-    if python_version == "3.11" and profiler_type == "pyperf":
-        pytest.xfail("PyPerf does not support 3.11 - https://github.com/Granulate/gprofiler/issues/727")
-
     if is_aarch64():
         if profiler_type == "pyperf":
             pytest.skip(
