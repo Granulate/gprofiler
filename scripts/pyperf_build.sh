@@ -27,7 +27,7 @@ if [ "$(uname -m)" != "x86_64" ]; then
     exit 0
 fi
 
-git clone --depth 1 -b pyperf-libunwind-accessors https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 72375d48b2b743dbed399b7ed2e2be1b2a6edf74
+git clone --depth 1 -b libunwind-accessors https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 0297d66a435afdde9e9447a262793a0a8a49cb5a
 
 mkdir build
 cd build
