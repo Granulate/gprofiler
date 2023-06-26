@@ -570,7 +570,7 @@ class GolangPerfMetadata(PerfMetadata):
         metadata = {
             "golang_version": get_process_golang_version(process),
             "stripped": elf_is_stripped(f"/proc/{process.pid}/exe"),
-            }
+        }
         self.add_exe_metadata(process, metadata)
         metadata.update(super().make_application_metadata(process))
         return metadata
