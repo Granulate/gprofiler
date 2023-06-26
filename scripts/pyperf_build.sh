@@ -27,7 +27,7 @@ if [ "$(uname -m)" != "x86_64" ]; then
     exit 0
 fi
 
-git clone --depth 1 -b libunwind-accessors https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 0297d66a435afdde9e9447a262793a0a8a49cb5a
+git clone --depth 1 -b v1.5.0 https://github.com/Granulate/bcc.git && cd bcc && git reset --hard 928423128e10020934df1f7b4641e56b502c2946
 
 mkdir build
 cd build
