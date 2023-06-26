@@ -19,7 +19,7 @@
             "privileged": true
         }
     ],
-    "cpu": "1024",
+    "cpu": "512",
     "networkMode": null,
     "pidMode": "host",
     "ipcMode": "host",
