@@ -16,7 +16,7 @@ def get_static_metadata(spawn_time: float, run_args: UserArgs) -> Metadata:
     formatted_spawn_time = datetime.datetime.utcfromtimestamp(spawn_time).replace(microsecond=0).isoformat()
     static_system_metadata = get_static_system_info()
     cloud_metadata = get_static_cloud_instance_metadata(logger)
-    bigdata = get_bigdata_info()
+    bigdata = run_in_ns(["mnt"], get_bigdata_info)
 
     metadata_dict: Metadata = {
         "cloud_provider": cloud_metadata.pop("provider") if cloud_metadata is not None else "unknown",
