@@ -3,18 +3,17 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
-from pathlib import Path
-from threading import Event
 
 import psutil
 import pytest
 from granulate_utils.linux.process import is_musl
 
-from gprofiler.consts import CPU_PROFILING_MODE
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.python import PythonProfiler
 from tests.conftest import AssertInCollapsed
 from tests.utils import (
     assert_function_in_collapsed,
+    is_aarch64,
     is_pattern_in_collapsed,
     snapshot_pid_collapsed,
     snapshot_pid_profile,
@@ -29,9 +28,9 @@ def runtime() -> str:
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("application_image_tag", ["libpython"])
 def test_python_select_by_libpython(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
+    profiler_state: ProfilerState,
 ) -> None:
     """
     Tests that profiling of processes running Python, whose basename(readlink("/proc/pid/exe")) isn't "python"
@@ -39,9 +38,7 @@ def test_python_select_by_libpython(
     We expect to select these because they have "libpython" in their "/proc/pid/maps".
     This test runs a Python named "shmython".
     """
-    with PythonProfiler(
-        1000, 1, Event(), str(tmp_path), False, CPU_PROFILING_MODE, False, "pyspy", True, None
-    ) as profiler:
+    with PythonProfiler(1000, 1, profiler_state, "pyspy", True, None, False) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
     assert_collapsed(process_collapsed)
     assert all(stack.startswith("shmython") for stack in process_collapsed.keys())
@@ -65,6 +62,8 @@ def test_python_select_by_libpython(
         "3.9-musl-python",
         "3.10-glibc-python",
         "3.10-musl-python",
+        "3.11-glibc-python",
+        "3.11-musl-python",
         "2.7-glibc-uwsgi",
         "2.7-musl-uwsgi",
         "3.7-glibc-uwsgi",
@@ -73,11 +72,11 @@ def test_python_select_by_libpython(
 )
 @pytest.mark.parametrize("profiler_type", ["py-spy", "pyperf"])
 def test_python_matrix(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     profiler_type: str,
     application_image_tag: str,
+    profiler_state: ProfilerState,
 ) -> None:
     python_version, libc, app = application_image_tag.split("-")
 
@@ -87,9 +86,19 @@ def test_python_matrix(
     if python_version == "2.7" and profiler_type == "pyperf" and app == "uwsgi":
         pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/485")
 
-    with PythonProfiler(
-        1000, 2, Event(), str(tmp_path), False, CPU_PROFILING_MODE, False, profiler_type, True, None
-    ) as profiler:
+    if is_aarch64():
+        if profiler_type == "pyperf":
+            pytest.skip(
+                "PyPerf doesn't support aarch64 architecture, see https://github.com/Granulate/gprofiler/issues/499"
+            )
+
+        if python_version == "2.7" and profiler_type == "py-spy" and app == "uwsgi":
+            pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/713")
+
+        if python_version in ["3.7", "3.8", "3.9", "3.10", "3.11"] and profiler_type == "py-spy" and libc == "musl":
+            pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/714")
+
+    with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None, False) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
 
     collapsed = profile.stacks
@@ -134,16 +143,19 @@ def test_python_matrix(
     ],
 )
 def test_dso_name_in_pyperf_profile(
-    tmp_path: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     profiler_type: str,
     application_image_tag: str,
     insert_dso_name: bool,
+    profiler_state: ProfilerState,
 ) -> None:
-    with PythonProfiler(
-        1000, 2, Event(), str(tmp_path), insert_dso_name, CPU_PROFILING_MODE, False, profiler_type, True, None
-    ) as profiler:
+    if is_aarch64() and profiler_type == "pyperf":
+        pytest.skip(
+            "PyPerf doesn't support aarch64 architecture, see https://github.com/Granulate/gprofiler/issues/499"
+        )
+
+    with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None, False) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
     python_version, _, _ = application_image_tag.split("-")
     interpreter_frame = "PyEval_EvalFrameEx" if python_version == "2.7" else "_PyEval_EvalFrameDefault"

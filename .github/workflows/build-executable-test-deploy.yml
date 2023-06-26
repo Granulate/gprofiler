@@ -50,23 +50,20 @@ jobs:
       fail-fast: false
       matrix:
         containers:
-          # TODO alpine doesn't work, I get FileNotFoundError: [Errno 2] No such file or directory: '/tmp/_MEIMV2FRL/gprofiler/resources/java/jattach',
-          # which is probably due to the musl ld.so being used instead of the glibc one jattach was built for.
-          # we can force the use the glibc ld.so (like used for PyPerf, see get_pyperf_cmd) but in general we need a distribution of
-          # async-profiler compiled for musl (because libasyncProfiler.so itself is to be loaded to musl-based processes).
-          # The Python process seems like it's not being identified.
-          # - alpine
+          - alpine
           - ubuntu:14.04
           - ubuntu:16.04
           - ubuntu:18.04
           - ubuntu:20.04
           - ubuntu:20.10
+          - ubuntu:22.04
           - centos:6
           - centos:7
           - centos:8
           - debian:8
           - debian:9
           - debian:10
+          - debian:11
     steps:
       - name: Set up Python 3.8
         uses: actions/setup-python@v2

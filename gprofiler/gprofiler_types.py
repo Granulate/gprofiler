@@ -6,7 +6,7 @@
 import re
 from collections import Counter
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, MutableMapping, Optional, Union
+from typing import Any, Callable, Dict, List, MutableMapping, Optional, Union
 
 import configargparse
 
@@ -27,6 +27,7 @@ class ProfileData:
     stacks: StackToSampleCount
     appid: Optional[str]
     app_metadata: Optional[AppMetadata]
+    container_name: Optional[str]
 
 
 ProcessToStackSampleCounters = MutableMapping[int, StackToSampleCount]
@@ -34,7 +35,6 @@ ProcessToProfileData = MutableMapping[int, ProfileData]
 
 
 class ProfilingErrorStack(StackToSampleCount):
-
     PROFILING_ERROR_STACK_PATTERN = re.compile(r".*;\[Profiling .+: .+\]")
 
     def __init__(self, what: str, reason: str, comm: str):
@@ -54,7 +54,7 @@ class ProfilingErrorStack(StackToSampleCount):
     ) -> StackToSampleCount:
         _, error_frame = next(iter(error_stack)).split(";", maxsplit=1)
         dest_stacks: StackToSampleCount = StackToSampleCount()
-        for (frame, count) in source_stacks.items():
+        for frame, count in source_stacks.items():
             comm, stack = frame.split(";", maxsplit=1)
             annotated = f"{comm};{error_frame};{stack}"
             dest_stacks[annotated] = count
@@ -73,6 +73,16 @@ def nonnegative_integer(value_str: str) -> int:
     if value < 0:
         raise configargparse.ArgumentTypeError("invalid non-negative integer value: {!r}".format(value))
     return value
+
+
+def integers_list(value_str: str) -> List[int]:
+    try:
+        pids = [int(pid) for pid in value_str.split(",")]
+    except ValueError:
+        raise configargparse.ArgumentTypeError(
+            "Integer list should be a single integer, or comma separated list of integers f.e. 13,452,2388"
+        )
+    return pids
 
 
 def integer_range(min_range: int, max_range: int) -> Callable[[str], int]:

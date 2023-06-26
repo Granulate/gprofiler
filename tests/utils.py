@@ -3,9 +3,11 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
+import platform
 import re
 import subprocess
 from contextlib import contextmanager
+from logging import LogRecord
 from pathlib import Path
 from threading import Event
 from time import sleep
@@ -16,13 +18,15 @@ from docker.errors import ContainerError
 from docker.models.containers import Container
 from docker.models.images import Image
 from docker.types import Mount
+from psutil import Process
 
-from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
+from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import (
     JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
     JAVA_SAFEMODE_ALL,
     AsyncProfiledProcess,
+    JavaFlagCollectionOptions,
     JavaProfiler,
 )
 from gprofiler.profilers.profiler_base import ProfilerInterface
@@ -41,10 +45,10 @@ RUNTIME_PROFILERS = [
 def start_container(
     docker_client: DockerClient,
     image: Image,
-    command: List[str],
+    command: Optional[List[str]] = None,
     volumes: Dict[str, Dict[str, str]] = None,
     privileged: bool = False,
-    pid_mode: Optional[str] = "host",
+    pid_mode: Optional[str] = None,
     **extra_kwargs: Any,
 ) -> Container:
     if volumes is None:
@@ -58,6 +62,7 @@ def start_container(
         pid_mode=pid_mode,
         userns_mode="host",
         volumes=volumes,
+        labels=[docker_client._gprofiler_test_id],
         stderr=True,
         detach=True,
         **extra_kwargs,
@@ -108,7 +113,9 @@ def run_privileged_container(
 ) -> str:
     container = None
     try:
-        container = start_container(docker_client, image, command, volumes, privileged=True, **extra_kwargs)
+        container = start_container(
+            docker_client, image, command, volumes, pid_mode="host", privileged=True, **extra_kwargs
+        )
         return wait_for_container(container)
 
     finally:
@@ -163,6 +170,10 @@ def is_pattern_in_collapsed(pattern: str, collapsed: StackToSampleCount) -> bool
     return any(regex.search(record) is not None for record in collapsed.keys())
 
 
+def is_aarch64() -> bool:
+    return platform.machine() == "aarch64"
+
+
 def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) -> None:
     print(f"collapsed: {collapsed}")
     assert is_function_in_collapsed(function_name, collapsed), f"function {function_name!r} missing in collapsed data!"
@@ -187,32 +198,27 @@ def snapshot_pid_collapsed(profiler: ProfilerInterface, pid: int) -> StackToSamp
 
 
 def make_java_profiler(
+    profiler_state: ProfilerState,
     frequency: int = 11,
     duration: int = 1,
-    stop_event: Event = Event(),
-    insert_dso_name: bool = False,
-    storage_dir: str = None,
-    profile_spawned_processes: bool = False,
     java_version_check: bool = True,
     java_async_profiler_mode: str = "cpu",
     java_async_profiler_safemode: int = JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
     java_async_profiler_args: str = "",
     java_safemode: str = JAVA_SAFEMODE_ALL,
-    java_jattach_timeout: int = AsyncProfiledProcess._JATTACH_TIMEOUT,
+    java_jattach_timeout: int = AsyncProfiledProcess._DEFAULT_JATTACH_TIMEOUT,
     java_async_profiler_mcache: int = AsyncProfiledProcess._DEFAULT_MCACHE,
     java_async_profiler_report_meminfo: bool = True,
     java_collect_spark_app_name_as_appid: bool = False,
     java_mode: str = "ap",
-    profiling_mode: str = CPU_PROFILING_MODE,
+    java_collect_jvm_flags: str = JavaFlagCollectionOptions.DEFAULT,
+    java_full_hserr: bool = False,
+    java_include_method_modifiers: bool = False,
 ) -> JavaProfiler:
-    assert storage_dir is not None
     return JavaProfiler(
         frequency=frequency,
         duration=duration,
-        stop_event=stop_event,
-        storage_dir=storage_dir,
-        insert_dso_name=insert_dso_name,
-        profile_spawned_processes=profile_spawned_processes,
+        profiler_state=profiler_state,
         java_version_check=java_version_check,
         java_async_profiler_mode=java_async_profiler_mode,
         java_async_profiler_safemode=java_async_profiler_safemode,
@@ -222,8 +228,10 @@ def make_java_profiler(
         java_async_profiler_mcache=java_async_profiler_mcache,
         java_collect_spark_app_name_as_appid=java_collect_spark_app_name_as_appid,
         java_mode=java_mode,
-        profiling_mode=profiling_mode,
         java_async_profiler_report_meminfo=java_async_profiler_report_meminfo,
+        java_collect_jvm_flags=java_collect_jvm_flags,
+        java_full_hserr=java_full_hserr,
+        java_include_method_modifiers=java_include_method_modifiers,
     )
 
 
@@ -328,6 +336,14 @@ def _application_process(command_line: List[str], check_app_exited: bool) -> Ite
     _print_process_output(popen)
 
 
+def wait_container_to_start(container: Container) -> None:
+    while container.status != "running":
+        if container.status == "exited":
+            raise Exception(container.logs().decode())
+        sleep(1)
+        container.reload()
+
+
 @contextmanager
 def _application_docker_container(
     docker_client: DockerClient,
@@ -336,18 +352,55 @@ def _application_docker_container(
     application_docker_capabilities: List[str],
     application_docker_command: Optional[List[str]] = None,
 ) -> Container:
-    container: Container = docker_client.containers.run(
+    container: Container = start_container(
+        docker_client,
         application_docker_image,
-        detach=True,
+        application_docker_command,
         user="5555:6666",
         mounts=application_docker_mounts,
         cap_add=application_docker_capabilities,
-        command=application_docker_command,
     )
-    while container.status != "running":
-        if container.status == "exited":
-            raise Exception(container.logs().decode())
-        sleep(1)
-        container.reload()
+    wait_container_to_start(container)
     yield container
     container.remove(force=True)
+
+
+def find_application_pid(pid: int) -> int:
+    # Application might be run using "sh -c ...", we detect the case and return the "real" application pid
+    process = Process(pid)
+    if (
+        process.cmdline()[0].endswith("sh")
+        and process.cmdline()[1] == "-c"
+        and len(process.children(recursive=False)) == 1
+    ):
+        pid = process.children(recursive=False)[0].pid
+
+    return pid
+
+
+def assert_jvm_flags_equal(actual_jvm_flags: Optional[List], expected_jvm_flags: List) -> None:
+    """
+    When comparing JVM flags, we want to ignore the "value" field
+    as it might change in the CI due to ergonomic set flags
+    """
+    assert actual_jvm_flags is not None, f"{actual_jvm_flags} != {expected_jvm_flags}"
+
+    assert len(actual_jvm_flags) == len(expected_jvm_flags), f"{actual_jvm_flags} != {expected_jvm_flags}"
+
+    for actual_flag_dict, expected_flag_dict in zip(actual_jvm_flags, expected_jvm_flags):
+        actual_flag_value = actual_flag_dict.pop("value")
+        expected_flag_value = expected_flag_dict.pop("value")
+
+        if expected_flag_value is not None:
+            assert (
+                actual_flag_value == expected_flag_value
+            ), f"{actual_flag_dict|{'value': actual_flag_value}} != {expected_flag_dict|{'value': expected_flag_value}}"
+
+        assert actual_flag_dict == expected_flag_dict
+
+
+def log_record_extra(r: LogRecord) -> Dict[Any, Any]:
+    """
+    Gets the "extra" attached to a LogRecord
+    """
+    return getattr(r, "extra", {})

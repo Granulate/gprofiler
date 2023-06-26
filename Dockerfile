@@ -1,7 +1,7 @@
 # these need to be defined before any FROM - otherwise, the ARGs expand to empty strings.
 
-# pyspy & rbspy, using the same builder for both pyspy and rbspy since they share build dependencies - rust:latest 1.52.1
-ARG RUST_BUILDER_VERSION=@sha256:9c106c1222abe1450f45774273f36246ebf257623ed51280dbc458632d14c9fc
+# pyspy & rbspy, using the same builder for both pyspy and rbspy since they share build dependencies - rust:1.59-alpine3.15
+ARG RUST_BUILDER_VERSION=@sha256:65b63b7d003f7a492cc8e550a4830aaa1f4155b74387549a82985c8efb3d0e88
 # pyperf - ubuntu 20.04
 ARG PYPERF_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
 # perf - ubuntu:16.04
@@ -24,13 +24,14 @@ ARG GPROFILER_BUILDER_UBUNTU=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a5
 # node-package-builder-musl alpine
 ARG NODE_PACKAGE_BUILDER_MUSL=@sha256:69704ef328d05a9f806b6b8502915e6a0a4faa4d72018dc42343f511490daf8a
 # node-package-builder-glibc - centos/devtoolset-7-toolchain-centos7:latest
-ARG NODE_PACKAGE_BUILDER_GLIBC=/devtoolset-7-toolchain-centos7@sha256:24d4c230cb1fe8e68cefe068458f52f69a1915dd6f6c3ad18aa37c2b8fa3e4e1
+ARG NODE_PACKAGE_BUILDER_GLIBC=centos/devtoolset-7-toolchain-centos7@sha256:24d4c230cb1fe8e68cefe068458f52f69a1915dd6f6c3ad18aa37c2b8fa3e4e1
 
 # pyspy & rbspy builder base
 FROM rust${RUST_BUILDER_VERSION} AS pyspy-rbspy-builder-common
 WORKDIR /tmp
 
 COPY scripts/prepare_machine-unknown-linux-musl.sh .
+COPY scripts/libunwind_build.sh .
 RUN ./prepare_machine-unknown-linux-musl.sh
 
 # pyspy
@@ -55,10 +56,11 @@ RUN mv "/tmp/rbspy/target/$(uname -m)-unknown-linux-musl/release/rbspy" /tmp/rbs
 FROM mcr.microsoft.com/dotnet/sdk${DOTNET_BUILDER} as dotnet-builder
 WORKDIR /tmp
 RUN apt-get update && \
-  dotnet tool install --global dotnet-trace
+  dotnet tool install --global dotnet-trace --version 6.0.351802
 
 RUN cp -r "$HOME/.dotnet" "/tmp/dotnet"
 COPY scripts/dotnet_prepare_dependencies.sh .
+COPY scripts/dotnet_trace_dependencies.txt .
 RUN ./dotnet_prepare_dependencies.sh
 
 # perf
@@ -75,48 +77,16 @@ COPY scripts/perf_build.sh .
 RUN ./perf_build.sh
 
 # pyperf (bcc)
-FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-builder-base
-
-# not cleaning apt lists here - they are used by subsequent layers that base
-# on bcc-builder-base.
-# hadolint ignore=DL3009
-RUN apt-get update && \
-  apt-get install -y --no-install-recommends \
-    git \
-    ca-certificates \
-    && \
-  if [ "$(uname -m)" != "aarch64" ]; then \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      curl \
-      build-essential \
-      iperf llvm-9-dev \
-      libclang-9-dev \
-      cmake \
-      python3 \
-      flex \
-      libfl-dev \
-      bison \
-      libelf-dev \
-      libz-dev \
-      liblzma-dev; \
-  fi
-
-# bcc helpers
-FROM bcc-builder-base AS bcc-helpers
-WORKDIR /tmp
-
-RUN apt-get install -y --no-install-recommends \
-  clang-10 \
-  llvm-10
-
+FROM ubuntu${PYPERF_BUILDER_UBUNTU} AS bcc-build
 COPY --from=perf-builder /bpftool /bpftool
 
+WORKDIR /bcc
+COPY scripts/staticx_patch.diff .
 COPY scripts/bcc_helpers_build.sh .
-RUN ./bcc_helpers_build.sh
+COPY scripts/pyperf_env.sh .
+RUN ./pyperf_env.sh
 
-FROM bcc-builder-base AS bcc-builder
 WORKDIR /tmp
-
 COPY ./scripts/libunwind_build.sh .
 RUN if [ "$(uname -m)" = "aarch64" ]; then \
       exit 0; \
@@ -124,8 +94,7 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
     ./libunwind_build.sh
 
 WORKDIR /bcc
-
-COPY ./scripts/pyperf_build.sh .
+COPY scripts/pyperf_build.sh .
 RUN ./pyperf_build.sh
 
 # phpspy
@@ -161,9 +130,14 @@ COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
 
 # node-package-builder-glibc
-FROM centos${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
-USER 0
+FROM ${NODE_PACKAGE_BUILDER_GLIBC} AS node-package-builder-glibc
 WORKDIR /tmp
+COPY scripts/fix_centos8.sh .
+USER 0
+RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
+        ./fix_centos8.sh; \
+        yum groupinstall -y "Development Tools"; \
+    fi
 COPY scripts/node_builder_glibc_env.sh .
 RUN ./node_builder_glibc_env.sh
 COPY scripts/build_node_package.sh .
@@ -175,6 +149,7 @@ USER 1001
 FROM golang${BURN_BUILDER_GOLANG} AS burn-builder
 WORKDIR /tmp
 COPY scripts/burn_build.sh .
+COPY scripts/burn_version.txt .
 RUN ./burn_build.sh
 
 # the gProfiler image itself, at last.
@@ -193,13 +168,13 @@ RUN set -e; \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=bcc-builder /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
-# copy licenses and notice file.
-COPY --from=bcc-builder /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
-COPY --from=bcc-builder /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
-COPY --from=bcc-builder /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
-COPY --from=bcc-helpers /bpf_get_fs_offset/get_fs_offset gprofiler/resources/python/pyperf/
-COPY --from=bcc-helpers /bpf_get_stack_offset/get_stack_offset gprofiler/resources/python/pyperf/
+# copy Pyperf, licenses and notice file.
+COPY --from=bcc-build /bcc/root/share/bcc/examples/cpp/PyPerf gprofiler/resources/python/pyperf/
+COPY --from=bcc-build /bcc/bcc/LICENSE.txt gprofiler/resources/python/pyperf/
+COPY --from=bcc-build /bcc/bcc/licenses gprofiler/resources/python/pyperf/licenses
+COPY --from=bcc-build /bcc/bcc/NOTICE gprofiler/resources/python/pyperf/
+COPY --from=bcc-build /bpf_get_fs_offset/get_fs_offset gprofiler/resources/python/pyperf/
+COPY --from=bcc-build /bpf_get_stack_offset/get_stack_offset gprofiler/resources/python/pyperf/
 
 COPY --from=pyspy-builder /tmp/py-spy/py-spy gprofiler/resources/python/py-spy
 
@@ -209,11 +184,10 @@ COPY --from=phpspy-builder /tmp/phpspy/phpspy gprofiler/resources/php/phpspy
 COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/objdump gprofiler/resources/php/objdump
 COPY --from=phpspy-builder /tmp/binutils/binutils-2.25/bin/bin/strings gprofiler/resources/php/strings
 
-COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/jattach gprofiler/resources/java/jattach
+COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/bin/asprof gprofiler/resources/java/asprof
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
-COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
-COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
-COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/fdtransfer gprofiler/resources/java/fdtransfer
+COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/lib/libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
+COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/lib/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
 COPY --from=node-package-builder-musl /tmp/module_build gprofiler/resources/node/module/musl
 COPY --from=node-package-builder-glibc /tmp/module_build gprofiler/resources/node/module/glibc
 
@@ -235,6 +209,7 @@ RUN pip3 install --upgrade --no-cache-dir pip
 COPY requirements.txt ./
 COPY granulate-utils/setup.py granulate-utils/requirements.txt granulate-utils/README.md granulate-utils/
 COPY granulate-utils/granulate_utils granulate-utils/granulate_utils
+COPY granulate-utils/glogger granulate-utils/glogger
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY LICENSE.md MANIFEST.in README.md setup.py  ./
