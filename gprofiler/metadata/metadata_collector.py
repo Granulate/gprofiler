@@ -1,5 +1,6 @@
 import datetime
 
+from granulate_utils.linux.ns import run_in_ns
 from granulate_utils.metadata import Metadata
 from granulate_utils.metadata.bigdata import get_bigdata_info
 from granulate_utils.metadata.cloud import get_static_cloud_instance_metadata
