@@ -14,7 +14,7 @@ from threading import Event
 from typing import Any, Dict, Iterable, List, Optional
 
 from granulate_utils.golang import get_process_golang_version, is_golang_process
-from granulate_utils.linux.elf import is_statically_linked
+from granulate_utils.linux.elf import is_statically_linked, elf_is_stripped
 from granulate_utils.linux.process import is_musl, is_process_running
 from granulate_utils.node import is_node_process
 from psutil import NoSuchProcess, Process
@@ -567,7 +567,10 @@ class GolangPerfMetadata(PerfMetadata):
         return is_golang_process(process)
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        metadata = {"golang_version": get_process_golang_version(process)}
+        metadata = {
+            "golang_version": get_process_golang_version(process),
+            "stripped": elf_is_stripped(f"/proc/{process.pid}/exe"),
+            }
         self.add_exe_metadata(process, metadata)
         metadata.update(super().make_application_metadata(process))
         return metadata
