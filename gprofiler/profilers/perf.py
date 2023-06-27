@@ -548,11 +548,7 @@ class PerfMetadata(ApplicationMetadata):
         return False
 
     def add_exe_metadata(self, process: Process, metadata: Dict[str, Any]) -> None:
-        try:
-            static = is_statically_linked(f"/proc/{process.pid}/exe")
-        except FileNotFoundError:
-            raise NoSuchProcess(process.pid)
-
+        static = is_statically_linked(f"/proc/{process.pid}/exe")
         exe_metadata: Dict[str, Any] = {"link": "static" if static else "dynamic"}
         if not static:
             exe_metadata["libc"] = "musl" if is_musl(process) else "glibc"
