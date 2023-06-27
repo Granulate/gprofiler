@@ -99,7 +99,7 @@ Golang profiling is based on `perf`, used via the system profiler (explained in 
 
 As with all native programs, the Golang program must have symbols - not stripped - otherwise, additional debug info files must be provided. Without symbols/debug info, `perf` is unable to symbolicate the stacktraces of the program. In that case gProfiler will not tag the stacks as Golang and you will not see any symbols.
 
-Make sure you are not passing `-s` to `-ldflags` - `-s` omits the symbols table; see more details [here](https://pkg.go.dev/cmd/link#hdr-Command_Line).
+Make sure you are not passing `-s` to the `-ldflags` during your build - `-s` omits the symbols table; see more details [here](https://pkg.go.dev/cmd/link#hdr-Command_Line).
 
 ### System profiling options
 
