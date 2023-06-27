@@ -93,6 +93,14 @@ In this mode, gProfiler will automatically load a library based on [node-linux-p
 gProfiler uses the inspector protocol (documented [here](https://nodejs.org/en/docs/guides/debugging-getting-started/#enable-inspector)) to connect to target processes. gProfiler will send `SIGUSR1`, connect to the process and request to it load the library matching its NodeJS version (gProfiler comes built-in with arsenal of libraries for common NodeJS versions). After the library is loaded, gProfiler invokes the `perf-pid.map` generation. This is done to all running NodeJS processes - those running before gProfiler started, and done starting during gProfiler's run. Upon stopping, gProfiler stops the functionality, so processes no longer continue to write those file.  
 This requires the entrypoint of application to be CommonJS script. (Doesn't work for ES modules)
 
+### Golang profiling options
+
+Golang profiling is based on `perf`, used via the system profiler (explained in [System profiling options](#System-profiling-options)).
+
+As with all native programs, the Golang program must have symbols - not stripped - otherwise, additional debug info files must be provided. Without symbols/debug info, `perf` is unable to symbolicate the stacktraces of the program. In that case gProfiler will not tag the stacks as Golang and you will not see any symbols.
+
+Make sure you are not passing `-s` to the `-ldflags` during your build - `-s` omits the symbols table; see more details [here](https://pkg.go.dev/cmd/link#hdr-Command_Line).
+
 ### System profiling options
 
 * `--perf-mode`: Controls the global perf strategy. Must be one of the following options:
