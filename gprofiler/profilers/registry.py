@@ -100,8 +100,8 @@ def register_profiler(
             config.profiler_name for profilers in profilers_config.values() for config in profilers
         ), f"{profiler_name} is already registered!"
         assert all(
-            arg.dest.startswith(profiler_name.lower()) for arg in profiler_arguments or []
-        ), f"{profiler_name}: Profiler args dest must be prefixed with the profiler name"
+            arg.dest.startswith(runtime.lower()) for arg in profiler_arguments or []
+        ), f"{profiler_name}: Profiler args dest must be prefixed with the profiler runtime name"
         profilers_config[runtime] += [
             ProfilerConfig(
                 profiler_name,
@@ -142,7 +142,7 @@ def get_runtime_possible_modes(runtime: str) -> List[str]:
 
 def get_sorted_profilers(runtime: str) -> List[ProfilerConfig]:
     """
-    Get profiler configs sorted by preference.
+    Get all profiler configs registered for given runtime sorted by preference.
     """
     arch = get_arch()
     profiler_configs = sorted(
@@ -151,3 +151,32 @@ def get_sorted_profilers(runtime: str) -> List[ProfilerConfig]:
         reverse=True,
     )
     return profiler_configs
+
+
+def get_preferred_or_first_profiler(runtime: str) -> ProfilerConfig:
+    return next(filter(lambda config: config.is_preferred, profilers_config[runtime]), profilers_config[runtime][0])
+
+
+def get_profiler_arguments(runtime: str, profiler_name: str) -> List[ProfilerArgument]:
+    """
+    For now the common and specific profiler command-line arguments are defined together, at profiler
+    registration.
+    Once we implement a mechanism to hold runtime-wide options (including arguments), this function will be
+    obsolete.
+    """
+    # Arguments can be distinguished by prefix of their dest variable name.
+    # Group all profiler arguments and exclude those that are prefixed with other profiler names.
+    runtime_lower = runtime.lower()
+    other_profiler_prefixes = [
+        f"{runtime_lower}_{config.profiler_name.lower().replace('-', '_')}"
+        for config in profilers_config[runtime]
+        if config.profiler_name != profiler_name
+    ]
+    all_runtime_args: List[ProfilerArgument] = [
+        arg
+        for config in profilers_config[runtime]
+        for arg in config.profiler_args
+        if arg.dest.startswith(runtime_lower)
+    ]
+    profiler_args = [arg for arg in all_runtime_args if False is any(map(arg.dest.startswith, other_profiler_prefixes))]
+    return profiler_args

@@ -50,10 +50,9 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import (
-    ProfilerConfig,
+    get_preferred_or_first_profiler,
     get_profilers_registry,
     get_runtime_possible_modes,
-    get_sorted_profilers,
 )
 from gprofiler.spark.sampler import SparkSampler
 from gprofiler.state import State, init_state
@@ -824,13 +823,12 @@ def _add_profilers_arguments(parser: configargparse.ArgumentParser) -> None:
     for runtime, configs in get_profilers_registry().items():
         arg_group = parser.add_argument_group(runtime)
         mode_var = f"{runtime.lower().replace('-', '_')}_mode"
-        sorted_profilers = get_sorted_profilers(runtime)
-        # TODO: marcin-ol: organize options and usage for runtime - single source of runtime options?
-        preferred_profiler = sorted_profilers[0]
+        # TODO: organize options and usage for runtime - single source of runtime options?
+        preferred_profiler = get_preferred_or_first_profiler(runtime)
         arg_group.add_argument(
             f"--{runtime.lower()}-mode",
             dest=mode_var,
-            default=ProfilerConfig.ENABLED_MODE if len(sorted_profilers) > 1 else sorted_profilers[0].default_mode,
+            default=preferred_profiler.default_mode,
             help=preferred_profiler.profiler_mode_help,
             choices=get_runtime_possible_modes(runtime),
         )

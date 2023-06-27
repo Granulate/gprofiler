@@ -3,8 +3,9 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
+from contextlib import _GeneratorContextManager
 from pathlib import Path
-from typing import List
+from typing import Callable, List
 
 import psutil
 import pytest
@@ -12,8 +13,7 @@ from docker import DockerClient
 from docker.models.images import Image
 from granulate_utils.linux.process import is_musl
 
-from gprofiler.profiler_state import ProfilerState
-from gprofiler.profilers.python import PySpyProfiler, PythonProfiler
+from gprofiler.profilers.python import PySpyProfiler
 from gprofiler.profilers.python_ebpf import PythonEbpfProfiler
 from tests.conftest import AssertInCollapsed
 from tests.utils import (
@@ -34,10 +34,12 @@ def runtime() -> str:
 
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("application_image_tag", ["libpython"])
+@pytest.mark.parametrize("profiler_type", ["pyspy"])
 def test_python_select_by_libpython(
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
-    profiler_state: ProfilerState,
+    profiler_flags: List[str],
+    make_profiler_instance: Callable[[], _GeneratorContextManager],
 ) -> None:
     """
     Tests that profiling of processes running Python, whose basename(readlink("/proc/pid/exe")) isn't "python"
@@ -45,8 +47,10 @@ def test_python_select_by_libpython(
     We expect to select these because they have "libpython" in their "/proc/pid/maps".
     This test runs a Python named "shmython".
     """
-    with PythonProfiler(1000, 1, profiler_state, "pyspy", True, None, False) as profiler:
-        process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
+    profiler_flags.extend(["-f", "1000", "-d", "1"])
+    with make_profiler_instance() as profiler:
+        with profiler:
+            process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
     assert_collapsed(process_collapsed)
     assert all(stack.startswith("shmython") for stack in process_collapsed.keys())
 
@@ -83,7 +87,8 @@ def test_python_matrix(
     assert_collapsed: AssertInCollapsed,
     profiler_type: str,
     application_image_tag: str,
-    profiler_state: ProfilerState,
+    profiler_flags: List[str],
+    make_profiler_instance: Callable[[], _GeneratorContextManager],
 ) -> None:
     python_version, libc, app = application_image_tag.split("-")
 
@@ -105,8 +110,10 @@ def test_python_matrix(
         if python_version in ["3.7", "3.8", "3.9", "3.10", "3.11"] and profiler_type == "py-spy" and libc == "musl":
             pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/714")
 
-    with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None, False) as profiler:
-        profile = snapshot_pid_profile(profiler, application_pid)
+    profiler_flags.extend(["-f", "1000", "-d", "2"])
+    with make_profiler_instance() as profiler:
+        with profiler:
+            profile = snapshot_pid_profile(profiler, application_pid)
 
     collapsed = profile.stacks
 
@@ -155,15 +162,18 @@ def test_dso_name_in_pyperf_profile(
     profiler_type: str,
     application_image_tag: str,
     insert_dso_name: bool,
-    profiler_state: ProfilerState,
+    profiler_flags: List[str],
+    make_profiler_instance: Callable[[], _GeneratorContextManager],
 ) -> None:
     if is_aarch64() and profiler_type == "pyperf":
         pytest.skip(
             "PyPerf doesn't support aarch64 architecture, see https://github.com/Granulate/gprofiler/issues/499"
         )
 
-    with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None, False) as profiler:
-        profile = snapshot_pid_profile(profiler, application_pid)
+    profiler_flags.extend(["-f", "1000", "-d", "2"])
+    with make_profiler_instance() as profiler:
+        with profiler:
+            profile = snapshot_pid_profile(profiler, application_pid)
     python_version, _, _ = application_image_tag.split("-")
     interpreter_frame = "PyEval_EvalFrameEx" if python_version == "2.7" else "_PyEval_EvalFrameDefault"
     collapsed = profile.stacks

@@ -4,7 +4,7 @@
 #
 import sys
 from collections import defaultdict
-from typing import Any, Dict, Iterable, List, cast
+from typing import Any, Dict, Iterable, List, Optional, Set, cast
 
 import pytest
 from pytest import MonkeyPatch
@@ -14,7 +14,7 @@ from gprofiler.gprofiler_types import ProcessToProfileData
 from gprofiler.profilers import registry
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProfilerBase
-from gprofiler.profilers.registry import ProfilerConfig, register_profiler
+from gprofiler.profilers.registry import ProfilerArgument, ProfilerConfig, register_profiler
 
 
 def _register_mock_profiler(
@@ -26,6 +26,7 @@ def _register_mock_profiler(
     possible_modes: List[str] = ["disabled"],
     supported_archs: List[str] = ["x86_64"],
     supported_profiling_modes: List[str] = ["cpu"],
+    profiler_arguments: Optional[List[ProfilerArgument]] = None,
 ) -> None:
     register_profiler(
         runtime=runtime,
@@ -35,7 +36,12 @@ def _register_mock_profiler(
         possible_modes=possible_modes,
         supported_archs=supported_archs,
         supported_profiling_modes=supported_profiling_modes,
+        profiler_arguments=profiler_arguments,
     )(profiler_class)
+
+
+def _copy_of_registry(keys: Iterable[str] = []) -> Dict[str, List[ProfilerConfig]]:
+    return defaultdict(list, {k: v[:] for (k, v) in registry.profilers_config.items() if k in keys})
 
 
 def test_profiler_names_are_unique(monkeypatch: MonkeyPatch) -> None:
@@ -53,13 +59,10 @@ def test_profiler_names_are_unique(monkeypatch: MonkeyPatch) -> None:
         assert "mock is already registered" in str(excinfo.value)
 
 
-def _copy_of_registry(keys: Iterable[str] = []) -> Dict[str, List[ProfilerConfig]]:
-    return defaultdict(list, {k: v[:] for (k, v) in registry.profilers_config.items() if k in keys})
-
-
 class MockProfiler(ProfilerBase):
     def __init__(self, mock_mode: str = "", *args: Any, **kwargs: Any):
         self.mock_mode = mock_mode
+        self.kwargs = dict(**kwargs)
 
     def snapshot(self) -> ProcessToProfileData:
         return {}
@@ -183,3 +186,83 @@ def test_auto_select_preferred_profiler(
             == {"mock-perf": "MockPerf", "mock-profiler": "MockProfiler"}[preferred_profiler]
         )
         assert cast(MockProfiler, profiler).mock_mode == "enabled"
+
+
+@pytest.mark.parametrize(
+    "preferred_profiler,expected_args,unwanted_args",
+    [
+        pytest.param(
+            "mock-perf",
+            {"duration", "frequency", "mock_one", "mock_two", "mock_mock_perf_two"},
+            {"mock_mock_profiler_one"},
+            id="mock_perf",
+        ),
+        pytest.param(
+            "mock-profiler",
+            {"duration", "frequency", "mock_one", "mock_two", "mock_mock_profiler_one"},
+            {"mock_mock_perf_two"},
+            id="mock_profiler",
+        ),
+    ],
+)
+def test_assign_correct_profiler_arguments(
+    monkeypatch: MonkeyPatch,
+    preferred_profiler: str,
+    expected_args: Set[str],
+    unwanted_args: Set[str],
+) -> None:
+    """
+    Test that selected profiler gets all of its own or common arguments, none from other profiler.
+    """
+    with monkeypatch.context() as m:
+        # clear registry before registering mock profilers
+        m.setattr(profilers.registry, "profilers_config", _copy_of_registry(keys=["Perf"]))
+        _register_mock_profiler(
+            "mock",
+            profiler_name="mock-profiler",
+            profiler_class=MockProfiler,
+            is_preferred="mock-profiler" == preferred_profiler,
+            possible_modes=["mock-profiler", "disabled"],
+            profiler_arguments=[
+                ProfilerArgument("--mock-common-one", "mock_one"),
+                ProfilerArgument("--mock-mock-profiler-one", "mock_mock_profiler_one"),
+            ],
+        )
+        MockPerf = type("MockPerf", (MockProfiler,), dict(**MockProfiler.__dict__))
+
+        _register_mock_profiler(
+            "mock",
+            profiler_name="mock-perf",
+            profiler_class=MockPerf,
+            is_preferred="mock-perf" == preferred_profiler,
+            possible_modes=["mock-perf", "disabled"],
+            profiler_arguments=[
+                ProfilerArgument("--mock-common-two", "mock_two"),
+                ProfilerArgument("--mock-mock-perf-two", "mock_mock_perf_two"),
+            ],
+        )
+        from gprofiler.main import parse_cmd_args
+
+        m.setattr(
+            sys,
+            "argv",
+            sys.argv[:1]
+            + [
+                "--output-dir",
+                "./",
+                "--mock-mode",
+                "enabled",
+                "--no-perf",
+                "--mock-common-one=check",
+                "--mock-common-two=check",
+                "--mock-mock-profiler-one=check",
+                "--mock-mock-perf-two=check",
+            ],
+        )
+        args = parse_cmd_args()
+        _, process_profilers = get_profilers(args.__dict__)
+        assert len(process_profilers) == 1
+        profiler = process_profilers[0]
+        mock = cast(MockProfiler, profiler)
+        assert set(mock.kwargs.keys()).intersection(unwanted_args) == set()
+        assert set(mock.kwargs.keys()) == expected_args

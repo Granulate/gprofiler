@@ -5,7 +5,12 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.profiler_base import NoopProfiler
-from gprofiler.profilers.registry import ProfilerConfig, get_profilers_registry, get_sorted_profilers
+from gprofiler.profilers.registry import (
+    ProfilerConfig,
+    get_profiler_arguments,
+    get_profilers_registry,
+    get_sorted_profilers,
+)
 
 if TYPE_CHECKING:
     from gprofiler.gprofiler_types import UserArgs
@@ -27,7 +32,7 @@ def get_profilers(
         return system_profiler, process_profilers_instances
     arch = get_arch()
     for runtime in get_profilers_registry():
-        runtime_args_prefix = runtime.lower()
+        runtime_args_prefix = runtime.lower().replace("-", "_")
         runtime_mode = user_args.get(f"{runtime_args_prefix}_mode")
         if runtime_mode in ProfilerConfig.DISABLED_MODES:
             continue
@@ -53,11 +58,18 @@ def get_profilers(
             continue
         # create instances of selected profilers one by one, select first that is ready
         ready_profiler = None
+        runtime_arg_names = [arg.dest for config in get_profilers_registry()[runtime] for arg in config.profiler_args]
         for profiler_config in selected_configs:
             profiler_name = profiler_config.profiler_name
             profiler_kwargs = profiler_init_kwargs.copy()
+            profiler_arg_names = [arg.dest for arg in get_profiler_arguments(runtime, profiler_name)]
             for key, value in user_args.items():
-                if key.startswith(runtime_args_prefix) or key in COMMON_PROFILER_ARGUMENT_NAMES:
+                if (
+                    key in profiler_arg_names
+                    or key in COMMON_PROFILER_ARGUMENT_NAMES
+                    or key.startswith(runtime_args_prefix)
+                    and key not in runtime_arg_names
+                ):
                     profiler_kwargs[key] = value
             try:
                 profiler_instance = profiler_config.profiler_class(**profiler_kwargs)
