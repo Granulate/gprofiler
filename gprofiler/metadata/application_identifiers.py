@@ -101,7 +101,13 @@ def _append_file_to_proc_wd(process: Process, file_path: str) -> str:
 
 class _GunicornApplicationIdentifierBase(_ApplicationIdentifier):
     def gunicorn_to_app_id(self, wsgi_app_spec: str, process: Process) -> str:
-        wsgi_app_file = wsgi_app_spec.split(":", maxsplit=1)[0]
+        wsgi_app_spec_list = wsgi_app_spec.split(" ")
+        wsgi_app_colon_list = list(filter(lambda x: ":" in x, wsgi_app_spec_list))
+        wsgi_app_file = ""
+        for index, arg in enumerate(wsgi_app_spec_list):
+            for colon_arg in wsgi_app_colon_list:
+                if arg == colon_arg and "-" not in wsgi_app_spec_list[index - 1]:
+                    wsgi_app_file = arg.split(":", maxsplit=1)[0]
         return f"gunicorn: {wsgi_app_spec} ({_append_python_module_to_proc_wd(process, wsgi_app_file)})"
 
 
