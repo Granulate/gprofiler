@@ -110,7 +110,7 @@ class _GunicornApplicationIdentifierBase(_ApplicationIdentifier):
             for colon_arg in cmdline_colon_list:
                 if arg == colon_arg and "-" not in cmdline_list[index - 1]:
                     return arg
-
+        return ""
 
 class _GunicornApplicationIdentifier(_GunicornApplicationIdentifierBase):
     def get_app_id(self, process: Process) -> Optional[str]:
