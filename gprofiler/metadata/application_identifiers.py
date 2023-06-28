@@ -104,7 +104,7 @@ class _GunicornApplicationIdentifierBase(_ApplicationIdentifier):
         wsgi_app_file = wsgi_app_spec.split(":", maxsplit=1)[0]
         return f"gunicorn: {wsgi_app_spec} ({_append_python_module_to_proc_wd(process, wsgi_app_file)})"
 
-    def gunicorn_get_app_name(self, cmdline_list: str) -> str:
+    def gunicorn_get_app_name(self, cmdline_list: List[str]) -> str:
         cmdline_colon_list = list(filter(lambda x: ":" in x, cmdline_list))
         for index, arg in enumerate(cmdline_list):
             for colon_arg in cmdline_colon_list:
