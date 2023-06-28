@@ -46,10 +46,10 @@ def test_gunicorn() -> None:
         process_with_cmdline(["python", "/path/to/gunicorn", "a", "b", "/path/to/my/wsgi:app"])
     )
     assert f"gunicorn: my.wsgi:app ({PROCESS_CWD}/my/wsgi.py)" == get_python_app_id(
-        process_with_cmdline(["gunicorn", "-a", "5", "my.wsgi:app", "-b", "0.0.0.0:80"])
+        process_with_cmdline(["gunicorn", "-a", "5", "-b", "0.0.0.0:80", "my.wsgi:app"])
     )
     assert f"gunicorn: my.wsgi:app ({PROCESS_CWD}/my/wsgi.py)" == get_python_app_id(
-        process_with_cmdline(["gunicorn", "-a", "5", "-b", "0.0.0.0:80", "my.wsgi:app"])
+        process_with_cmdline(["gunicorn", "-a", "5", "my.wsgi:app", "-b", "0.0.0.0:80"])
     )
 
 

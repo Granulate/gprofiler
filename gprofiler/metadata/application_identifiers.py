@@ -101,15 +101,15 @@ def _append_file_to_proc_wd(process: Process, file_path: str) -> str:
 
 class _GunicornApplicationIdentifierBase(_ApplicationIdentifier):
     def gunicorn_to_app_id(self, wsgi_app_spec: str, process: Process) -> str:
-        wsgi_app_spec_list = wsgi_app_spec.split(" ")
-        wsgi_app_colon_list = list(filter(lambda x: ":" in x, wsgi_app_spec_list))
-        wsgi_app_file = ""
-        for index, arg in enumerate(wsgi_app_spec_list):
-            for colon_arg in wsgi_app_colon_list:
-                if arg == colon_arg and "-" not in wsgi_app_spec_list[index - 1]:
-                    wsgi_app_file = arg.split(":", maxsplit=1)[0]
+        wsgi_app_file = wsgi_app_spec.split(":", maxsplit=1)[0]
         return f"gunicorn: {wsgi_app_spec} ({_append_python_module_to_proc_wd(process, wsgi_app_file)})"
 
+    def gunicorn_get_app_name(self, cmdline_list: str) -> str:
+        cmdline_colon_list = list(filter(lambda x: ":" in x, cmdline_list))
+        for index, arg in enumerate(cmdline_list):
+            for colon_arg in cmdline_colon_list:
+                if arg == colon_arg and "-" not in cmdline_list[index - 1]:
+                    return arg
 
 class _GunicornApplicationIdentifier(_GunicornApplicationIdentifierBase):
     def get_app_id(self, process: Process) -> Optional[str]:
@@ -123,7 +123,8 @@ class _GunicornApplicationIdentifier(_GunicornApplicationIdentifierBase):
             return None
 
         # wsgi app specification will come always as the last argument (if hasn't been specified config file)
-        return self.gunicorn_to_app_id(process.cmdline()[-1], process)
+        print(process.cmdline())
+        return self.gunicorn_to_app_id(self.gunicorn_get_app_name(process.cmdline()), process)
 
 
 class _GunicornTitleApplicationIdentifier(_GunicornApplicationIdentifierBase):
