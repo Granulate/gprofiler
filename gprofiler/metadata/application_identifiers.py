@@ -112,6 +112,7 @@ class _GunicornApplicationIdentifierBase(_ApplicationIdentifier):
                     return arg
         return ""
 
+
 class _GunicornApplicationIdentifier(_GunicornApplicationIdentifierBase):
     def get_app_id(self, process: Process) -> Optional[str]:
         # As of gunicorn documentation the WSGI module name most probably will come from the cmdline and not from the
