@@ -111,6 +111,7 @@ class _GunicornApplicationIdentifierBase(_ApplicationIdentifier):
                 if arg == colon_arg and "-" not in cmdline_list[index - 1]:
                     return arg
 
+
 class _GunicornApplicationIdentifier(_GunicornApplicationIdentifierBase):
     def get_app_id(self, process: Process) -> Optional[str]:
         # As of gunicorn documentation the WSGI module name most probably will come from the cmdline and not from the
@@ -123,7 +124,6 @@ class _GunicornApplicationIdentifier(_GunicornApplicationIdentifierBase):
             return None
 
         # wsgi app specification will come always as the last argument (if hasn't been specified config file)
-        print(process.cmdline())
         return self.gunicorn_to_app_id(self.gunicorn_get_app_name(process.cmdline()), process)
 
 
