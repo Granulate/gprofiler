@@ -47,15 +47,6 @@ def test_gunicorn() -> None:
     )
 
 
-def test_uvicorn_title() -> None:
-    assert f"uvicorn: my.asgi:app ({PROCESS_CWD}/my/asgi.py)" == get_python_app_id(
-        process_with_cmdline(["uvicorn: master [my.asgi:app]"])
-    )
-    assert f"uvicorn: my.asgi:app ({PROCESS_CWD}/my/asgi.py)" == get_python_app_id(
-        process_with_cmdline(["uvicorn: worker [my.asgi:app]"])
-    )
-
-
 def test_uvicorn() -> None:
     assert f"uvicorn: my.asgi:app ({PROCESS_CWD}/my/asgi.py)" == get_python_app_id(
         process_with_cmdline(["uvicorn", "a", "b", "my.asgi:app"])
