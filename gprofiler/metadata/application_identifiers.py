@@ -124,7 +124,7 @@ class _GunicornApplicationIdentifier(_GunicornApplicationIdentifierBase):
         ) and "gunicorn" != os.path.basename(_get_cli_arg_by_index(process.cmdline(), 1)):
             return None
 
-        # wsgi app specification will come always as the last argument (if hasn't been specified config file)
+        # wsgi app specification must not be the last argument, thus the method to extract it
         return self.gunicorn_to_app_id(self.gunicorn_get_app_name(process.cmdline()), process)
 
 
