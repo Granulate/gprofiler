@@ -99,6 +99,7 @@ def profiler_state(tmp_path: Path, insert_dso_name: bool) -> ProfilerState:
         container_names_client=ContainerNamesClient(),
         processes_to_profile=None,
         storage_dir=str(tmp_path),
+        aggregate_by_line=False,
     )
 
 

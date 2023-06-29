@@ -20,6 +20,7 @@ class ProfilerState:
         profiling_mode: str,
         container_names_client: Optional[ContainerNamesClient],
         processes_to_profile: Optional[List[Process]],
+        aggregate_by_line: bool,
     ) -> None:
         self._stop_event = stop_event
         self._profile_spawned_processes = profile_spawned_processes
@@ -29,6 +30,7 @@ class ProfilerState:
         self._storage_dir = self._temporary_dir.name
         self._container_names_client = container_names_client
         self._processes_to_profile = processes_to_profile
+        self._aggregate_by_line = aggregate_by_line
 
     @property
     def stop_event(self) -> Event:
@@ -49,6 +51,10 @@ class ProfilerState:
     @property
     def profiling_mode(self) -> str:
         return self._profiling_mode
+    
+    @property
+    def aggregate_by_line(self) -> bool:
+        return self._aggregate_by_line
 
     @property
     def container_names_client(self) -> Optional[ContainerNamesClient]:

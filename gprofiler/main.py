@@ -157,6 +157,7 @@ class GProfiler:
             profiling_mode=profiling_mode,
             container_names_client=container_names_client,
             processes_to_profile=processes_to_profile,
+            aggregate_by_line=bool(user_args.get("line_numbers")),
         )
         self.system_profiler, self.process_profilers = get_profilers(user_args, profiler_state=self._profiler_state)
         self._usage_logger = usage_logger
@@ -532,6 +533,12 @@ def parse_cmd_args() -> configargparse.Namespace:
         type=integers_list,
         help="Comma separated list of processes that will be filtered to profile,"
         " given multiple times will append pids to one list",
+    )
+    parser.add_argument(
+        "--line-numbers",
+        dest="line_numbers",
+        action="store_true",
+        help="gProfiler aggregates frames by line-in-function"
     )
 
     _add_profilers_arguments(parser)
