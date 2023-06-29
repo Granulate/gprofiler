@@ -162,28 +162,20 @@ class _UvicornApplicationIdentifierBase(_ApplicationIdentifier):
 
 class _UvicornApplicationIdentifier(_UvicornApplicationIdentifierBase):
     def get_app_id(self, process: Process) -> Optional[str]:
-        # As of uvicorn documentation the ASGI module name most probably will come from the cmdline and not from the
-        # config file / environment variables (they added the option to specify `wsgi_app`
-        # in the config file only in version 20.1.0)
+        # uvicorn seems to have similar ruling when it comes to naming as gunicorn
 
         if "uvicorn" != os.path.basename(_get_cli_arg_by_index(process.cmdline(), 0)) and "uvicorn" != os.path.basename(
             _get_cli_arg_by_index(process.cmdline(), 1)
         ):
             return None
 
-        # wsgi app specification will come always as the last argument (if hasn't been specified config file)
+        # app specification does not have to be last, thus a method to extract it from commandline
         return self.uvicorn_to_app_id(self.uvicorn_get_app_name(process.cmdline()), process)
 
 
 class _UvicornTitleApplicationIdentifier(_UvicornApplicationIdentifierBase):
     """
-    This generates appids from uvicorns that use setproctitle to change their name,
-    and thus appear like "uvicorn: worker [my.wsgi:app]".
-    See:
-        setproctitle():
-        https://github.com/benoitc/gunicorn/blob/60d0474a6f5604597180f435a6a03b016783885b/gunicorn/util.py#L50
-        title format:
-        https://github.com/benoitc/gunicorn/blob/60d0474a6f5604597180f435a6a03b016783885b/gunicorn/arbiter.py#L580
+    made similar to the gunicorn one
     """
 
     _UVICORN_TITLE_PROC_NAME = re.compile(r"^uvicorn: (?:(?:master)|(?:worker)) \[([^\]]*)\]$")
