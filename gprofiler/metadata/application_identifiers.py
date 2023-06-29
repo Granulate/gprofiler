@@ -105,12 +105,14 @@ class _GunicornApplicationIdentifierBase(_ApplicationIdentifier):
         return f"gunicorn: {wsgi_app_spec} ({_append_python_module_to_proc_wd(process, wsgi_app_file)})"
 
     def gunicorn_get_app_name(self, cmdline_list: List[str]) -> str:
+        # method improving appid selection:
+        # https://github.com/Granulate/gprofiler/issues/704
         cmdline_colon_list = list(filter(lambda x: ":" in x, cmdline_list))
         for index, arg in enumerate(cmdline_list):
             for colon_arg in cmdline_colon_list:
-                if arg == colon_arg and "-" not in cmdline_list[index - 1]:
+                if arg == colon_arg and not cmdline_list[index - 1].startswith("-"):
                     return arg
-        return ""
+        return "unknown app name"
 
 
 class _GunicornApplicationIdentifier(_GunicornApplicationIdentifierBase):
