@@ -151,13 +151,17 @@ class _UvicornApplicationIdentifierBase(_ApplicationIdentifier):
         return f"uvicorn: {wsgi_app_spec} ({_append_python_module_to_proc_wd(process, wsgi_app_file)})"
 
     def uvicorn_get_app_name(self, cmdline_list: List[str]) -> str:
-        # factory argument is being checked explicitly, because it contains minuses and precedes appid
+        # method improving appid selection:
+        # https://github.com/Granulate/gprofiler/issues/693
+        # factory argument is being checked explicitly, because it contains minuses and may precede appid
         cmdline_colon_list = list(filter(lambda x: ":" in x, cmdline_list))
         for index, arg in enumerate(cmdline_list):
             for colon_arg in cmdline_colon_list:
-                if arg == colon_arg and ("-" not in cmdline_list[index - 1] or cmdline_list[index - 1] == "--factory"):
+                if arg == colon_arg and (
+                    not cmdline_list[index - 1].startswith("-") or cmdline_list[index - 1] == "--factory"
+                ):
                     return arg
-        return ""
+        return "unknown app name"
 
 
 class _UvicornApplicationIdentifier(_UvicornApplicationIdentifierBase):
@@ -171,25 +175,6 @@ class _UvicornApplicationIdentifier(_UvicornApplicationIdentifierBase):
 
         # app specification does not have to be last, thus a method to extract it from commandline
         return self.uvicorn_to_app_id(self.uvicorn_get_app_name(process.cmdline()), process)
-
-
-class _UvicornTitleApplicationIdentifier(_UvicornApplicationIdentifierBase):
-    """
-    made similar to the gunicorn one
-    """
-
-    _UVICORN_TITLE_PROC_NAME = re.compile(r"^uvicorn: (?:(?:master)|(?:worker)) \[([^\]]*)\]$")
-
-    def get_app_id(self, process: Process) -> Optional[str]:
-        cmdline = process.cmdline()
-        # There should be one entry in the commandline, starting with "uvicorn: ",
-        # and the rest should be empty strings per Process.cmdline() (I suppose that setproctitle
-        # zeros out the arguments array).
-        if _get_cli_arg_by_index(cmdline, 0).startswith("uvicorn: ") and len(list(filter(lambda s: s, cmdline))) == 1:
-            m = self._UVICORN_TITLE_PROC_NAME.match(cmdline[0])
-            if m is not None:
-                return self.uvicorn_to_app_id(m.group(1), process)
-        return None
 
 
 class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
@@ -367,7 +352,6 @@ class ApplicationIdentifiers:
             "python": [
                 _GunicornTitleApplicationIdentifier(),
                 _GunicornApplicationIdentifier(),
-                _UvicornTitleApplicationIdentifier(),
                 _UvicornApplicationIdentifier(),
                 _UwsgiApplicationIdentifier(),
                 _CeleryApplicationIdentifier(),
