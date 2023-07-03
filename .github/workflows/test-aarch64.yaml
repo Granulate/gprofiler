@@ -6,7 +6,7 @@ jobs:
   aarch64:
     runs-on:
       - self-hosted
-      - gprofiler
+      - public
       - ARM64
 
     steps:
@@ -18,7 +18,7 @@ jobs:
   x86:
     runs-on:
       - self-hosted
-      - gprofiler
+      - public
       - X86
 
     steps:
