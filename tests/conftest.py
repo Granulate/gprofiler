@@ -591,17 +591,21 @@ def make_profiler_instance(
     Deliver an instance of profiler selected by runtime and profiler_type.
     """
 
+    # Reuse gProfiler flow to initialize specific profiler instance - one selected by runtime fixture.
     @contextmanager
     def _make_profiler_instance() -> Iterator[ProfilerBase]:
         with monkeypatch.context() as m:
             from gprofiler.main import parse_cmd_args
 
+            # overide command-line args to enable only one process profiler
             m.setattr(
                 sys,
                 "argv",
                 sys.argv[:1] + ["--output-dir", str(output_directory), "--no-perf"] + profiler_flags,
             )
+            # invoke gProfiler command-line parsing to collect arguments
             args = parse_cmd_args()
+            # call factory to deliver initialized profiler instance
             _, process_profilers = get_profilers(args.__dict__, profiler_state=profiler_state)
             assert len(process_profilers) == 1
             profiler = process_profilers[0]
