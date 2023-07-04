@@ -497,6 +497,7 @@ class AsyncProfiledProcess:
         self._mcache = mcache
         self._collect_meminfo = collect_meminfo
         self._include_method_modifiers = ",includemm" if include_method_modifiers else ""
+        self._include_line_numbers = ",includeln" if self._profiler_state.aggregate_by_line else ""
 
     def _find_rw_exec_dir(self, available_dirs: Sequence[str]) -> str:
         """
@@ -609,7 +610,7 @@ class AsyncProfiledProcess:
     def _get_ap_output_args(self) -> str:
         return (
             f",file={self._output_path_process},{self.OUTPUT_FORMAT},"
-            + f"{self.FORMAT_PARAMS}{self._include_method_modifiers}"
+            + f"{self.FORMAT_PARAMS}{self._include_method_modifiers}{self._include_line_numbers}"
         )
 
     def _get_interval_arg(self, interval: int) -> str:
