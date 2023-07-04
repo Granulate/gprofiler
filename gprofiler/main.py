@@ -538,7 +538,7 @@ def parse_cmd_args() -> configargparse.Namespace:
         "--line-numbers",
         dest="line_numbers",
         action="store_true",
-        help="gProfiler aggregates frames by line-in-function"
+        help="gProfiler aggregates frames by line-in-function",
     )
 
     _add_profilers_arguments(parser)

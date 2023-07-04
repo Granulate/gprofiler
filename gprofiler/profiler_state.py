@@ -51,7 +51,7 @@ class ProfilerState:
     @property
     def profiling_mode(self) -> str:
         return self._profiling_mode
-    
+
     @property
     def aggregate_by_line(self) -> bool:
         return self._aggregate_by_line
