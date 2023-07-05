@@ -86,7 +86,7 @@ def _append_python_module_to_proc_wd(process: Process, module: str) -> str:
     # Convert module name to module path, for example a.b -> a/b.py
     if module is "unknown app name":
         return module
-    if not module.endswith(".py") and module:
+    if not module.endswith(".py"):
         module = module.replace(".", "/") + ".py"
 
     return _append_file_to_proc_wd(process, module)
