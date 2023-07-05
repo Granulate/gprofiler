@@ -54,6 +54,9 @@ def test_gunicorn() -> None:
     assert f"gunicorn: my.wsgi:app ({PROCESS_CWD}/my/wsgi.py)" == get_python_app_id(
         process_with_cmdline(["gunicorn", "my.wsgi:app", "-a", "4", "-k", "uvicorn.workers.UvicornWorkerpython"])
     )
+    assert f"gunicorn: unknown app name (unknown app name)" == get_python_app_id(
+        process_with_cmdline(["gunicorn", "-a", "5", "-b", "0.0.0.0:80"])
+    )
 
 
 def test_uwsgi_wsgi_file() -> None:
