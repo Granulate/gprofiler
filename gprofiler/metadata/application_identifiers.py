@@ -84,7 +84,7 @@ def _get_cli_arg_by_index(args: List[str], index: int) -> str:
 
 def _append_python_module_to_proc_wd(process: Process, module: str) -> str:
     # Convert module name to module path, for example a.b -> a/b.py
-    if module is "unknown app name":
+    if module == "unknown app name":
         return module
     if not module.endswith(".py"):
         module = module.replace(".", "/") + ".py"
@@ -109,7 +109,6 @@ class _GunicornApplicationIdentifierBase(_ApplicationIdentifier):
     def gunicorn_get_app_name(self, cmdline_list: List[str]) -> str:
         # method improving appid selection:
         # https://github.com/Granulate/gprofiler/issues/704
-        cmdline_colon_list = list(filter(lambda x: ":" in x, cmdline_list))
         for index, arg in enumerate(cmdline_list):
             if ":" in arg and not cmdline_list[index - 1].startswith("-"):
                 return arg
