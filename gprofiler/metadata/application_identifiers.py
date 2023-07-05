@@ -84,6 +84,8 @@ def _get_cli_arg_by_index(args: List[str], index: int) -> str:
 
 def _append_python_module_to_proc_wd(process: Process, module: str) -> str:
     # Convert module name to module path, for example a.b -> a/b.py
+    if module == "unknown app name":
+        return module
     if not module.endswith(".py"):
         module = module.replace(".", "/") + ".py"
 
@@ -104,6 +106,14 @@ class _GunicornApplicationIdentifierBase(_ApplicationIdentifier):
         wsgi_app_file = wsgi_app_spec.split(":", maxsplit=1)[0]
         return f"gunicorn: {wsgi_app_spec} ({_append_python_module_to_proc_wd(process, wsgi_app_file)})"
 
+    def gunicorn_get_app_name(self, cmdline_list: List[str]) -> str:
+        # method improving appid selection:
+        # https://github.com/Granulate/gprofiler/issues/704
+        for index, arg in enumerate(cmdline_list):
+            if ":" in arg and not cmdline_list[index - 1].startswith("-"):
+                return arg
+        return "unknown app name"
+
 
 class _GunicornApplicationIdentifier(_GunicornApplicationIdentifierBase):
     def get_app_id(self, process: Process) -> Optional[str]:
@@ -116,8 +126,8 @@ class _GunicornApplicationIdentifier(_GunicornApplicationIdentifierBase):
         ) and "gunicorn" != os.path.basename(_get_cli_arg_by_index(process.cmdline(), 1)):
             return None
 
-        # wsgi app specification will come always as the last argument (if hasn't been specified config file)
-        return self.gunicorn_to_app_id(process.cmdline()[-1], process)
+        # wsgi app specification might not be the last argument, thus the method to extract it
+        return self.gunicorn_to_app_id(self.gunicorn_get_app_name(process.cmdline()), process)
 
 
 class _GunicornTitleApplicationIdentifier(_GunicornApplicationIdentifierBase):
