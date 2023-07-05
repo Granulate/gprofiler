@@ -59,6 +59,30 @@ def test_gunicorn() -> None:
     )
 
 
+def test_uvicorn() -> None:
+    assert f"uvicorn: my.asgi:app ({PROCESS_CWD}/my/asgi.py)" == get_python_app_id(
+        process_with_cmdline(["uvicorn", "a", "b", "my.asgi:app"])
+    )
+    assert f"uvicorn: my.asgi:app ({PROCESS_CWD}/my/asgi.py)" == get_python_app_id(
+        process_with_cmdline(["python", "/path/to/uvicorn", "a", "b", "my.asgi:app"])
+    )
+    assert "uvicorn: /path/to/my/asgi:app (/path/to/my/asgi.py)" == get_python_app_id(
+        process_with_cmdline(["python", "/path/to/uvicorn", "a", "b", "/path/to/my/asgi:app"])
+    )
+    assert f"uvicorn: my.asgi:app ({PROCESS_CWD}/my/asgi.py)" == get_python_app_id(
+        process_with_cmdline(["uvicorn", "--workers", "5", "--host", "0.0.0.0", "my.asgi:app"])
+    )
+    assert f"uvicorn: my.asgi:app ({PROCESS_CWD}/my/asgi.py)" == get_python_app_id(
+        process_with_cmdline(["uvicorn", "--workers", "5", "my.asgi:app", "--host", "0.0.0.0"])
+    )
+    assert f"uvicorn: my.asgi:app ({PROCESS_CWD}/my/asgi.py)" == get_python_app_id(
+        process_with_cmdline(["uvicorn", "a", "--factory", "my.asgi:app"])
+    )
+    assert "uvicorn: unknown app name (unknown app name)" == get_python_app_id(
+        process_with_cmdline(["uvicorn", "-a", "5", "-b", "0.0.0.0:80"])
+    )
+
+
 def test_uwsgi_wsgi_file() -> None:
     assert f"uwsgi: my.wsgi ({PROCESS_CWD}/my/wsgi.py)" == get_python_app_id(
         process_with_cmdline(["uwsgi", "a", "b", "-w", "my.wsgi"])

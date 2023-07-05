@@ -155,6 +155,34 @@ class _GunicornTitleApplicationIdentifier(_GunicornApplicationIdentifierBase):
         return None
 
 
+class _UvicornApplicationIdentifierBase(_ApplicationIdentifier):
+    def uvicorn_to_app_id(self, wsgi_app_spec: str, process: Process) -> str:
+        wsgi_app_file = wsgi_app_spec.split(":", maxsplit=1)[0]
+        return f"uvicorn: {wsgi_app_spec} ({_append_python_module_to_proc_wd(process, wsgi_app_file)})"
+
+    def uvicorn_get_app_name(self, cmdline_list: List[str]) -> str:
+        # method improving appid selection:
+        # https://github.com/Granulate/gprofiler/issues/693
+        # factory argument is being checked explicitly, because it contains minuses and may precede appid
+        for index, arg in enumerate(cmdline_list):
+            if ":" in arg and (not cmdline_list[index - 1].startswith("-") or cmdline_list[index - 1] == "--factory"):
+                return arg
+        return "unknown app name"
+
+
+class _UvicornApplicationIdentifier(_UvicornApplicationIdentifierBase):
+    def get_app_id(self, process: Process) -> Optional[str]:
+        # uvicorn seems to have similar ruling when it comes to naming as gunicorn
+
+        if "uvicorn" != os.path.basename(_get_cli_arg_by_index(process.cmdline(), 0)) and "uvicorn" != os.path.basename(
+            _get_cli_arg_by_index(process.cmdline(), 1)
+        ):
+            return None
+
+        # app specification does not have to be last, thus a method to extract it from commandline
+        return self.uvicorn_to_app_id(self.uvicorn_get_app_name(process.cmdline()), process)
+
+
 class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
     # separated so that we can mock it easily in the tests
     @staticmethod
@@ -330,6 +358,7 @@ class ApplicationIdentifiers:
             "python": [
                 _GunicornTitleApplicationIdentifier(),
                 _GunicornApplicationIdentifier(),
+                _UvicornApplicationIdentifier(),
                 _UwsgiApplicationIdentifier(),
                 _CeleryApplicationIdentifier(),
                 _PySparkApplicationIdentifier(),
