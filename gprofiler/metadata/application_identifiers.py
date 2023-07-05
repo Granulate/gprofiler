@@ -84,6 +84,8 @@ def _get_cli_arg_by_index(args: List[str], index: int) -> str:
 
 def _append_python_module_to_proc_wd(process: Process, module: str) -> str:
     # Convert module name to module path, for example a.b -> a/b.py
+    if module is "unknown app name":
+        return module
     if not module.endswith(".py"):
         module = module.replace(".", "/") + ".py"
 
@@ -154,10 +156,8 @@ class _UvicornApplicationIdentifierBase(_ApplicationIdentifier):
         # method improving appid selection:
         # https://github.com/Granulate/gprofiler/issues/693
         # factory argument is being checked explicitly, because it contains minuses and may precede appid
-        cmdline_colon_list = list(filter(lambda x: ":" in x, cmdline_list))
         for index, arg in enumerate(cmdline_list):
-            for colon_arg in cmdline_colon_list:
-                if arg == colon_arg and (
+                if ":" in arg and (
                     not cmdline_list[index - 1].startswith("-") or cmdline_list[index - 1] == "--factory"
                 ):
                     return arg
