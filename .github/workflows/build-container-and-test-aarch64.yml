@@ -4,10 +4,10 @@ on: pull_request
 
 jobs:
   build-container-aarch64:
-      runs-on:
-        - self-hosted
-        - public
-        - ARM64
+    runs-on:
+      - self-hosted
+      - public
+      - ARM64
 
     steps:
     - name: Checkout Code
