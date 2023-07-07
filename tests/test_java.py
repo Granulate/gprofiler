@@ -1166,17 +1166,17 @@ def test_including_method_modifiers(
             assert not is_function_in_collapsed("private static Fibonacci.fibonacci(I)J_[j]", collapsed)
 
 
-@pytest.mark.parametrize("aggregate_by_line", [True, False])
+@pytest.mark.parametrize("java_line_numbers", ["none", "line-of-function"])
 @pytest.mark.parametrize("in_container", [True])
 def test_including_line_numbers(
     application_pid: int,
     profiler_state: ProfilerState,
-    aggregate_by_line: bool,
+    java_line_numbers: str,
 ) -> None:
     with make_java_profiler(profiler_state) as profiler:
         collapsed = snapshot_pid_collapsed(profiler, application_pid)
-        if aggregate_by_line:
+        if java_line_numbers == "line-of-function":
             assert is_function_in_collapsed("Fibonacci.fibonacci:9(I)J_[j]", collapsed)
-        else:
+        elif java_line_numbers == "none":
             assert is_function_in_collapsed("Fibonacci.fibonacci(I)J_[j]", collapsed)
             assert not is_function_in_collapsed("Fibonacci.fibonacci:9(I)J_[j]", collapsed)

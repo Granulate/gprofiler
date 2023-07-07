@@ -89,13 +89,8 @@ def java_args() -> Tuple[str]:
     return cast(Tuple[str], ())
 
 
-@fixture
-def aggregate_by_line() -> bool:
-    return False
-
-
 @fixture()
-def profiler_state(tmp_path: Path, insert_dso_name: bool, aggregate_by_line: bool) -> ProfilerState:
+def profiler_state(tmp_path: Path, insert_dso_name: bool) -> ProfilerState:
     return ProfilerState(
         stop_event=Event(),
         profile_spawned_processes=False,
@@ -104,7 +99,6 @@ def profiler_state(tmp_path: Path, insert_dso_name: bool, aggregate_by_line: boo
         container_names_client=ContainerNamesClient(),
         processes_to_profile=None,
         storage_dir=str(tmp_path),
-        aggregate_by_line=aggregate_by_line,
     )
 
 
