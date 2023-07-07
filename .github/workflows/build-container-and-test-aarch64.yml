@@ -15,6 +15,9 @@ jobs:
       with:
         submodules: true
 
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
     # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
     # more nicely. the tests will then be able to use the built image.
     - name: Build gProfiler image
