@@ -846,7 +846,7 @@ class AsyncProfiledProcess:
             dest="java_line_numbers",
             choices=["none", "line-of-function"],
             default="none",
-            help="Select if async-profiler should add line numbers to frames"
+            help="Select if async-profiler should add line numbers to frames",
         ),
     ],
     supported_profiling_modes=["cpu", "allocation"],
