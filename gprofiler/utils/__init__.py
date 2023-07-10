@@ -116,7 +116,7 @@ def wrap_callbacks(callbacks: List[Callable]) -> Callable:
 
 
 def start_process(
-    cmd: Union[str, List[str]], via_staticx: bool, term_on_parent_death: bool = True, **kwargs: Any
+    cmd: Union[str, List[str]], via_staticx: bool = False, term_on_parent_death: bool = True, **kwargs: Any
 ) -> Popen:
     if isinstance(cmd, str):
         cmd = [cmd]
@@ -179,6 +179,11 @@ def poll_process(process: Popen, timeout: float, stop_event: Event) -> None:
         raise
 
 
+def remove_files_by_prefix(prefix: str) -> None:
+    for f in glob.glob(f"{prefix}*"):
+        os.unlink(f)
+
+
 def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> Path:
     glob_pattern = f"{prefix}*"
     wait_event(timeout, stop_event, lambda: len(glob.glob(glob_pattern)) > 0)
@@ -205,53 +210,61 @@ def wait_for_file_by_prefix(prefix: str, timeout: float, stop_event: Event) -> P
     return Path(output_files[0])
 
 
-def _reap_process(process: Popen, kill_signal: signal.Signals) -> Tuple[int, str, str]:
-    # kill the process and read its output so far
-    process.send_signal(kill_signal)
-    process.wait()
-    logger.debug(f"({process.args!r}) was killed by us with signal {kill_signal} due to timeout or stop request")
+def reap_process(process: Popen) -> Tuple[int, bytes, bytes]:
+    """
+    Safely reap a process. This function expects the process to be exited or exiting.
+    It uses communicate() instead of wait() to avoid the possible deadlock in wait()
+    (see https://docs.python.org/3/library/subprocess.html#subprocess.Popen.wait, and see
+    ticket https://github.com/Granulate/gprofiler/issues/744).
+    """
     stdout, stderr = process.communicate()
     returncode = process.poll()
     assert returncode is not None  # only None if child has not terminated
     return returncode, stdout, stderr
 
 
+def _kill_and_reap_process(process: Popen, kill_signal: signal.Signals) -> Tuple[int, bytes, bytes]:
+    process.send_signal(kill_signal)
+    logger.debug(
+        f"({process.args!r}) was killed by us with signal {kill_signal} due to timeout or stop request, reaping it"
+    )
+    return reap_process(process)
+
+
 def run_process(
     cmd: Union[str, List[str]],
+    *,
     stop_event: Event = None,
     suppress_log: bool = False,
     via_staticx: bool = False,
     check: bool = True,
     timeout: int = None,
     kill_signal: signal.Signals = signal.SIGTERM if is_windows() else signal.SIGKILL,
-    communicate: bool = True,
     stdin: bytes = None,
     **kwargs: Any,
 ) -> "CompletedProcess[bytes]":
-    stdout = None
-    stderr = None
+    stdout: bytes
+    stderr: bytes
+
     reraise_exc: Optional[BaseException] = None
     with start_process(cmd, via_staticx, **kwargs) as process:
+        assert isinstance(process.args, str) or (
+            isinstance(process.args, list) and all(isinstance(s, str) for s in process.args)
+        ), process.args  # mypy
+
         try:
             if stdin is not None:
                 assert process.stdin is not None
                 process.stdin.write(stdin)
             if stop_event is None:
                 assert timeout is None, f"expected no timeout, got {timeout!r}"
-                if communicate:
-                    # wait for stderr & stdout to be closed
-                    stdout, stderr = process.communicate()
-                else:
-                    # just wait for the process to exit
-                    process.wait()
+                # wait for stderr & stdout to be closed
+                stdout, stderr = process.communicate()
             else:
                 end_time = (time.monotonic() + timeout) if timeout is not None else None
                 while True:
                     try:
-                        if communicate:
-                            stdout, stderr = process.communicate(timeout=1)
-                        else:
-                            process.wait(timeout=1)
+                        stdout, stderr = process.communicate(timeout=1)
                         break
                     except TimeoutExpired:
                         if stop_event.is_set():
@@ -260,28 +273,33 @@ def run_process(
                             assert timeout is not None
                             raise
         except TimeoutExpired:
-            returncode, stdout, stderr = _reap_process(process, kill_signal)
+            returncode, stdout, stderr = _kill_and_reap_process(process, kill_signal)
             assert timeout is not None
-            reraise_exc = CalledProcessTimeoutError(timeout, returncode, cmd, stdout, stderr)
+            reraise_exc = CalledProcessTimeoutError(
+                timeout, returncode, cmd, stdout.decode("latin-1"), stderr.decode("latin-1")
+            )
         except BaseException as e:  # noqa
-            returncode, stdout, stderr = _reap_process(process, kill_signal)
+            returncode, stdout, stderr = _kill_and_reap_process(process, kill_signal)
             reraise_exc = e
         retcode = process.poll()
         assert retcode is not None  # only None if child has not terminated
 
     result: CompletedProcess[bytes] = CompletedProcess(process.args, retcode, stdout, stderr)
 
+    # decoding stdout/stderr as latin-1 which should never raise UnicodeDecodeError.
     extra: Dict[str, Any] = {"exit_code": result.returncode}
     if not suppress_log:
         if result.stdout:
-            extra["stdout"] = result.stdout.decode()
+            extra["stdout"] = result.stdout.decode("latin-1")
         if result.stderr:
-            extra["stderr"] = result.stderr.decode()
+            extra["stderr"] = result.stderr.decode("latin-1")
     logger.debug("Command exited", command=process.args, **extra)
     if reraise_exc is not None:
         raise reraise_exc
     elif check and retcode != 0:
-        raise CalledProcessError(retcode, process.args, output=stdout, stderr=stderr)
+        raise CalledProcessError(
+            retcode, process.args, output=stdout.decode("latin-1"), stderr=stderr.decode("latin-1")
+        )
     return result
 
 

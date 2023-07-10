@@ -49,11 +49,17 @@ class RemoteLogsHandler(BatchRequestsHandler):
 
     MAX_BUFFERED_RECORDS = 100 * 1000  # max number of records to buffer locally
 
-    def __init__(self, server_address: str, auth_token: str, service_name: str) -> None:
+    def __init__(self, server_address: str, auth_token: str, service_name: str, verify: bool) -> None:
         self._service_name = service_name
         url = urlparse(server_address)
         super().__init__(
-            Sender(application_name="gprofiler", auth_token=auth_token, scheme=url.scheme, server_address=url.netloc)
+            Sender(
+                application_name="gprofiler",
+                auth_token=auth_token,
+                scheme=url.scheme,
+                server_address=url.netloc,
+                verify=verify,
+            )
         )
 
     def emit(self, record: LogRecord) -> None:
@@ -84,6 +90,14 @@ class RemoteLogsHandler(BatchRequestsHandler):
             metadata["hostname"] = hostname
 
         return metadata
+
+    def update_service_name(self, service_name: str) -> None:
+        """
+        Used to update the service name in services where it can change after gProfiler starts (for example, if the
+        service name is derived from the environment post inittialization).
+        The next batch sent will have the new service name.
+        """
+        self._service_name = service_name
 
 
 class _ExtraFormatter(logging.Formatter):

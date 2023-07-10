@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
+import secrets
 import stat
 import subprocess
 from contextlib import _GeneratorContextManager, contextmanager
@@ -35,13 +36,14 @@ from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import AsyncProfiledProcess, JattachJcmdRunner
 from gprofiler.state import init_state
-from tests import CONTAINERS_DIRECTORY, PARENT, PHPSPY_DURATION
+from tests import CONTAINERS_DIRECTORY, PHPSPY_DURATION
 from tests.utils import (
     _application_docker_container,
     _application_process,
     assert_function_in_collapsed,
     chmod_path_parts,
     find_application_pid,
+    is_aarch64,
 )
 
 
@@ -71,7 +73,7 @@ def chdir(path: Path) -> Iterator[None]:
         os.chdir(cwd)
 
 
-@fixture(params=[False, True])
+@fixture(params=[False, True], ids=["on_host", "in_container"])
 def in_container(request: FixtureRequest) -> bool:
     return cast(bool, request.param)  # type: ignore # SubRequest isn't exported yet,
     # https://github.com/pytest-dev/pytest/issues/7469
@@ -89,7 +91,15 @@ def java_args() -> Tuple[str]:
 
 @fixture()
 def profiler_state(tmp_path: Path, insert_dso_name: bool) -> ProfilerState:
-    return ProfilerState(Event(), str(tmp_path), False, insert_dso_name, CPU_PROFILING_MODE, ContainerNamesClient())
+    return ProfilerState(
+        stop_event=Event(),
+        profile_spawned_processes=False,
+        insert_dso_name=insert_dso_name,
+        profiling_mode=CPU_PROFILING_MODE,
+        container_names_client=ContainerNamesClient(),
+        processes_to_profile=None,
+        storage_dir=str(tmp_path),
+    )
 
 
 def make_path_world_accessible(path: Path) -> None:
@@ -185,18 +195,8 @@ def application_executable(runtime: str) -> str:
 @fixture
 def gprofiler_exe(request: FixtureRequest, tmp_path: Path) -> Path:
     precompiled = request.config.getoption("--executable")
-    if precompiled is not None:
-        return Path(precompiled)
-
-    with chdir(PARENT):
-        pyi_popen = subprocess.Popen(
-            ["pyinstaller", "--distpath", str(tmp_path), "pyinstaller.spec"],
-        )
-        pyi_popen.wait()
-
-    staticx_popen = subprocess.Popen(["staticx", tmp_path / "gprofiler", tmp_path / "gprofiler"])
-    staticx_popen.wait()
-    return tmp_path / "gprofiler"
+    assert precompiled is not None
+    return Path(precompiled)
 
 
 @fixture
@@ -207,19 +207,39 @@ def check_app_exited() -> bool:
 
 @fixture
 def application_process(
-    in_container: bool, command_line: List[str], check_app_exited: bool
+    in_container: bool, command_line: List[str], check_app_exited: bool, runtime: str
 ) -> Iterator[Optional[subprocess.Popen]]:
     if in_container:
         yield None
         return
     else:
+        if is_aarch64():
+            if runtime == "dotnet":
+                pytest.xfail("This combination fails on aarch64, see https://github.com/Granulate/gprofiler/issues/755")
         with _application_process(command_line, check_app_exited) as popen:
             yield popen
 
 
 @fixture(scope="session")
 def docker_client() -> DockerClient:
-    return docker.from_env()
+    tests_id = secrets.token_hex(5)
+    docker_client = docker.from_env()
+    setattr(docker_client, "_gprofiler_test_id", tests_id)
+    yield docker_client
+
+    exited_ids: List[str] = []
+    exited_container_list = docker_client.containers.list(filters={"status": "exited", "label": tests_id})
+    for container in exited_container_list:
+        exited_ids.append(container.id)
+
+    pruned_ids = docker_client.containers.prune(filters={"label": tests_id}).get("ContainersDeleted", [])
+
+    for exited_id in exited_ids.copy():
+        if exited_id in pruned_ids:
+            exited_ids.remove(exited_id)
+
+    if len(exited_ids) > 0:
+        raise Exception(f"Containers with ids {exited_ids} have not been properly pruned")
 
 
 @fixture(scope="session")
@@ -229,7 +249,7 @@ def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
     yield docker_client.images.get("gprofiler")
 
 
-def _build_image(
+def build_image(
     docker_client: DockerClient, runtime: str, dockerfile: str = "Dockerfile", **kwargs: Mapping[str, Any]
 ) -> Image:
     base_path = CONTAINERS_DIRECTORY / runtime
@@ -351,7 +371,18 @@ def application_docker_image(
     runtime: str,
     application_image_tag: str,
 ) -> Iterable[Image]:
-    yield _build_image(docker_client, **application_docker_image_configs[image_name(runtime, application_image_tag)])
+    if is_aarch64():
+        if runtime == "nodejs":
+            if application_image_tag == "12-glibc":
+                pytest.xfail("This test fails on aarch64, see https://github.com/Granulate/gprofiler/issues/758")
+        if runtime == "java":
+            if application_image_tag == "j9" or application_image_tag == "zing":
+                pytest.xfail(
+                    "Different JVMs are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
+                )
+            if application_image_tag == "musl":
+                pytest.xfail("This test does not work on aarch64 https://github.com/Granulate/gprofiler/issues/743")
+    yield build_image(docker_client, **application_docker_image_configs[image_name(runtime, application_image_tag)])
 
 
 @fixture
@@ -594,7 +625,7 @@ def python_version(in_container: bool, application_docker_container: Container) 
             return None
     else:
         # If not running in a container the test application runs on host
-        output = subprocess.check_output("python --version", stderr=subprocess.STDOUT, shell=True)
+        output = subprocess.check_output("python3 --version", stderr=subprocess.STDOUT, shell=True)
 
     # Output is expected to look like e.g. "Python 3.9.7"
     return cast(str, output.decode().strip().split()[-1])

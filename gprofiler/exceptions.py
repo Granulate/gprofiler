@@ -19,10 +19,23 @@ class CalledProcessError(subprocess.CalledProcessError):
     # Enough characters for 200 long lines
     MAX_STDIO_LENGTH = 120 * 200
 
-    def _truncate_stdio(self, string: str) -> str:
-        if len(string) > self.MAX_STDIO_LENGTH:
-            string = string[: self.MAX_STDIO_LENGTH - 3] + "..."
-        return string
+    def __init__(
+        self,
+        returncode: int,
+        cmd: Union[str, List[str]],
+        output: str,
+        stderr: str,
+    ):
+        assert isinstance(returncode, int), returncode
+        assert isinstance(cmd, str) or all(isinstance(s, str) for s in cmd), cmd
+        assert output is None or isinstance(output, str), output
+        assert stderr is None or isinstance(stderr, str), stderr
+        super().__init__(returncode, cmd, output, stderr)
+
+    def _truncate_stdio(self, stdio: str) -> str:
+        if len(stdio) > self.MAX_STDIO_LENGTH:
+            stdio = stdio[: self.MAX_STDIO_LENGTH - 3] + "..."
+        return stdio
 
     def __str__(self) -> str:
         if self.returncode and self.returncode < 0:
@@ -41,10 +54,10 @@ class CalledProcessTimeoutError(CalledProcessError):
         timeout: float,
         returncode: int,
         cmd: Union[str, List[str]],
-        stdout: Union[str, bytes],
-        stderr: Union[str, bytes],
+        output: str,
+        stderr: str,
     ):
-        super().__init__(returncode, cmd, stdout, stderr)
+        super().__init__(returncode, cmd, output, stderr)
         self.timeout = timeout
 
     def __str__(self) -> str:

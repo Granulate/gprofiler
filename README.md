@@ -93,6 +93,14 @@ In this mode, gProfiler will automatically load a library based on [node-linux-p
 gProfiler uses the inspector protocol (documented [here](https://nodejs.org/en/docs/guides/debugging-getting-started/#enable-inspector)) to connect to target processes. gProfiler will send `SIGUSR1`, connect to the process and request to it load the library matching its NodeJS version (gProfiler comes built-in with arsenal of libraries for common NodeJS versions). After the library is loaded, gProfiler invokes the `perf-pid.map` generation. This is done to all running NodeJS processes - those running before gProfiler started, and done starting during gProfiler's run. Upon stopping, gProfiler stops the functionality, so processes no longer continue to write those file.  
 This requires the entrypoint of application to be CommonJS script. (Doesn't work for ES modules)
 
+### Golang profiling options
+
+Golang profiling is based on `perf`, used via the system profiler (explained in [System profiling options](#System-profiling-options)).
+
+As with all native programs, the Golang program must have symbols - not stripped - otherwise, additional debug info files must be provided. Without symbols/debug info, `perf` is unable to symbolicate the stacktraces of the program. In that case gProfiler will not tag the stacks as Golang and you will not see any symbols.
+
+Make sure you are not passing `-s` to the `-ldflags` during your build - `-s` omits the symbols table; see more details [here](https://pkg.go.dev/cmd/link#hdr-Command_Line).
+
 ### System profiling options
 
 * `--perf-mode`: Controls the global perf strategy. Must be one of the following options:
@@ -187,6 +195,16 @@ Additionally, 2 more flags need to be added to gProfiler's commandline: `--disab
 * `--disable-pidns-check` is required because gProfiler won't run in the init PID NS.
 * `--perf-mode=none` is required because gProfiler will not have permissions to run system-wide `perf`, so we will profile only runtime processes, such as Java. See [perf-less mode](#perf-less-mode) for more information.
 
+### Databricks unique service names for job clusters
+By using `--databricks-job-name-as-service-name`, gProfiler will use the Job Clusters' Job Name as service name.
+In case gProfiler successfully managed to extract the Job Name, the service name will be `databricks-job-<JOB_NAME>`.
+By default, this functionality relies on `spark.databricks.clusterUsageTags.clusterAllTags` property
+to extract the Job Name.
+
+In case gProfiler spots this property is redacted, gProfiler will use the
+`spark.databricks.clusterUsageTags.clusterName` property as service name.
+
+
 ## Running as a Kubernetes DaemonSet
 See [gprofiler.yaml](deploy/k8s/gprofiler.yaml) for a basic template of a DaemonSet running gProfiler.
 Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in the appropriate location!
@@ -200,6 +218,14 @@ helm install --set gprofiler.token="GPROFILER_TOKEN" --set gprofiler.serviceName
 # To view additional configuration options you can run:
 helm show values .
 ```
+
+### OpenShift SCCs
+
+If your OpenShift cluster uses [SCCs](https://docs.openshift.com/container-platform/4.12/authentication/managing-security-context-constraints.html), the gProfiler Pods might get an error `FailedCreate` with the reason `unable to validate against any security context constraint`.
+
+If this happens, we must grant the `privileged` SCC to the gProfiler DaemonSet to have the Pods scheduled.
+
+This is done by creating a `Role` that's allowed to use the `privileged` SCC, then granting that `Role` via a `RoleBinding` to a `ServiceAccount` that is used in gProfiler's `DaemonSet`. The 3 objects (`ServiceAccount`, `Role`, `RoleBinding`) can be found in [scc.yaml](deploy/k8s/openshift/scc.yaml). After applying that file, all you need to do is add `serviceAccountName: granulate-service-account` to the gProfiler Pod spec, re-apply the `DaemonSet` and verify that created Pods have the `openshift.io/scc: privileged` annotation, which means they have successfully used the SCC.
 
 ## Running as an ECS (Elastic Container Service) Daemon service
 

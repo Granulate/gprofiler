@@ -5,8 +5,8 @@
 #
 set -euo pipefail
 
-VERSION=timeout-recycle
-GIT_REV="666a620f2519405ef6630aa36ceb03166a42282b"
+VERSION=v2.10g1
+GIT_REV="b3baf6010e31378679a28fe1cd30168f51cc1ade"
 
 git clone --depth 1 -b "$VERSION" https://github.com/marcin-ol/async-profiler.git && cd async-profiler && git reset --hard "$GIT_REV"
 make all

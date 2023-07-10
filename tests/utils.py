@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
+import platform
 import re
 import subprocess
 from contextlib import contextmanager
@@ -44,10 +45,10 @@ RUNTIME_PROFILERS = [
 def start_container(
     docker_client: DockerClient,
     image: Image,
-    command: List[str],
+    command: Optional[List[str]] = None,
     volumes: Dict[str, Dict[str, str]] = None,
     privileged: bool = False,
-    pid_mode: Optional[str] = "host",
+    pid_mode: Optional[str] = None,
     **extra_kwargs: Any,
 ) -> Container:
     if volumes is None:
@@ -61,6 +62,7 @@ def start_container(
         pid_mode=pid_mode,
         userns_mode="host",
         volumes=volumes,
+        labels=[docker_client._gprofiler_test_id],
         stderr=True,
         detach=True,
         **extra_kwargs,
@@ -111,7 +113,9 @@ def run_privileged_container(
 ) -> str:
     container = None
     try:
-        container = start_container(docker_client, image, command, volumes, privileged=True, **extra_kwargs)
+        container = start_container(
+            docker_client, image, command, volumes, pid_mode="host", privileged=True, **extra_kwargs
+        )
         return wait_for_container(container)
 
     finally:
@@ -166,6 +170,10 @@ def is_pattern_in_collapsed(pattern: str, collapsed: StackToSampleCount) -> bool
     return any(regex.search(record) is not None for record in collapsed.keys())
 
 
+def is_aarch64() -> bool:
+    return platform.machine() == "aarch64"
+
+
 def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) -> None:
     print(f"collapsed: {collapsed}")
     assert is_function_in_collapsed(function_name, collapsed), f"function {function_name!r} missing in collapsed data!"
@@ -204,6 +212,7 @@ def make_java_profiler(
     java_collect_spark_app_name_as_appid: bool = False,
     java_mode: str = "ap",
     java_collect_jvm_flags: str = JavaFlagCollectionOptions.DEFAULT,
+    java_full_hserr: bool = False,
     java_include_method_modifiers: bool = False,
 ) -> JavaProfiler:
     return JavaProfiler(
@@ -221,6 +230,7 @@ def make_java_profiler(
         java_mode=java_mode,
         java_async_profiler_report_meminfo=java_async_profiler_report_meminfo,
         java_collect_jvm_flags=java_collect_jvm_flags,
+        java_full_hserr=java_full_hserr,
         java_include_method_modifiers=java_include_method_modifiers,
     )
 
@@ -326,6 +336,14 @@ def _application_process(command_line: List[str], check_app_exited: bool) -> Ite
     _print_process_output(popen)
 
 
+def wait_container_to_start(container: Container) -> None:
+    while container.status != "running":
+        if container.status == "exited":
+            raise Exception(container.logs().decode())
+        sleep(1)
+        container.reload()
+
+
 @contextmanager
 def _application_docker_container(
     docker_client: DockerClient,
@@ -334,19 +352,15 @@ def _application_docker_container(
     application_docker_capabilities: List[str],
     application_docker_command: Optional[List[str]] = None,
 ) -> Container:
-    container: Container = docker_client.containers.run(
+    container: Container = start_container(
+        docker_client,
         application_docker_image,
-        detach=True,
+        application_docker_command,
         user="5555:6666",
         mounts=application_docker_mounts,
         cap_add=application_docker_capabilities,
-        command=application_docker_command,
     )
-    while container.status != "running":
-        if container.status == "exited":
-            raise Exception(container.logs().decode())
-        sleep(1)
-        container.reload()
+    wait_container_to_start(container)
     yield container
     container.remove(force=True)
 

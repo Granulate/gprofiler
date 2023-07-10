@@ -44,6 +44,7 @@ from tests.utils import (
     _application_docker_container,
     assert_function_in_collapsed,
     assert_jvm_flags_equal,
+    is_aarch64,
     is_function_in_collapsed,
     is_pattern_in_collapsed,
     log_record_extra,
@@ -152,6 +153,8 @@ def test_java_async_profiler_cpu_mode(
     """
     Run Java in a container and enable async-profiler in CPU mode, make sure we get kernel stacks.
     """
+    if is_aarch64():
+        pytest.xfail("This test is not working on aarch64 https://github.com/Granulate/gprofiler/issues/723")
     with make_java_profiler(
         profiler_state,
         frequency=999,
@@ -265,10 +268,13 @@ def test_hotspot_error_file(
         profiler.snapshot()
 
     assert "Found Hotspot error log" in caplog.text
-    assert "OpenJDK" in caplog.text
-    assert "SIGBUS" in caplog.text
-    assert "libpthread.so" in caplog.text
-    assert "memory_usage_in_bytes:" in caplog.text
+    log_record = next(filter(lambda r: r.message == "Found Hotspot error log", caplog.records))
+    log_extras = log_record_extra(log_record)
+    assert "OpenJDK" in log_extras["hs_err"]
+    assert "SIGBUS" in log_extras["hs_err"]
+    if not is_aarch64():
+        assert "libpthread.so" in log_extras["hs_err"]
+        assert "memory_usage_in_bytes:" in log_extras["hs_err"]
     assert "Java profiling has been disabled, will avoid profiling any new java process" in caplog.text
     assert profiler._safemode_disable_reason is not None
 
@@ -384,6 +390,11 @@ def test_sanity_other_jvms(
     search_for: str,
     profiler_state: ProfilerState,
 ) -> None:
+    if is_aarch64():
+        pytest.xfail(
+            "Different JVMs are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
+        )
+
     with make_java_profiler(
         profiler_state,
         frequency=99,
@@ -424,11 +435,13 @@ def test_java_deleted_libjvm(
 def filter_jattach_load_records(records: List[LogRecord]) -> List[LogRecord]:
     def _filter_record(r: LogRecord) -> bool:
         # find the log record of
-        # Running command (command=['/app/gprofiler/resources/java/jattach', 'xxx', 'load', ....])
+        # Running command (command=['/app/gprofiler/resources/java/apsprof', 'jattach',
+        # '-L', '/path/to/libasyncProfiler.so', "--jattach-cmd", "start,..."])
         return (
             r.message == "Running command"
-            and "/jattach" in log_record_extra(r)["command"][0]
-            and "load" in log_record_extra(r)["command"][2]
+            and len(log_record_extra(r)["command"]) >= 6
+            and log_record_extra(r)["command"][1] == "jattach"
+            and any(map(lambda k: k in log_record_extra(r)["command"][5], ["start,", "stop,", "dump,"]))
         )
 
     return list(filter(_filter_record, records))
@@ -583,7 +596,6 @@ def test_java_attach_socket_missing(
     Tests that we get the proper JattachSocketMissingException when the attach socket is deleted.
     This indicates that socket won't be recreated and we won't be able to utilize jattach.
     """
-
     with make_java_profiler(
         profiler_state,
         duration=1,
@@ -1075,6 +1087,10 @@ def test_collect_cmdline_and_env_jvm_flags(
     1. Tests collections jvm flags from env & commandline origins and reporting the correct origin
     2. Tests collecting only specific flags
     """
+    if is_aarch64():
+        pytest.xfail(
+            "Different jvm flags are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
+        )
     with make_java_profiler(profiler_state, java_collect_jvm_flags="SelfDestructTimer,PrintCodeCache") as profiler:
         # When running a container manually we can't use application_pid fixture as it will come from the fixture
         # container and not from the manually started one
