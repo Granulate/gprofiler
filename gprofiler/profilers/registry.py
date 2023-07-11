@@ -1,6 +1,6 @@
 from collections import defaultdict
 from dataclasses import asdict, dataclass
-from typing import Any, Callable, Dict, List, Optional, Sequence, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Type, Union
 
 from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.platform import is_windows
@@ -133,21 +133,25 @@ def get_profilers_by_name() -> Dict[str, ProfilerConfig]:
 
 
 def get_runtime_possible_modes(runtime: str) -> List[str]:
-    possible_modes: List[str] = [ProfilerConfig.ENABLED_MODE] if len(profilers_config[runtime]) > 1 else []
-    for config in profilers_config[runtime]:
-        possible_modes += [m for m in config.get_active_modes() if m not in possible_modes]
-    possible_modes += ProfilerConfig.DISABLED_MODES
-    return possible_modes
+    """
+    Get profiler modes supported for given runtime and available for current architecture.
+    """
+    arch = get_arch()
+    added_modes: Set[str] = set()
+    for config in (c for c in profilers_config[runtime] if arch in c.get_supported_archs()):
+        added_modes.update(config.get_active_modes())
+    initial_modes = [ProfilerConfig.ENABLED_MODE] if len(profilers_config[runtime]) > 1 else []
+    return initial_modes + sorted(added_modes) + ProfilerConfig.DISABLED_MODES
 
 
 def get_sorted_profilers(runtime: str) -> List[ProfilerConfig]:
     """
-    Get all profiler configs registered for given runtime sorted by preference.
+    Get all profiler configs registered for given runtime filtered for current architecture and sorted by preference.
     """
     arch = get_arch()
     profiler_configs = sorted(
-        profilers_config[runtime],
-        key=lambda c: (arch in c.get_supported_archs(), c.is_preferred, c.profiler_name),
+        (c for c in profilers_config[runtime] if arch in c.get_supported_archs()),
+        key=lambda c: (c.is_preferred, c.profiler_name),
         reverse=True,
     )
     return profiler_configs

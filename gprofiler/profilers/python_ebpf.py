@@ -46,7 +46,6 @@ class PythonEbpfError(CalledProcessError):
     "Python",
     profiler_name="PyPerf",
     is_preferred=True,
-    # py-spy is like pyspy, it's confusing and I mix between them
     possible_modes=["auto", "pyperf"],
     default_mode="auto",
     # we build pyperf only for x86_64.

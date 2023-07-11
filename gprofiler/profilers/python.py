@@ -155,7 +155,6 @@ class PythonMetadata(ApplicationMetadata):
 @register_profiler(
     "Python",
     profiler_name="PySpy",
-    # py-spy is like pyspy, it's confusing and I mix between them
     possible_modes=["auto", "pyspy", "py-spy"],
     default_mode="auto",
     # we build pyspy for both,.

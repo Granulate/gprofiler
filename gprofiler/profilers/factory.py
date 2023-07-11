@@ -2,7 +2,6 @@ import sys
 from typing import TYPE_CHECKING, Any, List, Tuple, Union
 
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.profiler_base import NoopProfiler
 from gprofiler.profilers.registry import (
@@ -30,9 +29,9 @@ def get_profilers(
 
     if profiling_mode == "none":
         return system_profiler, process_profilers_instances
-    arch = get_arch()
+
     for runtime in get_profilers_registry():
-        runtime_args_prefix = runtime.lower().replace("-", "_")
+        runtime_args_prefix = runtime.lower()
         runtime_mode = user_args.get(f"{runtime_args_prefix}_mode")
         if runtime_mode in ProfilerConfig.DISABLED_MODES:
             continue
@@ -44,15 +43,13 @@ def get_profilers(
         selected_configs: List[ProfilerConfig] = []
         for config in requested_configs:
             profiler_name = config.profiler_name
-            if arch not in config.get_supported_archs() and len(requested_configs) == 1:
-                logger.warning(f"Disabling {profiler_name} because it doesn't support this architecture ({arch})")
-                continue
             if profiling_mode not in config.supported_profiling_modes:
                 logger.warning(
                     f"Disabling {profiler_name} because it doesn't support profiling mode {profiling_mode!r}"
                 )
                 continue
             selected_configs.append(config)
+
         if not selected_configs:
             logger.warning(f"Disabling {runtime} profiling because no profilers were selected")
             continue
@@ -81,7 +78,7 @@ def get_profilers(
                     logger.critical(
                         f"Couldn't create the {profiler_name} profiler for runtime {runtime}, not continuing."
                         f" Request different profiler for runtime with --{runtime_args_prefix}-mode, or disable"
-                        f" {runtime} profiling with --no-{runtime_args_prefix} to disable this profiler",
+                        f" {runtime} profiling with --{runtime_args_prefix}-mode=disabled to disable this profiler",
                         exc_info=True,
                     )
                     sys.exit(1)

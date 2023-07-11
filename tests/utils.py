@@ -29,7 +29,9 @@ from gprofiler.profilers.java import (
     JavaFlagCollectionOptions,
     JavaProfiler,
 )
-from gprofiler.profilers.profiler_base import ProfilerInterface
+from gprofiler.profilers.profiler_base import ProfilerBase, ProfilerInterface
+from gprofiler.profilers.python import PySpyProfiler
+from gprofiler.profilers.python_ebpf import PythonEbpfProfiler
 from gprofiler.utils import remove_path, wait_event
 
 RUNTIME_PROFILERS = [
@@ -233,6 +235,32 @@ def make_java_profiler(
         java_full_hserr=java_full_hserr,
         java_include_method_modifiers=java_include_method_modifiers,
     )
+
+
+def make_python_profiler(
+    frequency: int,
+    duration: int,
+    profiler_state: ProfilerState,
+    python_mode: str,
+    python_add_versions: bool,
+    python_pyperf_user_stacks_pages: Optional[int],
+    python_pyperf_verbose: bool,
+) -> ProfilerBase:
+    assert python_mode in ["pyperf", "pyspy"]
+    if python_mode == "pyperf":
+        return PythonEbpfProfiler(
+            frequency,
+            duration,
+            profiler_state,
+            python_mode=python_mode,
+            python_add_versions=python_add_versions,
+            python_pyperf_user_stacks_pages=python_pyperf_user_stacks_pages,
+            python_pyperf_verbose=python_pyperf_verbose,
+        )
+    else:
+        return PySpyProfiler(
+            frequency, duration, profiler_state, python_mode=python_mode, python_add_versions=python_add_versions
+        )
 
 
 def start_gprofiler_in_container_for_one_session(
