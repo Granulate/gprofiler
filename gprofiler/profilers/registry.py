@@ -140,6 +140,8 @@ def get_runtime_possible_modes(runtime: str) -> List[str]:
     added_modes: Set[str] = set()
     for config in (c for c in profilers_config[runtime] if arch in c.get_supported_archs()):
         added_modes.update(config.get_active_modes())
+    if not added_modes:
+        return []
     initial_modes = [ProfilerConfig.ENABLED_MODE] if len(profilers_config[runtime]) > 1 else []
     return initial_modes + sorted(added_modes) + ProfilerConfig.DISABLED_MODES
 

@@ -806,7 +806,7 @@ def parse_cmd_args() -> configargparse.Namespace:
     if not args.upload_results and not args.output_dir:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
 
-    if args.perf_dwarf_stack_size > 65528:
+    if args.perf_mode not in ("disabled", "none") and args.perf_dwarf_stack_size > 65528:
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
 
     if args.profiling_mode == CPU_PROFILING_MODE and args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
@@ -825,8 +825,20 @@ def _add_profilers_arguments(parser: configargparse.ArgumentParser) -> None:
     # add command-line arguments for each profiling runtime, but only for profilers that are working
     # with current architecture.
     for runtime in get_profilers_registry():
+        runtime_possible_modes = get_runtime_possible_modes(runtime)
         arg_group = parser.add_argument_group(runtime)
         mode_var = f"{runtime.lower()}_mode"
+        if not runtime_possible_modes:
+            # if no mode is possible for this runtime, skip this runtime, and register it as disabled
+            # to overcome issue with Perf showing up on Windows
+            parser.add_argument(
+                f"--{runtime.lower()}-mode",
+                dest=mode_var,
+                default="disabled",
+                help=configargparse.SUPPRESS,
+            )
+            continue
+
         # TODO: organize options and usage for runtime - single source of runtime options?
         preferred_profiler = get_preferred_or_first_profiler(runtime)
         arg_group.add_argument(
@@ -834,7 +846,7 @@ def _add_profilers_arguments(parser: configargparse.ArgumentParser) -> None:
             dest=mode_var,
             default=preferred_profiler.default_mode,
             help=preferred_profiler.profiler_mode_help,
-            choices=get_runtime_possible_modes(runtime),
+            choices=runtime_possible_modes,
         )
         arg_group.add_argument(
             f"--no-{runtime.lower()}",
