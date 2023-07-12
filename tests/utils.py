@@ -246,7 +246,7 @@ def make_python_profiler(
     python_pyperf_user_stacks_pages: Optional[int],
     python_pyperf_verbose: bool,
 ) -> ProfilerBase:
-    assert python_mode in ["pyperf", "pyspy"]
+    assert python_mode in ["pyperf", "pyspy", "py-spy"]
     if python_mode == "pyperf":
         return PythonEbpfProfiler(
             frequency,
