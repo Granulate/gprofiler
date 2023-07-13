@@ -172,8 +172,12 @@ def is_pattern_in_collapsed(pattern: str, collapsed: StackToSampleCount) -> bool
     return any(regex.search(record) is not None for record in collapsed.keys())
 
 
+def get_arch() -> str:
+    return platform.machine()
+
+
 def is_aarch64() -> bool:
-    return platform.machine() == "aarch64"
+    return get_arch() == "aarch64"
 
 
 def assert_function_in_collapsed(function_name: str, collapsed: StackToSampleCount) -> None:

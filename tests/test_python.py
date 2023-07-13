@@ -192,8 +192,8 @@ def test_dso_name_in_pyperf_profile(
     [
         ("python", "py-spy", PySpyProfiler.__name__),
         ("python", "pyperf", PythonEbpfProfiler.__name__),
-        ("python", "auto", PythonEbpfProfiler.__name__),
-        ("python", "enabled", PythonEbpfProfiler.__name__),
+        ("python", "auto", PythonEbpfProfiler.__name__ if not is_aarch64() else PySpyProfiler.__name__),
+        ("python", "enabled", PythonEbpfProfiler.__name__ if not is_aarch64() else PySpyProfiler.__name__),
     ],
 )
 def test_select_specific_python_profiler(

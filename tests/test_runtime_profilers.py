@@ -23,6 +23,7 @@ from gprofiler.profilers.registry import (
     register_profiler,
     register_runtime,
 )
+from tests.utils import get_arch
 
 
 class MockRuntime(ProfilingRuntime):
@@ -160,6 +161,7 @@ def test_select_specific_runtime_profiler(
             runtime_class=MockRuntime,
             profiler_class=MockProfiler,
             possible_modes=["mock-profiler", "disabled"],
+            supported_archs=[get_arch()],
         )
         MockPerf = type("MockPerf", (MockProfiler,), dict(**MockProfiler.__dict__))
 
@@ -168,6 +170,7 @@ def test_select_specific_runtime_profiler(
             runtime_class=MockRuntime,
             profiler_class=MockPerf,
             possible_modes=["mock-perf", "disabled"],
+            supported_archs=[get_arch()],
         )
         from gprofiler.main import parse_cmd_args
 
@@ -204,6 +207,7 @@ def test_auto_select_preferred_profiler(
             profiler_class=MockProfiler,
             is_preferred="mock-profiler" == preferred_profiler,
             possible_modes=["mock-profiler", "disabled"],
+            supported_archs=[get_arch()],
         )
         MockPerf = type("MockPerf", (MockProfiler,), dict(**MockProfiler.__dict__))
 
@@ -213,6 +217,7 @@ def test_auto_select_preferred_profiler(
             profiler_class=MockPerf,
             is_preferred="mock-perf" == preferred_profiler,
             possible_modes=["mock-perf", "disabled"],
+            supported_archs=[get_arch()],
         )
         from gprofiler.main import parse_cmd_args
 
@@ -279,6 +284,7 @@ def test_assign_correct_profiler_arguments(
             profiler_arguments=[
                 ProfilerArgument("--mock-mock-profiler-one", "mock_mock_profiler_one"),
             ],
+            supported_archs=[get_arch()],
         )
         MockPerf = type("MockPerf", (MockProfiler,), dict(**MockProfiler.__dict__))
 
@@ -291,6 +297,7 @@ def test_assign_correct_profiler_arguments(
             profiler_arguments=[
                 ProfilerArgument("--mock-mock-perf-two", "mock_mock_perf_two"),
             ],
+            supported_archs=[get_arch()],
         )
         from gprofiler.main import parse_cmd_args
 
