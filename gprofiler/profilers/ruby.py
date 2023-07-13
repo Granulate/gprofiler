@@ -20,7 +20,7 @@ from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
-from gprofiler.profilers.registry import register_profiler
+from gprofiler.profilers.registry import ProfilingRuntime, register_profiler, register_runtime
 from gprofiler.utils import pgrep_maps, random_prefix, removed_path, resource_path, run_process
 from gprofiler.utils.collapsed_format import parse_one_collapsed_file
 from gprofiler.utils.process import process_comm, search_proc_maps
@@ -54,11 +54,16 @@ class RubyMetadata(ApplicationMetadata):
         return metadata
 
 
+@register_runtime("Ruby", default_mode="rbspy")
+class RubyRuntime(ProfilingRuntime):
+    pass
+
+
 @register_profiler(
     "Ruby",
+    runtime_class=RubyRuntime,
     possible_modes=["rbspy", "disabled"],
     supported_archs=["x86_64", "aarch64"],
-    default_mode="rbspy",
     supported_profiling_modes=["cpu"],
 )
 class RbSpyProfiler(SpawningProcessProfilerBase):

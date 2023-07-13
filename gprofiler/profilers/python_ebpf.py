@@ -20,6 +20,7 @@ from gprofiler.metadata import application_identifiers
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers import python
 from gprofiler.profilers.profiler_base import ProfilerBase
+from gprofiler.profilers.python import PythonRuntime
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     poll_process,
@@ -43,27 +44,12 @@ class PythonEbpfError(CalledProcessError):
 
 
 @register_profiler(
-    "Python",
-    profiler_name="PyPerf",
+    "PyPerf",
+    runtime_class=PythonRuntime,
     is_preferred=True,
     possible_modes=["auto", "pyperf"],
-    default_mode="auto",
-    # we build pyperf only for x86_64.
     supported_archs=["x86_64"],
-    profiler_mode_argument_help="Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), "
-    "pyspy (always use py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails)"
-    " or disabled (no runtime profilers for Python).",
     profiler_arguments=[
-        # TODO should be prefixed with --python-
-        ProfilerArgument(
-            "--no-python-versions",
-            dest="python_add_versions",
-            action="store_false",
-            default=True,
-            help="Don't add version information to Python frames. If not set, frames from packages are displayed with "
-            "the name of the package and its version, and frames from Python built-in modules are displayed with "
-            "Python's full version.",
-        ),
         # TODO should be prefixed with --python-
         ProfilerArgument(
             "--pyperf-user-stacks-pages",

@@ -35,7 +35,7 @@ from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.platform import is_linux, is_windows
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
-from gprofiler.profilers.registry import register_profiler
+from gprofiler.profilers.registry import ProfilerArgument, ProfilingRuntime, register_profiler, register_runtime
 from gprofiler.utils import pgrep_exe, pgrep_maps, random_prefix, removed_path, resource_path, run_process
 from gprofiler.utils.collapsed_format import parse_one_collapsed_file
 from gprofiler.utils.process import process_comm, search_proc_maps
@@ -152,15 +152,37 @@ class PythonMetadata(ApplicationMetadata):
         return metadata
 
 
-@register_profiler(
+@register_runtime(
     "Python",
-    profiler_name="PySpy",
-    possible_modes=["auto", "pyspy", "py-spy"],
     default_mode="auto",
+    mode_help="Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), "
+    "pyspy (always use py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails)"
+    " or disabled (no runtime profilers for Python).",
+    common_arguments=[
+        # TODO should be prefixed with --python-
+        ProfilerArgument(
+            "--no-python-versions",
+            dest="python_add_versions",
+            action="store_false",
+            default=True,
+            help="Don't add version information to Python frames. If not set, frames from packages are displayed with "
+            "the name of the package and its version, and frames from Python built-in modules are displayed with "
+            "Python's full version.",
+        ),
+    ],
+)
+class PythonRuntime(ProfilingRuntime):
+    pass
+
+
+@register_profiler(
+    "PySpy",
+    runtime_class=PythonRuntime,
+    possible_modes=["auto", "pyspy", "py-spy"],
     # we build pyspy for both,.
     supported_archs=["x86_64", "aarch64"],
     supported_windows_archs=["AMD64"],
-    # profiler arguments are defined by preferred profiler of the runtime, that is PythonEbpfProfiler
+    # no specific arguments for PySpy besides the common args from runtime
     profiler_arguments=[],
     supported_profiling_modes=["cpu"],
 )

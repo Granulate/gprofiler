@@ -19,7 +19,7 @@ from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.platform import is_windows
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProcessProfilerBase
-from gprofiler.profilers.registry import register_profiler
+from gprofiler.profilers.registry import ProfilingRuntime, register_profiler, register_runtime
 from gprofiler.utils import pgrep_exe, pgrep_maps, random_prefix, removed_path, resource_path, run_process
 from gprofiler.utils.process import process_comm
 from gprofiler.utils.speedscope import load_speedscope_as_collapsed
@@ -49,12 +49,17 @@ class DotnetMetadata(ApplicationMetadata):
         return metadata
 
 
+@register_runtime("dotnet", default_mode="disabled")
+class DotnetRuntime(ProfilingRuntime):
+    pass
+
+
 @register_profiler(
     "dotnet",
+    runtime_class=DotnetRuntime,
     possible_modes=["dotnet-trace", "disabled"],
     supported_archs=["x86_64", "aarch64"],
     supported_windows_archs=["AMD64"],
-    default_mode="disabled",
     supported_profiling_modes=["cpu"],
 )
 class DotnetProfiler(ProcessProfilerBase):

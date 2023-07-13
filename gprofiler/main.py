@@ -50,10 +50,9 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import (
-    get_preferred_or_first_profiler,
-    get_profiler_arguments,
-    get_profilers_registry,
+    ProfilerArgument,
     get_runtime_possible_modes,
+    get_runtimes_registry,
     get_sorted_profilers,
 )
 from gprofiler.spark.sampler import SparkSampler
@@ -824,8 +823,10 @@ def parse_cmd_args() -> configargparse.Namespace:
 def _add_profilers_arguments(parser: configargparse.ArgumentParser) -> None:
     # add command-line arguments for each profiling runtime, but only for profilers that are working
     # with current architecture.
-    for runtime in get_profilers_registry():
-        runtime_possible_modes = get_runtime_possible_modes(runtime)
+    runtimes_registry = get_runtimes_registry()
+    for runtime_class, runtime_config in runtimes_registry.items():
+        runtime = runtime_config.runtime_name
+        runtime_possible_modes = get_runtime_possible_modes(runtime_class)
         arg_group = parser.add_argument_group(runtime)
         mode_var = f"{runtime.lower()}_mode"
         if not runtime_possible_modes:
@@ -839,13 +840,11 @@ def _add_profilers_arguments(parser: configargparse.ArgumentParser) -> None:
             )
             continue
 
-        # TODO: organize options and usage for runtime - single source of runtime options?
-        preferred_profiler = get_preferred_or_first_profiler(runtime)
         arg_group.add_argument(
             f"--{runtime.lower()}-mode",
             dest=mode_var,
-            default=preferred_profiler.default_mode,
-            help=preferred_profiler.profiler_mode_help,
+            default=runtime_config.default_mode,
+            help=runtime_config.mode_help,
             choices=runtime_possible_modes,
         )
         arg_group.add_argument(
@@ -854,18 +853,20 @@ def _add_profilers_arguments(parser: configargparse.ArgumentParser) -> None:
             const="disabled",
             dest=mode_var,
             default=True,
-            help=preferred_profiler.disablement_help,
+            help=runtime_config.disablement_help,
         )
-        # select arguments from sorted filtered list of profilers in current runtime
-        sorted_profiler_args = {
-            arg.dest: arg
-            for config in get_sorted_profilers(runtime)
-            for arg in get_profiler_arguments(runtime, config.profiler_name)
-        }
-        for arg in sorted_profiler_args.values():
+        # add each available profiler's arguments and runtime common arguments
+        profiling_args: List[ProfilerArgument] = []
+        profiling_args.extend(runtime_config.common_arguments)
+        for config in get_sorted_profilers(runtime_class):
+            profiling_args.extend(config.profiler_args)
+
+        for arg in profiling_args:
             profiler_arg_kwargs = arg.get_dict()
-            name = profiler_arg_kwargs.pop("name")
-            arg_group.add_argument(name, **profiler_arg_kwargs)
+            # do not add parser entries for profiler internal arguments
+            if "internal" not in profiler_arg_kwargs:
+                name = profiler_arg_kwargs.pop("name")
+                arg_group.add_argument(name, **profiler_arg_kwargs)
 
 
 def verify_preconditions(args: configargparse.Namespace, processes_to_profile: Optional[List[Process]]) -> None:

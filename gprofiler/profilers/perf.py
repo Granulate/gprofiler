@@ -34,7 +34,13 @@ from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
-from gprofiler.profilers.registry import ProfilerArgument, register_profiler
+from gprofiler.profilers.registry import (
+    InternalArgument,
+    ProfilerArgument,
+    ProfilingRuntime,
+    register_profiler,
+    register_runtime,
+)
 from gprofiler.utils import (
     reap_process,
     remove_files_by_prefix,
@@ -373,24 +379,14 @@ class PerfProcess:
                 remove_path(inject_data, missing_ok=True)
 
 
-@register_profiler(
+@register_runtime(
     "Perf",
-    possible_modes=["fp", "dwarf", "smart", "disabled"],
     default_mode="smart",
-    supported_archs=["x86_64", "aarch64"],
-    profiler_mode_argument_help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge"
+    mode_help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge"
     " them by choosing the best result per process. If 'disabled' is chosen, do not invoke"
     " 'perf' at all. The output, in that case, is the concatenation of the results from all"
     " of the runtime profilers. Defaults to 'smart'.",
-    profiler_arguments=[
-        ProfilerArgument(
-            "--perf-dwarf-stack-size",
-            help="The max stack size for the Dwarf perf, in bytes. Must be <=65528."
-            " Relevant for --perf-mode dwarf|smart. Default: %(default)s",
-            type=int,
-            default=DEFAULT_PERF_DWARF_STACK_SIZE,
-            dest="perf_dwarf_stack_size",
-        ),
+    common_arguments=[
         ProfilerArgument(
             "--perf-no-memory-restart",
             help="Disable checking if perf used memory exceeds threshold and restarting perf",
@@ -400,6 +396,28 @@ class PerfProcess:
     ],
     disablement_help="Disable the global perf of processes,"
     " and instead only concatenate runtime-specific profilers results",
+)
+class PerfRuntime(ProfilingRuntime):
+    pass
+
+
+@register_profiler(
+    "Perf",
+    runtime_class=PerfRuntime,
+    possible_modes=["fp", "dwarf", "smart", "disabled"],
+    supported_archs=["x86_64", "aarch64"],
+    profiler_arguments=[
+        ProfilerArgument(
+            "--perf-dwarf-stack-size",
+            help="The max stack size for the Dwarf perf, in bytes. Must be <=65528."
+            " Relevant for --perf-mode dwarf|smart. Default: %(default)s",
+            type=int,
+            default=DEFAULT_PERF_DWARF_STACK_SIZE,
+            dest="perf_dwarf_stack_size",
+        ),
+        InternalArgument(dest="perf_inject"),
+        InternalArgument(dest="perf_node_attach"),
+    ],
     supported_profiling_modes=["cpu"],
 )
 class SystemProfiler(ProfilerBase):

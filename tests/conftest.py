@@ -6,7 +6,6 @@ import os
 import secrets
 import stat
 import subprocess
-import sys
 from contextlib import _GeneratorContextManager, contextmanager
 from functools import lru_cache, partial
 from pathlib import Path
@@ -20,7 +19,7 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 from psutil import Process
-from pytest import FixtureRequest, MonkeyPatch, TempPathFactory, fixture
+from pytest import FixtureRequest, TempPathFactory, fixture
 
 from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.containers_client import ContainerNamesClient
@@ -35,9 +34,7 @@ from gprofiler.metadata.application_identifiers import (
 )
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.profiler_state import ProfilerState
-from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.java import AsyncProfiledProcess, JattachJcmdRunner
-from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.state import init_state
 from tests import CONTAINERS_DIRECTORY, PHPSPY_DURATION
 from tests.utils import (
@@ -581,37 +578,6 @@ def profiler_flags(runtime: str, profiler_type: str) -> List[str]:
         flags.remove(f"--no-{runtime}")
         flags.append(f"--{runtime}-mode={profiler_type}")
     return flags
-
-
-@fixture
-def make_profiler_instance(
-    profiler_flags: List[str], monkeypatch: MonkeyPatch, output_directory: Path, profiler_state: ProfilerState
-) -> Callable[[], _GeneratorContextManager]:
-    """
-    Deliver an instance of profiler selected by runtime and profiler_type.
-    """
-
-    # Reuse gProfiler flow to initialize specific profiler instance - one selected by runtime fixture.
-    @contextmanager
-    def _make_profiler_instance() -> Iterator[ProfilerBase]:
-        with monkeypatch.context() as m:
-            from gprofiler.main import parse_cmd_args
-
-            # overide command-line args to enable only one process profiler
-            m.setattr(
-                sys,
-                "argv",
-                sys.argv[:1] + ["--output-dir", str(output_directory), "--no-perf"] + profiler_flags,
-            )
-            # invoke gProfiler command-line parsing to collect arguments
-            args = parse_cmd_args()
-            # call factory to deliver initialized profiler instance
-            _, process_profilers = get_profilers(args.__dict__, profiler_state=profiler_state)
-            assert len(process_profilers) == 1
-            profiler = process_profilers[0]
-            yield cast(ProfilerBase, profiler)
-
-    return _make_profiler_instance
 
 
 @fixture(autouse=True, scope="session")

@@ -18,7 +18,7 @@ from gprofiler.gprofiler_types import ProcessToProfileData, ProcessToStackSample
 from gprofiler.log import get_logger_adapter
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProfilerBase
-from gprofiler.profilers.registry import ProfilerArgument, register_profiler
+from gprofiler.profilers.registry import ProfilerArgument, ProfilingRuntime, register_profiler, register_runtime
 from gprofiler.utils import random_prefix, reap_process, resource_path, start_process, wait_event
 
 logger = get_logger_adapter(__name__)
@@ -26,11 +26,16 @@ logger = get_logger_adapter(__name__)
 DEFAULT_PROCESS_FILTER = "php-fpm"
 
 
+@register_runtime("PHP", default_mode="disabled")
+class PHPRuntime(ProfilingRuntime):
+    pass
+
+
 @register_profiler(
     "PHP",
+    runtime_class=PHPRuntime,
     possible_modes=["phpspy", "disabled"],
     supported_archs=["x86_64", "aarch64"],
-    default_mode="disabled",
     profiler_arguments=[
         ProfilerArgument(
             "--php-proc-filter",

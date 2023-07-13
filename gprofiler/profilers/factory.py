@@ -4,12 +4,7 @@ from typing import TYPE_CHECKING, Any, List, Tuple, Union
 from gprofiler.log import get_logger_adapter
 from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.profiler_base import NoopProfiler
-from gprofiler.profilers.registry import (
-    ProfilerConfig,
-    get_profiler_arguments,
-    get_profilers_registry,
-    get_sorted_profilers,
-)
+from gprofiler.profilers.registry import ProfilerConfig, get_runtimes_registry, get_sorted_profilers
 
 if TYPE_CHECKING:
     from gprofiler.gprofiler_types import UserArgs
@@ -30,13 +25,14 @@ def get_profilers(
     if profiling_mode == "none":
         return system_profiler, process_profilers_instances
 
-    for runtime in get_profilers_registry():
+    for runtime_class, runtime_config in get_runtimes_registry().items():
+        runtime = runtime_config.runtime_name
         runtime_args_prefix = runtime.lower()
         runtime_mode = user_args.get(f"{runtime_args_prefix}_mode")
         if runtime_mode in ProfilerConfig.DISABLED_MODES:
             continue
         # select configs supporting requested runtime_mode or all configs in order of preference
-        requested_configs: List[ProfilerConfig] = get_sorted_profilers(runtime)
+        requested_configs: List[ProfilerConfig] = get_sorted_profilers(runtime_class)
         if runtime_mode != ProfilerConfig.ENABLED_MODE:
             requested_configs = [c for c in requested_configs if runtime_mode in c.get_active_modes()]
         # select profilers that support this architecture and profiling mode
@@ -55,18 +51,14 @@ def get_profilers(
             continue
         # create instances of selected profilers one by one, select first that is ready
         ready_profiler = None
-        runtime_arg_names = [arg.dest for config in get_profilers_registry()[runtime] for arg in config.profiler_args]
+        mode_var = f"{runtime.lower()}_mode"
+        runtime_arg_names: List[str] = [arg.dest for arg in runtime_config.common_arguments] + [mode_var]
         for profiler_config in selected_configs:
             profiler_name = profiler_config.profiler_name
             profiler_kwargs = profiler_init_kwargs.copy()
-            profiler_arg_names = [arg.dest for arg in get_profiler_arguments(runtime, profiler_name)]
+            profiler_arg_names = [arg.dest for arg in profiler_config.profiler_args]
             for key, value in user_args.items():
-                if (
-                    key in profiler_arg_names
-                    or key in COMMON_PROFILER_ARGUMENT_NAMES
-                    or key.startswith(runtime_args_prefix)
-                    and key not in runtime_arg_names
-                ):
+                if key in profiler_arg_names or key in runtime_arg_names or key in COMMON_PROFILER_ARGUMENT_NAMES:
                     profiler_kwargs[key] = value
             try:
                 profiler_instance = profiler_config.profiler_class(**profiler_kwargs)
