@@ -145,6 +145,10 @@ RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
         ./fix_centos8.sh; \
     fi
 
+# update libmodulemd to fix https://bugzilla.redhat.com/show_bug.cgi?id=2004853
+RUN yum install -y epel-release && \
+    yum install -y libmodulemd
+
 # python 3.10 installation
 WORKDIR /python
 RUN yum install -y \
@@ -166,8 +170,7 @@ RUN ./python310_build.sh
 
 WORKDIR /app
 
-RUN yum clean all && yum --setopt=skip_missing_names_on_install=False install -y \
-        epel-release \
+RUN yum --setopt=skip_missing_names_on_install=False install -y \
         gcc \
         curl \
         libicu
