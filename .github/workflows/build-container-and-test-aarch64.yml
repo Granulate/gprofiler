@@ -1,51 +1,33 @@
-name: Lint, build gProfiler container and run tests
+name: Lint, build gProfiler container and run tests on aarch64
 
 on: pull_request
 
 jobs:
-  lint:
-    strategy:
-      matrix:
-        python-version:
-          - "3.8"
-          - "3.9"
-          - "3.10"
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-
-    - name: Checkout Code
-      uses: actions/checkout@v3
-      with:
-        submodules: true
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r dev-requirements.txt
-        pip install -r requirements.txt
-
-    - name: Run linters
-      run: ./lint.sh --ci
-
-  build-container:
-    runs-on: ubuntu-latest
+  build-container-aarch64:
+    runs-on:
+      - self-hosted
+      - public
+      - ARM64
 
     steps:
     - name: Checkout Code
       uses: actions/checkout@v3
       with:
         submodules: true
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
     # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
     # more nicely. the tests will then be able to use the built image.
     - name: Build gProfiler image
-      run: ./scripts/build_x86_64_container.sh
+      run: ./scripts/build_aarch64_container.sh
 
     - name: Export gProfiler image
       run: mkdir -p output && docker image save gprofiler > output/gprofiler.img
@@ -58,9 +40,12 @@ jobs:
         retention-days: 1
 
   test:
-    needs: build-container
+    needs: build-container-aarch64
 
-    runs-on: ubuntu-20.04  # for 3.10.0 python tag
+    runs-on: 
+      - self-hosted
+      - public
+      - ARM64
 
     strategy:
       fail-fast: false  # helps detecting flakiness / errors specific to one Python version
@@ -81,14 +66,20 @@ jobs:
       with:
         java-version: '8.0.275'
         java-package: jdk
-        architecture: x64
+        architecture: aarch64
 
     - name: Install Node.JS
       uses: actions/setup-node@v2
       with:
         # same version as used in tests/containers/nodejs/Dockerfile
         node-version: 10.x
-
+  
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+  
     - name: Checkout Code
       uses: actions/checkout@v3
       with:
