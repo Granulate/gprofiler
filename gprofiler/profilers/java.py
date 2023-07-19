@@ -671,7 +671,7 @@ class AsyncProfiledProcess:
 
     def _get_dump_cmd(self, ap_timeout: int = 0) -> List[str]:
         return self._get_base_cmd() + [
-            f"dump"
+            f"dump,resettrace"
             f",log={self._log_path_process}"
             f"{self._get_ap_output_args()}"
             f"{self._get_ap_recycle_args(ap_timeout)}"
@@ -1348,11 +1348,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
             return self._profiling_error_stack("error", "process exited before reading the output", comm)
         else:
             logger.info(f"Finished profiling process {ap_proc.process.pid}")
-            # TODO: adjust output for cumulative frame count - async-profiler doesn't reset it
-            # TODO: account for dump skew - time between last dump output and the next call to snapshot()
             dumped_stacks = parse_one_collapsed(output, comm)
-            adjusted_stacks = self._get_adjusted_output_stacks(ap_proc.process.pid, dumped_stacks)
-            return adjusted_stacks
+            return dumped_stacks
 
     def _check_hotspot_error(self, ap_proc: AsyncProfiledProcess) -> None:
         pid = ap_proc.process.pid
