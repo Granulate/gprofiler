@@ -19,6 +19,7 @@ spec:
       labels:
         app: granulate-gprofiler
     spec:
+      automountServiceAccountToken: false
       hostPID: true
       securityContext:
         runAsUser: 0
