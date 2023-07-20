@@ -13,6 +13,7 @@ from subprocess import Popen
 from threading import Event
 from typing import Any, Dict, Iterable, List, Optional
 
+from granulate_utils.exceptions import MissingExePath
 from granulate_utils.golang import get_process_golang_version, is_golang_process
 from granulate_utils.linux.elf import elf_is_stripped, is_statically_linked
 from granulate_utils.linux.process import is_musl, is_process_running
@@ -491,6 +492,8 @@ class SystemProfiler(ProfilerBase):
                 if collector.relevant_for_process(process):
                     return collector.get_metadata(process)
         except NoSuchProcess:
+            pass
+        except MissingExePath:
             pass
         return None
 
