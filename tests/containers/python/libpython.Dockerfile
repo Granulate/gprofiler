@@ -3,7 +3,7 @@ FROM python:3.6-alpine
 WORKDIR /app
 ADD lister.py /app
 # yaml is used in lister.py
-RUN pip install pyyaml==6.0.1
+RUN pip install pyyaml~=6.0.1
 # this is used to test that we identify Python processes to profile based on "libpython" in their "/proc/pid/maps".
 # so we'll run a Python script using non-"python" executable ("shmython" instead) but it'll have "libpython"
 # loaded.
