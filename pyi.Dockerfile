@@ -145,6 +145,11 @@ RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
         ./fix_centos8.sh; \
     fi
 
+# update libmodulemd to fix https://bugzilla.redhat.com/show_bug.cgi?id=2004853
+RUN yum install -y epel-release && \
+    yum install -y libmodulemd && \
+    yum clean all
+
 # python 3.10 installation
 WORKDIR /python
 RUN yum install -y \
@@ -166,11 +171,11 @@ RUN ./python310_build.sh
 
 WORKDIR /app
 
-RUN yum clean all && yum --setopt=skip_missing_names_on_install=False install -y \
-        epel-release \
+RUN yum --setopt=skip_missing_names_on_install=False install -y \
         gcc \
         curl \
-        libicu
+        libicu && \
+    yum clean all
 
 # needed for aarch64 (for staticx)
 RUN set -e; \
@@ -212,13 +217,6 @@ COPY granulate-utils/glogger granulate-utils/glogger
 RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
 COPY exe-requirements.txt exe-requirements.txt
-# build on centos:8 of Aarch64 requires -lnss_files and -lnss_dns. the files are missing but the symbols
-# seem to be provided from another archive (e.g libc.a), so this "fix" bypasses the ld error of "missing -lnss..."
-# see https://github.com/JonathonReinhart/staticx/issues/219
-RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
-    ! test -f /lib64/libnss_files.a && ar rcs /lib64/libnss_files.a && \
-    ! test -f /lib64/libnss_dns.a && ar rcs /lib64/libnss_dns.a; \
-    fi
 RUN python3 -m pip install --no-cache-dir -r exe-requirements.txt
 
 # copy PyPerf, licenses and notice file.
@@ -277,6 +275,8 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
         cd staticx && \
         git reset --hard 819d8eafecbaab3646f70dfb1e3e19f6bbc017f8 && \
         git apply ../staticx_patch.diff && \
+        ln -s libnss_files.so.2 /lib64/libnss_files.so && \
+        ln -s libnss_dns.so.2 /lib64/libnss_dns.so && \
         python3 -m pip install --no-cache-dir . ; \
     fi
 
