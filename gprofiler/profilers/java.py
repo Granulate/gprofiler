@@ -8,7 +8,6 @@ import os
 import re
 import secrets
 import signal
-from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
@@ -424,12 +423,17 @@ _MEM_INFO_LOG_RE = re.compile(
     r"KB\n\n"
 )
 
+# Error reported by dump action, when profiler has not started; message defined in source:
+# https://github.com/async-profiler/async-profiler/blob/v2.10/src/profiler.cpp#L1195
+_DUMP_ERROR_PROFILER_NOT_STARTED_RE = re.compile(r"\[ERROR\] Profiler has not started\n")
+
 # Status reported by async profiler when it's started. Defined here:
 # https://github.com/async-profiler/async-profiler/blob/e3b7bfca227ae5c916f00abfacf0e61291df3a67/src/profiler.cpp#L1541
 _AP_STATUS_RUNNING_RE = re.compile(r"Profiling is running for (?P<uptime>\d+) seconds\n")
 
 
 class AsyncProfilerStartStatus(Enum):
+    NOT_RUNNING = auto()
     STARTED_BY_US = auto()
     ALREADY_RUNNING = auto()
 
@@ -518,6 +522,7 @@ class AsyncProfiledProcess:
         self._started_by_us = False
         self._setup_state: Optional[bool] = None
         self._jattach_socket_disabled = False
+        self._start_status = AsyncProfilerStartStatus.NOT_RUNNING
 
     def _find_rw_exec_dir(self, available_dirs: Sequence[str]) -> str:
         """
@@ -671,17 +676,16 @@ class AsyncProfiledProcess:
 
     def _get_dump_cmd(self, ap_timeout: int = 0) -> List[str]:
         return self._get_base_cmd() + [
-            f"dump,resettrace"
-            f",log={self._log_path_process}"
+            f"dump,"
+            # reset trace after dump to start each profiling cycle with zeroed counters
+            "resettrace,"
+            # make profiler check it's active (not stopped due to timeout) when running dump
+            "dumpactive,"
+            f"log={self._log_path_process}"
             f"{self._get_ap_output_args()}"
             f"{self._get_ap_recycle_args(ap_timeout)}"
             f"{',lib' if self._profiler_state.insert_dso_name else ''}{',meminfolog' if self._collect_meminfo else ''}"
             f"{self._get_extra_ap_args()}"
-        ]
-
-    def _get_status_cmd(self, ap_timeout: int = 0) -> List[str]:
-        return self._get_base_cmd() + [
-            "status" f"{self._get_ap_output_args()}" f"{self._get_ap_recycle_args(ap_timeout)}"
         ]
 
     def _read_ap_log(self) -> str:
@@ -767,34 +771,28 @@ class AsyncProfiledProcess:
         start_cmd = self._get_start_cmd(interval, ap_timeout)
         try:
             self._run_async_profiler(start_cmd)
-            if not self._started_by_us:
-                self._started_by_us = True
-            return AsyncProfilerStartStatus.STARTED_BY_US
+            self._start_status = AsyncProfilerStartStatus.STARTED_BY_US
+            return self._start_status
         except JattachException as e:
             if e.is_ap_loaded:
                 if (
                     e.returncode == 200  # 200 == AP's COMMAND_ERROR
                     and e.get_ap_log() == "[ERROR] Profiler already started\n"
                 ):
-                    # profiler was already running
-                    return AsyncProfilerStartStatus.ALREADY_RUNNING
+                    self._start_status = AsyncProfilerStartStatus.ALREADY_RUNNING
+                    return self._start_status
             raise
 
     def stop_async_profiler(self, with_output: bool) -> str:
-        return self._run_async_profiler(self._get_stop_cmd(with_output))
+        output: str = self._run_async_profiler(self._get_stop_cmd(with_output))
+        self._start_status = AsyncProfilerStartStatus.NOT_RUNNING
+        return output
+
+    def reset_start_status(self) -> None:
+        self._start_status = AsyncProfilerStartStatus.NOT_RUNNING
 
     def dump_from_async_profiler(self, ap_timeout: int = 0) -> str:
         return self._run_async_profiler(self._get_dump_cmd(ap_timeout))
-
-    def get_async_profiler_status(self) -> AsyncProfilerStatus:
-        status_cmd = self._get_status_cmd()
-        self._run_async_profiler(status_cmd)
-        message = self.read_output()
-        if message is not None:
-            m = _AP_STATUS_RUNNING_RE.match(message)
-            if m is not None:
-                return AsyncProfilerStatus(message, True, int(m.group("uptime")))
-        return AsyncProfilerStatus(message, False)
 
     def read_output(self) -> Optional[str]:
         try:
@@ -806,7 +804,7 @@ class AsyncProfiledProcess:
             raise
 
     def is_started_by_us(self) -> bool:
-        return self._started_by_us
+        return self._start_status == AsyncProfilerStartStatus.STARTED_BY_US
 
     def is_jattach_socket_disabled(self) -> bool:
         return self._jattach_socket_disabled
@@ -996,8 +994,6 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._include_method_modifiers = java_include_method_modifiers
         # keep ap_process instances to enable continuous profiling
         self._pid_to_ap_proc: Dict[int, Optional[AsyncProfiledProcess]] = {}
-        # keep stacks recorded for each pid to properly derive stacks for the profiling duration
-        self._pid_to_dumped_stacks: Dict[int, StackToSampleCount] = defaultdict(StackToSampleCount)
 
     def _init_ap_mode(self, profiling_mode: str, ap_mode: str) -> None:
         assert profiling_mode in ("cpu", "allocation"), "async-profiler support only cpu/allocation profiling modes"
@@ -1291,8 +1287,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
 
     def _prepare_async_profiler(self, ap_proc: AsyncProfiledProcess) -> AsyncProfilerStartStatus:
         # first time we need to start profiler ourselves
-        # afterwards we will check if it's still running by looking at its status
-        if ap_proc.is_started_by_us() and ap_proc.get_async_profiler_status().running:
+        # after that we rely on async-prpofiler dump and recycle functions to signal failed dump
+        if ap_proc.is_started_by_us():
             return AsyncProfilerStartStatus.STARTED_BY_US
         started = ap_proc.start_async_profiler(self._interval, ap_timeout=self._ap_timeout)
         if started == AsyncProfilerStartStatus.ALREADY_RUNNING:
@@ -1308,17 +1304,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
                 raise Exception(
                     f"async-profiler is still running in {ap_proc.process.pid}, even after trying to stop it!"
                 )
-        # discard saved dump stacks for process we're (re)starting here
-        self._pid_to_dumped_stacks.pop(ap_proc.process.pid, None)
         return AsyncProfilerStartStatus.STARTED_BY_US
-
-    def _get_adjusted_output_stacks(self, pid: int, input_stacks: StackToSampleCount) -> StackToSampleCount:
-        adjusted_stacks = StackToSampleCount(input_stacks)
-        dumped_stacks = self._pid_to_dumped_stacks[pid]
-        if len(dumped_stacks) > 0:
-            adjusted_stacks -= dumped_stacks
-        self._pid_to_dumped_stacks[pid] = input_stacks
-        return adjusted_stacks
 
     def _profile_ap_process(self, ap_proc: AsyncProfiledProcess, comm: str, duration: int) -> StackToSampleCount:
         self._prepare_async_profiler(ap_proc)
@@ -1338,9 +1324,16 @@ class JavaProfiler(SpawningProcessProfilerBase):
         finally:
             # don't stop profiler now; will do it in stop()
             if is_process_running(ap_proc.process):
-                ap_log = ap_proc.dump_from_async_profiler(self._ap_timeout)
-                if self._report_meminfo:
-                    self._log_mem_usage(ap_log, ap_proc.process.pid)
+                try:
+                    ap_log = ap_proc.dump_from_async_profiler(self._ap_timeout)
+                    if self._report_meminfo:
+                        self._log_mem_usage(ap_log, ap_proc.process.pid)
+                except JattachException as e:
+                    if _DUMP_ERROR_PROFILER_NOT_STARTED_RE.search(e.get_ap_log()) is not None:
+                        logger.warning(f"Profiler for process {ap_proc.process.pid} wasn't ready for collecting stacks")
+                        ap_proc.reset_start_status()
+                        return self._profiling_error_stack("error", "profiler wasn't ready for collecting stacks", comm)
+                    raise
 
         output = ap_proc.read_output()
         if output is None:
@@ -1482,13 +1475,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
 
     def _stop_profiling_for_pid(self, pid: int) -> None:
         ap_proc = self._pid_to_ap_proc.pop(pid, None)
-        self._pid_to_dumped_stacks.pop(pid, None)
         if ap_proc is not None:
-            if is_process_running(ap_proc.process):
-                if not ap_proc.is_jattach_socket_disabled():
-                    ap_proc.stop_async_profiler(False)
-                else:
-                    logger.debug("Profiled PID lost jattach socket; async profiler won't be stopped immediately")
             ap_proc.teardown()
 
     def snapshot(self) -> ProcessToProfileData:
