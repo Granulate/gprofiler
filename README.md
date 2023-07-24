@@ -273,7 +273,7 @@ Furthermore, Fargate does not allow using `"pidMode": "host"` in the task defini
 So in order to deploy gProfiler, we need to modify a container definition to include running gProfiler alongside the actual application. This can be done with the following steps:
 1. Modify the `command` & `entryPoint` parameters of your entry in the `containerDefinitions` array. The new command should include downloading of gProfiler & executing it in the background, and `entryPoint` will be `["/bin/bash"]`.
 
-    For example, if your default `command` is `["python", "/path/to/my/app.py"]`, we will now change it to: `["-c", "(wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler -O /tmp/gprofiler; chmod +x /tmp/gprofiler; /tmp/gprofiler -cu --token=<TOKEN> --service-name=<SERVICE NAME> --disable-pidns-check --perf-mode none) & python /path/to/my/app.py"]`.
+    For example, if your default `command` is `["python", "/path/to/my/app.py"]`, we will now change it to: `["-c", "(wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler -O /tmp/gprofiler; chmod +x /tmp/gprofiler; /tmp/gprofiler -cu --token=<TOKEN> --service-name=<SERVICE NAME>) & python /path/to/my/app.py"]`.
 
     Make sure to:
     - Replace `<TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/) site.
@@ -283,7 +283,7 @@ So in order to deploy gProfiler, we need to modify a container definition to inc
 
     Additionally, we will set `entryPoint` to `["/bin/bash"]`. If you had used `entryPoint` prior to incorporating gProfiler, make sure to use it in the new `command`.
 
-    About `--disable-pidns-check` and `--perf-mode none` - please see the explanation in [running-on-databricks](#running-on-databricks), as it applies here as well.
+    gProfiler will assume `--disable-pidns-check` and `--perf-mode none` were given. These flags are explained in [running-on-databricks](#running-on-databricks).
 
     gProfiler and its installation process will send the outputs to your container's stdout & stderr. After verifying that everything works, you can append `> /dev/null 2>&1` to the gProfiler command parenthesis (in this example, before the `& python ...`) to prevent it from spamming your container logs.
 
