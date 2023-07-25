@@ -6,11 +6,10 @@
 import errno
 import os
 import shutil
-from pathlib import Path
-from secrets import token_hex
+from tempfile import NamedTemporaryFile
 
 from gprofiler.platform import is_windows
-from gprofiler.utils import remove_path, run_process
+from gprofiler.utils import run_process
 
 
 def safe_copy(src: str, dst: str) -> None:
@@ -27,29 +26,26 @@ def is_rw_exec_dir(path: str) -> bool:
     """
     Is 'path' rw and exec?
     """
-    # randomize the name - this function runs concurrently on paths of in same mnt namespace.
-    test_script = Path(path) / f"t-{token_hex(10)}.sh"
 
     # try creating & writing
     try:
         os.makedirs(path, 0o755, exist_ok=True)
-        test_script.write_text("#!/bin/sh\nexit 0")
-        test_script.chmod(0o755)
+        with NamedTemporaryFile(dir=path, suffix=".sh") as test_script:
+            with open(test_script.name, "w") as f:
+                f.write("#!/bin/sh\nexit 0")
+            os.chmod(test_script.name, 0o755)
+            test_script.file.close()
+            # try executing
+            try:
+                run_process([str(test_script.name)], suppress_log=True)
+            except PermissionError:
+                # noexec
+                return False
     except OSError as e:
         if e.errno == errno.EROFS:
             # ro
             return False
-        remove_path(test_script)
         raise
-
-    # try executing
-    try:
-        run_process([str(test_script)], suppress_log=True)
-    except PermissionError:
-        # noexec
-        return False
-    finally:
-        test_script.unlink()
 
     return True
 

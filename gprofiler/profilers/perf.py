@@ -10,6 +10,7 @@ import time
 from collections import Counter, defaultdict
 from pathlib import Path
 from subprocess import Popen
+from tempfile import NamedTemporaryFile
 from threading import Event
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -353,25 +354,21 @@ class PerfProcess:
             logger.debug(f"{self._log_name} run output", perf_stderr=self._process.stderr.read1())  # type: ignore
 
         try:
-            inject_data = Path(f"{str(perf_data)}.inject")
-            if self._inject_jit:
-                run_process(
-                    [perf_path(), "inject", "--jit", "-o", str(inject_data), "-i", str(perf_data)],
-                )
-                perf_data.unlink()
-                perf_data = inject_data
+            with NamedTemporaryFile(dir=os.path.dirname(self._output_path), suffix=".inject") as inject_data:
+                perf_script_input = perf_data
+                if self._inject_jit:
+                    run_process(
+                        [perf_path(), "inject", "--jit", "-o", str(inject_data.name), "-i", str(perf_data)],
+                    )
+                    perf_script_input = Path(inject_data.name)
 
-            perf_script_proc = run_process(
-                [perf_path(), "script", "-F", "+pid", "-i", str(perf_data)],
-                suppress_log=True,
-            )
-            return perf_script_proc.stdout.decode("utf8")
+                perf_script_proc = run_process(
+                    [perf_path(), "script", "-F", "+pid", "-i", str(perf_script_input)],
+                    suppress_log=True,
+                )
+                return perf_script_proc.stdout.decode("utf8")
         finally:
             perf_data.unlink()
-            if self._inject_jit:
-                # might be missing if it's already removed.
-                # might be existing if "perf inject" itself fails
-                remove_path(inject_data, missing_ok=True)
 
 
 @register_profiler(
