@@ -79,7 +79,7 @@ from gprofiler.utils import (
     touch_path,
     wait_event,
 )
-from gprofiler.utils.fs import is_rw_exec_dir, safe_copy
+from gprofiler.utils.fs import is_rw_exec_dir, mkdir_owned_root, safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
 from gprofiler.utils.process import process_comm, search_proc_maps
 
@@ -511,7 +511,9 @@ class AsyncProfiledProcess:
             raise NoRwExecDirectoryFoundError(f"Could not find a rw & exec directory out of {available_dirs}!")
 
     def __enter__(self: T) -> T:
-        os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
+        mkdir_owned_root(
+            self._ap_dir_host, 0o755, parents=True
+        )  # as the directory containing the executable libap, make sure it's owned by root
         os.makedirs(self._storage_dir_host, 0o755, exist_ok=True)
 
         self._check_disk_requirements()
