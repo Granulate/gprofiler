@@ -208,7 +208,8 @@ def test_java_safemode_version_check(
 
     with make_java_profiler(profiler_state) as profiler:
         process = profiler._select_processes_to_profile()[0]
-        jvm_version = parse_jvm_version(get_java_version(process, profiler._profiler_state.stop_event))
+        jvm_version_str = cast_away_optional(get_java_version(process, profiler._profiler_state.stop_event))
+        jvm_version = parse_jvm_version(jvm_version_str)
         collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
@@ -226,7 +227,8 @@ def test_java_safemode_build_number_check(
 ) -> None:
     with make_java_profiler(profiler_state) as profiler:
         process = profiler._select_processes_to_profile()[0]
-        jvm_version = parse_jvm_version(get_java_version(process, profiler._profiler_state.stop_event))
+        jvm_version_str = cast_away_optional(get_java_version(process, profiler._profiler_state.stop_event))
+        jvm_version = parse_jvm_version(jvm_version_str)
         monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (jvm_version.version, 999))
         collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
@@ -394,7 +396,8 @@ def test_sanity_other_jvms(
         frequency=99,
         java_async_profiler_mode="cpu",
     ) as profiler:
-        assert search_for in get_java_version(psutil.Process(application_pid), profiler._profiler_state.stop_event)
+        process = psutil.Process(application_pid)
+        assert search_for in cast_away_optional(get_java_version(process, profiler._profiler_state.stop_event))
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
 
@@ -420,7 +423,6 @@ def test_java_deleted_libjvm(
     assert is_libjvm_deleted(
         application_pid
     ), f"Not (deleted) after deleting? libjvm={libjvm} maps={_read_pid_maps(application_pid)}"
-
     with make_java_profiler(profiler_state, duration=3) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -670,31 +672,60 @@ def test_java_different_basename(
         ) as container:
             application_pid = container.attrs["State"]["Pid"]
             profile = snapshot_pid_profile(profiler, application_pid)
-            if change_argv0:
-                # we changed basename - we should have run the profiler
-                assert profile.app_metadata is not None
-                assert (
-                    os.path.basename(profile.app_metadata["execfn"])
-                    == os.path.basename(profile.app_metadata["exe"])
-                    == java_notjava_basename
-                )
-                assert_function_in_collapsed(f"{java_notjava_basename};", profile.stacks)
-                assert_collapsed(profile.stacks)
-            else:
-                # we didn't change basename - we should not have run the profiler due to a different basename.
-                assert profile.stacks == Counter(
-                    {f"{java_notjava_basename};[Profiling skipped: profiling this JVM is not supported]": 1}
-                )
-                log_records = list(
-                    filter(
-                        lambda r: r.message
-                        == "Non-java basenamed process (cannot get Java version), skipping... (disable"
-                        " --java-safemode=java-extended-version-checks to profile it anyway)",
-                        caplog.records,
-                    )
-                )
-                assert len(log_records) == 1
-                assert os.path.basename(log_record_extra(log_records[0])["exe"]) == java_notjava_basename
+            assert profile.app_metadata is not None
+            assert (
+                os.path.basename(profile.app_metadata["execfn"])
+                == os.path.basename(profile.app_metadata["exe"])
+                == java_notjava_basename
+            )
+            assert_function_in_collapsed(f"{java_notjava_basename};", profile.stacks)
+            assert_collapsed(profile.stacks)
+
+
+@pytest.mark.parametrize("libjvm_removed", [False, True], ids=["libjvm_intact", "libjvm_removed"])
+def test_non_java_basename_version(
+    docker_client: DockerClient,
+    application_docker_image: Image,
+    assert_collapsed: AssertInCollapsed,
+    profiler_state: ProfilerState,
+    libjvm_removed: bool,
+) -> None:
+    """
+    Tests that we can profile and collect version for a java application with a different basename.
+    """
+    java_notjava_basename = "java-notjava"
+
+    with _application_docker_container(
+        docker_client,
+        application_docker_image,
+        [],
+        [],
+        application_docker_command=[
+            "bash",
+            "-c",
+            f"{java_notjava_basename} -jar Fibonacci.jar",
+        ],
+    ) as container:
+        logging.warning(container.logs())
+        application_pid = container.attrs["State"]["Pid"]
+        if libjvm_removed:
+            # test extracting java version even if libjvm was replaced
+            assert not is_libjvm_deleted(application_pid)
+            libjvm = get_libjvm_path(application_pid)
+            libjvm_tmp = libjvm + "."
+            shutil.copy(libjvm, libjvm_tmp)
+            os.unlink(libjvm)
+            os.rename(libjvm_tmp, libjvm)
+        with make_java_profiler(
+            profiler_state,
+            duration=1,
+            java_safemode=JAVA_SAFEMODE_ALL,  # explicitly enable, for basename checks
+        ) as profiler:
+            profile = snapshot_pid_profile(profiler, application_pid)
+            assert_function_in_collapsed(f"{java_notjava_basename};", profile.stacks)
+            assert_collapsed(profile.stacks)
+            assert profile.app_metadata is not None and "java_version" in profile.app_metadata
+            assert profile.appid == "java: Fibonacci.jar"
 
 
 @pytest.mark.parametrize("in_container", [True])
