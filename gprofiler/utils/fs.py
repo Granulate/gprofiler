@@ -84,7 +84,7 @@ def mkdir_owned_root(path: Union[str, Path], mode: int = 0o755, parents: bool = 
     else:
         if parents:
             # TODO need to check if those are root as well.
-            os.makedirs(path.parent(), mode=mode, exist_ok=True)
+            os.makedirs(path.parent, mode=mode, exist_ok=True)
 
     os.mkdir(path, mode=mode)
 
