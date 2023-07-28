@@ -179,7 +179,7 @@ class PythonRuntime(ProfilingRuntime):
     "PySpy",
     runtime_class=PythonRuntime,
     possible_modes=["auto", "pyspy", "py-spy"],
-    # we build pyspy for both,.
+    # we build pyspy for both
     supported_archs=["x86_64", "aarch64"],
     supported_windows_archs=["AMD64"],
     # no specific arguments for PySpy besides the common args from runtime
