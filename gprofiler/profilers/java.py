@@ -519,7 +519,7 @@ class AsyncProfiledProcess:
             mkdir_owned_root(full_dir)
 
             if is_rw_exec_dir(full_dir):
-                return full_dir
+                return str(full_dir)
         else:
             raise NoRwExecDirectoryFoundError(
                 f"Could not find a rw & exec directory out of {POSSIBLE_AP_DIRS} for {self._process_root}!"
@@ -530,7 +530,9 @@ class AsyncProfiledProcess:
         # for sanity & simplicity, mkdir_owned_root() does not support creating parent directories, as this allows
         # the caller to absentmindedly ignore the check of the parents ownership.
         # hence we create the structure here part by part.
-        assert is_owned_by_root(self._ap_dir_base), f"expected {self._ap_dir_base} to be owned by root at this point"
+        assert is_owned_by_root(
+            Path(self._ap_dir_base)
+        ), f"expected {self._ap_dir_base} to be owned by root at this point"
         mkdir_owned_root(self._ap_dir_versioned)
         mkdir_owned_root(self._ap_dir_host)
         os.makedirs(self._storage_dir_host, 0o755, exist_ok=True)
