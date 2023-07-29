@@ -78,7 +78,7 @@ def mkdir_owned_root(path: Union[str, Path], mode: int = 0o755) -> None:
     path = path if isinstance(path, Path) else Path(path)
     # parent is expected to be root - otherwise, after we create the root-owned directory, it can be removed
     # as re-created as non-root by a regular user.
-    if is_owned_by_root(path.parent):
+    if not is_owned_by_root(path.parent):
         raise Exception(f"expected {path.parent} to be owned by root!")
 
     if path.exists():
