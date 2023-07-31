@@ -23,6 +23,7 @@ import humanfriendly
 from granulate_utils.linux.ns import is_running_in_init_pid
 from granulate_utils.linux.process import is_process_running
 from granulate_utils.metadata import Metadata
+from granulate_utils.metadata.cloud import get_aws_execution_env
 from granulate_utils.metadata.databricks_client import DBXWebUIEnvWrapper, get_name_from_metadata
 from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
@@ -65,7 +66,7 @@ from gprofiler.utils import (
     resource_path,
     run_process,
 )
-from gprofiler.utils.fs import escape_filename
+from gprofiler.utils.fs import escape_filename, mkdir_owned_root
 from gprofiler.utils.proxy import get_https_proxy
 
 if is_linux():
@@ -973,9 +974,10 @@ def main() -> None:
     args = parse_cmd_args()
     processes_to_profile = pids_to_processes(args)
 
-    if is_windows():
+    if is_windows() or get_aws_execution_env() == "AWS_ECS_FARGATE":
         args.perf_mode = "disabled"
         args.pid_ns_check = False
+
     if args.subcommand != "upload-file":
         verify_preconditions(args, processes_to_profile)
 
@@ -1043,8 +1045,7 @@ def main() -> None:
                 )
                 sys.exit(1)
 
-        if not os.path.exists(TEMPORARY_STORAGE_PATH):
-            os.mkdir(TEMPORARY_STORAGE_PATH)
+        mkdir_owned_root(TEMPORARY_STORAGE_PATH)
 
         try:
             client_kwargs = {}

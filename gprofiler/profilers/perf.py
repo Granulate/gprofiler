@@ -13,8 +13,9 @@ from subprocess import Popen
 from threading import Event
 from typing import Any, Dict, Iterable, List, Optional
 
+from granulate_utils.exceptions import MissingExePath
 from granulate_utils.golang import get_process_golang_version, is_golang_process
-from granulate_utils.linux.elf import is_statically_linked
+from granulate_utils.linux.elf import elf_is_stripped, is_statically_linked
 from granulate_utils.linux.process import is_musl, is_process_running
 from granulate_utils.node import is_node_process
 from psutil import NoSuchProcess, Process
@@ -492,6 +493,8 @@ class SystemProfiler(ProfilerBase):
                     return collector.get_metadata(process)
         except NoSuchProcess:
             pass
+        except MissingExePath:
+            pass
         return None
 
     def _get_appid(self, pid: int) -> Optional[str]:
@@ -548,11 +551,7 @@ class PerfMetadata(ApplicationMetadata):
         return False
 
     def add_exe_metadata(self, process: Process, metadata: Dict[str, Any]) -> None:
-        try:
-            static = is_statically_linked(f"/proc/{process.pid}/exe")
-        except FileNotFoundError:
-            raise NoSuchProcess(process.pid)
-
+        static = is_statically_linked(f"/proc/{process.pid}/exe")
         exe_metadata: Dict[str, Any] = {"link": "static" if static else "dynamic"}
         if not static:
             exe_metadata["libc"] = "musl" if is_musl(process) else "glibc"
@@ -567,7 +566,10 @@ class GolangPerfMetadata(PerfMetadata):
         return is_golang_process(process)
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        metadata = {"golang_version": get_process_golang_version(process)}
+        metadata = {
+            "golang_version": get_process_golang_version(process),
+            "stripped": elf_is_stripped(f"/proc/{process.pid}/exe"),
+        }
         self.add_exe_metadata(process, metadata)
         metadata.update(super().make_application_metadata(process))
         return metadata

@@ -151,6 +151,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
                 "golang_version": "go1.18.3",
                 "link": "dynamic",
                 "libc": "glibc",
+                "stripped": False,
             },
         ),
         (
