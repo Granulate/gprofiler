@@ -1173,10 +1173,12 @@ def test_including_line_numbers(
     profiler_state: ProfilerState,
     java_line_numbers: str,
 ) -> None:
+    function_with_line_numbers = "Fibonacci.fibonacci:9(I)J_[j]"
     with make_java_profiler(profiler_state, java_line_numbers=java_line_numbers) as profiler:
         collapsed = snapshot_pid_collapsed(profiler, application_pid)
         if java_line_numbers == "line-of-function":
-            assert is_function_in_collapsed("Fibonacci.fibonacci:9(I)J_[j]", collapsed)
-        elif java_line_numbers == "none":
+            assert is_function_in_collapsed(function_with_line_numbers, collapsed)
+        else:
+            assert java_line_numbers == "none"
             assert is_function_in_collapsed("Fibonacci.fibonacci(I)J_[j]", collapsed)
-            assert not is_function_in_collapsed("Fibonacci.fibonacci:9(I)J_[j]", collapsed)
+            assert not is_function_in_collapsed(function_with_line_numbers, collapsed)
