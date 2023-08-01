@@ -261,9 +261,20 @@ def _get_process_ns_java_path(process: Process) -> Optional[str]:
     """
     Look up path to java executable installed together with this process' libjvm.
     """
+    # This has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
+    # in that case, the libraries would have been replaced as well, and therefore we're actually checking
+    # the version of the now installed Java, and not the running one.
+    # but since this is used for the "JDK type" check, it's good enough - we don't expect that to change.
+    # this whole check, however, is growing to be too complex, and we should consider other approaches
+    # for it:
+    # 1. purely in async-profiler - before calling any APIs that might harm blacklisted JDKs, we can
+    #    check the JDK type in async-profiler itself.
+    # 2. assume JDK type by the path, e.g the "java" Docker image has
+    #    "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java" which means "OpenJDK". needs to be checked for
+    #    other JDK types.
     java_path: Optional[str] = None
-    nspid = get_process_nspid(process.pid)
     if is_java_basename(process):
+        nspid = get_process_nspid(process.pid)
         java_path = f"/proc/{nspid}/exe"  # it's a symlink and will be resolveable under process' mnt ns
     else:
         libjvm_path: Optional[str] = None
@@ -280,10 +291,11 @@ def _get_process_ns_java_path(process: Process) -> Optional[str]:
             Path(libjvm_dir, "../../../bin/java").resolve(),
         ]
         for p in java_candidate_paths:
+            # don't need resolve_proc_root_links here - paths in /proc/pid/maps are normalized.
             proc_relative_path = Path(f"/proc/{process.pid}/root", p.relative_to("/"))
             if proc_relative_path.exists():
                 if os.access(proc_relative_path, os.X_OK):
-                    java_path = os.path.join(f"/proc/{nspid}/root", p)
+                    java_path = str(p)
                     break
     return java_path
 
@@ -295,24 +307,11 @@ def get_java_version(process: Process, stop_event: Event) -> Optional[str]:
     process_java_path = _get_process_ns_java_path(process)
     if process_java_path is None:
         return None
-    java_path = process_java_path
-
-    # this has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
-    # in that case, the libraries would have been replaced as well, and therefore we're actually checking
-    # the version of the now installed Java, and not the running one.
-    # but since this is used for the "JDK type" check, it's good enough - we don't expect that to change.
-    # this whole check, however, is growing to be too complex, and we should consider other approaches
-    # for it:
-    # 1. purely in async-profiler - before calling any APIs that might harm blacklisted JDKs, we can
-    #    check the JDK type in async-profiler itself.
-    # 2. assume JDK type by the path, e.g the "java" Docker image has
-    #    "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java" which means "OpenJDK". needs to be checked for
-    #    other JDK types.
 
     def _run_java_version() -> "CompletedProcess[bytes]":
         return run_process(
             [
-                java_path,
+                process_java_path,  # type: ignore # checked to be not-None above
                 "-version",
             ],
             stop_event=stop_event,
@@ -321,8 +320,7 @@ def get_java_version(process: Process, stop_event: Event) -> Optional[str]:
 
     # doesn't work without changing PID NS as well (I'm getting ENOENT for libjli.so)
     # Version is printed to stderr
-    version = run_in_ns(["pid", "mnt"], _run_java_version, process.pid).stderr.decode().strip()
-    return version
+    return run_in_ns(["pid", "mnt"], _run_java_version, process.pid).stderr.decode().strip()
 
 
 def get_java_version_logged(process: Process, stop_event: Event) -> Optional[str]:
@@ -343,7 +341,7 @@ class JavaMetadata(ApplicationMetadata):
         self.java_collect_jvm_flags = java_collect_jvm_flags
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        version = get_java_version(process, self._stop_event) or "not /java"
+        version = get_java_version(process, self._stop_event) or "/java not found"
         # libjvm elfid - we care only about libjvm, not about the java exe itself which is a just small program
         # that loads other libs.
         libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")

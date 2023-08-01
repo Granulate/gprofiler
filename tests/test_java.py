@@ -34,6 +34,7 @@ from gprofiler.profilers.java import (
     AsyncProfiledProcess,
     JavaFlagCollectionOptions,
     JavaProfiler,
+    _get_process_ns_java_path,
     frequency_to_ap_interval,
     get_java_version,
 )
@@ -402,6 +403,21 @@ def test_sanity_other_jvms(
         assert_collapsed(process_collapsed)
 
 
+def simulate_libjvm_delete(application_pid: int) -> None:
+    """
+    Simulate upgrade process - remove application's libjvm file and replace by another one.
+    """
+    assert not is_libjvm_deleted(application_pid)
+    libjvm = get_libjvm_path(application_pid)
+    libjvm_tmp = libjvm + "."
+    shutil.copy(libjvm, libjvm_tmp)
+    os.unlink(libjvm)
+    os.rename(libjvm_tmp, libjvm)
+    assert is_libjvm_deleted(
+        application_pid
+    ), f"Not (deleted) after deleting? libjvm={libjvm} maps={_read_pid_maps(application_pid)}"
+
+
 # test only once. in a container, so that we don't mess up the environment :)
 @pytest.mark.parametrize("in_container", [True])
 def test_java_deleted_libjvm(
@@ -413,16 +429,7 @@ def test_java_deleted_libjvm(
     """
     Tests that we can profile processes whose libjvm was deleted, e.g because Java was upgraded.
     """
-    assert not is_libjvm_deleted(application_pid)
-    # simulate upgrade process - file is removed and replaced by another one.
-    libjvm = get_libjvm_path(application_pid)
-    libjvm_tmp = libjvm + "."
-    shutil.copy(libjvm, libjvm_tmp)
-    os.unlink(libjvm)
-    os.rename(libjvm_tmp, libjvm)
-    assert is_libjvm_deleted(
-        application_pid
-    ), f"Not (deleted) after deleting? libjvm={libjvm} maps={_read_pid_maps(application_pid)}"
+    simulate_libjvm_delete(application_pid)
     with make_java_profiler(profiler_state, duration=3) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -689,6 +696,7 @@ def test_non_java_basename_version(
     assert_collapsed: AssertInCollapsed,
     profiler_state: ProfilerState,
     libjvm_removed: bool,
+    caplog: LogCaptureFixture,
 ) -> None:
     """
     Tests that we can profile and collect version for a java application with a different basename.
@@ -706,16 +714,13 @@ def test_non_java_basename_version(
             f"{java_notjava_basename} -jar Fibonacci.jar",
         ],
     ) as container:
-        logging.warning(container.logs())
+        caplog.set_level(logging.DEBUG)
         application_pid = container.attrs["State"]["Pid"]
+        # record process' java path that should be used to extract java version
+        process_java_path = _get_process_ns_java_path(Process(application_pid))
         if libjvm_removed:
             # test extracting java version even if libjvm was replaced
-            assert not is_libjvm_deleted(application_pid)
-            libjvm = get_libjvm_path(application_pid)
-            libjvm_tmp = libjvm + "."
-            shutil.copy(libjvm, libjvm_tmp)
-            os.unlink(libjvm)
-            os.rename(libjvm_tmp, libjvm)
+            simulate_libjvm_delete(application_pid)
         with make_java_profiler(
             profiler_state,
             duration=1,
@@ -726,6 +731,16 @@ def test_non_java_basename_version(
             assert_collapsed(profile.stacks)
             assert profile.app_metadata is not None and "java_version" in profile.app_metadata
             assert profile.appid == "java: Fibonacci.jar"
+            # find log statement of calling java to get version
+            log_records = list(
+                filter(
+                    lambda r: r.message == "Running command" and "-version" in log_record_extra(r)["command"],
+                    caplog.records,
+                )
+            )
+            assert len(log_records) == 1
+            log_record = log_records[0]
+            assert log_record_extra(log_record)["command"][0] == process_java_path
 
 
 @pytest.mark.parametrize("in_container", [True])
