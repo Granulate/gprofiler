@@ -5,4 +5,5 @@
 #
 set -euo pipefail
 ARCH="x86_64"
-DOCKER_BUILDKIT=1 docker build . -t gprofiler --build-arg ARCH=$ARCH "$@"
+./scripts/build_x86_64_executable.sh
+DOCKER_BUILDKIT=1 docker build -f container.Dockerfile -t gprofiler --build-arg ARCH=$ARCH "$@"

@@ -210,7 +210,7 @@ USER 1001
 
 FROM build-prepare as build-stage
 
-ARG STATICX=false
+ARG STATICX=true
 ENV STATICX=${STATICX}
 
 COPY requirements.txt requirements.txt
@@ -299,4 +299,4 @@ RUN set -e; \
 
 FROM scratch AS export-stage
 
-COPY --from=build-stage /app/dist/gprofiler.static /gprofiler
+COPY --from=build-stage /app/dist/gprofiler /gprofiler
