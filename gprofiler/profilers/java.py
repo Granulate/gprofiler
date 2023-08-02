@@ -14,7 +14,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event, Lock
 from types import TracebackType
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Type, TypeVar, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Type, TypeVar, Union
 
 import psutil
 from granulate_utils.java import (
@@ -80,7 +80,7 @@ from gprofiler.utils import (
     touch_path,
     wait_event,
 )
-from gprofiler.utils.fs import is_rw_exec_dir, safe_copy
+from gprofiler.utils.fs import is_owned_by_root, is_rw_exec_dir, mkdir_owned_root, safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
 from gprofiler.utils.process import process_comm, search_proc_maps
 
@@ -471,6 +471,7 @@ class AsyncProfiledProcess:
         mcache: int = 0,
         collect_meminfo: bool = True,
         include_method_modifiers: bool = False,
+        java_line_numbers: str = "none",
     ):
         self.process = process
         self._profiler_state = profiler_state
@@ -493,9 +494,10 @@ class AsyncProfiledProcess:
         # because storage_dir changes between runs.
         # we embed the async-profiler version in the path, so future gprofiler versions which use another version
         # of AP case use it (will be loaded as a different DSO)
+        self._ap_dir_base = self._find_rw_exec_dir()
+        self._ap_dir_versioned = os.path.join(self._ap_dir_base, f"async-profiler-{get_ap_version()}")
         self._ap_dir_host = os.path.join(
-            self._find_rw_exec_dir(POSSIBLE_AP_DIRS),
-            f"async-profiler-{get_ap_version()}",
+            self._ap_dir_versioned,
             "musl" if self._needs_musl_ap() else "glibc",
         )
 
@@ -519,31 +521,53 @@ class AsyncProfiledProcess:
         self._mcache = mcache
         self._collect_meminfo = collect_meminfo
         self._include_method_modifiers = ",includemm" if include_method_modifiers else ""
+        self._include_line_numbers = ",includeln" if java_line_numbers == "line-of-function" else ""
         self._started_by_us = False
         self._setup_state: Optional[bool] = None
         self._jattach_socket_disabled = False
         self._start_status = AsyncProfilerStartStatus.NOT_RUNNING
 
-    def _find_rw_exec_dir(self, available_dirs: Sequence[str]) -> str:
+    def _find_rw_exec_dir(self) -> str:
         """
         Find a rw & executable directory (in the context of the process) where we can place libasyncProfiler.so
         and the target process will be able to load it.
+        This function creates the gprofiler_tmp directory as a directory owned by root, if it doesn't exist under the
+        chosen rwx directory.
+        It does not create the parent directory itself, if it doesn't exist (e.g /run).
+        The chosen rwx directory needs to be owned by root.
         """
-        for d in available_dirs:
-            full_dir = resolve_proc_root_links(self._process_root, d)
+        for d in POSSIBLE_AP_DIRS:
+            full_dir = Path(resolve_proc_root_links(self._process_root, d))
+            if not full_dir.parent.exists():
+                continue  # we do not create the parent.
+
+            if not is_owned_by_root(full_dir.parent):
+                continue  # the parent needs to be owned by root
+
+            mkdir_owned_root(full_dir)
+
             if is_rw_exec_dir(full_dir):
-                return full_dir
+                return str(full_dir)
         else:
-            raise NoRwExecDirectoryFoundError(f"Could not find a rw & exec directory out of {available_dirs}!")
+            raise NoRwExecDirectoryFoundError(
+                f"Could not find a rw & exec directory out of {POSSIBLE_AP_DIRS} for {self._process_root}!"
+            )
 
     def __enter__(self: T) -> T:
         self.setup()
         return self
 
     def setup(self) -> None:
-        # assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
         assert self._setup_state is None, "AsyncProfilerProcess must not be setup twice"
-        os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
+        # create the directory structure for executable libap, make sure it's owned by root
+        # for sanity & simplicity, mkdir_owned_root() does not support creating parent directories, as this allows
+        # the caller to absentmindedly ignore the check of the parents ownership.
+        # hence we create the structure here part by part.
+        assert is_owned_by_root(
+            Path(self._ap_dir_base)
+        ), f"expected {self._ap_dir_base} to be owned by root at this point"
+        mkdir_owned_root(self._ap_dir_versioned)
+        mkdir_owned_root(self._ap_dir_host)
         os.makedirs(self._storage_dir_host, 0o755, exist_ok=True)
 
         self._check_disk_requirements()
@@ -645,7 +669,7 @@ class AsyncProfiledProcess:
     def _get_ap_output_args(self) -> str:
         return (
             f",file={self._output_path_process},{self.OUTPUT_FORMAT},"
-            + f"{self.FORMAT_PARAMS}{self._include_method_modifiers}"
+            + f"{self.FORMAT_PARAMS}{self._include_method_modifiers}{self._include_line_numbers}"
         )
 
     def _get_interval_arg(self, interval: int) -> str:
@@ -911,6 +935,13 @@ class AsyncProfiledProcess:
             default=False,
             help="Add method modifiers to profiling data",
         ),
+        ProfilerArgument(
+            "--java-line-numbers",
+            dest="java_line_numbers",
+            choices=["none", "line-of-function"],
+            default="none",
+            help="Select if async-profiler should add line numbers to frames",
+        ),
     ],
     supported_profiling_modes=["cpu", "allocation"],
 )
@@ -953,6 +984,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_collect_jvm_flags: str,
         java_full_hserr: bool,
         java_include_method_modifiers: bool,
+        java_line_numbers: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
         super().__init__(frequency, duration, profiler_state)
@@ -992,6 +1024,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._report_meminfo = java_async_profiler_report_meminfo
         self._java_full_hserr = java_full_hserr
         self._include_method_modifiers = java_include_method_modifiers
+        self._java_line_numbers = java_line_numbers
         # keep ap_process instances to enable continuous profiling
         self._pid_to_ap_proc: Dict[int, Optional[AsyncProfiledProcess]] = {}
 
@@ -1189,6 +1222,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         mcache: int,
         collect_meminfo: bool,
         include_method_modifiers: bool = False,
+        java_line_numbers: str = "none",
     ) -> AsyncProfiledProcess:
         ap_proc: Optional[AsyncProfiledProcess] = self._pid_to_ap_proc.get(process.pid, None)
         if ap_proc is None:
@@ -1202,6 +1236,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
                 mcache,
                 collect_meminfo,
                 include_method_modifiers,
+                java_line_numbers,
             )
             ap_proc.setup()
             self._pid_to_ap_proc[process.pid] = ap_proc
@@ -1263,6 +1298,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._ap_mcache,
             self._report_meminfo,
             self._include_method_modifiers,
+            self._java_line_numbers,
         )
         stackcollapse = self._profile_ap_process(ap_proc, comm, duration)
 
