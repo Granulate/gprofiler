@@ -6,4 +6,4 @@
 set -euo pipefail
 ARCH="aarch64"
 ./scripts/build_aarch64_executable.sh
-DOCKER_BUILDKIT=1 docker build . -t gprofiler --build-arg ARCH=$ARCH "$@"
+DOCKER_BUILDKIT=1 docker build . -t gprofiler --build-arg ARCH=$ARCH . "$@"
