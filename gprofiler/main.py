@@ -70,7 +70,7 @@ from gprofiler.utils import (
     resource_path,
     run_process,
 )
-from gprofiler.utils.fs import escape_filename
+from gprofiler.utils.fs import escape_filename, mkdir_owned_root
 from gprofiler.utils.proxy import get_https_proxy
 
 if is_linux():
@@ -982,6 +982,7 @@ def main() -> None:
     if is_windows() or get_aws_execution_env() == "AWS_ECS_FARGATE":
         args.perf_mode = "disabled"
         args.pid_ns_check = False
+
     if args.subcommand != "upload-file":
         verify_preconditions(args, processes_to_profile)
 
@@ -1049,8 +1050,7 @@ def main() -> None:
                 )
                 sys.exit(1)
 
-        if not os.path.exists(TEMPORARY_STORAGE_PATH):
-            os.mkdir(TEMPORARY_STORAGE_PATH)
+        mkdir_owned_root(TEMPORARY_STORAGE_PATH)
 
         try:
             client_kwargs = {}
