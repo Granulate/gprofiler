@@ -44,4 +44,4 @@ docker buildx build --platform=linux/arm64 \
     --build-arg NODE_PACKAGE_BUILDER_MUSL=$ALPINE_VERSION \
     --build-arg NODE_PACKAGE_BUILDER_GLIBC=$NODE_PACKAGE_BUILDER_GLIBC \
     --build-arg STATICX=$with_staticx \
-    . -f pyi.Dockerfile --output type=local,dest=build/aarch64/ "$@"
+    . -f executable.Dockerfile --output type=local,dest=build/aarch64/ "$@"
