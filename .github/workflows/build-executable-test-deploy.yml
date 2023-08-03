@@ -173,6 +173,15 @@ jobs:
         name: gprofiler
         path: output/
 
+    - name: Get and verify tag value
+      run: ./scripts/verify_tag.sh
+
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
     # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
     # more nicely. the tests will then be able to use the built image.
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
@@ -186,7 +195,7 @@ jobs:
         X86_64_IMAGE="$BASE_IMAGE-x86_64"
 
         # build & push x86_64
-        ./scripts/build_x86_64_container.sh --build-arg EXE_PATH=output/gprofiler -t "$X86_64_IMAGE"
+        ./scripts/build_x86_64_container.sh --skip-exe-build --build-arg EXE_PATH=output/gprofiler -t "$X86_64_IMAGE"
         docker push "$X86_64_IMAGE"
 
     - name: Export gProfiler image
@@ -306,7 +315,7 @@ jobs:
           AARCH64_IMAGE="$BASE_IMAGE-aarch64"
 
           # build & push Aarch64
-          ./scripts/build_aarch64_container.sh --build-arg EXE_PATH=output/gprofiler-aarch64 -t "$AARCH64_IMAGE" --push
+          ./scripts/build_aarch64_container.sh --skip-exe-build --build-arg EXE_PATH=output/gprofiler-aarch64 -t "$AARCH64_IMAGE" --push
 
   deploy-container:
     if: startsWith(github.ref, 'refs/tags/')
