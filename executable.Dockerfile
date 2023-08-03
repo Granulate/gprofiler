@@ -297,7 +297,7 @@ RUN set -e; \
         staticx $LIBS dist/gprofiler dist/gprofiler.static &&  \
         mv dist/gprofiler.static dist/gprofiler.output ; \
     else \
-        mv dist/gprofiler dist/gprofiler.output
+        mv dist/gprofiler dist/gprofiler.output ; \
     fi
 
 FROM scratch AS export-stage
