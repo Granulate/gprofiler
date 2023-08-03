@@ -343,6 +343,7 @@ jobs:
           docker pull $AARCH64_IMAGE
           docker image load < output/gprofiler.img
           docker tag gprofiler $X86_64_IMAGE
+          docker push $X86_64_IMAGE
 
           # create manifests for the tag + for 'latest'
           docker manifest create "$BASE_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
