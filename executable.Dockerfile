@@ -294,9 +294,12 @@ COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 RUN set -e; \
     if [ "$STATICX" = "true" ]; then \
         LIBS=$(./scripts/list_needed_libs.sh) && \
-        staticx $LIBS dist/gprofiler dist/gprofiler.static ; \
+        staticx $LIBS dist/gprofiler dist/gprofiler.static &&  \
+        mv dist/gprofiler.static dist/gprofiler.output ; \
+    else \
+        mv dist/gprofiler dist/gprofiler.output
     fi
 
 FROM scratch AS export-stage
 
-COPY --from=build-stage /app/dist/gprofiler /gprofiler
+COPY --from=build-stage /app/dist/gprofiler.output /gprofiler
