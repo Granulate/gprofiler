@@ -17,12 +17,13 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
 
 
 @pytest.mark.parametrize(
-    "in_container,runtime,profiler_type,expected_metadata",
+    "in_container,runtime,profiler_type,application_docker_command,expected_metadata",
     [
         (
             True,
             "python",
             "pyperf",
+            None,
             {
                 "exe": "/usr/local/bin/python3.6",
                 "execfn": "/usr/local/bin/python",
@@ -40,6 +41,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
             True,
             "ruby",
             "rbspy",
+            None,
             {
                 "exe": "/usr/local/bin/ruby",
                 "execfn": "/usr/local/bin/ruby",
@@ -58,6 +60,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
             True,
             "java",
             "ap",
+            None,
             {
                 "exe": "/usr/local/openjdk-8/bin/java",
                 "execfn": "/usr/local/openjdk-8/bin/java",
@@ -145,6 +148,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
             True,
             "golang",
             "perf",
+            ["./fibonacci"],
             {
                 "exe": "/app/fibonacci",
                 "execfn": "./fibonacci",
@@ -156,8 +160,23 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
         ),
         (
             True,
+            "golang",
+            "perf",
+            ["./fibonacci-stripped"],
+            {
+                "exe": "/app/fibonacci-stripped",
+                "execfn": "./fibonacci-stripped",
+                "golang_version": None,
+                "link": "dynamic",
+                "libc": "glibc",
+                "stripped": True,
+            },
+        ),
+        (
+            True,
             "nodejs",
             "perf",
+            None,
             {
                 "exe": "/usr/local/bin/node",
                 "execfn": "/usr/local/bin/node",
@@ -170,6 +189,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
             True,
             "dotnet",
             "dotnet-trace",
+            None,
             {
                 "dotnet_version": "6.0.302",
                 "exe": "/usr/share/dotnet/dotnet",

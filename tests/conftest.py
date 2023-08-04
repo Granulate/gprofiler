@@ -429,6 +429,14 @@ def application_docker_capabilities() -> List[str]:
 
 
 @fixture
+def application_docker_command() -> Optional[List[str]]:
+    """
+    Command to issue to application docker as an override.
+    """
+    return None
+
+
+@fixture
 def application_docker_container(
     in_container: bool,
     docker_client: DockerClient,
@@ -436,13 +444,18 @@ def application_docker_container(
     output_directory: Path,
     application_docker_mounts: List[docker.types.Mount],
     application_docker_capabilities: List[str],
+    application_docker_command: Optional[List[str]],
 ) -> Iterable[Container]:
     if not in_container:
         yield None
         return
     else:
         with _application_docker_container(
-            docker_client, application_docker_image, application_docker_mounts, application_docker_capabilities
+            docker_client,
+            application_docker_image,
+            application_docker_mounts,
+            application_docker_capabilities,
+            application_docker_command,
         ) as container:
             yield container
 
