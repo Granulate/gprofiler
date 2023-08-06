@@ -7,6 +7,7 @@ import functools
 from threading import Event, Lock
 from typing import Any, Dict, Optional
 
+from granulate_utils.linux.elf import elf_arch_to_uname_arch, get_elf_arch
 from granulate_utils.linux.process import is_process_running, process_exe, read_process_execfn
 from psutil import NoSuchProcess, Process, ZombieProcess
 
@@ -86,5 +87,20 @@ class ApplicationMetadata:
             logger.exception("Exception while reading process execfn", pid=process.pid)
             execfn = f"error: {e.__class__.__name__}"
         md["execfn"] = execfn
+
+        try:
+            # take arch from the executed elf, not the host system, because (although unlikely) it's possible
+            # that the process runs a different, emulated architecture.
+            arch = (
+                "error: not supported on Windows"
+                if is_windows()
+                else elf_arch_to_uname_arch(get_elf_arch(f"/proc/{process.pid}/exe"))
+            )
+        except (NoSuchProcess, ZombieProcess):
+            raise  # let caller handle
+        except Exception as e:
+            logger.exception("Exception while getting process exe architecture", pid=process.pid)
+            arch = f"error: {e.__class__.__name__}"
+        md["arch"] = arch
 
         return md
