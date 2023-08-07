@@ -660,8 +660,8 @@ def test_java_different_basename(
         with _application_docker_container(
             docker_client,
             application_docker_image,
-            [],
-            [],
+            application_docker_mounts=[],
+            application_docker_capabilities=[],
             application_docker_command=[
                 "bash",
                 "-c",
@@ -1084,8 +1084,8 @@ def test_collect_cmdline_and_env_jvm_flags(
         with _application_docker_container(
             docker_client,
             application_docker_image,
-            [],
-            [],
+            application_docker_mounts=[],
+            application_docker_capabilities=[],
             application_docker_command=[
                 "bash",
                 "-c",
@@ -1119,8 +1119,8 @@ def test_collect_flags_unsupported_filtered_out(
         with _application_docker_container(
             docker_client,
             application_docker_image,
-            [],
-            [],
+            application_docker_mounts=[],
+            application_docker_capabilities=[],
             application_docker_command=[
                 "bash",
                 "-c",
