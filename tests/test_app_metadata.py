@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import json
+import platform
 from pathlib import Path
 from typing import Dict, List
 
@@ -35,6 +36,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
                 else "buildid:a04b9016e15a247fbc21c91260c13e17a458ed33",
                 "python_version": "Python 3.6.15",
                 "sys_maxunicode": None,
+                "arch": platform.machine(),
             },
         ),
         (
@@ -54,6 +56,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
                 "ruby_version": "ruby 2.6.7p197 (2021-04-05 revision 67941) [aarch64-linux]"
                 if is_aarch64()
                 else "ruby 2.6.7p197 (2021-04-05 revision 67941) [x86_64-linux]",
+                "arch": platform.machine(),
             },
         ),
         (
@@ -70,6 +73,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
                 "libjvm_elfid": "buildid:33a1021cade63f16e30726be4111f20c34444764"
                 if is_aarch64()
                 else "buildid:622795512a2c037aec4d7ca6da05527dae86e460",
+                "arch": platform.machine(),
                 "jvm_flags": [
                     {
                         "name": "CICompilerCount",
@@ -156,6 +160,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
                 "link": "dynamic",
                 "libc": "glibc",
                 "stripped": False,
+                "arch": platform.machine(),
             },
         ),
         (
@@ -170,6 +175,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
                 "link": "dynamic",
                 "libc": "glibc",
                 "stripped": True,
+                "arch": platform.machine(),
             },
         ),
         (
@@ -183,6 +189,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
                 "node_version": "v10.24.1",
                 "link": "dynamic",
                 "libc": "glibc",
+                "arch": platform.machine(),
             },
         ),
         (
@@ -194,6 +201,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
                 "dotnet_version": "6.0.302",
                 "exe": "/usr/share/dotnet/dotnet",
                 "execfn": "/usr/bin/dotnet",
+                "arch": platform.machine(),
             },
         ),
     ],
