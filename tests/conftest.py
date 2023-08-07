@@ -453,9 +453,9 @@ def application_docker_container(
         with _application_docker_container(
             docker_client,
             application_docker_image,
-            application_docker_mounts,
-            application_docker_capabilities,
-            application_docker_command,
+            application_docker_mounts=application_docker_mounts,
+            application_docker_capabilities=application_docker_capabilities,
+            application_docker_command=application_docker_command,
         ) as container:
             yield container
 
@@ -485,7 +485,10 @@ def application_factory(
     def _run_application() -> Iterator[int]:
         if in_container:
             with _application_docker_container(
-                docker_client, application_docker_image, application_docker_mounts, application_docker_capabilities
+                docker_client,
+                application_docker_image,
+                application_docker_mounts=application_docker_mounts,
+                application_docker_capabilities=application_docker_capabilities,
             ) as container:
                 yield container.attrs["State"]["Pid"]
         else:
