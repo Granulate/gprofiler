@@ -1,4 +1,4 @@
-name: Build gProfiler executable, test (if PR) and deploy (if tag), build gProfiler container, run tests
+name: Build, test and deploy
 
 on:
   pull_request:
