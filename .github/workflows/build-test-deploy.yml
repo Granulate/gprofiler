@@ -1,3 +1,10 @@
+# build-executable-{arch} job builds the gprofiler executable by running build_{arch}_executable.sh scripts, then uploads it as a job artifact
+# test-executable-{arch} job downloads gprofiler exe artifact and then runs test_executable.py tests from tests dir
+# deploy-executable job runs only on tagged commits and it deploys gprofiler executables as release assets
+# build-container-{arch} job downloads gprofiler exe artifact, produces gprofiler docker image from it, exports it into the file, and uploads image as a job artifact
+# test-container-{arch} job downloads gprofiler image artifact and runs tests/test.sh script
+# deploy-container job runs only on tagged commits and it deploys gprofiler images to dockerhub
+
 name: Build, test and deploy
 
 on:
