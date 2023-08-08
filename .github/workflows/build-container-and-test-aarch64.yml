@@ -55,7 +55,7 @@ jobs:
 
     steps:
     - name: Install python3
-      run: sudo apt-get install python3
+      run: sudo apt-get install -y python3
 
     - name: check python installation
       run: python --version
