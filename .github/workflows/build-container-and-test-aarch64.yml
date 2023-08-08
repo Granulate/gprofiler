@@ -51,53 +51,51 @@ jobs:
       fail-fast: false  # helps detecting flakiness / errors specific to one Python version
       matrix:
         python-version:
-          - "3.8"
-          - "3.9"
-          - "3.10.0"  # see https://github.com/Granulate/gprofiler/issues/502, we need 3.10.0, others fail PyPerf tests.
+          - "3.10.11"
 
     steps:
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
 
-    # - name: Install Java
-    #   uses: actions/setup-java@v1
-    #   with:
-    #     java-version: '8.0.275'
-    #     java-package: jdk
-    #     architecture: aarch64
+    - name: Install Java
+      uses: actions/setup-java@v1
+      with:
+        java-version: '8.0.275'
+        java-package: jdk
+        architecture: aarch64
 
-    # - name: Install Node.JS
-    #   uses: actions/setup-node@v2
-    #   with:
-    #     # same version as used in tests/containers/nodejs/Dockerfile
-    #     node-version: 10.x
+    - name: Install Node.JS
+      uses: actions/setup-node@v2
+      with:
+        # same version as used in tests/containers/nodejs/Dockerfile
+        node-version: 10.x
   
-    # - name: Login to DockerHub
-    #   uses: docker/login-action@v1
-    #   with:
-    #     username: ${{ secrets.DOCKERHUB_USERNAME }}
-    #     password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
   
-    # - name: Checkout Code
-    #   uses: actions/checkout@v3
-    #   with:
-    #     submodules: true
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        submodules: true
 
-    # - name: Download the executable from previous job
-    #   uses: actions/download-artifact@v2
-    #   with:
-    #     name: gprofiler.img
-    #     path: output/
+    - name: Download the executable from previous job
+      uses: actions/download-artifact@v2
+      with:
+        name: gprofiler.img
+        path: output/
 
-    # # used for next step (Copy resources ...) and also used in the tests themselves.
-    # - name: Import gProfiler image
-    #   run: docker image load < output/gprofiler.img
+    # used for next step (Copy resources ...) and also used in the tests themselves.
+    - name: Import gProfiler image
+      run: docker image load < output/gprofiler.img
 
-    # - name: Copy resources from gProfiler image
-    #   run: ./scripts/copy_resources_from_image.sh gprofiler
+    - name: Copy resources from gProfiler image
+      run: ./scripts/copy_resources_from_image.sh gprofiler
 
-    # # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
-    # - name: Run gProfiler tests
-    #   run: NO_APT_INSTALL=1 ./tests/test.sh --ignore=tests/test_executable.py
+    # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
+    - name: Run gProfiler tests
+      run: NO_APT_INSTALL=1 ./tests/test.sh --ignore=tests/test_executable.py
