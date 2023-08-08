@@ -76,7 +76,7 @@ class ApplicationMetadata:
             except (NoSuchProcess, ZombieProcess):
                 raise  # let caller handle
             except Exception as e:
-                logger.exception(process, pid=process.pid)
+                logger.exception(exception_log, pid=process.pid)
                 return f"error: {e.__class__.__name__}"
 
         md["exe"] = _wrap_errors(process_exe, "Exception while reading process exe")
