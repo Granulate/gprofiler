@@ -104,9 +104,9 @@ Make sure you are not passing `-s` to the `-ldflags` during your build - `-s` om
 ### System profiling options
 
 * `--perf-mode`: Controls the global perf strategy. Must be one of the following options:
-    * `fp` - Use Frame Pointers for the call graph
+    * `fp` - Use Frame Pointers for the call graph. *This is the default.*
     * `dwarf` - Use DWARF for the call graph (adds the `--call-graph dwarf` argument to the `perf` command)
-    * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process. *This is the default.*
+    * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process.
     * `disabled` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
 
 ## Other options
