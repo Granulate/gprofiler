@@ -660,8 +660,8 @@ def test_java_different_basename(
         with _application_docker_container(
             docker_client,
             application_docker_image,
-            [],
-            [],
+            application_docker_mounts=[],
+            application_docker_capabilities=[],
             application_docker_command=[
                 "bash",
                 "-c",
@@ -1084,8 +1084,8 @@ def test_collect_cmdline_and_env_jvm_flags(
         with _application_docker_container(
             docker_client,
             application_docker_image,
-            [],
-            [],
+            application_docker_mounts=[],
+            application_docker_capabilities=[],
             application_docker_command=[
                 "bash",
                 "-c",
@@ -1119,8 +1119,8 @@ def test_collect_flags_unsupported_filtered_out(
         with _application_docker_container(
             docker_client,
             application_docker_image,
-            [],
-            [],
+            application_docker_mounts=[],
+            application_docker_capabilities=[],
             application_docker_command=[
                 "bash",
                 "-c",
@@ -1164,3 +1164,21 @@ def test_including_method_modifiers(
             assert is_function_in_collapsed("private static Fibonacci.fibonacci(I)J_[j]", collapsed)
         else:
             assert not is_function_in_collapsed("private static Fibonacci.fibonacci(I)J_[j]", collapsed)
+
+
+@pytest.mark.parametrize("java_line_numbers", ["none", "line-of-function"])
+@pytest.mark.parametrize("in_container", [True])
+def test_including_line_numbers(
+    application_pid: int,
+    profiler_state: ProfilerState,
+    java_line_numbers: str,
+) -> None:
+    function_with_line_numbers = "Fibonacci.fibonacci:9(I)J_[j]"
+    with make_java_profiler(profiler_state, java_line_numbers=java_line_numbers) as profiler:
+        collapsed = snapshot_pid_collapsed(profiler, application_pid)
+        if java_line_numbers == "line-of-function":
+            assert is_function_in_collapsed(function_with_line_numbers, collapsed)
+        else:
+            assert java_line_numbers == "none"
+            assert is_function_in_collapsed("Fibonacci.fibonacci(I)J_[j]", collapsed)
+            assert not is_function_in_collapsed(function_with_line_numbers, collapsed)
