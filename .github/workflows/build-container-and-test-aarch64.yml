@@ -84,6 +84,9 @@ jobs:
       with:
         submodules: true
 
+    - name: Create python and pip aliases
+      run: alias pip="pip3" && alias python="python3"
+
     - name: Download the executable from previous job
       uses: actions/download-artifact@v2
       with:
