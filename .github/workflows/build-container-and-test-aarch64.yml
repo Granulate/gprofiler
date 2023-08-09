@@ -46,7 +46,8 @@ jobs:
       - self-hosted
       - public
       - ARM64
-
+    env:
+      PATH: "$HOME/.local/bin:$PATH"
     # strategy:
     #   fail-fast: false  # helps detecting flakiness / errors specific to one Python version
     #   matrix:
@@ -96,8 +97,8 @@ jobs:
 
     # - name: Copy resources from gProfiler image
     #   run: ./scripts/copy_resources_from_image.sh gprofiler
-    - name: Add user's directory to path
-      run:  export PATH="$HOME/.local/bin:$PATH"
+    - name: show user's directory to path
+      run:  echo $PATH
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
       run: ./tests/test.sh --ignore=tests/test_executable.py
