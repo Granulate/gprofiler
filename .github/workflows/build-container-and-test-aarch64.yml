@@ -53,8 +53,6 @@ jobs:
     #       - "3.10.11"
 
     steps:
-    - name: Install python3
-      run: sudo apt-get install -y python3
 
     # - name: check python installation
     #   run: python3 --version
