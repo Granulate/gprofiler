@@ -73,29 +73,29 @@ jobs:
     #     # same version as used in tests/containers/nodejs/Dockerfile
     #     node-version: 10.x
   
-    - name: Login to DockerHub
-      uses: docker/login-action@v1
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    # - name: Login to DockerHub
+    #   uses: docker/login-action@v1
+    #   with:
+    #     username: ${{ secrets.DOCKERHUB_USERNAME }}
+    #     password: ${{ secrets.DOCKERHUB_TOKEN }}
   
-    - name: Checkout Code
-      uses: actions/checkout@v3
-      with:
-        submodules: true
+    # - name: Checkout Code
+    #   uses: actions/checkout@v3
+    #   with:
+    #     submodules: true
 
-    - name: Download the executable from previous job
-      uses: actions/download-artifact@v2
-      with:
-        name: gprofiler.img
-        path: output/
+    # - name: Download the executable from previous job
+    #   uses: actions/download-artifact@v2
+    #   with:
+    #     name: gprofiler.img
+    #     path: output/
 
-    # used for next step (Copy resources ...) and also used in the tests themselves.
-    - name: Import gProfiler image
-      run: docker image load < output/gprofiler.img
+    # # used for next step (Copy resources ...) and also used in the tests themselves.
+    # - name: Import gProfiler image
+    #   run: docker image load < output/gprofiler.img
 
-    - name: Copy resources from gProfiler image
-      run: ./scripts/copy_resources_from_image.sh gprofiler
+    # - name: Copy resources from gProfiler image
+    #   run: ./scripts/copy_resources_from_image.sh gprofiler
 
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
