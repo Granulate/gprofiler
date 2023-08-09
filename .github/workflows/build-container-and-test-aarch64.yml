@@ -84,9 +84,6 @@ jobs:
       with:
         submodules: true
 
-    - name: Create python and pip aliases
-      run: echo 'alias pip="pip3"' >> ~/.bashrc && echo 'alias python="python3"' >> ~/.bashrc
-
     - name: Download the executable from previous job
       uses: actions/download-artifact@v2
       with:
