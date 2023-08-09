@@ -97,8 +97,16 @@ jobs:
 
     # - name: Copy resources from gProfiler image
     #   run: ./scripts/copy_resources_from_image.sh gprofiler
-    - name: show user's directory to path
+    - name: Add to PATH
+      shell: bash
+      run: |
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+    - name: Check user's directory to path
       run:  echo $PATH
+
+    - name: Check user's directory to path
+      run:  echo $GITHUB_PATH
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
       run: ./tests/test.sh --ignore=tests/test_executable.py
