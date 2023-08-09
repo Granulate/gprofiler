@@ -46,8 +46,6 @@ jobs:
       - self-hosted
       - public
       - ARM64
-    env:
-      PATH: "$HOME/.local/bin:$PATH"
     # strategy:
     #   fail-fast: false  # helps detecting flakiness / errors specific to one Python version
     #   matrix:
