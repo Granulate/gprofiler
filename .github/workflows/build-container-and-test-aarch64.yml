@@ -97,7 +97,7 @@ jobs:
     # - name: Copy resources from gProfiler image
     #   run: ./scripts/copy_resources_from_image.sh gprofiler
     - name: pytest pytest pytest
-      run:  python3 -m pip install -U pytest
+      run:  pip install -U pytest
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
       run: ./tests/test.sh --ignore=tests/test_executable.py
