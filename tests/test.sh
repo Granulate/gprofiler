@@ -35,6 +35,7 @@ if [ ! -f "$PERF_RESOURCE" ] && [[ "$*" != *"--executable"* ]]; then
 fi
 
 python3 -m pip install -q --upgrade setuptools pip
+python3 -m pip install testresources
 python3 -m pip install -r ./requirements.txt -r ./exe-requirements.txt -r ./dev-requirements.txt
 # TODO: python3 -m pip install .
 
