@@ -97,13 +97,13 @@ jobs:
     - name: Add to PYTHONPATH
       shell: bash
       run: |
-        echo "PYTHONPATH=$HOME/.local/lib:$PYTHONPATH" >> $GITHUB_ENV
+        echo "PYTHONHOME=$HOME/.local/lib/python`(python -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')`:$PYTHONHOME" >> $GITHUB_ENV
 
     - name: Check user's directory to path
       run:  echo $PATH
 
     - name: Check user's directory to path
-      run:  echo $PYTHONPATH
+      run:  echo $PYTHONHOME
 
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
