@@ -11,7 +11,7 @@ jobs:
 
     steps:
     - name: remove incorrect pycache permissions
-      run: sudo chmod -R 755 /home/ubuntu/actions-runner/_work/gprofiler/gprofiler
+      run: sudo chown -R ${USER} /home/ubuntu/actions-runner/_work/gprofiler/gprofiler
 
     - name: Checkout Code
       uses: actions/checkout@v3
