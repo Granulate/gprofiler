@@ -104,6 +104,18 @@ jobs:
 
     - name: Check user's directory to path
       run:  echo $GITHUB_PATH
+    - name: test1
+      run:  which pip
+    - name: test1
+      run:  sudo which pip
+    - name: test3
+      run:  which python3
+    - name: test4
+      run:  sudo which python3
+    - name: test5
+      run:  python3 -c 'import site; print(site.getsitepackages())'
+    - name: test6
+      run:  sudo python3 -c 'import site; print(site.getsitepackages())'
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
       run: ./tests/test.sh --ignore=tests/test_executable.py
