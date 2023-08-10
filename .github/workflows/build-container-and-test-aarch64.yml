@@ -76,10 +76,10 @@ jobs:
     #     username: ${{ secrets.DOCKERHUB_USERNAME }}
     #     password: ${{ secrets.DOCKERHUB_TOKEN }}
   
-    # - name: Checkout Code
-    #   uses: actions/checkout@v3
-    #   with:
-    #     submodules: true
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        submodules: true
 
     # - name: Download the executable from previous job
     #   uses: actions/download-artifact@v2
