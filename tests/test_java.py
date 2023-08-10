@@ -706,8 +706,8 @@ def test_non_java_basename_version(
     with _application_docker_container(
         docker_client,
         application_docker_image,
-        [],
-        [],
+        application_docker_mounts=[],
+        application_docker_capabilities=[],
         application_docker_command=[
             "bash",
             "-c",

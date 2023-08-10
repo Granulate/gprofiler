@@ -13,7 +13,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event, Lock
 from types import TracebackType
-from typing import Any, Dict, Iterable, List, Optional, Set, Type, TypeVar, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Type, TypeVar, Union, cast
 
 import psutil
 from granulate_utils.java import (
@@ -272,32 +272,28 @@ def _get_process_ns_java_path(process: Process) -> Optional[str]:
     # 2. assume JDK type by the path, e.g the "java" Docker image has
     #    "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java" which means "OpenJDK". needs to be checked for
     #    other JDK types.
-    java_path: Optional[str] = None
     if is_java_basename(process):
         nspid = get_process_nspid(process.pid)
-        java_path = f"/proc/{nspid}/exe"  # it's a symlink and will be resolveable under process' mnt ns
-    else:
-        libjvm_path: Optional[str] = None
-        for m in process.memory_maps():
-            if re.match(DETECTED_JAVA_PROCESSES_REGEX, m.path):
-                libjvm_path = m.path
-                break
-        if libjvm_path is None:
-            return None
+        return f"/proc/{nspid}/exe"  # it's a symlink and will be resolveable under process' mnt ns
+    libjvm_path: Optional[str] = None
+    for m in process.memory_maps():
+        if re.match(DETECTED_JAVA_PROCESSES_REGEX, m.path):
+            libjvm_path = m.path
+            break
+    if libjvm_path is not None:
         libjvm_dir = os.path.dirname(libjvm_path)
         # support two java layouts - it's either lib/server/../../bin/java or lib/{arch}/server/../../../bin/java:
         java_candidate_paths = [
             Path(libjvm_dir, "../../bin/java").resolve(),
             Path(libjvm_dir, "../../../bin/java").resolve(),
         ]
-        for p in java_candidate_paths:
+        for java_path in java_candidate_paths:
             # don't need resolve_proc_root_links here - paths in /proc/pid/maps are normalized.
-            proc_relative_path = Path(f"/proc/{process.pid}/root", p.relative_to("/"))
+            proc_relative_path = Path(f"/proc/{process.pid}/root", java_path.relative_to("/"))
             if proc_relative_path.exists():
                 if os.access(proc_relative_path, os.X_OK):
-                    java_path = str(p)
-                    break
-    return java_path
+                    return str(java_path)
+    return None
 
 
 # process is hashable and the same process instance compares equal
@@ -311,7 +307,7 @@ def get_java_version(process: Process, stop_event: Event) -> Optional[str]:
     def _run_java_version() -> "CompletedProcess[bytes]":
         return run_process(
             [
-                process_java_path,  # type: ignore # checked to be not-None above
+                cast(str, process_java_path),
                 "-version",
             ],
             stop_event=stop_event,
