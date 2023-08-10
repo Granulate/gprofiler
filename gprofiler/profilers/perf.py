@@ -377,7 +377,7 @@ class PerfProcess:
 @register_profiler(
     "Perf",
     possible_modes=["fp", "dwarf", "smart", "disabled"],
-    default_mode="smart",
+    default_mode="fp",
     supported_archs=["x86_64", "aarch64"],
     profiler_mode_argument_help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge"
     " them by choosing the best result per process. If 'disabled' is chosen, do not invoke"
