@@ -94,10 +94,10 @@ jobs:
     # - name: Copy resources from gProfiler image
     #   run: ./scripts/copy_resources_from_image.sh gprofiler
 
-    - name: Add to PATH
+    - name: Add to PYTHONPATH
       shell: bash
       run: |
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        echo "PYTHONPATH=$HOME/.local/lib:$PYTHONPATH" >> $GITHUB_ENV
 
     - name: Check user's directory to path
       run:  echo $PATH
