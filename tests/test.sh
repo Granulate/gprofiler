@@ -24,15 +24,15 @@ if [ -z ${NO_APT_INSTALL+x} ]; then
   fi
 fi
 
-# # we'll check 1 file, perf. not if --executable is passed - these are the executable tests, and they don't
-# # require resources.
-# # TODO split them to 2 pytest files
-# PERF_RESOURCE="$SCRIPT_DIR/../gprofiler/resources/perf"
-# if [ ! -f "$PERF_RESOURCE" ] && [[ "$*" != *"--executable"* ]]; then
-#     echo "perf resource not found: $(readlink -f "$PERF_RESOURCE")"
-#     echo "Please run $(readlink -f "$SCRIPT_DIR/../scripts/copy_resources_from_image.sh") to get all resources"
-#     exit 1
-# fi
+# we'll check 1 file, perf. not if --executable is passed - these are the executable tests, and they don't
+# require resources.
+# TODO split them to 2 pytest files
+PERF_RESOURCE="$SCRIPT_DIR/../gprofiler/resources/perf"
+if [ ! -f "$PERF_RESOURCE" ] && [[ "$*" != *"--executable"* ]]; then
+    echo "perf resource not found: $(readlink -f "$PERF_RESOURCE")"
+    echo "Please run $(readlink -f "$SCRIPT_DIR/../scripts/copy_resources_from_image.sh") to get all resources"
+    exit 1
+fi
 python3 -m pip install -q --upgrade setuptools pip
 python3 -m pip install -r ./requirements.txt -r ./exe-requirements.txt -r ./dev-requirements.txt
 
