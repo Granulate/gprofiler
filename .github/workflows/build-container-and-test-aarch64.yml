@@ -105,13 +105,13 @@ jobs:
     - name: Check user's directory to path
       run:  echo $GITHUB_PATH
     - name: test1
-      run:  which pip
+      run:  type -a pip
     - name: test1
-      run:  sudo which pip
+      run:  sudo type -a pip
     - name: test3
-      run:  which python3
+      run:  type -a python3
     - name: test4
-      run:  sudo which python3
+      run:  sudo type -a python3
     - name: test5
       run:  python3 -c 'import site; print(site.getsitepackages())'
     - name: test6
