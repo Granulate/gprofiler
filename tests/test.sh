@@ -33,12 +33,8 @@ fi
 #     echo "Please run $(readlink -f "$SCRIPT_DIR/../scripts/copy_resources_from_image.sh") to get all resources"
 #     exit 1
 # fi
-if [ "$(uname -m)" = "aarch64" ]; then
-  sudo python3 -m pip install -q --upgrade setuptools pip
-  sudo python3 -m pip install --ignore-installed -r ./requirements.txt -r ./exe-requirements.txt -r ./dev-requirements.txt
-else
-  python3 -m pip install -q --upgrade setuptools pip
-  python3 -m pip install -r ./requirements.txt -r ./exe-requirements.txt -r ./dev-requirements.txt
-fi
+python3 -m pip install -q --upgrade setuptools pip
+python3 -m pip install -r ./requirements.txt -r ./exe-requirements.txt -r ./dev-requirements.txt
+
 # TODO: python3 -m pip install .
 sudo env "PATH=$PATH" python3 -m pytest -v tests/ "$@"
