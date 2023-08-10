@@ -38,5 +38,6 @@ python3 -m pip install -q --upgrade setuptools pip
 python3 -m pip install testresources
 python3 -m pip install -r ./requirements.txt -r ./exe-requirements.txt -r ./dev-requirements.txt
 # TODO: python3 -m pip install .
-python3 -m pip show pytest
+sudo python3 -m pip show pytest
+sudo env "PATH=$PATH" python3 -m pip show pytest
 sudo env "PATH=$PATH" python3 -m pytest -v tests/ "$@"
