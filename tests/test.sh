@@ -5,24 +5,24 @@
 #
 set -e
 
-# SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"  # https://stackoverflow.com/a/246128
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"  # https://stackoverflow.com/a/246128
 
-# if [ -z ${NO_APT_INSTALL+x} ]; then
-#   sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update
-#   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io php
-#   if [ "$(uname -m)" = "aarch64" ]; then
-#     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends python3-dev ruby build-essential nodejs
-#     if ! [ -L "/usr/bin/dotnet" ] ; then
-#       # there is no dotnet apt package on aarch64
-#       curl -SL -o dotnet.tar.gz https://dotnetcli.blob.core.windows.net/dotnet/Sdk/master/dotnet-sdk-latest-linux-arm64.tar.gz
-#       sudo mkdir -p /usr/share/dotnet
-#       sudo tar -zxf dotnet.tar.gz -C /usr/share/dotnet
-#       sudo ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
-#     fi
-#   else
-#     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends ruby2.7 dotnet-sdk-6.0
-#   fi
-# fi
+if [ -z ${NO_APT_INSTALL+x} ]; then
+  sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io php
+  if [ "$(uname -m)" = "aarch64" ]; then
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends python3-dev ruby build-essential nodejs
+    if ! [ -L "/usr/bin/dotnet" ] ; then
+      # there is no dotnet apt package on aarch64
+      curl -SL -o dotnet.tar.gz https://dotnetcli.blob.core.windows.net/dotnet/Sdk/master/dotnet-sdk-latest-linux-arm64.tar.gz
+      sudo mkdir -p /usr/share/dotnet
+      sudo tar -zxf dotnet.tar.gz -C /usr/share/dotnet
+      sudo ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
+    fi
+  else
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends ruby2.7 dotnet-sdk-6.0
+  fi
+fi
 
 # # we'll check 1 file, perf. not if --executable is passed - these are the executable tests, and they don't
 # # require resources.
