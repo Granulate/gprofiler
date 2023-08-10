@@ -10,6 +10,9 @@ jobs:
       - ARM64
 
     steps:
+    - name: remove incorrect pycache permissions
+      run: chmod -R 755 /home/ubuntu/actions-runner/_work/gprofiler/gprofiler
+
     - name: Checkout Code
       uses: actions/checkout@v3
       with:
