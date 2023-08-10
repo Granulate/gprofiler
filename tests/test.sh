@@ -44,4 +44,4 @@ type -a python3
 sudo type -a python3
 python3 -c 'import site; print(site.getsitepackages())'
 sudo python3 -c 'import site; print(site.getsitepackages())'
-sudo python3 -m pytest -v tests/ "$@"
+sudo env "PATH=$PATH" python3 -m pytest -v tests/ "$@"
