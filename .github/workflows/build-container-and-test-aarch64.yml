@@ -76,7 +76,7 @@ jobs:
     #     username: ${{ secrets.DOCKERHUB_USERNAME }}
     #     password: ${{ secrets.DOCKERHUB_TOKEN }}
     - name: clean sudo python shit
-      run: sudo rm -r /home/ubuntu/actions-runner/_work/gprofiler/gprofiler/gprofiler/__pycache__
+      run: sudo rm -r /home/ubuntu/actions-runner/_work/gprofiler/
     - name: Checkout Code
       uses: actions/checkout@v3
       with:
