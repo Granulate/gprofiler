@@ -38,5 +38,10 @@ python3 -m pip install -q --upgrade setuptools pip
 python3 -m pip install testresources
 python3 -m pip install -r ./requirements.txt -r ./exe-requirements.txt -r ./dev-requirements.txt
 # TODO: python3 -m pip install .
-
+type -a pip
+sudo type -a pip
+type -a python3
+sudo type -a python3
+python3 -c 'import site; print(site.getsitepackages())'
+sudo python3 -c 'import site; print(site.getsitepackages())'
 sudo python3 -m pytest -v tests/ "$@"
