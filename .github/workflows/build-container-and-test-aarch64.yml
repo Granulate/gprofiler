@@ -97,7 +97,7 @@ jobs:
     - name: Add to PYTHONPATH
       shell: bash
       run: |
-        echo "PYTHONPATH=$HOME/.local/lib/python`(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')`" >> $GITHUB_ENV
+        echo "PYTHONPATH=$HOME/.local/lib/python`(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')`/site-packages" >> $GITHUB_ENV
 
     - name: Check user's directory to path
       run:  echo $PATH
