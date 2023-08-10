@@ -43,5 +43,6 @@ type -a pip
 type -a python3
 echo $PATH
 python3 -c 'import site; print(site.getsitepackages())'
-sudo python3 -c 'import site; print(site.getsitepackages())'
+sudo  python3 -c 'import site; print(site.getsitepackages())'
+sudo env "PATH=$PATH" python3 -c 'import site; print(site.getsitepackages())'
 sudo env "PATH=$PATH" python3 -m pytest -v tests/ "$@"
