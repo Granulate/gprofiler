@@ -294,7 +294,7 @@ COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 RUN set -e; \
     if [ "$STATICX" = "true" ]; then \
         LIBS=$(./scripts/list_needed_libs.sh) && \
-        staticx $LIBS dist/gprofiler dist/gprofiler.output &&  \
+        staticx $LIBS dist/gprofiler dist/gprofiler.output ; \
     else \
         mv dist/gprofiler dist/gprofiler.output ; \
     fi
