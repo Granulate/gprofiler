@@ -34,7 +34,7 @@ if [ ! -f "$PERF_RESOURCE" ] && [[ "$*" != *"--executable"* ]]; then
     exit 1
 fi
 python3 -m pip install -q --upgrade setuptools pip
-python3 -m pip install -r ./requirements.txt -r ./exe-requirements.txt -r ./dev-requirements.txt
+python3 -m pip install --ignore-installed -r ./requirements.txt -r ./exe-requirements.txt -r ./dev-requirements.txt
 
 # TODO: python3 -m pip install .
 sudo env "PATH=$PATH" python3 -m pytest -v tests/ "$@"
