@@ -210,6 +210,9 @@ USER 1001
 
 FROM build-prepare as build-stage
 
+ARG STATICX=true
+ENV STATICX=${STATICX}
+
 COPY requirements.txt requirements.txt
 COPY granulate-utils/setup.py granulate-utils/requirements.txt granulate-utils/README.md granulate-utils/
 COPY granulate-utils/granulate_utils granulate-utils/granulate_utils
@@ -289,9 +292,13 @@ COPY ./scripts/list_needed_libs.sh ./scripts/list_needed_libs.sh
 # and make staticx pack them as well.
 # hadolint ignore=SC2086
 RUN set -e; \
-    LIBS=$(./scripts/list_needed_libs.sh) && \
-    staticx $LIBS dist/gprofiler dist/gprofiler.static
+    if [ "$STATICX" = "true" ]; then \
+        LIBS=$(./scripts/list_needed_libs.sh) && \
+        staticx $LIBS dist/gprofiler dist/gprofiler.output ; \
+    else \
+        mv dist/gprofiler dist/gprofiler.output ; \
+    fi
 
 FROM scratch AS export-stage
 
-COPY --from=build-stage /app/dist/gprofiler.static /gprofiler
+COPY --from=build-stage /app/dist/gprofiler.output /gprofiler
