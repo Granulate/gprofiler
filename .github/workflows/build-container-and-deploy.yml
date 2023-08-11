@@ -40,6 +40,7 @@ jobs:
           # build & push x86_64
           ./scripts/build_x86_64_container.sh -t "$X86_64_IMAGE"
           docker push "$X86_64_IMAGE"
+
   build-docker-aarch64:
     runs-on: ["self-hosted", "ARM64"]
     steps:
