@@ -33,6 +33,7 @@ if [ ! -f "$PERF_RESOURCE" ] && [[ "$*" != *"--executable"* ]]; then
     echo "Please run $(readlink -f "$SCRIPT_DIR/../scripts/copy_resources_from_image.sh") to get all resources"
     exit 1
 fi
+
 python3 -m pip install -q --upgrade setuptools pip
 python3 -m pip install --ignore-installed -r ./requirements.txt -r ./exe-requirements.txt -r ./dev-requirements.txt
 
