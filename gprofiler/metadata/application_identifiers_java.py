@@ -10,13 +10,13 @@ from psutil import Process
 
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata.base_application_identifier import _ApplicationIdentifier
+from gprofiler.metadata.base_application_identifier import ApplicationIdentifier
 from gprofiler.profilers.java import JattachJcmdRunner
 
 _logger = get_logger_adapter(__name__)
 
 
-class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
+class JavaJarApplicationIdentifier(ApplicationIdentifier):
     def __init__(self, jattach_jcmd_runner: JattachJcmdRunner):
         super().__init__()
         self.jattach_jcmd_runner = jattach_jcmd_runner
@@ -48,7 +48,7 @@ class _JavaJarApplicationIdentifier(_ApplicationIdentifier):
         return None
 
 
-class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
+class JavaSparkApplicationIdentifier(ApplicationIdentifier):
     _JAVA_SPARK_EXECUTOR_ARG = "org.apache.spark.executor"
     _SPARK_PROPS_FILE = os.path.join("__spark_conf__", "__spark_conf__.properties")
     _APP_NAME_NOT_FOUND = "app name not found"
@@ -57,7 +57,7 @@ class _JavaSparkApplicationIdentifier(_ApplicationIdentifier):
     @staticmethod
     def _is_java_spark_executor(process: Process) -> bool:
         args = process.cmdline()
-        return any(_JavaSparkApplicationIdentifier._JAVA_SPARK_EXECUTOR_ARG in arg for arg in args)
+        return any(JavaSparkApplicationIdentifier._JAVA_SPARK_EXECUTOR_ARG in arg for arg in args)
 
     def get_app_id(self, process: Process) -> Optional[str]:
         if not self._is_java_spark_executor(process):

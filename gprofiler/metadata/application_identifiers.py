@@ -15,14 +15,14 @@ from granulate_utils.linux.ns import resolve_host_path, resolve_proc_root_links
 from psutil import NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata.base_application_identifier import _ApplicationIdentifier
+from gprofiler.metadata.base_application_identifier import ApplicationIdentifier
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.platform import is_linux
 
 if is_linux():
     from gprofiler.metadata.application_identifiers_java import (
-        _JavaJarApplicationIdentifier,
-        _JavaSparkApplicationIdentifier,
+        JavaJarApplicationIdentifier,
+        JavaSparkApplicationIdentifier,
     )
     from gprofiler.profilers.java import JattachJcmdRunner
 _logger = get_logger_adapter(__name__)
@@ -101,7 +101,7 @@ def _append_file_to_proc_wd(process: Process, file_path: str) -> str:
     return resolved[len(proc_root) :]
 
 
-class _GunicornApplicationIdentifierBase(_ApplicationIdentifier):
+class _GunicornApplicationIdentifierBase(ApplicationIdentifier):
     def gunicorn_to_app_id(self, wsgi_app_spec: str, process: Process) -> str:
         wsgi_app_file = wsgi_app_spec.split(":", maxsplit=1)[0]
         return f"gunicorn: {wsgi_app_spec} ({_append_python_module_to_proc_wd(process, wsgi_app_file)})"
@@ -155,7 +155,7 @@ class _GunicornTitleApplicationIdentifier(_GunicornApplicationIdentifierBase):
         return None
 
 
-class _UvicornApplicationIdentifierBase(_ApplicationIdentifier):
+class _UvicornApplicationIdentifierBase(ApplicationIdentifier):
     def uvicorn_to_app_id(self, wsgi_app_spec: str, process: Process) -> str:
         wsgi_app_file = wsgi_app_spec.split(":", maxsplit=1)[0]
         return f"uvicorn: {wsgi_app_spec} ({_append_python_module_to_proc_wd(process, wsgi_app_file)})"
@@ -183,7 +183,7 @@ class _UvicornApplicationIdentifier(_UvicornApplicationIdentifierBase):
         return self.uvicorn_to_app_id(self.uvicorn_get_app_name(process.cmdline()), process)
 
 
-class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
+class _UwsgiApplicationIdentifier(ApplicationIdentifier):
     # separated so that we can mock it easily in the tests
     @staticmethod
     def _open_uwsgi_config_file(process: Process, config_file: str) -> TextIO:
@@ -251,7 +251,7 @@ class _UwsgiApplicationIdentifier(_ApplicationIdentifier):
             return "uwsgi: ini file / wsgi module not found"
 
 
-class _CeleryApplicationIdentifier(_ApplicationIdentifier):
+class _CeleryApplicationIdentifier(ApplicationIdentifier):
     @staticmethod
     def is_celery_process(process: Process) -> bool:
         if "celery" == os.path.basename(_get_cli_arg_by_index(process.cmdline(), 0)) or "celery" == os.path.basename(
@@ -287,7 +287,7 @@ class _CeleryApplicationIdentifier(_ApplicationIdentifier):
         return f"celery: {appid} ({_append_python_module_to_proc_wd(process, appid)})"
 
 
-class _PySparkApplicationIdentifier(_ApplicationIdentifier):
+class _PySparkApplicationIdentifier(ApplicationIdentifier):
     @staticmethod
     def _is_pyspark_process(process: Process) -> bool:
         # We're looking for pythonXX -m pyspark.daemon
@@ -298,7 +298,7 @@ class _PySparkApplicationIdentifier(_ApplicationIdentifier):
         return "pyspark" if self._is_pyspark_process(process) else None
 
 
-class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
+class _PythonModuleApplicationIdentifier(ApplicationIdentifier):
     def get_app_id(self, process: Process) -> Optional[str]:
         if not _is_python_bin(_get_cli_arg_by_index(process.cmdline(), 0)):
             return None
@@ -314,7 +314,7 @@ class _PythonModuleApplicationIdentifier(_ApplicationIdentifier):
         return None
 
 
-class _NodeModuleApplicationIdentifier(_ApplicationIdentifier):
+class _NodeModuleApplicationIdentifier(ApplicationIdentifier):
     def get_app_id(self, process: Process) -> Optional[str]:
         skip_next = False
         for arg in process.cmdline()[1:]:
@@ -331,7 +331,7 @@ class _NodeModuleApplicationIdentifier(_ApplicationIdentifier):
         return None
 
 
-class _RubyModuleApplicationIdentifier(_ApplicationIdentifier):
+class _RubyModuleApplicationIdentifier(ApplicationIdentifier):
     def get_app_id(self, process: Process) -> Optional[str]:
         skip_next = False
         for arg in process.cmdline():
@@ -348,7 +348,7 @@ class _RubyModuleApplicationIdentifier(_ApplicationIdentifier):
 
 
 class ApplicationIdentifiers:
-    identifiers_map: Dict[str, List[_ApplicationIdentifier]]
+    identifiers_map: Dict[str, List[ApplicationIdentifier]]
 
     @classmethod
     def init(cls, enrichment_options: EnrichmentOptions) -> None:
@@ -368,13 +368,13 @@ class ApplicationIdentifiers:
             "ruby": [_RubyModuleApplicationIdentifier()],
         }
 
-        _ApplicationIdentifier.enrichment_options = enrichment_options
+        ApplicationIdentifier.enrichment_options = enrichment_options
 
     @classmethod
     def init_java(cls, jattach_jcmd_runner: JattachJcmdRunner) -> None:
         if is_linux():
-            cls.identifiers_map["java"] = [_JavaJarApplicationIdentifier(jattach_jcmd_runner)]
-            cls.identifiers_map["java_spark"] = cls.identifiers_map["java"] + [_JavaSparkApplicationIdentifier()]
+            cls.identifiers_map["java"] = [JavaJarApplicationIdentifier(jattach_jcmd_runner)]
+            cls.identifiers_map["java_spark"] = cls.identifiers_map["java"] + [JavaSparkApplicationIdentifier()]
 
 
 @functools.lru_cache(4096)  # NOTE: arbitrary cache size
@@ -384,8 +384,8 @@ def get_app_id(process: Process, runtime: str, aggregate_all: bool = False) -> O
     heuristics are being made on each application type available differ from each other and those their
     "heuristic level".
     """
-    assert _ApplicationIdentifier.enrichment_options is not None, "not initialized?"
-    if not _ApplicationIdentifier.enrichment_options.application_identifiers:
+    assert ApplicationIdentifier.enrichment_options is not None, "not initialized?"
+    if not ApplicationIdentifier.enrichment_options.application_identifiers:
         return None
 
     appids = []

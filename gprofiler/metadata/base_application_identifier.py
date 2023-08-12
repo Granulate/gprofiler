@@ -10,7 +10,7 @@ from psutil import Process
 from gprofiler.metadata.enrichment import EnrichmentOptions
 
 
-class _ApplicationIdentifier(metaclass=ABCMeta):
+class ApplicationIdentifier(metaclass=ABCMeta):
     enrichment_options: Optional[EnrichmentOptions] = None
 
     @abstractmethod
