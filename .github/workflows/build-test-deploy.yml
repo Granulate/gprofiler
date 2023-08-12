@@ -184,15 +184,15 @@ jobs:
     # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
     # more nicely. the tests will then be able to use the built image.
     - name: Build gProfiler image
-      run: ./scripts/build_x86_64_container.sh --skip-exe-build --build-arg EXE_PATH=output/gprofiler
+      run: ./scripts/build_x86_64_container.sh --skip-exe-build --build-arg EXE_PATH=output/gprofiler_x86_64 -t gprofiler_x86_64
 
     - name: Export gProfiler image
-      run: mkdir -p output && docker image save gprofiler > output/gprofiler.img
+      run: mkdir -p output && docker image save gprofiler_x86_64 > output/gprofiler_x86_64.img
 
     - name: Upload the image artifact
       uses: actions/upload-artifact@v2
       with:
-        name: gprofiler.img
+        name: gprofiler_x86_64.img
         path: output/
         retention-days: 1
 
@@ -243,7 +243,7 @@ jobs:
     - name: Download the image from previous job
       uses: actions/download-artifact@v2
       with:
-        name: gprofiler.img
+        name: gprofiler_x86_64.img
         path: output/
 
     - name: Add +x to gprofiler
@@ -254,7 +254,7 @@ jobs:
 
     # used in the tests
     - name: Import gProfiler image
-      run: docker image load < output/gprofiler.img
+      run: docker image load < output/gprofiler_x86_64.img
 
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
@@ -299,11 +299,10 @@ jobs:
           export DOCKER_BUILDKIT=1
 
           BASE_IMAGE="${{ env.GH_REPO }}:${{ env.RELEASE_VERSION }}"
-          LATEST_IMAGE="${{ env.GH_REPO }}:latest"
           AARCH64_IMAGE="$BASE_IMAGE-aarch64"
 
           # build & push Aarch64
-          ./scripts/build_aarch64_container.sh --skip-exe-build --build-arg EXE_PATH=output/gprofiler-aarch64 -t "$AARCH64_IMAGE" --push
+          ./scripts/build_aarch64_container.sh --skip-exe-build --build-arg EXE_PATH=output/gprofiler_aarch64 -t "$AARCH64_IMAGE" --push
 
   deploy-container:
     if: startsWith(github.ref, 'refs/tags/')
@@ -319,10 +318,13 @@ jobs:
           fetch-depth: 0
           submodules: true
 
-      - name: Download the image from previous job
+      # build-container-x64 has uploaded the image as an artifact, we donwload it here.
+      # build-container-aarch64 has pushed the image to DockerHub, so we'll pull it later when creating
+      # the manifest.
+      - name: Download the x86_64 image from previous job
         uses: actions/download-artifact@v2
         with:
-          name: gprofiler.img
+          name: gprofiler_x86_64.img
           path: output/
 
       - name: Get and verify tag value
@@ -348,8 +350,8 @@ jobs:
           X86_64_IMAGE="$BASE_IMAGE-x86_64"
 
           docker pull $AARCH64_IMAGE
-          docker image load < output/gprofiler.img
-          docker tag gprofiler $X86_64_IMAGE
+          docker image load < output/gprofiler_x86_64.img
+          docker tag gprofiler_x86_64 $X86_64_IMAGE
           docker push $X86_64_IMAGE
 
           # create manifests for the tag + for 'latest'
