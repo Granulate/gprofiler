@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
 
-from granulate_utils.metadata import Metadata
+from gprofiler.metadata import Metadata
 
 PidToAppMetadata = Dict[int, Metadata]
 

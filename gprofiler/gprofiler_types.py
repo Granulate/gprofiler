@@ -9,7 +9,8 @@ from dataclasses import dataclass
 from typing import Callable, Dict, List, MutableMapping, Optional, Union
 
 import configargparse
-from granulate_utils.metadata import Metadata
+
+from gprofiler.metadata import Metadata
 
 StackToSampleCount = Counter
 UserArgs = Dict[str, Optional[Union[int, bool, str]]]

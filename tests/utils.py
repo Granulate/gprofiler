@@ -12,17 +12,17 @@ from logging import LogRecord
 from pathlib import Path
 from threading import Event
 from time import sleep
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, cast
 
 from docker import DockerClient
 from docker.errors import ContainerError
 from docker.models.containers import Container
 from docker.models.images import Image
 from docker.types import Mount
-from granulate_utils.metadata import Metadata
 from psutil import Process
 
 from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
+from gprofiler.metadata import Metadata
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import (
     JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
@@ -415,4 +415,4 @@ def log_record_extra(r: LogRecord) -> Dict[Any, Any]:
 def load_metadata(collapsed_text: str) -> Metadata:
     lines = collapsed_text.splitlines()
     assert lines[0].startswith("#")
-    return json.loads(lines[0][1:])
+    return cast(Metadata, json.loads(lines[0][1:]))

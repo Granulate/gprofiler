@@ -22,7 +22,6 @@ import configargparse
 import humanfriendly
 from granulate_utils.linux.ns import is_running_in_init_pid
 from granulate_utils.linux.process import is_process_running
-from granulate_utils.metadata import Metadata
 from granulate_utils.metadata.cloud import get_aws_execution_env
 from granulate_utils.metadata.databricks_client import DBXWebUIEnvWrapper, get_name_from_metadata
 from psutil import NoSuchProcess, Process
@@ -43,6 +42,7 @@ from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, integers_list, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import concatenate_from_external_file, concatenate_profiles, merge_profiles
+from gprofiler.metadata import Metadata
 from gprofiler.metadata.application_identifiers import ApplicationIdentifiers
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.external_metadata import read_external_metadata

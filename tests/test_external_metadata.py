@@ -4,7 +4,7 @@
 #
 import json
 from pathlib import Path
-from typing import List
+from typing import List, cast
 
 import pytest
 from docker import DockerClient
@@ -37,6 +37,7 @@ def test_external_metadata(
             }
         },
     }
+    output_directory.mkdir(parents=True, exist_ok=True)
     Path(output_directory / "external_metadata.json").write_text(json.dumps(external_metadata))
 
     profiler_flags.extend(["--pids", str(application_pid)])
@@ -49,7 +50,8 @@ def test_external_metadata(
     metadata = load_metadata(collapsed_text)
 
     assert metadata["external"] == external_metadata["static"]
-    # we profiled only the application PID, so we expect 2 app metadatas - the empty one and ours.
-    assert len(metadata["application_metadata"]) == 2
-    assert metadata["application_metadata"][0] is None
-    assert external_metadata["application"][application_pid].items() <= metadata["application_metadata"][1].items()
+    # we profiled only the application PID, so we expect 2 app metadatas - the null one and ours.
+    app_metadata = metadata["application_metadata"]
+    assert len(app_metadata) == 2
+    assert app_metadata[0] is None  # null metadata
+    assert cast(dict, external_metadata["application"])[application_pid].items() <= app_metadata[1].items()
