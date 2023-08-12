@@ -17,13 +17,13 @@ from granulate_utils.exceptions import MissingExePath
 from granulate_utils.golang import get_process_golang_version, is_golang_process
 from granulate_utils.linux.elf import elf_is_stripped, is_statically_linked
 from granulate_utils.linux.process import is_musl, is_process_running
+from granulate_utils.metadata import Metadata
 from granulate_utils.node import is_node_process
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import (
-    AppMetadata,
     ProcessToProfileData,
     ProcessToStackSampleCounters,
     ProfileData,
@@ -482,7 +482,7 @@ class SystemProfiler(ProfilerBase):
         for perf in reversed(self._perfs):
             perf.stop()
 
-    def _get_metadata(self, pid: int) -> Optional[AppMetadata]:
+    def _get_metadata(self, pid: int) -> Optional[Metadata]:
         if not valid_perf_pid(pid):
             return None
 

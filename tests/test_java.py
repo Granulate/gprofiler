@@ -24,6 +24,7 @@ from docker.models.images import Image
 from granulate_utils.java import parse_jvm_version
 from granulate_utils.linux.ns import get_process_nspid
 from granulate_utils.linux.process import is_musl
+from granulate_utils.type_utils import assert_cast
 from packaging.version import Version
 from psutil import Process
 from pytest import LogCaptureFixture, MonkeyPatch
@@ -681,8 +682,8 @@ def test_java_different_basename(
             profile = snapshot_pid_profile(profiler, application_pid)
             assert profile.app_metadata is not None
             assert (
-                os.path.basename(profile.app_metadata["execfn"])
-                == os.path.basename(profile.app_metadata["exe"])
+                os.path.basename(assert_cast(str, profile.app_metadata["execfn"]))
+                == os.path.basename(assert_cast(str, profile.app_metadata["exe"]))
                 == java_notjava_basename
             )
             assert_function_in_collapsed(f"{java_notjava_basename};", profile.stacks)

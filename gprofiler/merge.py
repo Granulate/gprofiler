@@ -15,6 +15,7 @@ from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, ProfilingErrorStack, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.enrichment import EnrichmentOptions
+from gprofiler.metadata.external_metadata import PidToAppMetadata
 from gprofiler.system_metrics import Metrics
 from gprofiler.utils import merge_dicts
 
@@ -85,6 +86,7 @@ def _enrich_pid_stacks(
     profile: ProfileData,
     enrichment_options: EnrichmentOptions,
     application_metadata: List[Optional[Dict]],
+    external_app_metadata: Optional[Metadata],
 ) -> PidStackEnrichment:
     """
     Enrichment per app (or, PID here). This includes:
@@ -97,11 +99,20 @@ def _enrich_pid_stacks(
     if appid is not None:
         appid = f"appid: {appid}"
 
-    # generate metadata
+    # generate application metadata - what we collected during the profile & what we're given from the external
+    # application metadata.
     app_metadata = profile.app_metadata
+    if external_app_metadata is not None:
+        if app_metadata is None:
+            app_metadata = external_app_metadata
+        else:
+            # let the external one override
+            app_metadata.update(external_app_metadata)
+
     if app_metadata not in application_metadata:
         application_metadata.append(app_metadata)
     idx = application_metadata.index(app_metadata)
+
     # we include the application metadata frame if application_metadata is enabled, and we're not in protocol
     # version v1.
     if enrichment_options.profile_api_version != "v1" and enrichment_options.application_metadata:
@@ -174,11 +185,13 @@ def concatenate_from_external_file(
 
 
 def concatenate_profiles(
+    *,
     process_profiles: ProcessToProfileData,
     container_names_client: Optional[ContainerNamesClient],
     enrichment_options: EnrichmentOptions,
     metadata: Metadata,
     metrics: Metrics,
+    external_app_metadata: PidToAppMetadata,
 ) -> str:
     """
     Concatenate all stacks from all stack mappings in process_profiles.
@@ -190,7 +203,9 @@ def concatenate_profiles(
     application_metadata: List[Optional[Dict]] = [None]
 
     for pid, profile in process_profiles.items():
-        enrich_data = _enrich_pid_stacks(profile, enrichment_options, application_metadata)
+        enrich_data = _enrich_pid_stacks(
+            profile, enrichment_options, application_metadata, external_app_metadata.get(pid)
+        )
         for stack, count in profile.stacks.items():
             lines.append(_enrich_and_finalize_stack(stack, count, enrichment_options, enrich_data))
 
@@ -209,12 +224,14 @@ def concatenate_profiles(
 
 
 def merge_profiles(
+    *,
     perf_pid_to_profiles: ProcessToProfileData,
     process_profiles: ProcessToProfileData,
     container_names_client: Optional[ContainerNamesClient],
     enrichment_options: EnrichmentOptions,
     metadata: Metadata,
     metrics: Metrics,
+    external_app_metadata: PidToAppMetadata,
 ) -> str:
     # merge process profiles into the global perf results.
     for pid, profile in process_profiles.items():
@@ -250,4 +267,11 @@ def merge_profiles(
         # swap them: use the processed (scaled or extended) samples from the runtime profiler.
         perf_pid_to_profiles[pid] = profile
 
-    return concatenate_profiles(perf_pid_to_profiles, container_names_client, enrichment_options, metadata, metrics)
+    return concatenate_profiles(
+        process_profiles=perf_pid_to_profiles,
+        container_names_client=container_names_client,
+        enrichment_options=enrichment_options,
+        metadata=metadata,
+        metrics=metrics,
+        external_app_metadata=external_app_metadata,
+    )
