@@ -2,6 +2,7 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import json
 import os
 import platform
 import re
@@ -18,6 +19,7 @@ from docker.errors import ContainerError
 from docker.models.containers import Container
 from docker.models.images import Image
 from docker.types import Mount
+from granulate_utils.metadata import Metadata
 from psutil import Process
 
 from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
@@ -408,3 +410,9 @@ def log_record_extra(r: LogRecord) -> Dict[Any, Any]:
     Gets the "extra" attached to a LogRecord
     """
     return getattr(r, "extra", {})
+
+
+def load_metadata(collapsed_text: str) -> Metadata:
+    lines = collapsed_text.splitlines()
+    assert lines[0].startswith("#")
+    return json.loads(lines[0][1:])
