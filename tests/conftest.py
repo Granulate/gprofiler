@@ -157,9 +157,9 @@ def dotnet_command_line(path: Path) -> List[str]:
 
 @fixture
 def command_line(runtime: str, artifacts_dir: Path, java_args: Tuple[str]) -> List[str]:
-    if runtime.startswith("native"):
+    if runtime.startswith("native") or runtime == "golang":
         # these do not have non-container application - so it will result in an error if the command
-        # line is used.
+        # line is used. however, the fixture itself is potentially evaluated so we need to return a value.
         return ["/bin/false"]
     elif runtime == "java":
         return java_command_line(artifacts_dir, java_args)
