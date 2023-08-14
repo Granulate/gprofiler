@@ -49,7 +49,7 @@ def test_external_metadata(
     collapsed_text = Path(output_collapsed).read_text()
     metadata = load_metadata(collapsed_text)
 
-    assert metadata["external"] == external_metadata["static"]
+    assert metadata["external_metadata"] == external_metadata["static"]
     # we profiled only the application PID, so we expect 2 app metadatas - the null one and ours.
     app_metadata = metadata["application_metadata"]
     assert len(app_metadata) == 2
