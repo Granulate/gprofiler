@@ -75,7 +75,7 @@ jobs:
       run: docker image load < output/gprofiler_aarch64.img
 
     - name: Extract resources from gProfiler executable
-      run: sudo docker run -v ./gprofiler/resources:/app/gprofiler/resources gprofiler_aarch64 extract-resources --resources-dest=./gprofiler/resources
+      run: sudo docker run -v $PWD/gprofiler/resources:/app/gprofiler/resources gprofiler_aarch64 extract-resources --resources-dest=./gprofiler/resources
 
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
