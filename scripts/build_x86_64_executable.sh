@@ -5,6 +5,13 @@
 #
 set -euo pipefail
 
+if [ "$#" -gt 0 ] && [ "$1" == "--fast" ]; then
+    with_staticx=false
+    shift
+else
+    with_staticx=true
+fi
+
 # pyspy & rbspy, using the same builder for both pyspy and rbspy since they share build dependencies - rust:1.59-alpine3.15
 RUST_BUILDER_VERSION=@sha256:65b63b7d003f7a492cc8e550a4830aaa1f4155b74387549a82985c8efb3d0e88
 # perf - ubuntu:16.04 (IIRC for older glibc, to support older kernels)
@@ -12,6 +19,9 @@ UBUNTU_VERSION_1604=@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a
 # phpspy & pyperf - ubuntu:20.04
 UBUNTU_VERSION=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
 # async-profiler glibc - centos:7
+# requires CentOS 7 so the built DSO can be loaded into machines running with old glibc (tested up to centos:6),
+# we do make some modifications to the selected versioned symbols so that we don't use anything from >2.12 (what centos:6
+# has)
 AP_BUILDER_CENTOS=@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492430789b60e
 # async-profiler musl - alpine
 AP_BUILDER_ALPINE=@sha256:69704ef328d05a9f806b6b8502915e6a0a4faa4d72018dc42343f511490daf8a
@@ -30,7 +40,7 @@ GPROFILER_BUILDER=@sha256:0f4ec88e21daf75124b8a9e5ca03c37a5e937e0e108a255d890492
 NODE_PACKAGE_BUILDER_GLIBC=centos/devtoolset-7-toolchain-centos7@sha256:24d4c230cb1fe8e68cefe068458f52f69a1915dd6f6c3ad18aa37c2b8fa3e4e1
 
 mkdir -p build/x86_64
-DOCKER_BUILDKIT=1 docker build -f pyi.Dockerfile --output type=local,dest=build/x86_64/ \
+DOCKER_BUILDKIT=1 docker build -f executable.Dockerfile --output type=local,dest=build/x86_64/ \
     --build-arg RUST_BUILDER_VERSION=$RUST_BUILDER_VERSION \
     --build-arg PYPERF_BUILDER_UBUNTU=$UBUNTU_VERSION \
     --build-arg PERF_BUILDER_UBUNTU=$UBUNTU_VERSION_1604 \
@@ -43,4 +53,5 @@ DOCKER_BUILDKIT=1 docker build -f pyi.Dockerfile --output type=local,dest=build/
     --build-arg DOTNET_BUILDER=$DOTNET_BUILDER \
     --build-arg NODE_PACKAGE_BUILDER_MUSL=$AP_BUILDER_ALPINE \
     --build-arg NODE_PACKAGE_BUILDER_GLIBC=$NODE_PACKAGE_BUILDER_GLIBC \
+    --build-arg STATICX=$with_staticx \
     . "$@"

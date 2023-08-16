@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
+import platform
 import secrets
 import stat
 import subprocess
@@ -246,7 +247,7 @@ def docker_client() -> DockerClient:
 def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
     # access the prebuilt image.
     # this is built in the CI, in the "Build gProfiler image" step.
-    yield docker_client.images.get("gprofiler")
+    yield docker_client.images.get(f"gprofiler_{platform.machine()}")
 
 
 def build_image(

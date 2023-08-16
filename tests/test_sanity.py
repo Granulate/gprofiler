@@ -199,7 +199,14 @@ def test_from_container(
     if profiler_type == "pyperf" and is_aarch64():
         pytest.xfail("PyPerf doesn't run on Aarch64 - https://github.com/Granulate/gprofiler/issues/499")
     if runtime == "php" and not in_container:
-        pytest.skip("Flaky https://github.com/Granulate/gprofiler/issues/630")
+        pytest.skip(
+            "Flaky https://github.com/Granulate/gprofiler/issues/630 and issue"
+            " with phpspy grep: https://github.com/Granulate/gprofiler/issues/794"
+        )
+    elif runtime == "php":
+        pytest.xfail("Issue with phpspy grep https://github.com/Granulate/gprofiler/issues/794")
+    if runtime == "dotnet":
+        pytest.xfail("Dotnet-trace doesn't work with alpine: https://github.com/Granulate/gprofiler/issues/795")
 
     _ = application_pid  # Fixture only used for running the application.
     _ = assert_app_id  # Required for mypy unused argument warning
