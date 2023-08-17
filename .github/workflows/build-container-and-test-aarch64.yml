@@ -10,74 +10,74 @@ jobs:
       - ARM64
 
     steps:
-#     - name: change pycache permissions
-#       run: sudo chown -R ${USER} /home/ubuntu/actions-runner/_work/gprofiler/gprofiler
+    - name: change pycache permissions
+      run: sudo chown -R ${USER} /home/ubuntu/actions-runner/_work/gprofiler/gprofiler
 
-#     - name: Checkout Code
-#       uses: actions/checkout@v3
-#       with:
-#         submodules: true
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        submodules: true
 
-#     - name: Set up Docker Buildx
-#       uses: docker/setup-buildx-action@v2
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
 
-#     - name: Login to DockerHub
-#       uses: docker/login-action@v1
-#       with:
-#         username: ${{ secrets.DOCKERHUB_USERNAME }}
-#         password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-#     # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
-#     # more nicely. the tests will then be able to use the built image.
-#     - name: Build gProfiler image
-#       run: ./scripts/build_aarch64_container.sh -t gprofiler_aarch64 
+    # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
+    # more nicely. the tests will then be able to use the built image.
+    - name: Build gProfiler image
+      run: ./scripts/build_aarch64_container.sh -t gprofiler_aarch64 
 
-#     - name: Export gProfiler image
-#       run: mkdir -p output && docker image save gprofiler_aarch64 > output/gprofiler_aarch64.img
+    - name: Export gProfiler image
+      run: mkdir -p output && docker image save gprofiler_aarch64 > output/gprofiler_aarch64.img
 
-#     - name: Upload the image artifact
-#       uses: actions/upload-artifact@v2
-#       with:
-#         name: gprofiler_aarch64.img
-#         path: output/
-#         retention-days: 1
+    - name: Upload the image artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: gprofiler_aarch64.img
+        path: output/
+        retention-days: 1
 
-#   test:
-#     needs: build-container-aarch64
+  test:
+    needs: build-container-aarch64
 
-#     runs-on: 
-#       - self-hosted
-#       - public
-#       - ARM64
-#     steps:
+    runs-on: 
+      - self-hosted
+      - public
+      - ARM64
+    steps:
   
-#     - name: Login to DockerHub
-#       uses: docker/login-action@v1
-#       with:
-#         username: ${{ secrets.DOCKERHUB_USERNAME }}
-#         password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-#     - name: change pycache permissions
-#       run: sudo chown -R ${USER} /home/ubuntu/actions-runner/_work/gprofiler/gprofiler
+    - name: change pycache permissions
+      run: sudo chown -R ${USER} /home/ubuntu/actions-runner/_work/gprofiler/gprofiler
 
-#     - name: Checkout Code
-#       uses: actions/checkout@v3
-#       with:
-#         submodules: true
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        submodules: true
 
-#     - name: Download the executable from previous job
-#       uses: actions/download-artifact@v2
-#       with:
-#         name: gprofiler_aarch64.img
-#         path: output/
+    - name: Download the executable from previous job
+      uses: actions/download-artifact@v2
+      with:
+        name: gprofiler_aarch64.img
+        path: output/
 
-#     - name: Import gProfiler image
-#       run: docker image load < output/gprofiler_aarch64.img
+    - name: Import gProfiler image
+      run: docker image load < output/gprofiler_aarch64.img
 
-#     - name: Extract resources from gProfiler executable
-#       run: sudo docker run -v $PWD/gprofiler/resources:/app/gprofiler/resources gprofiler_aarch64 extract-resources --resources-dest=/app/gprofiler/resources
-    - name: Show site-packages
-      run: python3 -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])'
+    - name: Extract resources from gProfiler executable
+      run: sudo docker run -v $PWD/gprofiler/resources:/app/gprofiler/resources gprofiler_aarch64 extract-resources --resources-dest=/app/gprofiler/resources
+    - name: Remove problematic PyYAML from site-packages
+      run: find $(python3 -m site --user-site) -type d -name '*PyYAML*'
 
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
