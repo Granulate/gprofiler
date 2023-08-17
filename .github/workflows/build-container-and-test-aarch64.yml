@@ -9,7 +9,7 @@ jobs:
       - public
       - ARM64
 
-     steps:
+    steps:
 #     - name: change pycache permissions
 #       run: sudo chown -R ${USER} /home/ubuntu/actions-runner/_work/gprofiler/gprofiler
 
