@@ -19,7 +19,7 @@ target="$(uname -m)"-unknown-linux-musl
 target_dir="/usr/local/musl/$target/"  # as searched for by the remoteprocess create.
 rustup target add "$target"
 
-apk add --no-cache musl-dev make git curl # git & curl used by next scripts
+apk add --no-cache musl-dev make git curl  # git & curl used by next scripts
 
 mkdir builds && cd builds
 
