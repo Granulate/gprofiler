@@ -19,11 +19,11 @@ target="$(uname -m)"-unknown-linux-musl
 target_dir="/usr/local/musl/$target/"  # as searched for by the remoteprocess create.
 rustup target add "$target"
 
-apk add --no-cache musl-dev make git curl wget # git & curl used by next scripts
+apk add --no-cache musl-dev make git curl # git & curl used by next scripts
 
 mkdir builds && cd builds
 
-ZLIB_VERSION=1.2.13
+ZLIB_VERSION=1.3
 ZLIB_FILE="zlib-$ZLIB_VERSION.tar.xz"
 wget "https://zlib.net/$ZLIB_FILE"
 tar -xf "$ZLIB_FILE"
