@@ -78,7 +78,7 @@ jobs:
       run: sudo docker run -v $PWD/gprofiler/resources:/app/gprofiler/resources gprofiler_aarch64 extract-resources --resources-dest=/app/gprofiler/resources
 
     - name: Remove problematic PyYAML from site-packages
-      run:  sudo find /usr/lib/python* -type d -name '*yaml*' -exec rm rf {} +
+      run:  sudo find /usr/lib/python* -type d -name '*yaml*' -exec rm -rf {} +
 
     - name: Remove problematic PyYAML from site-packages
       run: python -m site
