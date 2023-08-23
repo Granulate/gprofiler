@@ -80,9 +80,6 @@ jobs:
     - name: Remove problematic PyYAML from site-packages
       run:  sudo find /usr/lib/python* -type d -name '*yaml*' -exec rm -rf {} +
 
-    - name: Remove problematic PyYAML from site-packages
-      run: python -m site
-
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
       run: sudo ./tests/test.sh --ignore=tests/test_executable.py
