@@ -77,8 +77,8 @@ jobs:
     - name: Extract resources from gProfiler executable
       run: sudo docker run -v $PWD/gprofiler/resources:/app/gprofiler/resources gprofiler_aarch64 extract-resources --resources-dest=/app/gprofiler/resources
 
-    - name: update PyYAML with --ignore-installed cause its setuptools
-      run: sudo apt-get -qq update && sudo apt-get install -y -qq --no-install-recommends python3 python3-pip && python3 -m pip install --ignore-installed PyYAML==6.0
+    - name: update PyYAML with --ignore-installed cause its distutils
+      run: sudo apt-get -qq update && sudo apt-get install -y -qq --no-install-recommends python3 python3-pip && python3 -m pip uninstall -y PyYAML
 
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
