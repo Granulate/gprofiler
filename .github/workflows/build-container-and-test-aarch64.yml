@@ -10,8 +10,6 @@ jobs:
       - ARM64
 
     steps:
-    - name: change pycache permissions
-      run: sudo chown -R ${USER} /home/ubuntu/actions-runner/_work/gprofiler/gprofiler
 
     - name: Checkout Code
       uses: actions/checkout@v3
@@ -57,9 +55,6 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: change pycache permissions
-      run: sudo chown -R ${USER} /home/ubuntu/actions-runner/_work/gprofiler/gprofiler
-
     - name: Checkout Code
       uses: actions/checkout@v3
       with:
@@ -76,9 +71,6 @@ jobs:
 
     - name: Extract resources from gProfiler executable
       run: sudo docker run -v $PWD/gprofiler/resources:/app/gprofiler/resources gprofiler_aarch64 extract-resources --resources-dest=/app/gprofiler/resources
-
-    - name: update PyYAML with --ignore-installed cause its distutils
-      run: sudo apt-get -qq update && sudo apt-get install -y -qq --no-install-recommends python3 python3-pip && python3 -m pip install --ignore-installed PyYAML==6.0
 
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
