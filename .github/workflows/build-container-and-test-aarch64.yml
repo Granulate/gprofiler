@@ -10,7 +10,8 @@ jobs:
       - ARM64
 
     steps:
-
+    - name: change pycache permissions
+      run: sudo chown -R ${USER} /home/ubuntu/actions-runner/_work/gprofiler/gprofiler
     - name: Checkout Code
       uses: actions/checkout@v3
       with:
