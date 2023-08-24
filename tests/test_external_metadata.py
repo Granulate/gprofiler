@@ -48,10 +48,12 @@ def test_external_metadata(
     )
     collapsed_text = Path(output_collapsed).read_text()
     metadata = load_metadata(collapsed_text)
-    print(metadata)
-    assert metadata["external_metadata"] == external_metadata["static"]
+
+    assert metadata["metadata"]["external_metadata"] == external_metadata["static"]
+
     # we profiled only the application PID, so we expect 2 app metadatas - the null one and ours.
     app_metadata = metadata["application_metadata"]
     assert len(app_metadata) == 2
     assert app_metadata[0] is None  # null metadata
+    # app external metadata is contained in the application metadata.
     assert cast(dict, external_metadata["application"])[application_pid].items() <= app_metadata[1].items()
