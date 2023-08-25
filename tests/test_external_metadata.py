@@ -25,13 +25,14 @@ def test_external_metadata(
     profiler_type: str,
     profiler_flags: List[str],
 ) -> None:
+    application_pid_str = str(application_pid)
     external_metadata = {
         "static": {
             "value1": 555,
             "value2": "string",
         },
         "application": {
-            str(application_pid): {
+            application_pid_str: {
                 "value3": "1234",
                 "value4": False,
             }
@@ -40,7 +41,7 @@ def test_external_metadata(
     output_directory.mkdir(parents=True, exist_ok=True)
     Path(output_directory / "external_metadata.json").write_text(json.dumps(external_metadata))
 
-    profiler_flags.extend(["--pids", str(application_pid)])
+    profiler_flags.extend(["--pids", application_pid_str])
     # TODO pass the path properly
     profiler_flags.extend(["--external-metadata", "/tmp/gprofiler/external_metadata.json"])
     run_gprofiler_in_container_for_one_session(
@@ -56,4 +57,4 @@ def test_external_metadata(
     assert len(app_metadata) == 2
     assert app_metadata[0] is None  # null metadata
     # app external metadata is contained in the application metadata.
-    assert cast(dict, external_metadata["application"])[application_pid].items() <= app_metadata[1].items()
+    assert cast(dict, external_metadata["application"])[application_pid_str].items() <= app_metadata[1].items()
