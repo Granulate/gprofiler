@@ -8,9 +8,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
 
+from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import Metadata
 
 PidToAppMetadata = Dict[int, Metadata]
+
+logger = get_logger_adapter(__name__)
 
 
 @dataclass
@@ -46,5 +49,11 @@ def read_external_metadata(external_metadata_path: Optional[Path]) -> ExternalMe
     if external_metadata_path is None:
         return ExternalMetadata({}, {})
 
-    external_metadata = json.loads(external_metadata_path.read_text())
-    return ExternalMetadata(external_metadata.get("static", {}), external_metadata.get("application", {}))
+    try:
+        external_metadata = json.loads(external_metadata_path.read_text())
+        # PID keys are strings in the JSON, but we want them to be ints.
+        application = {int(k): v for k, v in external_metadata.get("application", {}).items()}
+        return ExternalMetadata(external_metadata.get("static", {}), application)
+    except Exception:
+        logger.exception("Failed to read external metadata", external_metadata_path=str(external_metadata_path))
+        return ExternalMetadata({}, {})

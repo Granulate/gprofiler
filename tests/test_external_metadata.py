@@ -31,7 +31,7 @@ def test_external_metadata(
             "value2": "string",
         },
         "application": {
-            application_pid: {
+            str(application_pid): {
                 "value3": "1234",
                 "value4": False,
             }
