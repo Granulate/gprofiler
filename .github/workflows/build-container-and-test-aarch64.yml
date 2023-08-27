@@ -74,7 +74,7 @@ jobs:
       run: sudo docker run -v $PWD/gprofiler/resources:/app/gprofiler/resources gprofiler_aarch64 extract-resources --resources-dest=/app/gprofiler/resources
 
     - name: setup runner requirements
-      run: ./setup_runner_requirements.sh
+      run: ./scripts/setup_runner_requirements.sh
     
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
