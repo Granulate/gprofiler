@@ -80,6 +80,8 @@ jobs:
     - name: Run gProfiler tests
       run: |
         python3 -m pip install virtualenv
-        virtualenv --python python3.8 aarch64-venv
+        sudo virtualenv --python python3.8 aarch64-venv
+        sudo chown -R ${USER} aarch64-venv
+        sudo chmod -R a+rX aarch64-venv
         source aarch64-venv/bin/activate
         ./tests/test.sh --ignore=tests/test_executable.py
