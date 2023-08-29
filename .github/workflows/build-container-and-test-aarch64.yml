@@ -79,7 +79,7 @@ jobs:
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
       run: |
-        python3 -m pip install virtualenv
+        sudo python3 -m pip install virtualenv
         sudo virtualenv --python python3.8 aarch64-venv
         sudo chown -R ${USER} aarch64-venv
         sudo chmod -R a+rX aarch64-venv
