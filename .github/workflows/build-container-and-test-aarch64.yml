@@ -12,6 +12,7 @@ jobs:
     steps:
     - name: change pycache permissions
       run: sudo chown -R ${USER} /home/ubuntu/actions-runner/_work/gprofiler/gprofiler
+
     - name: Checkout Code
       uses: actions/checkout@v3
       with:
@@ -75,7 +76,8 @@ jobs:
 
     - name: setup runner requirements
       run: ./scripts/setup_runner_requirements.sh
-    
+    - name: change pycache permissions
+      run: sudo chown -R ${USER} /home/ubuntu/actions-runner/_work/gprofiler/gprofiler
     # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
     - name: Run gProfiler tests
       run: |
