@@ -89,7 +89,7 @@ def test_not_root(
     # exits without an error
     with pytest.raises(ContainerError) as e:
         wait_for_container(gprofiler)
-
+    print(e.value.stderr)
     assert e.value.exit_status == 1
     assert e.value.stderr == b"Must run gprofiler as root, please re-run.\n"
 
