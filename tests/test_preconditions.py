@@ -12,7 +12,7 @@ from docker.errors import ContainerError
 from docker.models.containers import Container
 from docker.models.images import Image
 
-from tests.utils import start_gprofiler_in_container_for_one_session, wait_for_container, wait_for_log
+from tests.utils import is_aarch64, start_gprofiler_in_container_for_one_session, wait_for_container, wait_for_log
 
 
 def start_gprofiler(
@@ -84,6 +84,8 @@ def test_not_root(
     """
     gProfiler must run as root and should complain otherwise.
     """
+    if is_aarch64():
+        pytest.xfail("This combination fails on aarch64, see https://github.com/Granulate/gprofiler/issues/849")
     gprofiler = start_gprofiler(docker_client, gprofiler_docker_image, user=42)
 
     # exits without an error
