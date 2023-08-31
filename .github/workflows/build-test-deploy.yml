@@ -108,8 +108,10 @@ jobs:
           NO_APT_INSTALL=1 ./tests/test.sh --exec-container-image ${{ matrix.containers }} --executable dist/gprofiler -k test_executable
 
   build-executable-aarch64:
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ["self-hosted", "ARM64"]
+    runs-on:
+      - self-hosted
+      - public
+      - ARM64
     steps:
      - name: Checkout Code
        uses: actions/checkout@v3
@@ -261,49 +263,85 @@ jobs:
       run: NO_APT_INSTALL=1 ./tests/test.sh --ignore=tests/test_executable.py
 
   build-container-aarch64:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: build-executable-aarch64
-    runs-on: ["self-hosted", "ARM64"]
+    runs-on:
+      - self-hosted
+      - public
+      - ARM64
+
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          submodules: true
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        submodules: true
 
-      - name: Set up runner requirements
-        run: scripts/setup_runner_requirements.sh
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
 
-      - name: Get and verify tag value
-        run: ./scripts/verify_tag.sh
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Login to DockerHub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+    # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
+    # more nicely. the tests will then be able to use the built image.
+    - name: Build gProfiler image
+      run: ./scripts/build_aarch64_container.sh -t gprofiler_aarch64 
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+    - name: Export gProfiler image
+      run: mkdir -p output && docker image save gprofiler_aarch64 > output/gprofiler_aarch64.img
 
-      - name: Download executables from the previous job
-        uses: actions/download-artifact@v2
-        with:
-          name: gprofiler
-          path: output/
+    - name: Upload the image artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: gprofiler_aarch64.img
+        path: output/
+        retention-days: 1
 
-      # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
-      - name: Build and push
-        run: |
-          set -x
-          export DOCKER_BUILDKIT=1
+  test-container-aarch64:
+    needs: build-container-aarch64
 
-          BASE_IMAGE="${{ env.GH_REPO }}:${{ env.RELEASE_VERSION }}"
-          AARCH64_IMAGE="$BASE_IMAGE-aarch64"
+    runs-on: 
+      - self-hosted
+      - public
+      - ARM64
+    steps:
+  
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-          # build & push Aarch64
-          ./scripts/build_aarch64_container.sh --skip-exe-build --build-arg EXE_PATH=output/gprofiler_aarch64 -t "$AARCH64_IMAGE" --push
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        submodules: true
 
+    - name: Download the executable from previous job
+      uses: actions/download-artifact@v2
+      with:
+        name: gprofiler_aarch64.img
+        path: output/
+
+    - name: Import gProfiler image
+      run: docker image load < output/gprofiler_aarch64.img
+
+    - name: Extract resources from gProfiler executable
+      run: sudo docker run -v $PWD/gprofiler/resources:/app/gprofiler/resources gprofiler_aarch64 extract-resources --resources-dest=/app/gprofiler/resources
+
+    - name: setup runner requirements
+      run: ./scripts/setup_runner_requirements.sh
+
+    # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
+    - name: Run gProfiler tests
+      run: |
+        sudo python3 -m pip install virtualenv
+        sudo virtualenv --python python3.8 aarch64-venv
+        sudo chown -R ${USER} aarch64-venv
+        sudo chmod -R a+rX aarch64-venv
+        source aarch64-venv/bin/activate
+        ./tests/test.sh --ignore=tests/test_executable.py
   deploy-container:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest

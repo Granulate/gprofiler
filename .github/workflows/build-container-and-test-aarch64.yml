@@ -39,7 +39,7 @@ jobs:
         path: output/
         retention-days: 1
 
-  test:
+  test-container-aarch64:
     needs: build-container-aarch64
 
     runs-on: 
