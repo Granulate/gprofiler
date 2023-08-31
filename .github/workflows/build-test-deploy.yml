@@ -30,10 +30,9 @@ jobs:
 
      # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
      - name: Build gProfiler executable
-       # Using DOCKER_BUILDKIT=1 although it has another cache mechanism which is not supported by satackey/action-docker-layer-caching@v0.0.11
+       # Using BuildKit although it has another cache mechanism which is not supported by satackey/action-docker-layer-caching@v0.0.11
        # We tried to cache using buildx cache (cache-from, cache-to flags) and got strange behavior when caching,
        # decided not to use buildkit here to get nice caches.
-       # if we enable caching again, we can disable DOCKER_BUILDKIT.
        run: |
         mkdir -p output
         ./scripts/build_x86_64_executable.sh
@@ -296,7 +295,6 @@ jobs:
       - name: Build and push
         run: |
           set -x
-          export DOCKER_BUILDKIT=1
 
           BASE_IMAGE="${{ env.GH_REPO }}:${{ env.RELEASE_VERSION }}"
           AARCH64_IMAGE="$BASE_IMAGE-aarch64"
@@ -342,7 +340,6 @@ jobs:
       - name: Push manifest
         run: |
           set -x
-          export DOCKER_BUILDKIT=1
 
           BASE_IMAGE="${{ env.GH_REPO }}:${{ env.RELEASE_VERSION }}"
           LATEST_IMAGE="${{ env.GH_REPO }}:latest"
