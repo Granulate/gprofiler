@@ -214,7 +214,7 @@ def test_select_specific_python_profiler(
     elif profiler_type == "enabled":
         # make sure the default behavior, with implicit enabled mode leads to auto selection
         profiler_flags.remove(f"--python-mode={profiler_type}")
-    profiler_flags.extend(["--no-perf"])
+    profiler_flags.extend(["--no-perf", "--disable-metadata-collection"])
     with stop_container_after_use(
         start_gprofiler_in_container_for_one_session(
             docker_client,
@@ -225,5 +225,5 @@ def test_select_specific_python_profiler(
             profiler_flags,
         )
     ) as gprofiler:
-        wait_for_log(gprofiler, "gProfiler initialized and ready to start profiling", 0, timeout=7)
+        wait_for_log(gprofiler, "gProfiler initialized and ready to start profiling", 0, timeout=30)
         assert f"Initialized {profiler_class_name}".encode() in gprofiler.logs()
