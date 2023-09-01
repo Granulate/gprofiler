@@ -10,4 +10,4 @@ if [ "$#" -gt 0 ] && [ "$1" == "--skip-exe-build" ]; then
 else
     ./scripts/build_aarch64_executable.sh
 fi
-DOCKER_BUILDKIT=1 docker build -f container.Dockerfile -t gprofiler --build-arg ARCH=$ARCH . "$@"
+docker buildx build -f container.Dockerfile -t gprofiler --build-arg ARCH=$ARCH . "$@"
