@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import json
+import platform
 from pathlib import Path
 from typing import Dict, List
 
@@ -17,12 +18,13 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
 
 
 @pytest.mark.parametrize(
-    "in_container,runtime,profiler_type,expected_metadata",
+    "in_container,runtime,profiler_type,application_docker_command,expected_metadata",
     [
         (
             True,
             "python",
             "pyperf",
+            None,
             {
                 "exe": "/usr/local/bin/python3.6",
                 "execfn": "/usr/local/bin/python",
@@ -34,12 +36,14 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
                 else "buildid:a04b9016e15a247fbc21c91260c13e17a458ed33",
                 "python_version": "Python 3.6.15",
                 "sys_maxunicode": None,
+                "arch": platform.machine(),
             },
         ),
         (
             True,
             "ruby",
             "rbspy",
+            None,
             {
                 "exe": "/usr/local/bin/ruby",
                 "execfn": "/usr/local/bin/ruby",
@@ -52,12 +56,14 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
                 "ruby_version": "ruby 2.6.7p197 (2021-04-05 revision 67941) [aarch64-linux]"
                 if is_aarch64()
                 else "ruby 2.6.7p197 (2021-04-05 revision 67941) [x86_64-linux]",
+                "arch": platform.machine(),
             },
         ),
         (
             True,
             "java",
             "ap",
+            None,
             {
                 "exe": "/usr/local/openjdk-8/bin/java",
                 "execfn": "/usr/local/openjdk-8/bin/java",
@@ -67,6 +73,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
                 "libjvm_elfid": "buildid:33a1021cade63f16e30726be4111f20c34444764"
                 if is_aarch64()
                 else "buildid:622795512a2c037aec4d7ca6da05527dae86e460",
+                "arch": platform.machine(),
                 "jvm_flags": [
                     {
                         "name": "CICompilerCount",
@@ -145,6 +152,7 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
             True,
             "golang",
             "perf",
+            ["./fibonacci"],
             {
                 "exe": "/app/fibonacci",
                 "execfn": "./fibonacci",
@@ -152,28 +160,48 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_con
                 "link": "dynamic",
                 "libc": "glibc",
                 "stripped": False,
+                "arch": platform.machine(),
+            },
+        ),
+        (
+            True,
+            "golang",
+            "perf",
+            ["./fibonacci-stripped"],
+            {
+                "exe": "/app/fibonacci-stripped",
+                "execfn": "./fibonacci-stripped",
+                "golang_version": None,
+                "link": "dynamic",
+                "libc": "glibc",
+                "stripped": True,
+                "arch": platform.machine(),
             },
         ),
         (
             True,
             "nodejs",
             "perf",
+            None,
             {
                 "exe": "/usr/local/bin/node",
                 "execfn": "/usr/local/bin/node",
                 "node_version": "v10.24.1",
                 "link": "dynamic",
                 "libc": "glibc",
+                "arch": platform.machine(),
             },
         ),
         (
             True,
             "dotnet",
             "dotnet-trace",
+            None,
             {
                 "dotnet_version": "6.0.302",
                 "exe": "/usr/share/dotnet/dotnet",
                 "execfn": "/usr/bin/dotnet",
+                "arch": platform.machine(),
             },
         ),
     ],
@@ -192,6 +220,8 @@ def test_app_metadata(
     expected_metadata: Dict,
     application_executable: str,
 ) -> None:
+    if runtime == "dotnet":
+        pytest.xfail("Dotnet-trace doesn't work with alpine: https://github.com/Granulate/gprofiler/issues/795")
     if profiler_type == "pyperf" and is_aarch64():
         pytest.xfail("PyPerf doesn't run on Aarch64 - https://github.com/Granulate/gprofiler/issues/499")
     run_gprofiler_in_container_for_one_session(

@@ -14,7 +14,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event, Lock
 from types import TracebackType
-from typing import Any, Dict, Iterable, List, Optional, Set, Type, TypeVar, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Type, TypeVar, Union, cast
 
 import psutil
 from granulate_utils.java import (
@@ -258,16 +258,11 @@ _JAVA_VERSION_TIMEOUT = 5
 _JAVA_VERSION_CACHE_MAX = 1024
 
 
-# process is hashable and the same process instance compares equal
-@functools.lru_cache(maxsize=_JAVA_VERSION_CACHE_MAX)
-def get_java_version(process: Process, stop_event: Event) -> str:
-    # make sure we're only called for "java" processes, otherwise running "-version" makes no sense.
-    # our callers should check for it.
-    assert is_java_basename(process), f"expected java, found {process!r}"
-
-    nspid = get_process_nspid(process.pid)
-
-    # this has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
+def _get_process_ns_java_path(process: Process) -> Optional[str]:
+    """
+    Look up path to java executable installed together with this process' libjvm.
+    """
+    # This has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
     # in that case, the libraries would have been replaced as well, and therefore we're actually checking
     # the version of the now installed Java, and not the running one.
     # but since this is used for the "JDK type" check, it's good enough - we don't expect that to change.
@@ -278,12 +273,42 @@ def get_java_version(process: Process, stop_event: Event) -> str:
     # 2. assume JDK type by the path, e.g the "java" Docker image has
     #    "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java" which means "OpenJDK". needs to be checked for
     #    other JDK types.
-    java_path = f"/proc/{nspid}/exe"
+    if is_java_basename(process):
+        nspid = get_process_nspid(process.pid)
+        return f"/proc/{nspid}/exe"  # it's a symlink and will be resolveable under process' mnt ns
+    libjvm_path: Optional[str] = None
+    for m in process.memory_maps():
+        if re.match(DETECTED_JAVA_PROCESSES_REGEX, m.path):
+            libjvm_path = m.path
+            break
+    if libjvm_path is not None:
+        libjvm_dir = os.path.dirname(libjvm_path)
+        # support two java layouts - it's either lib/server/../../bin/java or lib/{arch}/server/../../../bin/java:
+        java_candidate_paths = [
+            Path(libjvm_dir, "../../bin/java").resolve(),
+            Path(libjvm_dir, "../../../bin/java").resolve(),
+        ]
+        for java_path in java_candidate_paths:
+            # don't need resolve_proc_root_links here - paths in /proc/pid/maps are normalized.
+            proc_relative_path = Path(f"/proc/{process.pid}/root", java_path.relative_to("/"))
+            if proc_relative_path.exists():
+                if os.access(proc_relative_path, os.X_OK):
+                    return str(java_path)
+    return None
+
+
+# process is hashable and the same process instance compares equal
+@functools.lru_cache(maxsize=_JAVA_VERSION_CACHE_MAX)
+def get_java_version(process: Process, stop_event: Event) -> Optional[str]:
+    # make sure we're able to find "java" binary bundled with process libjvm
+    process_java_path = _get_process_ns_java_path(process)
+    if process_java_path is None:
+        return None
 
     def _run_java_version() -> "CompletedProcess[bytes]":
         return run_process(
             [
-                java_path,
+                cast(str, process_java_path),
                 "-version",
             ],
             stop_event=stop_event,
@@ -295,7 +320,7 @@ def get_java_version(process: Process, stop_event: Event) -> str:
     return run_in_ns(["pid", "mnt"], _run_java_version, process.pid).stderr.decode().strip()
 
 
-def get_java_version_logged(process: Process, stop_event: Event) -> str:
+def get_java_version_logged(process: Process, stop_event: Event) -> Optional[str]:
     java_version = get_java_version(process, stop_event)
     logger.debug("java -version output", java_version_output=java_version, pid=process.pid)
     return java_version
@@ -313,10 +338,7 @@ class JavaMetadata(ApplicationMetadata):
         self.java_collect_jvm_flags = java_collect_jvm_flags
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        if is_java_basename(process):
-            version = get_java_version(process, self._stop_event)
-        else:
-            version = "not /java"
+        version = get_java_version(process, self._stop_event) or "/java not found"
         # libjvm elfid - we care only about libjvm, not about the java exe itself which is a just small program
         # that loads other libs.
         libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")
@@ -1160,9 +1182,9 @@ class JavaProfiler(SpawningProcessProfilerBase):
            performed by _check_jvm_supported_extended().
         """
         if JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS in self._java_safemode:
-            if java_version_output is None:  # we don't get the java version if the exe isn't "java"
+            if java_version_output is None:  # we don't get the java version if we cannot find matching java binary
                 logger.warning(
-                    "Non-java basenamed process (cannot get Java version), skipping... (disable "
+                    "Couldn't get Java version for non-java basenamed process, skipping... (disable "
                     f"--java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS} to profile it anyway)",
                     pid=process.pid,
                     exe=exe,
@@ -1245,12 +1267,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
     def _profile_process(self, process: Process, duration: int, spawned: bool) -> ProfileData:
         comm = process_comm(process)
         exe = process_exe(process)
-        # TODO we can get the "java" binary by extracting the java home from the libjvm path,
-        # then check with that instead (if exe isn't java)
-        if is_java_basename(process):
-            java_version_output: Optional[str] = get_java_version_logged(process, self._profiler_state.stop_event)
-        else:
-            java_version_output = None
+        java_version_output: Optional[str] = get_java_version_logged(process, self._profiler_state.stop_event)
 
         if self._enabled_proc_events_java:
             self._want_to_profile_pids.add(process.pid)

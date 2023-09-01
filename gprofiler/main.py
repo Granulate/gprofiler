@@ -8,6 +8,7 @@ import logging
 import logging.config
 import logging.handlers
 import os
+import shutil
 import signal
 import sys
 import time
@@ -458,6 +459,11 @@ def send_collapsed_file_only(args: configargparse.Namespace, client: ProfilerAPI
     )
 
 
+def copy_resources(path: Path) -> None:
+    print(f"Copying gprofiler resources to {path}")
+    shutil.copytree(resource_path(), path, dirs_exist_ok=True)
+
+
 def parse_cmd_args() -> configargparse.Namespace:
     parser = configargparse.ArgumentParser(
         description="This is the gProfiler CLI documentation. You can access the general"
@@ -640,6 +646,15 @@ def parse_cmd_args() -> configargparse.Namespace:
 
     upload_file.set_defaults(func=send_collapsed_file_only)
 
+    extract_resources = subparsers.add_parser("extract-resources")
+    extract_resources.set_defaults(func=copy_resources)
+    extract_resources.add_argument(
+        "--resources-dest",
+        dest="resources_dest",
+        default=None,
+        help="Path to which the resources will be extracted",
+    )
+
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
 
@@ -792,14 +807,22 @@ def parse_cmd_args() -> configargparse.Namespace:
     if args.subcommand == "upload-file":
         args.upload_results = True
 
+    if args.subcommand == "extract-resources":
+        args.extract_resources = True
+    else:
+        args.extract_resources = False
+
     if args.upload_results:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
         if not args.service_name and not args.databricks_job_name_as_service_name:
             parser.error("Must provide --service-name when --upload-results is passed")
 
-    if not args.upload_results and not args.output_dir:
+    if not args.upload_results and not args.output_dir and not args.extract_resources:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
+
+    if args.extract_resources and args.resources_dest is None:
+        parser.error("Must provide --resources-dest when extract-resources")
 
     if args.perf_dwarf_stack_size > 65528:
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
@@ -949,6 +972,12 @@ def pids_to_processes(args: configargparse.Namespace) -> Optional[List[Process]]
 
 def main() -> None:
     args = parse_cmd_args()
+
+    if hasattr(args, "func"):
+        if args.subcommand == "extract-resources":
+            args.func(args.resources_dest)
+            return
+
     processes_to_profile = pids_to_processes(args)
 
     if is_windows() or get_aws_execution_env() == "AWS_ECS_FARGATE":
