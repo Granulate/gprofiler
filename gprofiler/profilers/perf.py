@@ -382,11 +382,11 @@ class PerfProcess:
 
 @register_runtime(
     "Perf",
-    default_mode="smart",
+    default_mode="fp",
     mode_help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge"
     " them by choosing the best result per process. If 'disabled' is chosen, do not invoke"
     " 'perf' at all. The output, in that case, is the concatenation of the results from all"
-    " of the runtime profilers. Defaults to 'smart'.",
+    " of the runtime profilers. Defaults to 'fp'.",
     common_arguments=[
         ProfilerArgument(
             "--perf-no-memory-restart",

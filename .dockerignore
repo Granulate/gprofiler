@@ -1,5 +1,4 @@
 /bin/
-/build/
 **/__pycache__
 **/*.pyc
 gprofiler/resources

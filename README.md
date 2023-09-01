@@ -97,16 +97,16 @@ This requires the entrypoint of application to be CommonJS script. (Doesn't work
 
 Golang profiling is based on `perf`, used via the system profiler (explained in [System profiling options](#System-profiling-options)).
 
-As with all native programs, the Golang program must have symbols - not stripped - otherwise, additional debug info files must be provided. Without symbols/debug info, `perf` is unable to symbolicate the stacktraces of the program. In that case gProfiler will not tag the stacks as Golang and you will not see any symbols.
+As with all native programs, the Golang program must have symbols - not stripped - otherwise, additional debug info files must be provided. Without symbols info (specifically the `.symtab` section) `perf` is unable to symbolicate the stacktraces of the program. In that case gProfiler will not tag the stacks as Golang and you will not see any symbols.
 
 Make sure you are not passing `-s` to the `-ldflags` during your build - `-s` omits the symbols table; see more details [here](https://pkg.go.dev/cmd/link#hdr-Command_Line).
 
 ### System profiling options
 
 * `--perf-mode`: Controls the global perf strategy. Must be one of the following options:
-    * `fp` - Use Frame Pointers for the call graph
+    * `fp` - Use Frame Pointers for the call graph. *This is the default.*
     * `dwarf` - Use DWARF for the call graph (adds the `--call-graph dwarf` argument to the `perf` command)
-    * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process. *This is the default.*
+    * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process.
     * `disabled` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
 
 ## Other options
