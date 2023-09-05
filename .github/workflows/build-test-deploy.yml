@@ -138,9 +138,45 @@ jobs:
      - name: Upload the executables as job artifacts
        uses: actions/upload-artifact@v2
        with:
-         name: gprofiler
+         name: gprofiler_aarch64
          path: output/
          retention-days: 1
+
+  test-executable-aarch64:
+    needs: build-container-aarch64
+
+    runs-on: 
+      - self-hosted
+      - public
+      - ARM64
+    steps:
+  
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Download the executable from previous job
+      uses: actions/download-artifact@v2
+      with:
+        name: gprofiler-aarch64
+        path: dist/
+
+    # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
+    - name: Run gProfiler tests
+      run: |
+        sudo python3 -m pip install virtualenv
+        sudo virtualenv --python python3.8 aarch64-venv
+        sudo chown -R ${USER} aarch64-venv
+        sudo chmod -R a+rX aarch64-venv
+        source aarch64-venv/bin/activate
+        ./tests/test.sh --executable dist/gprofiler_aarch64 -k test_executable
 
   deploy-executable:
     if: startsWith(github.ref, 'refs/tags/')
