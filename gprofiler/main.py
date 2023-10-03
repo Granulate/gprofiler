@@ -655,8 +655,6 @@ def parse_cmd_args() -> configargparse.Namespace:
             "--no-verify", help="Do not verify server certificates", action="store_false", dest="verify"
         )
 
-    upload_file.set_defaults(func=send_collapsed_file_only)
-
     extract_resources = subparsers.add_parser("extract-resources")
     extract_resources.set_defaults(func=copy_resources)
     extract_resources.add_argument(
@@ -775,7 +773,8 @@ def parse_cmd_args() -> configargparse.Namespace:
         "--external-metadata",
         default=None,
         type=str,
-        help="Path to a file containing static & application metadata to be added to the profile",
+        help="Path to a file containing static & application metadata to be added to the profile. This option is"
+        " used by other Granulate components to enrich the profile with additional metadata.",
     )
 
     parser.add_argument(
@@ -1130,9 +1129,9 @@ def main() -> None:
         else:
             spark_sampler = None
 
-        if hasattr(args, "func"):
-            assert args.subcommand == UPLOAD_FILE_SUBCOMMAND
-            args.func(args, profiler_api_client, external_metadata_path)
+        if args.subcommand == UPLOAD_FILE_SUBCOMMAND:
+            assert external_metadata_path is None  # not expecting it
+            send_collapsed_file_only(args, profiler_api_client)
             return
 
         enrichment_options = EnrichmentOptions(
