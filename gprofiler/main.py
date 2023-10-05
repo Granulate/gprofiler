@@ -45,10 +45,7 @@ from gprofiler.merge import concatenate_from_external_file, concatenate_profiles
 from gprofiler.metadata import Metadata
 from gprofiler.metadata.application_identifiers import ApplicationIdentifiers
 from gprofiler.metadata.enrichment import EnrichmentOptions
-from gprofiler.metadata.external_metadata import (
-    ExternalMetadataStaleError,
-    read_external_metadata,
-)
+from gprofiler.metadata.external_metadata import ExternalMetadataStaleError, read_external_metadata
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
 from gprofiler.platform import is_linux, is_windows
@@ -1185,6 +1182,9 @@ def main() -> None:
         pass
     except NoProfilersEnabledError:
         logger.error("All profilers are disabled! Please enable at least one of them!")
+        sys.exit(1)
+    except ExternalMetadataStaleError:
+        logger.error("External metadata file is stale! Please update it or disable external metadata, and try again.")
         sys.exit(1)
     except Exception:
         logger.exception("Unexpected error occurred")
