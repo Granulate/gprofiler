@@ -4,6 +4,7 @@
 #
 
 import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
@@ -14,6 +15,13 @@ from gprofiler.metadata import Metadata
 PidToAppMetadata = Dict[int, Metadata]
 
 logger = get_logger_adapter(__name__)
+
+
+EXTERNAL_METADATA_STALENESS_THRESHOLD_S = 5 * 60  # 5 minutes
+
+
+class ExternalMetadataStaleError(Exception):
+    pass
 
 
 @dataclass
@@ -48,6 +56,12 @@ def read_external_metadata(external_metadata_path: Optional[Path]) -> ExternalMe
     """
     if external_metadata_path is None:
         return ExternalMetadata({}, {})
+
+    last_update = external_metadata_path.stat().st_mtime
+    if time.time() - last_update > EXTERNAL_METADATA_STALENESS_THRESHOLD_S:
+        raise ExternalMetadataStaleError(
+            f"External metadata is stale {external_metadata_path} last update at ts {last_update}"
+        )
 
     try:
         external_metadata = json.loads(external_metadata_path.read_text())

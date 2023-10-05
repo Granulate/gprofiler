@@ -45,7 +45,10 @@ from gprofiler.merge import concatenate_from_external_file, concatenate_profiles
 from gprofiler.metadata import Metadata
 from gprofiler.metadata.application_identifiers import ApplicationIdentifiers
 from gprofiler.metadata.enrichment import EnrichmentOptions
-from gprofiler.metadata.external_metadata import read_external_metadata
+from gprofiler.metadata.external_metadata import (
+    ExternalMetadataStaleError,
+    read_external_metadata,
+)
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
 from gprofiler.platform import is_linux, is_windows
@@ -330,7 +333,13 @@ class GProfiler:
         )
         metadata.update({"profiling_mode": self._profiler_state.profiling_mode})
         metrics = self._system_metrics_monitor.get_metrics()
-        external_app_metadata = read_external_metadata(self._external_metadata_path).application
+
+        try:
+            external_app_metadata = read_external_metadata(self._external_metadata_path).application
+        except ExternalMetadataStaleError:
+            logger.warning("External metadata is stale, ignoring it")
+            external_app_metadata = {}
+
         if NoopProfiler.is_noop_profiler(self.system_profiler):
             assert system_result == {}, system_result  # should be empty!
             merged_result = concatenate_profiles(
