@@ -250,8 +250,10 @@ def start_gprofiler_in_container_for_one_session(
     privileged: bool = True,
     user: int = 0,
     pid_mode: Optional[str] = "host",
+    inner_output_directory: Optional[str] = None,
 ) -> Container:
-    inner_output_directory = "/tmp/gprofiler"
+    if inner_output_directory is None:
+        inner_output_directory = "/tmp/gprofiler"
     volumes = {
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
     }
@@ -285,6 +287,7 @@ def run_gprofiler_in_container_for_one_session(
     output_path: Path,
     runtime_specific_args: List[str],
     profiler_flags: List[str],
+    inner_output_directory: Optional[str] = None,
 ) -> str:
     """
     Runs the gProfiler container image for a single profiling session, and collects the output.
@@ -292,7 +295,13 @@ def run_gprofiler_in_container_for_one_session(
     container: Container = None
     try:
         container = start_gprofiler_in_container_for_one_session(
-            docker_client, gprofiler_docker_image, output_directory, output_path, runtime_specific_args, profiler_flags
+            docker_client,
+            gprofiler_docker_image,
+            output_directory,
+            output_path,
+            runtime_specific_args,
+            profiler_flags,
+            inner_output_directory=inner_output_directory,
         )
         return wait_for_gprofiler_container(container, output_path)
     finally:

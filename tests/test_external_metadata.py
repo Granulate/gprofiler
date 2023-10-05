@@ -3,6 +3,7 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import json
+import os
 from pathlib import Path
 from typing import List, cast
 
@@ -39,13 +40,20 @@ def test_external_metadata(
         },
     }
     output_directory.mkdir(parents=True, exist_ok=True)
-    Path(output_directory / "external_metadata.json").write_text(json.dumps(external_metadata))
+    external_metadata_filename = "external_metadata.json"
+    Path(output_directory / external_metadata_filename).write_text(json.dumps(external_metadata))
 
     profiler_flags.extend(["--pids", application_pid_str])
-    # TODO pass the path properly
-    profiler_flags.extend(["--external-metadata", "/tmp/gprofiler/external_metadata.json"])
+    inner_output_directory = "/tmp/gprofiler"
+    profiler_flags.extend(["--external-metadata", os.path.join(inner_output_directory, external_metadata_filename)])
     run_gprofiler_in_container_for_one_session(
-        docker_client, gprofiler_docker_image, output_directory, output_collapsed, [], profiler_flags
+        docker_client,
+        gprofiler_docker_image,
+        output_directory,
+        output_collapsed,
+        [],
+        profiler_flags,
+        inner_output_directory=inner_output_directory,
     )
     collapsed_text = Path(output_collapsed).read_text()
     collapsed_metadata = load_metadata(collapsed_text)
