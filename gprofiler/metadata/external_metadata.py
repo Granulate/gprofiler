@@ -10,9 +10,9 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata import Metadata
+from gprofiler.metadata import ProfileMetadata
 
-PidToAppMetadata = Dict[int, Metadata]
+PidToAppMetadata = Dict[int, ProfileMetadata]
 
 logger = get_logger_adapter(__name__)
 
@@ -26,7 +26,7 @@ class ExternalMetadataStaleError(Exception):
 
 @dataclass
 class ExternalMetadata:
-    static: Metadata
+    static: ProfileMetadata
     application: PidToAppMetadata
 
 

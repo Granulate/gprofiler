@@ -10,7 +10,7 @@ from typing import Callable, Dict, List, MutableMapping, Optional, Union
 
 import configargparse
 
-from gprofiler.metadata import Metadata
+from gprofiler.metadata import ProfileMetadata
 
 StackToSampleCount = Counter
 UserArgs = Dict[str, Optional[Union[int, bool, str]]]
@@ -27,7 +27,7 @@ class ProfileData:
 
     stacks: StackToSampleCount
     appid: Optional[str]
-    app_metadata: Optional[Metadata]
+    app_metadata: Optional[ProfileMetadata]
     container_name: Optional[str]
 
 

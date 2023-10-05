@@ -42,7 +42,7 @@ from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, integers_list, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import concatenate_from_external_file, concatenate_profiles, merge_profiles
-from gprofiler.metadata import Metadata
+from gprofiler.metadata import ProfileMetadata
 from gprofiler.metadata.application_identifiers import ApplicationIdentifiers
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.external_metadata import ExternalMetadataStaleError, read_external_metadata
@@ -140,7 +140,7 @@ class GProfiler:
         self._collect_metrics = collect_metrics
         self._collect_metadata = collect_metadata
         self._enrichment_options = enrichment_options
-        self._static_metadata: Optional[Metadata] = None
+        self._static_metadata: Optional[ProfileMetadata] = None
         self._spawn_time = time.time()
         self._last_diagnostics = 0.0
         self._gpid = ""
@@ -324,7 +324,7 @@ class GProfiler:
             )
             raise
         metadata = (
-            get_current_metadata(cast(Metadata, self._static_metadata))
+            get_current_metadata(cast(ProfileMetadata, self._static_metadata))
             if self._collect_metadata
             else {"hostname": get_hostname()}
         )
@@ -448,11 +448,13 @@ def send_collapsed_file_only(
     spawn_time = time.time()
     gpid = ""
     metrics = NoopSystemMetricsMonitor().get_metrics()
-    static_metadata: Optional[Metadata] = None
+    static_metadata: Optional[ProfileMetadata] = None
     if args.collect_metadata:
         static_metadata = get_static_metadata(spawn_time, args.__dict__, None)
     metadata = (
-        get_current_metadata(cast(Metadata, static_metadata)) if args.collect_metadata else {"hostname": get_hostname()}
+        get_current_metadata(cast(ProfileMetadata, static_metadata))
+        if args.collect_metadata
+        else {"hostname": get_hostname()}
     )
     local_start_time, local_end_time, merged_result = concatenate_from_external_file(
         args.file_path,

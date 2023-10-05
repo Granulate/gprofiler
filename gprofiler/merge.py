@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, ProfilingErrorStack, StackToSampleCount
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata import Metadata
+from gprofiler.metadata import ProfileMetadata
 from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.external_metadata import PidToAppMetadata
 from gprofiler.system_metrics import Metrics
@@ -41,7 +41,7 @@ def scale_sample_counts(stacks: StackToSampleCount, ratio: float) -> StackToSamp
 def _make_profile_metadata(
     container_names_client: Optional[ContainerNamesClient],
     add_container_names: bool,
-    metadata: Metadata,
+    metadata: ProfileMetadata,
     metrics: Metrics,
     application_metadata: Optional[List[Optional[Dict]]],
     application_metadata_enabled: bool,
@@ -85,7 +85,7 @@ def _enrich_pid_stacks(
     profile: ProfileData,
     enrichment_options: EnrichmentOptions,
     application_metadata: List[Optional[Dict]],
-    external_app_metadata: Optional[Metadata],
+    external_app_metadata: Optional[ProfileMetadata],
 ) -> PidStackEnrichment:
     """
     Enrichment per app (or, PID here). This includes:
@@ -149,7 +149,7 @@ def _enrich_and_finalize_stack(
 
 def concatenate_from_external_file(
     collapsed_file_path: str,
-    obtained_metadata: Metadata,
+    obtained_metadata: ProfileMetadata,
 ) -> Tuple[Optional[Any], Optional[Any], str]:
     """
     Concatenate all stacks from all stack mappings in process_profiles.
@@ -188,7 +188,7 @@ def concatenate_profiles(
     process_profiles: ProcessToProfileData,
     container_names_client: Optional[ContainerNamesClient],
     enrichment_options: EnrichmentOptions,
-    metadata: Metadata,
+    metadata: ProfileMetadata,
     metrics: Metrics,
     external_app_metadata: PidToAppMetadata,
 ) -> str:
@@ -228,7 +228,7 @@ def merge_profiles(
     process_profiles: ProcessToProfileData,
     container_names_client: Optional[ContainerNamesClient],
     enrichment_options: EnrichmentOptions,
-    metadata: Metadata,
+    metadata: ProfileMetadata,
     metrics: Metrics,
     external_app_metadata: PidToAppMetadata,
 ) -> str:

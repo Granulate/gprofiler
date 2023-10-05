@@ -6,4 +6,4 @@
 from typing import Any, Dict
 
 # our metadata is JSON-serializable dicts that begin with string keys.
-Metadata = Dict[str, Any]
+ProfileMetadata = Dict[str, Any]

@@ -22,7 +22,7 @@ from docker.types import Mount
 from psutil import Process
 
 from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
-from gprofiler.metadata import Metadata
+from gprofiler.metadata import ProfileMetadata
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import (
     JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
@@ -412,7 +412,7 @@ def log_record_extra(r: LogRecord) -> Dict[Any, Any]:
     return getattr(r, "extra", {})
 
 
-def load_metadata(collapsed_text: str) -> Metadata:
+def load_metadata(collapsed_text: str) -> ProfileMetadata:
     lines = collapsed_text.splitlines()
     assert lines[0].startswith("#")
-    return cast(Metadata, json.loads(lines[0][1:]))
+    return cast(ProfileMetadata, json.loads(lines[0][1:]))
