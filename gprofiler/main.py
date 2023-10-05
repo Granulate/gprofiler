@@ -1131,6 +1131,7 @@ def main() -> None:
 
         if args.subcommand == UPLOAD_FILE_SUBCOMMAND:
             assert external_metadata_path is None  # not expecting it
+            assert profiler_api_client is not None  # it's always initialized in upload-file mode
             send_collapsed_file_only(args, profiler_api_client)
             return
 
