@@ -23,6 +23,7 @@ NO_SERVER_LOG_KEY = "no_server_log"
 NO_SERVER_EXTRA_KEY = "no_extra_to_server"
 CYCLE_ID_KEY = "cycle_id"
 LOGGER_NAME_RE = re.compile(r"gprofiler(?:\..+)?")
+LOGS_FORMAT = "[%(asctime)s] %(levelname)s: %(name)s: %(message)s"
 
 
 def get_logger_adapter(logger_name: str) -> logging.LoggerAdapter:
@@ -137,10 +138,7 @@ def initial_root_logger_setup(
 
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     stream_handler.setLevel(stream_level)
-    if stream_level < logging.INFO:
-        stream_handler.setFormatter(GProfilerFormatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s"))
-    else:
-        stream_handler.setFormatter(GProfilerFormatter("[%(asctime)s] %(message)s", "%H:%M:%S"))
+    stream_handler.setFormatter(GProfilerFormatter(LOGS_FORMAT))
     logger_adapter.logger.addHandler(stream_handler)
 
     os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
@@ -150,7 +148,7 @@ def initial_root_logger_setup(
         backupCount=rotate_backup_count,
     )
     file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(GProfilerFormatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s"))
+    file_handler.setFormatter(GProfilerFormatter(LOGS_FORMAT))
     logger_adapter.logger.addHandler(file_handler)
 
     if remote_logs_handler is not None:
