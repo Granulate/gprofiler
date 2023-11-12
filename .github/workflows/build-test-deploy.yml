@@ -124,7 +124,7 @@ jobs:
      - name: Get and verify tag value
        run: |
          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
-         sudo ./scripts/cmp_tags.sh
+         ./scripts/cmp_tags.sh
 
      - name: Set up Docker Buildx
        uses: docker/setup-buildx-action@v2
