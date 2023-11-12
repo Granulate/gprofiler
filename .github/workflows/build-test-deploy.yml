@@ -307,11 +307,11 @@ jobs:
       - ARM64
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          submodules: true
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        submodules: true
 
     - name: setup runner requirements
       run: ./scripts/setup_runner_requirements.sh
