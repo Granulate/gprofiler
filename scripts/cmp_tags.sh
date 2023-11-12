@@ -8,7 +8,7 @@ set -euo pipefail
 # Used in CI and checks that last pushed tag is greater than last existing tag.
 # Using python package 'cmp_version' to do the compare work
 
-pip3 install cmp_version
+sudo pip install cmp_version
 TAGS=$(git tag --sort=creatordate | tail -2)
 
 # shellcheck disable=SC2206  # expansion is desired here to get array values

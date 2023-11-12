@@ -317,7 +317,7 @@ jobs:
       run: ./scripts/setup_runner_requirements.sh
 
     - name: Get and verify tag value
-      run: ./scripts/verify_tag.sh
+      run: sudo ./scripts/verify_tag.sh
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
