@@ -45,7 +45,7 @@ popd
 rm -r zstd-1.5.2 zstd-1.5.2.tar.gz
 
 # install newer versions of elfutils
-curl -L https://sourceware.org/elfutils/ftp/0.187/elfutils-0.187.tar.bz2 -o elfutils-0.187.tar.bz2
+curl --retry-delay 5 --retry 5 -L https://sourceware.org/elfutils/ftp/0.187/elfutils-0.187.tar.bz2 -o elfutils-0.187.tar.bz2
 tar -xf elfutils-0.187.tar.bz2
 pushd elfutils-0.187
 # disable debuginfod, otherwise it will try to dlopen("libdebuginfod.so") in runtime & that can
