@@ -297,7 +297,7 @@ jobs:
         run: |
           set -x
 
-          BASE_IMAGE="${{ env.GH_REPO }}:test-aarch64-ci"
+          BASE_IMAGE="granulate/gprofiler:test-aarch64-ci"
           AARCH64_IMAGE="$BASE_IMAGE-aarch64"
 
           # build & push Aarch64
