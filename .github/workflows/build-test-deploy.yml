@@ -191,7 +191,7 @@ jobs:
     - name: Download executables from the previous job
       uses: actions/download-artifact@v2
       with:
-        name: gprofiler
+        name: gprofiler_x86_64
         path: output/
 
     # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
@@ -250,7 +250,7 @@ jobs:
     - name: Download the executable from previous job
       uses: actions/download-artifact@v2
       with:
-        name: gprofiler
+        name: gprofiler_x86_64
         path: output/
 
     - name: Download the image from previous job
@@ -260,10 +260,10 @@ jobs:
         path: output/
 
     - name: Add +x to gprofiler
-      run: chmod +x ./output/gprofiler
+      run: chmod +x ./output/gprofiler_x86_64
 
     - name: Extract resources from gProfiler executable
-      run: sudo ./output/gprofiler extract-resources --resources-dest=./gprofiler/resources
+      run: sudo ./output/gprofiler_x86_64 extract-resources --resources-dest=./gprofiler/resources
 
     # used in the tests
     - name: Import gProfiler image
