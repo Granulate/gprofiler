@@ -37,12 +37,12 @@ jobs:
         mkdir -p output
         ./scripts/build_x86_64_executable.sh
         mv build/x86_64/gprofiler output/gprofiler_x86_64
-        cp output/gprofiler_x86_64 output/gprofiler  # for backwards compatibility
+        cp output/gprofiler_x86_64 output/gprofiler  # for backwards compatibility, we upload both with arch suffix and without
 
      - name: Upload the executables as job artifacts
        uses: actions/upload-artifact@v2
        with:
-         name: gprofiler
+         name: gprofiler_x86_64
          path: output/
          retention-days: 1
 
@@ -97,7 +97,7 @@ jobs:
       - name: Download the executable from previous job
         uses: actions/download-artifact@v2
         with:
-          name: gprofiler
+          name: gprofiler_x86_64
           path: dist/
 
       - name: Run gProfiler tests
@@ -186,13 +186,21 @@ jobs:
       - build-executable-aarch64
 
     steps:
-      - name: Download executables from the previous job
+      - name: Download x86_64 executable from a previous job
         uses: actions/download-artifact@v2
         with:
-          name: gprofiler
+          name: gprofiler_x86_64
           path: output/
+
+      - name: Download aarch64 executable from a previous job
+        uses: actions/download-artifact@v2
+        with:
+          name: gprofiler_aarch64
+          path: output/
+
       - name: Get tag value
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
@@ -218,7 +226,7 @@ jobs:
     - name: Download executables from the previous job
       uses: actions/download-artifact@v2
       with:
-        name: gprofiler
+        name: gprofiler_x86_64
         path: output/
 
     # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
@@ -277,7 +285,7 @@ jobs:
     - name: Download the executable from previous job
       uses: actions/download-artifact@v2
       with:
-        name: gprofiler
+        name: gprofiler_x86_64
         path: output/
 
     - name: Download the image from previous job
@@ -287,10 +295,10 @@ jobs:
         path: output/
 
     - name: Add +x to gprofiler
-      run: chmod +x ./output/gprofiler
+      run: chmod +x ./output/gprofiler_x86_64
 
     - name: Extract resources from gProfiler executable
-      run: sudo ./output/gprofiler extract-resources --resources-dest=./gprofiler/resources
+      run: sudo ./output/gprofiler_x86_64 extract-resources --resources-dest=./gprofiler/resources
 
     # used in the tests
     - name: Import gProfiler image
@@ -301,11 +309,11 @@ jobs:
       run: NO_APT_INSTALL=1 ./tests/test.sh --ignore=tests/test_executable.py
 
   build-container-aarch64:
+    needs: build-executable-aarch64
     runs-on:
       - self-hosted
       - public
       - ARM64
-
     steps:
     - name: Checkout Code
       uses: actions/checkout@v3
@@ -327,6 +335,12 @@ jobs:
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Download executables from the previous job
+      uses: actions/download-artifact@v2
+      with:
+        name: gprofiler_aarch64
+        path: output/
 
     # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
     # more nicely. the tests will then be able to use the built image.
@@ -385,6 +399,7 @@ jobs:
         sudo chmod -R a+rX aarch64-venv
         source aarch64-venv/bin/activate
         ./tests/test.sh --ignore=tests/test_executable.py
+
   deploy-container:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
