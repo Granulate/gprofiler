@@ -2,6 +2,7 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import errno
 import functools
 import json
 import os
@@ -540,7 +541,13 @@ class AsyncProfiledProcess:
             if not is_owned_by_root(full_dir.parent):
                 continue  # the parent needs to be owned by root
 
-            mkdir_owned_root(full_dir)
+            try:
+                mkdir_owned_root(full_dir)
+            except OSError as e:
+                # dir is not r/w, try next one
+                if e.errno == errno.EROFS:
+                    continue
+                raise
 
             if is_rw_exec_dir(full_dir):
                 return str(full_dir)

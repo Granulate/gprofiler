@@ -649,7 +649,8 @@ def python_version(in_container: bool, application_docker_container: Container) 
 
 
 @fixture
-def noexec_tmp_dir(in_container: bool, tmp_path: Path) -> Iterator[str]:
+def noexec_or_ro_tmp_dir(in_container: bool, tmp_path: Path, noexec_or_ro: str) -> Iterator[str]:
+    assert noexec_or_ro in ("noexec", "ro")
     if in_container:
         # only needed for non-container tests
         yield ""
@@ -658,7 +659,7 @@ def noexec_tmp_dir(in_container: bool, tmp_path: Path) -> Iterator[str]:
     tmpfs_path = tmp_path / "tmpfs"
     tmpfs_path.mkdir(0o755, exist_ok=True)
     try:
-        subprocess.run(["mount", "-t", "tmpfs", "-o", "noexec", "none", str(tmpfs_path)], check=True)
+        subprocess.run(["mount", "-t", "tmpfs", "-o", noexec_or_ro, "none", str(tmpfs_path)], check=True)
         yield str(tmpfs_path)
     finally:
         subprocess.run(["umount", str(tmpfs_path)], check=True)
