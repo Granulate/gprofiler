@@ -363,7 +363,7 @@ jobs:
           AARCH64_IMAGE="$BASE_IMAGE-aarch64"
           X86_64_IMAGE="$BASE_IMAGE-x86_64"
 
-          docker pull $AARCH64_IMAGE
+          docker pull --platform=linux/aarch64 $AARCH64_IMAGE
           docker image load < output/gprofiler_x86_64.img
           docker tag gprofiler_x86_64 $X86_64_IMAGE
           docker push $X86_64_IMAGE
