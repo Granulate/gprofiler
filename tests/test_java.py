@@ -22,12 +22,14 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 from granulate_utils.java import parse_jvm_version
+from granulate_utils.linux.mountinfo import iter_mountinfo
 from granulate_utils.linux.ns import get_process_nspid
 from granulate_utils.linux.process import is_musl
 from packaging.version import Version
 from psutil import Process
 from pytest import LogCaptureFixture, MonkeyPatch
 
+import gprofiler.profilers.java
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import (
     JAVA_SAFEMODE_ALL,
@@ -38,6 +40,7 @@ from gprofiler.profilers.java import (
     frequency_to_ap_interval,
     get_java_version,
 )
+from gprofiler.utils import GPROFILER_DIRECTORY_NAME
 from tests.conftest import AssertInCollapsed
 from tests.type_utils import cast_away_optional
 from tests.utils import (
@@ -51,6 +54,7 @@ from tests.utils import (
     make_java_profiler,
     snapshot_pid_collapsed,
     snapshot_pid_profile,
+    str_removesuffix,
 )
 
 
@@ -451,48 +455,78 @@ def filter_jattach_load_records(records: List[LogRecord]) -> List[LogRecord]:
 
 
 @pytest.mark.parametrize(
-    "extra_application_docker_mounts",
+    "noexec_or_ro,extra_application_docker_mounts",
     [
-        pytest.param([docker.types.Mount(target="/tmp", source="", type="tmpfs", read_only=False)], id="noexec"),
+        pytest.param(
+            "noexec", [docker.types.Mount(target="/tmpfs", source="", type="tmpfs", read_only=False)], id="noexec"
+        ),
+        pytest.param("ro", [docker.types.Mount(target="/tmpfs", source="", type="tmpfs", read_only=True)], id="ro"),
     ],
 )
-def test_java_noexec_dirs(
-    tmp_path_world_accessible: Path,
+def test_java_noexec_or_ro_dirs(
+    tmp_path_world_accessible: Path,  # will be used by AP for logs & outputs
     application_pid: int,
+    extra_application_docker_mounts: List[docker.types.Mount],
     assert_collapsed: AssertInCollapsed,
     caplog: LogCaptureFixture,
-    noexec_tmp_dir: str,
+    noexec_or_ro_tmp_dir: str,
     in_container: bool,
     monkeypatch: MonkeyPatch,
     profiler_state: ProfilerState,
+    noexec_or_ro: str,
 ) -> None:
     """
     Tests that gProfiler is able to select a non-default directory for libasyncProfiler if the default one
-    is noexec, both container and host.
+    is noexec/ro - not rwx - both container and host.
     """
     caplog.set_level(logging.DEBUG)
 
-    if not in_container:
-        import gprofiler.profilers.java
+    # step 1: configure POSSIBLE_AP_DIRS to try first the noexec/ro dir we've set up for this test.
+    # the first dir will fail the rwx test, and gprofiler will try using the 2nd dir.
+    # the default "first" dir is /tmp, but we don't want mount onto /tmp because it's not legit on a live
+    # on a live system (will hide existing files if /tmp is not tmpfs, as we'll create a new mount),
+    # and making it ro in a container creates other problems. A new mount it is.
+    if in_container:
+        assert len(extra_application_docker_mounts) == 1
+        mount = extra_application_docker_mounts[0]
+        test_dir = mount["Target"]
+    else:
+        test_dir = noexec_or_ro_tmp_dir
+    monkeypatch.setattr(
+        gprofiler.profilers.java,
+        "POSSIBLE_AP_DIRS",
+        (
+            os.path.join(test_dir, GPROFILER_DIRECTORY_NAME),
+            gprofiler.profilers.java.POSSIBLE_AP_DIRS[1],
+        ),
+    )
 
-        run_dir = gprofiler.profilers.java.POSSIBLE_AP_DIRS[1]
-        assert run_dir.startswith("/run")
-        # noexec_tmp_dir won't work and gprofiler will try using run_dir
-        # this is done because modifying /tmp on a live system is not legit (we need to create a new tmpfs
-        # mount because /tmp is not necessarily tmpfs; and that'll hide all current files in /tmp).
-        monkeypatch.setattr(gprofiler.profilers.java, "POSSIBLE_AP_DIRS", (noexec_tmp_dir, run_dir))
+    # step 2: verify that the first dir gprofiler will try is truly mounted with our desired options.
+    # for the sake of the test - we expect it to be a mountpint.
+    mounted_directory = str_removesuffix(
+        gprofiler.profilers.java.POSSIBLE_AP_DIRS[0], f"/{GPROFILER_DIRECTORY_NAME}", assert_suffixed=True
+    )
+    assert (
+        noexec_or_ro
+        in next(filter(lambda m: m.mount_point == mounted_directory, iter_mountinfo(application_pid))).mount_options
+    )
 
+    # step 3: ensure none of the possible dirs share a common path - otherwise, it's possible that
+    # they share a mount, too, and both are noexec/ro.
+    assert os.path.commonpath(gprofiler.profilers.java.POSSIBLE_AP_DIRS) == "/"
+
+    # run a profiling session...
     with make_java_profiler(profiler_state) as profiler:
         assert_collapsed(snapshot_pid_collapsed(profiler, application_pid))
 
-    # should use this path instead of /tmp/gprofiler_tmp/...
-
+    # step 4: ensure we truly used the second dir - POSSIBLE_AP_DIRS[1]
     jattach_loads = filter_jattach_load_records(caplog.records)
     # 2 entries - start and stop
     assert len(jattach_loads) == 2
-    # 3rd part of commandline to AP - shall begin with non-default directory
+    # 3rd part of commandline to AP - shall begin with POSSIBLE_AP_DIRS[1]
     assert all(
-        log_record_extra(jl)["command"][3].startswith("/run/gprofiler_tmp/async-profiler-") for jl in jattach_loads
+        log_record_extra(jl)["command"][3].startswith(f"{gprofiler.profilers.java.POSSIBLE_AP_DIRS[1]}/async-profiler-")
+        for jl in jattach_loads
     )
 
 

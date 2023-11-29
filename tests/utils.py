@@ -408,3 +408,10 @@ def log_record_extra(r: LogRecord) -> Dict[Any, Any]:
     Gets the "extra" attached to a LogRecord
     """
     return getattr(r, "extra", {})
+
+
+def str_removesuffix(s: str, suffix: str, assert_suffixed: bool = True) -> str:
+    suffixed = s.endswith(suffix)
+    if assert_suffixed:
+        assert suffixed
+    return s[: -len(suffix)] if suffixed else s
