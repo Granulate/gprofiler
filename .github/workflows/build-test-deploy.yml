@@ -47,7 +47,7 @@ jobs:
          retention-days: 1
 
   test-executable-x64:
-    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-20.04  # the tests which use ruby/node/python etc and run at non-root privs, fail to read the files when running
                            # on ubuntu-22.04/ubuntu-latest:
                            # stderr: ruby: Permission denied -- /home/runner/work/gprofiler/gprofiler/tests/containers/ruby/fibonacci.rb (LoadError)
@@ -107,7 +107,6 @@ jobs:
           NO_APT_INSTALL=1 ./tests/test.sh --exec-container-image ${{ matrix.containers }} --executable dist/gprofiler -k test_executable
 
   build-executable-aarch64:
-    if: startsWith(github.ref, 'refs/tags/')
     runs-on:
       - self-hosted
       - public
@@ -210,7 +209,7 @@ jobs:
         retention-days: 1
 
   test-container-x64:
-    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
     needs: build-container-x64
 
     runs-on: ubuntu-20.04  # for 3.10.0 python tag
@@ -274,7 +273,6 @@ jobs:
       run: NO_APT_INSTALL=1 ./tests/test.sh --ignore=tests/test_executable.py
 
   build-container-aarch64:
-    if: startsWith(github.ref, 'refs/tags/')
     needs: build-executable-aarch64
     runs-on:
       - self-hosted
@@ -313,14 +311,13 @@ jobs:
         run: |
           set -x
 
-          BASE_IMAGE="${{ env.GH_REPO }}:${{ env.RELEASE_VERSION }}"
+          BASE_IMAGE="${{ env.GH_REPO }}:test-deployment"
           AARCH64_IMAGE="$BASE_IMAGE-aarch64"
 
           # build & push Aarch64
           ./scripts/build_aarch64_container.sh --skip-exe-build --build-arg EXE_PATH=output/gprofiler_aarch64 -t "$AARCH64_IMAGE" --push
 
   deploy-container:
-    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     needs:
       - build-container-x64
@@ -358,8 +355,7 @@ jobs:
         run: |
           set -x
 
-          BASE_IMAGE="${{ env.GH_REPO }}:${{ env.RELEASE_VERSION }}"
-          LATEST_IMAGE="${{ env.GH_REPO }}:latest"
+          BASE_IMAGE="${{ env.GH_REPO }}:test-deployment"
           AARCH64_IMAGE="$BASE_IMAGE-aarch64"
           X86_64_IMAGE="$BASE_IMAGE-x86_64"
 
@@ -369,7 +365,6 @@ jobs:
           docker push $X86_64_IMAGE
 
           # create manifests for the tag + for 'latest'
-          docker manifest create "$BASE_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
-          docker manifest push "$BASE_IMAGE"
-          docker manifest create "$LATEST_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
-          docker manifest push "$LATEST_IMAGE"
+          docker buildx imagetools create -t "$BASE_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
+          #docker manifest create "$BASE_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
+          #docker manifest push "$BASE_IMAGE"
