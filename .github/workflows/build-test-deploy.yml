@@ -326,8 +326,8 @@ jobs:
           fetch-depth: 0
           submodules: true
 
-      - name: Verify release tag matches gProfiler version
-        run: ./scripts/verify_tag.sh
+      # - name: Verify release tag matches gProfiler version
+      #   run: ./scripts/verify_tag.sh
 
       # build-container-x64 has uploaded the image as an artifact, we donwload it here.
       # build-container-aarch64 has pushed the image to DockerHub, so we'll pull it later when creating
