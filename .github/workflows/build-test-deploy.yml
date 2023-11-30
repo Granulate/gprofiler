@@ -307,7 +307,7 @@ jobs:
         run: |
           set -x
 
-          BASE_IMAGE="${{ env.GH_REPO }}:test-deployment"
+          BASE_IMAGE="granulate/gprofiler:test-deployment"
           AARCH64_IMAGE="$BASE_IMAGE-aarch64"
 
           # build & push Aarch64
@@ -319,7 +319,6 @@ jobs:
       - build-container-x64
       - build-container-aarch64
     steps:
-      # needed to set up env.GH_REPO etc
       - name: Checkout Code
         uses: actions/checkout@v3
         with:
@@ -351,7 +350,7 @@ jobs:
         run: |
           set -x
 
-          BASE_IMAGE="${{ env.GH_REPO }}:test-deployment"
+          BASE_IMAGE="granulate/gprofiler:test-deployment"
           AARCH64_IMAGE="$BASE_IMAGE-aarch64"
           X86_64_IMAGE="$BASE_IMAGE-x86_64"
 
