@@ -48,10 +48,10 @@ jobs:
 
   test-executable-x64:
     if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    needs: build-executable-x64
     runs-on: ubuntu-20.04  # the tests which use ruby/node/python etc and run at non-root privs, fail to read the files when running
                            # on ubuntu-22.04/ubuntu-latest:
                            # stderr: ruby: Permission denied -- /home/runner/work/gprofiler/gprofiler/tests/containers/ruby/fibonacci.rb (LoadError)
-    needs: build-executable-x64
     strategy:
       fail-fast: false
       matrix:
@@ -107,7 +107,6 @@ jobs:
           NO_APT_INSTALL=1 ./tests/test.sh --exec-container-image ${{ matrix.containers }} --executable dist/gprofiler -k test_executable
 
   build-executable-aarch64:
-    if: startsWith(github.ref, 'refs/tags/')
     runs-on:
       - self-hosted
       - public
@@ -119,13 +118,13 @@ jobs:
          fetch-depth: 0
          submodules: true
 
-     - name: Set up requirements
-       run: scripts/setup_runner_requirements.sh
-
      - name: Get and verify tag value
        run: |
          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
          ./scripts/cmp_tags.sh
+
+     - name: Set up requirements
+       run: scripts/setup_runner_requirements.sh
 
      - name: Set up Docker Buildx
        uses: docker/setup-buildx-action@v2
@@ -142,6 +141,63 @@ jobs:
          name: gprofiler_aarch64
          path: output/
          retention-days: 1
+
+  test-executable-aarch64:
+    if: !startsWith(github.ref, 'refs/tags/')
+    needs: build-container-aarch64
+    runs-on: 
+      - self-hosted
+      - public
+      - ARM64
+    strategy:
+      fail-fast: false
+      matrix:
+        containers:
+          - alpine
+          - ubuntu:20.04
+          - ubuntu:20.10
+          - ubuntu:22.04
+          - centos:7
+          - centos:8
+          - debian:8
+          - debian:9
+          - debian:10
+          - debian:11
+    steps:
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+
+      - name: Install Java
+        uses: actions/setup-java@v1
+        with:
+          java-version: '8.0.275'
+          java-package: jdk
+          architecture: x64
+
+      - name: Install Node.JS
+        uses: actions/setup-node@v2
+        with:
+          # same version as used in tests/containers/nodejs/Dockerfile
+          node-version: 10.x
+
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: Download the executable from previous job
+        uses: actions/download-artifact@v2
+        with:
+          name: gprofiler_aarch64
+          path: dist/
+
+      - name: Run gProfiler tests
+        run: |
+          mv dist/gprofiler_aarch64 dist/gprofiler
+          chmod +x dist/gprofiler
+          NO_APT_INSTALL=1 ./tests/test.sh --exec-container-image ${{ matrix.containers }} --executable dist/gprofiler -k test_executable
 
   deploy-executable:
     if: startsWith(github.ref, 'refs/tags/')
@@ -212,9 +268,7 @@ jobs:
   test-container-x64:
     if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     needs: build-container-x64
-
     runs-on: ubuntu-20.04  # for 3.10.0 python tag
-
     strategy:
       fail-fast: false  # helps detecting flakiness / errors specific to one Python version
       matrix:
@@ -274,7 +328,6 @@ jobs:
       run: NO_APT_INSTALL=1 ./tests/test.sh --ignore=tests/test_executable.py
 
   build-container-aarch64:
-    if: startsWith(github.ref, 'refs/tags/')
     needs: build-executable-aarch64
     runs-on:
       - self-hosted
@@ -287,11 +340,14 @@ jobs:
           fetch-depth: 0
           submodules: true
 
-      - name: Set up runner requirements
-        run: scripts/setup_runner_requirements.sh
+      - name: setup runner requirements
+        run: ./scripts/setup_runner_requirements.sh
 
       - name: Get and verify tag value
-        run: ./scripts/verify_tag.sh
+        run: sudo ./scripts/verify_tag.sh
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
       - name: Login to DockerHub
         uses: docker/login-action@v1
@@ -299,25 +355,68 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
       - name: Download executables from the previous job
         uses: actions/download-artifact@v2
         with:
           name: gprofiler_aarch64
           path: output/
 
-      # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
-      - name: Build and push
-        run: |
-          set -x
+      # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
+      # more nicely. the tests will then be able to use the built image.
+      - name: Build gProfiler image
+        run: ./scripts/build_aarch64_container.sh -t gprofiler_aarch64 --output type=docker
 
-          BASE_IMAGE="${{ env.GH_REPO }}:${{ env.RELEASE_VERSION }}"
-          AARCH64_IMAGE="$BASE_IMAGE-aarch64"
+      - name: Export gProfiler image
+        run: mkdir -p output && docker image save gprofiler_aarch64 > output/gprofiler_aarch64.img
 
-          # build & push Aarch64
-          ./scripts/build_aarch64_container.sh --skip-exe-build --build-arg EXE_PATH=output/gprofiler_aarch64 -t "$AARCH64_IMAGE" --push
+      - name: Upload the image artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: gprofiler_aarch64.img
+          path: output/
+          retention-days: 1
+
+  test-container-aarch64:
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    needs: build-container-aarch64
+    runs-on: 
+      - self-hosted
+      - public
+      - ARM64
+    steps:
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Download the executable from previous job
+      uses: actions/download-artifact@v2
+      with:
+        name: gprofiler_aarch64.img
+        path: output/
+
+    - name: Import gProfiler image
+      run: docker image load < output/gprofiler_aarch64.img
+
+    - name: Extract resources from gProfiler executable
+      run: sudo docker run -v $PWD/gprofiler/resources:/app/gprofiler/resources gprofiler_aarch64 extract-resources --resources-dest=/app/gprofiler/resources
+
+
+    # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
+    - name: Run gProfiler tests
+      run: |
+        sudo python3 -m pip install virtualenv
+        sudo virtualenv --python python3.8 aarch64-venv
+        sudo chown -R ${USER} aarch64-venv
+        sudo chmod -R a+rX aarch64-venv
+        source aarch64-venv/bin/activate
+        ./tests/test.sh --ignore=tests/test_executable.py
 
   deploy-container:
     if: startsWith(github.ref, 'refs/tags/')
