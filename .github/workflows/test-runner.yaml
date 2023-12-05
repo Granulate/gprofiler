@@ -1,0 +1,11 @@
+name: hello-world
+on: push
+jobs:
+  my-job:
+    runs-on:
+      - self-hosted
+      - shared
+      - X64
+    steps:
+      - name: my-step
+        run: echo "Hello World!"
