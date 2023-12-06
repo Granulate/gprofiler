@@ -199,7 +199,8 @@ jobs:
     # more nicely. the tests will then be able to use the built image.
     - name: Build gProfiler image
       # see https://github.com/docker/buildx/issues/1507 about the --provenance flag, I decided to go safe without the extra manifest.
-      run: ./scripts/build_x86_64_container.sh --provenance=false --skip-exe-build --build-arg EXE_PATH=output/gprofiler_x86_64 -t gprofiler_x86_64
+      # # --skip-exe-build needs to be first!
+      run: ./scripts/build_x86_64_container.sh --skip-exe-build --provenance=false --build-arg EXE_PATH=output/gprofiler_x86_64 -t gprofiler_x86_64
 
     - name: Export gProfiler image
       run: mkdir -p output && docker image save gprofiler_x86_64 > output/gprofiler_x86_64.img
@@ -318,7 +319,8 @@ jobs:
           AARCH64_IMAGE="$BASE_IMAGE-aarch64"
 
           # build & push Aarch64
-          ./scripts/build_aarch64_container.sh --provenance=false --skip-exe-build --build-arg EXE_PATH=output/gprofiler_aarch64 -t "$AARCH64_IMAGE" --push
+          # --skip-exe-build needs to be first!
+          ./scripts/build_aarch64_container.sh --skip-exe-build --provenance=false --build-arg EXE_PATH=output/gprofiler_aarch64 -t "$AARCH64_IMAGE" --push
 
   deploy-container:
     runs-on: ubuntu-latest
