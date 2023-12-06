@@ -332,7 +332,7 @@ jobs:
       - build-container-x64
       - build-container-aarch64
     steps:
-      
+
       - name: Checkout Code
         uses: actions/checkout@v3
         with:
@@ -364,7 +364,7 @@ jobs:
       - name: Push manifest
         run: |
           set -x
-          
+
           BASE_IMAGE="${{ env.GH_REPO }}:${{ env.RELEASE_VERSION }}"
           LATEST_IMAGE="${{ env.GH_REPO }}:latest"
           AARCH64_IMAGE="$BASE_IMAGE-aarch64"
