@@ -5,6 +5,9 @@
 #
 set -euo pipefail
 
+echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> "$GITHUB_ENV"
+echo "GH_REPO=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
 gprofiler_version=$(python -c "exec(open('gprofiler/__init__.py').read()); print(__version__)")
 git_tag=$(git describe --tags)
 if [ "$gprofiler_version" != "$git_tag" ]; then
