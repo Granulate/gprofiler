@@ -369,6 +369,6 @@ jobs:
           docker push $X86_64_IMAGE
 
           # create manifests for the tag + for 'latest'
-          docker buildx imagetools create --provenance=false -t "$BASE_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
+          docker buildx imagetools create -t "$BASE_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
           #docker manifest create "$BASE_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
           #docker manifest push "$BASE_IMAGE"
