@@ -315,7 +315,7 @@ jobs:
         run: |
           set -x
 
-          BASE_IMAGE="granulate/gprofiler:test-deployment3"
+          BASE_IMAGE="granulate/gprofiler:test-deployment4"
           AARCH64_IMAGE="$BASE_IMAGE-aarch64"
 
           # build & push Aarch64
@@ -359,7 +359,7 @@ jobs:
         run: |
           set -x
 
-          BASE_IMAGE="granulate/gprofiler:test-deployment3"
+          BASE_IMAGE="granulate/gprofiler:test-deployment4"
           AARCH64_IMAGE="$BASE_IMAGE-aarch64"
           X86_64_IMAGE="$BASE_IMAGE-x86_64"
 
