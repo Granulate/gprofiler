@@ -284,6 +284,8 @@ jobs:
       - public
       - ARM64
       - gprofiler
+      - EC2
+      - linux
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
