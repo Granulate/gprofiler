@@ -150,6 +150,7 @@ jobs:
           submodules: true
           fetch-depth: 0
 
+      # verification before we deploy
       - name: Verify release tag matches gProfiler version
         run: ./scripts/verify_tag.sh
 
