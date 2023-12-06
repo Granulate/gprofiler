@@ -313,7 +313,7 @@ jobs:
         run: |
           set -x
 
-          BASE_IMAGE="granulate/gprofiler:test-deployment"
+          BASE_IMAGE="granulate/gprofiler:test-deployment2"
           AARCH64_IMAGE="$BASE_IMAGE-aarch64"
 
           # build & push Aarch64
@@ -356,7 +356,7 @@ jobs:
         run: |
           set -x
 
-          BASE_IMAGE="granulate/gprofiler:test-deployment"
+          BASE_IMAGE="granulate/gprofiler:test-deployment2"
           AARCH64_IMAGE="$BASE_IMAGE-aarch64"
           X86_64_IMAGE="$BASE_IMAGE-x86_64"
 
@@ -366,6 +366,7 @@ jobs:
           docker push $X86_64_IMAGE
 
           # create manifests for the tag + for 'latest'
-          docker buildx imagetools create -t "$BASE_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
+          # see https://github.com/docker/buildx/issues/1507 about the --provenance flag, I decided to go safe without the extra manifest.
+          docker buildx imagetools create --provenance=false -t "$BASE_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
           #docker manifest create "$BASE_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
           #docker manifest push "$BASE_IMAGE"
