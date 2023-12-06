@@ -102,7 +102,7 @@ jobs:
           NO_APT_INSTALL=1 ./tests/test.sh --exec-container-image ${{ matrix.containers }} --executable dist/gprofiler -k test_executable
 
   build-executable-aarch64:
-    runs-on: &self_hosted
+    runs-on:
       - self-hosted
       - public
       - ARM64
@@ -276,7 +276,13 @@ jobs:
 
   build-container-aarch64:
     needs: build-executable-aarch64
-    runs-on: *self_hosted
+    runs-on:
+      - self-hosted
+      - public
+      - ARM64
+      - gprofiler
+      - EC2
+      - linux
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
