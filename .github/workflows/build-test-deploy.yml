@@ -23,11 +23,6 @@ jobs:
          fetch-depth: 0
          submodules: true
 
-     - name: Get and verify tag value
-       run: |
-         echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
-         ./scripts/cmp_tags.sh
-
      # TODO: Add docker layer caching when GitHub Actions cache is stabilized and works good with "satackey/action-docker-layer-caching@v0.0.11"
      - name: Build gProfiler executable
        # Using BuildKit although it has another cache mechanism which is not supported by satackey/action-docker-layer-caching@v0.0.11
@@ -112,6 +107,9 @@ jobs:
       - self-hosted
       - public
       - ARM64
+      - gprofiler
+      - EC2
+      - linux
     steps:
      - name: Checkout Code
        uses: actions/checkout@v3
@@ -121,11 +119,6 @@ jobs:
 
      - name: Set up requirements
        run: scripts/setup_runner_requirements.sh
-
-     - name: Get and verify tag value
-       run: |
-         echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
-         ./scripts/cmp_tags.sh
 
      - name: Set up Docker Buildx
        uses: docker/setup-buildx-action@v2
@@ -151,6 +144,16 @@ jobs:
       - build-executable-aarch64
 
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      # verification before we deploy
+      - name: Verify release tag matches gProfiler version
+        run: ./scripts/verify_tag.sh
+
       - name: Download x86_64 executable from a previous job
         uses: actions/download-artifact@v2
         with:
@@ -162,9 +165,6 @@ jobs:
         with:
           name: gprofiler_aarch64
           path: output/
-
-      - name: Get tag value
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
 
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -197,7 +197,9 @@ jobs:
     # the tests need the gprofiler image built (from Dockerfile). I run it separately here, because "docker build" prints the build logs
     # more nicely. the tests will then be able to use the built image.
     - name: Build gProfiler image
-      run: ./scripts/build_x86_64_container.sh --skip-exe-build --build-arg EXE_PATH=output/gprofiler_x86_64 -t gprofiler_x86_64
+      # see https://github.com/docker/buildx/issues/1507 about the --provenance flag, I decided to go safe without the extra manifest.
+      # --skip-exe-build needs to be first!
+      run: ./scripts/build_x86_64_container.sh --skip-exe-build --provenance=false --build-arg EXE_PATH=output/gprofiler_x86_64 -t gprofiler_x86_64
 
     - name: Export gProfiler image
       run: mkdir -p output && docker image save gprofiler_x86_64 > output/gprofiler_x86_64.img
@@ -280,6 +282,9 @@ jobs:
       - self-hosted
       - public
       - ARM64
+      - gprofiler
+      - EC2
+      - linux
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -290,6 +295,7 @@ jobs:
       - name: Set up runner requirements
         run: scripts/setup_runner_requirements.sh
 
+      # this gets GH_REPO and RELEASE_VERSION
       - name: Get and verify tag value
         run: ./scripts/verify_tag.sh
 
@@ -317,7 +323,8 @@ jobs:
           AARCH64_IMAGE="$BASE_IMAGE-aarch64"
 
           # build & push Aarch64
-          ./scripts/build_aarch64_container.sh --skip-exe-build --build-arg EXE_PATH=output/gprofiler_aarch64 -t "$AARCH64_IMAGE" --push
+          # --skip-exe-build needs to be first!
+          ./scripts/build_aarch64_container.sh --skip-exe-build --provenance=false --build-arg EXE_PATH=output/gprofiler_aarch64 -t "$AARCH64_IMAGE" --push
 
   deploy-container:
     if: startsWith(github.ref, 'refs/tags/')
@@ -326,12 +333,15 @@ jobs:
       - build-container-x64
       - build-container-aarch64
     steps:
-      # needed to set up env.GH_REPO etc
       - name: Checkout Code
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: true
+
+      # this gets GH_REPO and RELEASE_VERSION
+      - name: Verify release tag matches gProfiler version
+        run: ./scripts/verify_tag.sh
 
       # build-container-x64 has uploaded the image as an artifact, we donwload it here.
       # build-container-aarch64 has pushed the image to DockerHub, so we'll pull it later when creating
@@ -341,9 +351,6 @@ jobs:
         with:
           name: gprofiler_x86_64.img
           path: output/
-
-      - name: Get and verify tag value
-        run: ./scripts/verify_tag.sh
 
       - name: Login to DockerHub
         uses: docker/login-action@v1
@@ -364,12 +371,11 @@ jobs:
           X86_64_IMAGE="$BASE_IMAGE-x86_64"
 
           docker pull --platform=linux/aarch64 $AARCH64_IMAGE
+
           docker image load < output/gprofiler_x86_64.img
           docker tag gprofiler_x86_64 $X86_64_IMAGE
           docker push $X86_64_IMAGE
 
           # create manifests for the tag + for 'latest'
-          docker manifest create "$BASE_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
-          docker manifest push "$BASE_IMAGE"
-          docker manifest create "$LATEST_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
-          docker manifest push "$LATEST_IMAGE"
+          docker buildx imagetools create -t "$BASE_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
+          docker buildx imagetools create -t "$LATEST_IMAGE" "$X86_64_IMAGE" "$AARCH64_IMAGE"
