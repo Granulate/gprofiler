@@ -14,12 +14,14 @@ from granulate_utils.linux.ns import is_running_in_init_pid
 from psutil import NoSuchProcess, Process
 
 from gprofiler.exceptions import CalledProcessError, StopEventSetException
-from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData
+from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, nonnegative_integer
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers import python
 from gprofiler.profilers.profiler_base import ProfilerBase
+from gprofiler.profilers.python import PythonRuntime
+from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils import (
     poll_process,
     random_prefix,
@@ -41,6 +43,31 @@ class PythonEbpfError(CalledProcessError):
     """
 
 
+@register_profiler(
+    "PyPerf",
+    runtime_class=PythonRuntime,
+    is_preferred=True,
+    possible_modes=["auto", "pyperf"],
+    supported_archs=["x86_64"],
+    profiler_arguments=[
+        # TODO should be prefixed with --python-
+        ProfilerArgument(
+            "--pyperf-user-stacks-pages",
+            dest="python_pyperf_user_stacks_pages",
+            default=None,
+            type=nonnegative_integer,
+            help="Number of user stack-pages that PyPerf will collect, this controls the maximum stack depth of native "
+            "user frames. Pass 0 to disable user native stacks altogether.",
+        ),
+        ProfilerArgument(
+            "--python-pyperf-verbose",
+            dest="python_pyperf_verbose",
+            action="store_true",
+            help="Enable PyPerf in verbose mode (max verbosity)",
+        ),
+    ],
+    supported_profiling_modes=["cpu"],
+)
 class PythonEbpfProfiler(ProfilerBase):
     MAX_FREQUENCY = 1000
     PYPERF_RESOURCE = "python/pyperf/PyPerf"
@@ -61,18 +88,20 @@ class PythonEbpfProfiler(ProfilerBase):
         duration: int,
         profiler_state: ProfilerState,
         *,
-        add_versions: bool,
-        user_stacks_pages: Optional[int] = None,
-        verbose: bool,
+        python_mode: str,
+        python_add_versions: bool,
+        python_pyperf_user_stacks_pages: Optional[int] = None,
+        python_pyperf_verbose: bool,
     ):
         super().__init__(frequency, duration, profiler_state)
+        assert python_mode in ("auto", "pyperf"), f"unexpected mode: {python_mode}"
         self.process: Optional[Popen] = None
         self.output_path = Path(self._profiler_state.storage_dir) / f"pyperf.{random_prefix()}.col"
-        self.add_versions = add_versions
-        self.user_stacks_pages = user_stacks_pages
+        self.add_versions = python_add_versions
+        self.user_stacks_pages = python_pyperf_user_stacks_pages
         self._kernel_offsets: Dict[str, int] = {}
         self._metadata = python.PythonMetadata(self._profiler_state.stop_event)
-        self._verbose = verbose
+        self._verbose = python_pyperf_verbose
 
     @classmethod
     def _check_output(cls, process: Popen, output_path: Path) -> None:
@@ -230,7 +259,16 @@ class PythonEbpfProfiler(ProfilerBase):
             ), process.args  # mypy
             raise PythonEbpfError(exit_status, process.args, stdout, stderr)
 
-    def snapshot(self) -> ProcessToProfileData:
+    def check_readiness(self) -> bool:
+        try:
+            self.test()
+            return True
+        except Exception as e:
+            logger.debug(f"eBPF profiler error: {str(e)}")
+            logger.info("Python eBPF profiler cannot be used on this system")
+        return False
+
+    def _ebpf_snapshot(self) -> ProcessToProfileData:
         if self._profiler_state.stop_event.wait(self._duration):
             raise StopEventSetException()
         collapsed_path = self._dump()
@@ -261,6 +299,20 @@ class PythonEbpfProfiler(ProfilerBase):
 
             profiles[pid] = ProfileData(parsed[pid], appid, app_metadata, container_name)
         return profiles
+
+    def snapshot(self) -> ProcessToProfileData:
+        try:
+            return self._ebpf_snapshot()
+        except PythonEbpfError as e:
+            assert not self.is_running()
+            logger.warning(
+                "Python eBPF profiler failed, restarting PyPerf...",
+                pyperf_exit_code=e.returncode,
+                pyperf_stdout=e.stdout,
+                pyperf_stderr=e.stderr,
+            )
+            self.start()
+            return {}  # empty this round
 
     def _terminate(self) -> Tuple[Optional[int], str, str]:
         if self.is_running():

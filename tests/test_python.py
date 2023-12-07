@@ -3,20 +3,30 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
+from contextlib import contextmanager
+from pathlib import Path
+from typing import List
 
 import psutil
 import pytest
+from docker import DockerClient
+from docker.models.containers import Container
+from docker.models.images import Image
 from granulate_utils.linux.process import is_musl
 
 from gprofiler.profiler_state import ProfilerState
-from gprofiler.profilers.python import PythonProfiler
+from gprofiler.profilers.python import PySpyProfiler
+from gprofiler.profilers.python_ebpf import PythonEbpfProfiler
 from tests.conftest import AssertInCollapsed
 from tests.utils import (
     assert_function_in_collapsed,
     is_aarch64,
     is_pattern_in_collapsed,
+    make_python_profiler,
     snapshot_pid_collapsed,
     snapshot_pid_profile,
+    start_gprofiler_in_container_for_one_session,
+    wait_for_log,
 )
 
 
@@ -25,12 +35,22 @@ def runtime() -> str:
     return "python"
 
 
+@contextmanager
+def stop_container_after_use(container: Container) -> Container:
+    try:
+        yield container
+    finally:
+        container.stop()
+
+
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("application_image_tag", ["libpython"])
+@pytest.mark.parametrize("profiler_type", ["pyspy"])
 def test_python_select_by_libpython(
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     profiler_state: ProfilerState,
+    profiler_type: str,
 ) -> None:
     """
     Tests that profiling of processes running Python, whose basename(readlink("/proc/pid/exe")) isn't "python"
@@ -38,7 +58,7 @@ def test_python_select_by_libpython(
     We expect to select these because they have "libpython" in their "/proc/pid/maps".
     This test runs a Python named "shmython".
     """
-    with PythonProfiler(1000, 1, profiler_state, "pyspy", True, None, False) as profiler:
+    with make_python_profiler(1000, 1, profiler_state, profiler_type, True, None, False) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
     assert_collapsed(process_collapsed)
     assert all(stack.startswith("shmython") for stack in process_collapsed.keys())
@@ -98,7 +118,7 @@ def test_python_matrix(
         if python_version in ["3.7", "3.8", "3.9", "3.10", "3.11"] and profiler_type == "py-spy" and libc == "musl":
             pytest.xfail("This combination fails, see https://github.com/Granulate/gprofiler/issues/714")
 
-    with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None, False) as profiler:
+    with make_python_profiler(1000, 2, profiler_state, profiler_type, True, None, False) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
 
     collapsed = profile.stacks
@@ -155,7 +175,7 @@ def test_dso_name_in_pyperf_profile(
             "PyPerf doesn't support aarch64 architecture, see https://github.com/Granulate/gprofiler/issues/499"
         )
 
-    with PythonProfiler(1000, 2, profiler_state, profiler_type, True, None, False) as profiler:
+    with make_python_profiler(1000, 2, profiler_state, profiler_type, True, None, False) as profiler:
         profile = snapshot_pid_profile(profiler, application_pid)
     python_version, _, _ = application_image_tag.split("-")
     interpreter_frame = "PyEval_EvalFrameEx" if python_version == "2.7" else "_PyEval_EvalFrameDefault"
@@ -165,3 +185,45 @@ def test_dso_name_in_pyperf_profile(
     assert insert_dso_name == is_pattern_in_collapsed(
         rf"{interpreter_frame} \(.+?/libpython{python_version}.*?\.so.*?\)_\[pn\]", collapsed
     )
+
+
+@pytest.mark.parametrize(
+    "runtime,profiler_type,profiler_class_name",
+    [
+        ("python", "py-spy", PySpyProfiler.__name__),
+        ("python", "pyperf", PythonEbpfProfiler.__name__),
+        ("python", "auto", PythonEbpfProfiler.__name__ if not is_aarch64() else PySpyProfiler.__name__),
+        ("python", "enabled", PythonEbpfProfiler.__name__ if not is_aarch64() else PySpyProfiler.__name__),
+    ],
+)
+def test_select_specific_python_profiler(
+    docker_client: DockerClient,
+    gprofiler_docker_image: Image,
+    output_directory: Path,
+    output_collapsed: Path,
+    runtime_specific_args: List[str],
+    profiler_flags: List[str],
+    profiler_type: str,
+    profiler_class_name: str,
+) -> None:
+    """
+    Test that correct profiler class is selected as given by --python-mode argument.
+    """
+    if profiler_type == "pyperf" and is_aarch64():
+        pytest.xfail("PyPerf doesn't run on Aarch64 - https://github.com/Granulate/gprofiler/issues/499")
+    elif profiler_type == "enabled":
+        # make sure the default behavior, with implicit enabled mode leads to auto selection
+        profiler_flags.remove(f"--python-mode={profiler_type}")
+    profiler_flags.extend(["--no-perf", "--disable-metadata-collection"])
+    with stop_container_after_use(
+        start_gprofiler_in_container_for_one_session(
+            docker_client,
+            gprofiler_docker_image,
+            output_directory,
+            output_collapsed,
+            runtime_specific_args,
+            profiler_flags,
+        )
+    ) as gprofiler:
+        wait_for_log(gprofiler, "gProfiler initialized and ready to start profiling", 0, timeout=30)
+        assert f"Initialized {profiler_class_name}".encode() in gprofiler.logs()

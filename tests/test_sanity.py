@@ -65,7 +65,7 @@ def test_pyspy(
     profiler_state: ProfilerState,
 ) -> None:
     _ = assert_app_id  # Required for mypy unused argument warning
-    with PySpyProfiler(1000, 3, profiler_state, add_versions=True) as profiler:
+    with PySpyProfiler(1000, 3, profiler_state, python_mode="pyspy", python_add_versions=True) as profiler:
         # not using snapshot_one_collapsed because there are multiple Python processes running usually.
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -157,7 +157,9 @@ def test_python_ebpf(
         )
 
     _ = assert_app_id  # Required for mypy unused argument warning
-    with PythonEbpfProfiler(1000, 5, profiler_state, add_versions=True, verbose=False) as profiler:
+    with PythonEbpfProfiler(
+        1000, 5, profiler_state, python_mode="pyperf", python_add_versions=True, python_pyperf_verbose=False
+    ) as profiler:
         try:
             process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         except UnicodeDecodeError as e:
@@ -270,7 +272,6 @@ def test_container_name_when_stopped(
     output_directory: Path,
     output_collapsed: Path,
     runtime_specific_args: List[str],
-    profiler_type: str,
     profiler_flags: List[str],
     application_docker_container: Container,
 ) -> None:
@@ -310,7 +311,6 @@ def test_profiling_provided_pids(
     runtime_specific_args: List[str],
     profiler_flags: List[str],
     application_factory: Callable[[], _GeneratorContextManager],
-    profiler_type: str,
 ) -> None:
     """
     Tests that gprofiler will profile only processes provided via flag --pids

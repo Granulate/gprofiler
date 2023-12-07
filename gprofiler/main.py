@@ -51,7 +51,12 @@ from gprofiler.platform import is_linux, is_windows
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
-from gprofiler.profilers.registry import get_profilers_registry
+from gprofiler.profilers.registry import (
+    ProfilerArgument,
+    get_runtime_possible_modes,
+    get_runtimes_registry,
+    get_sorted_profilers,
+)
 from gprofiler.spark.sampler import SparkSampler
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import Metrics, NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
@@ -824,7 +829,7 @@ def parse_cmd_args() -> configargparse.Namespace:
     if args.extract_resources and args.resources_dest is None:
         parser.error("Must provide --resources-dest when extract-resources")
 
-    if args.perf_dwarf_stack_size > 65528:
+    if args.perf_mode not in ("disabled", "none") and args.perf_dwarf_stack_size > 65528:
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
 
     if args.profiling_mode == CPU_PROFILING_MODE and args.perf_mode in ("dwarf", "smart") and args.frequency > 100:
@@ -840,29 +845,52 @@ def parse_cmd_args() -> configargparse.Namespace:
 
 
 def _add_profilers_arguments(parser: configargparse.ArgumentParser) -> None:
-    registry = get_profilers_registry()
-    for name, config in registry.items():
-        arg_group = parser.add_argument_group(name)
-        mode_var = f"{name.lower()}_mode"
+    # add command-line arguments for each profiling runtime, but only for profilers that are working
+    # with current architecture.
+    runtimes_registry = get_runtimes_registry()
+    for runtime_class, runtime_config in runtimes_registry.items():
+        runtime = runtime_config.runtime_name
+        runtime_possible_modes = get_runtime_possible_modes(runtime_class)
+        arg_group = parser.add_argument_group(runtime)
+        mode_var = f"{runtime.lower()}_mode"
+        if not runtime_possible_modes:
+            # if no mode is possible for this runtime, skip this runtime, and register it as disabled
+            # to overcome issue with Perf showing up on Windows
+            parser.add_argument(
+                f"--{runtime.lower()}-mode",
+                dest=mode_var,
+                default="disabled",
+                help=configargparse.SUPPRESS,
+            )
+            continue
+
         arg_group.add_argument(
-            f"--{name.lower()}-mode",
+            f"--{runtime.lower()}-mode",
             dest=mode_var,
-            default=config.default_mode,
-            help=config.profiler_mode_help,
-            choices=config.possible_modes,
+            default=runtime_config.default_mode,
+            help=runtime_config.mode_help,
+            choices=runtime_possible_modes,
         )
         arg_group.add_argument(
-            f"--no-{name.lower()}",
+            f"--no-{runtime.lower()}",
             action="store_const",
             const="disabled",
             dest=mode_var,
             default=True,
-            help=config.disablement_help,
+            help=runtime_config.disablement_help,
         )
-        for arg in config.profiler_args:
+        # add each available profiler's arguments and runtime common arguments
+        profiling_args: List[ProfilerArgument] = []
+        profiling_args.extend(runtime_config.common_arguments)
+        for config in get_sorted_profilers(runtime_class):
+            profiling_args.extend(config.profiler_args)
+
+        for arg in profiling_args:
             profiler_arg_kwargs = arg.get_dict()
-            name = profiler_arg_kwargs.pop("name")
-            arg_group.add_argument(name, **profiler_arg_kwargs)
+            # do not add parser entries for profiler internal arguments
+            if "internal" not in profiler_arg_kwargs:
+                name = profiler_arg_kwargs.pop("name")
+                arg_group.add_argument(name, **profiler_arg_kwargs)
 
 
 def verify_preconditions(args: configargparse.Namespace, processes_to_profile: Optional[List[Process]]) -> None:

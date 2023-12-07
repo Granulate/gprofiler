@@ -68,7 +68,7 @@ from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
-from gprofiler.profilers.registry import ProfilerArgument, register_profiler
+from gprofiler.profilers.registry import ProfilerArgument, ProfilingRuntime, register_profiler, register_runtime
 from gprofiler.utils import (
     GPROFILER_DIRECTORY_NAME,
     TEMPORARY_STORAGE_PATH,
@@ -792,10 +792,18 @@ class AsyncProfiledProcess:
             raise
 
 
+@register_runtime(
+    "Java",
+    default_mode="ap",
+)
+class JavaRuntime(ProfilingRuntime):
+    pass
+
+
 @register_profiler(
     "Java",
+    runtime_class=JavaRuntime,
     possible_modes=["ap", "disabled"],
-    default_mode="ap",
     supported_archs=["x86_64", "aarch64"],
     profiler_arguments=[
         ProfilerArgument(

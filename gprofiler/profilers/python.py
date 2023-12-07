@@ -27,28 +27,17 @@ from gprofiler.exceptions import (
     ProcessStoppedException,
     StopEventSetException,
 )
-from gprofiler.gprofiler_types import (
-    ProcessToProfileData,
-    ProcessToStackSampleCounters,
-    ProfileData,
-    StackToSampleCount,
-    nonnegative_integer,
-)
+from gprofiler.gprofiler_types import ProcessToStackSampleCounters, ProfileData, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
-from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.platform import is_linux, is_windows
 from gprofiler.profiler_state import ProfilerState
-from gprofiler.profilers.profiler_base import ProfilerInterface, SpawningProcessProfilerBase
-from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils.collapsed_format import parse_one_collapsed_file
-
-if is_linux():
-    from gprofiler.profilers.python_ebpf import PythonEbpfProfiler, PythonEbpfError
-
+from gprofiler.profilers.profiler_base import SpawningProcessProfilerBase
+from gprofiler.profilers.registry import ProfilerArgument, ProfilingRuntime, register_profiler, register_runtime
 from gprofiler.utils import pgrep_exe, pgrep_maps, random_prefix, removed_path, resource_path, run_process
+from gprofiler.utils.collapsed_format import parse_one_collapsed_file
 from gprofiler.utils.process import process_comm, search_proc_maps
 
 logger = get_logger_adapter(__name__)
@@ -163,6 +152,40 @@ class PythonMetadata(ApplicationMetadata):
         return metadata
 
 
+@register_runtime(
+    "Python",
+    default_mode="auto",
+    mode_help="Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), "
+    "pyspy (always use py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails)"
+    " or disabled (no runtime profilers for Python).",
+    common_arguments=[
+        # TODO should be prefixed with --python-
+        ProfilerArgument(
+            "--no-python-versions",
+            dest="python_add_versions",
+            action="store_false",
+            default=True,
+            help="Don't add version information to Python frames. If not set, frames from packages are displayed with "
+            "the name of the package and its version, and frames from Python built-in modules are displayed with "
+            "Python's full version.",
+        ),
+    ],
+)
+class PythonRuntime(ProfilingRuntime):
+    pass
+
+
+@register_profiler(
+    "PySpy",
+    runtime_class=PythonRuntime,
+    possible_modes=["auto", "pyspy", "py-spy"],
+    # we build pyspy for both
+    supported_archs=["x86_64", "aarch64"],
+    supported_windows_archs=["AMD64"],
+    # no specific arguments for PySpy besides the common args from runtime
+    profiler_arguments=[],
+    supported_profiling_modes=["cpu"],
+)
 class PySpyProfiler(SpawningProcessProfilerBase):
     MAX_FREQUENCY = 50
     _EXTRA_TIMEOUT = 10  # give py-spy some seconds to run (added to the duration)
@@ -173,10 +196,14 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         duration: int,
         profiler_state: ProfilerState,
         *,
-        add_versions: bool,
+        python_mode: str,
+        python_add_versions: bool,
     ):
         super().__init__(frequency, duration, profiler_state)
-        self.add_versions = add_versions
+        if python_mode == "py-spy":
+            python_mode = "pyspy"
+        assert python_mode in ("auto", "pyspy"), f"unexpected mode: {python_mode}"
+        self.add_versions = python_add_versions
         self._metadata = PythonMetadata(self._profiler_state.stop_event)
 
     def _make_command(self, pid: int, output_path: str, duration: int) -> List[str]:
@@ -289,150 +316,5 @@ class PySpyProfiler(SpawningProcessProfilerBase):
 
         return False
 
-
-@register_profiler(
-    "Python",
-    # py-spy is like pyspy, it's confusing and I mix between them
-    possible_modes=["auto", "pyperf", "pyspy", "py-spy", "disabled"],
-    default_mode="auto",
-    # we build pyspy for both, pyperf only for x86_64.
-    # TODO: this inconsistency shows that py-spy and pyperf should have different Profiler classes,
-    # we should split them in the future.
-    supported_archs=["x86_64", "aarch64"],
-    supported_windows_archs=["AMD64"],
-    profiler_mode_argument_help="Select the Python profiling mode: auto (try PyPerf, resort to py-spy if it fails), "
-    "pyspy (always use py-spy), pyperf (always use PyPerf, and avoid py-spy even if it fails)"
-    " or disabled (no runtime profilers for Python).",
-    profiler_arguments=[
-        # TODO should be prefixed with --python-
-        ProfilerArgument(
-            "--no-python-versions",
-            dest="python_add_versions",
-            action="store_false",
-            default=True,
-            help="Don't add version information to Python frames. If not set, frames from packages are displayed with "
-            "the name of the package and its version, and frames from Python built-in modules are displayed with "
-            "Python's full version.",
-        ),
-        # TODO should be prefixed with --python-
-        ProfilerArgument(
-            "--pyperf-user-stacks-pages",
-            dest="python_pyperf_user_stacks_pages",
-            default=None,
-            type=nonnegative_integer,
-            help="Number of user stack-pages that PyPerf will collect, this controls the maximum stack depth of native "
-            "user frames. Pass 0 to disable user native stacks altogether.",
-        ),
-        ProfilerArgument(
-            "--python-pyperf-verbose",
-            dest="python_pyperf_verbose",
-            action="store_true",
-            help="Enable PyPerf in verbose mode (max verbosity)",
-        ),
-    ],
-    supported_profiling_modes=["cpu"],
-)
-class PythonProfiler(ProfilerInterface):
-    """
-    Controls PySpyProfiler & PythonEbpfProfiler as needed, providing a clean interface
-    to GProfiler.
-    """
-
-    def __init__(
-        self,
-        frequency: int,
-        duration: int,
-        profiler_state: ProfilerState,
-        python_mode: str,
-        python_add_versions: bool,
-        python_pyperf_user_stacks_pages: Optional[int],
-        python_pyperf_verbose: bool,
-    ):
-        if python_mode == "py-spy":
-            python_mode = "pyspy"
-
-        assert python_mode in ("auto", "pyperf", "pyspy"), f"unexpected mode: {python_mode}"
-
-        if get_arch() != "x86_64" or is_windows():
-            if python_mode == "pyperf":
-                raise Exception(f"PyPerf is supported only on x86_64 (and not on this arch {get_arch()})")
-            python_mode = "pyspy"
-
-        if python_mode in ("auto", "pyperf"):
-            self._ebpf_profiler = self._create_ebpf_profiler(
-                frequency,
-                duration,
-                profiler_state,
-                python_add_versions,
-                python_pyperf_user_stacks_pages,
-                python_pyperf_verbose,
-            )
-        else:
-            self._ebpf_profiler = None
-
-        if python_mode == "pyspy" or (self._ebpf_profiler is None and python_mode == "auto"):
-            self._pyspy_profiler: Optional[PySpyProfiler] = PySpyProfiler(
-                frequency,
-                duration,
-                profiler_state,
-                add_versions=python_add_versions,
-            )
-        else:
-            self._pyspy_profiler = None
-
-    if is_linux():
-
-        def _create_ebpf_profiler(
-            self,
-            frequency: int,
-            duration: int,
-            profiler_state: ProfilerState,
-            add_versions: bool,
-            user_stacks_pages: Optional[int],
-            verbose: bool,
-        ) -> Optional[PythonEbpfProfiler]:
-            try:
-                profiler = PythonEbpfProfiler(
-                    frequency,
-                    duration,
-                    profiler_state,
-                    add_versions=add_versions,
-                    user_stacks_pages=user_stacks_pages,
-                    verbose=verbose,
-                )
-                profiler.test()
-                return profiler
-            except Exception as e:
-                logger.debug(f"eBPF profiler error: {str(e)}")
-                logger.info("Python eBPF profiler initialization failed")
-                return None
-
-    def start(self) -> None:
-        if self._ebpf_profiler is not None:
-            self._ebpf_profiler.start()
-        elif self._pyspy_profiler is not None:
-            self._pyspy_profiler.start()
-
-    def snapshot(self) -> ProcessToProfileData:
-        if self._ebpf_profiler is not None:
-            try:
-                return self._ebpf_profiler.snapshot()
-            except PythonEbpfError as e:
-                assert not self._ebpf_profiler.is_running()
-                logger.warning(
-                    "Python eBPF profiler failed, restarting PyPerf...",
-                    pyperf_exit_code=e.returncode,
-                    pyperf_stdout=e.stdout,
-                    pyperf_stderr=e.stderr,
-                )
-                self._ebpf_profiler.start()
-                return {}  # empty this round
-        else:
-            assert self._pyspy_profiler is not None
-            return self._pyspy_profiler.snapshot()
-
-    def stop(self) -> None:
-        if self._ebpf_profiler is not None:
-            self._ebpf_profiler.stop()
-        elif self._pyspy_profiler is not None:
-            self._pyspy_profiler.stop()
+    def check_readiness(self) -> bool:
+        return True
