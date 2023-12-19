@@ -533,6 +533,22 @@ def parse_cmd_args() -> configargparse.Namespace:
 
     _add_profilers_arguments(parser)
 
+    spark_options = parser.add_argument_group("Spark")
+
+    spark_options.add_argument(
+        "--spark-sample-period",
+        type=int,
+        default=120,
+        help="Deprecated! Removed in version 1.42.0",
+    )
+
+    spark_options.add_argument(
+        "--collect-spark-metrics",
+        default=False,
+        action="store_true",
+        help="Deprecated! Removed in version 1.42.0",
+    )
+
     nodejs_options = parser.add_argument_group("NodeJS")
     nodejs_options.add_argument(
         "--nodejs-mode",
@@ -944,6 +960,14 @@ def pids_to_processes(args: configargparse.Namespace) -> Optional[List[Process]]
         return None
 
 
+def warn_about_deprecated_args(args: configargparse.Namespace) -> None:
+    if args.spark_sample_period != 120:
+        logger.warning("--spark-sample-period is deprecated and removed in version 1.42.0")
+
+    if args.collect_spark_metrics:
+        logger.warning("--collect-spark-metrics is deprecated and removed in version 1.42.0")
+
+
 def main() -> None:
     args = parse_cmd_args()
 
@@ -977,6 +1001,7 @@ def main() -> None:
         remote_logs_handler,
     )
 
+    warn_about_deprecated_args(args)
     setup_env(args.disable_core_files, args.pid_file)
 
     # assume we run in the root cgroup (when containerized, that's our view)
