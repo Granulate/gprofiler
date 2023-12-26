@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 
 from glogger.extra_adapter import ExtraAdapter
 from glogger.handler import BatchRequestsHandler
-from glogger.sender import Sender, AuthToken
+from glogger.sender import AuthToken, Sender
 
 from gprofiler import __version__
 from gprofiler.state import get_state
