@@ -36,7 +36,7 @@ from gprofiler.client import (
     ProfilerAPIClient,
 )
 from gprofiler.consts import CPU_PROFILING_MODE
-from gprofiler.containers_client import ContainerNamesClient
+from gprofiler.containers_client import SparkContainerNamesClient
 from gprofiler.diagnostics import log_diagnostics, set_diagnostics
 from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, integers_list, positive_integer
@@ -147,7 +147,8 @@ class GProfiler:
         # 2. accessible only by us.
         # the latter can be root only. the former can not. we should do this separation so we don't expose
         # files unnecessarily.
-        container_names_client = ContainerNamesClient() if self._enrichment_options.container_names else None
+        # container_names_client = ContainerNamesClient() if self._enrichment_options.container_names else None
+        container_names_client = SparkContainerNamesClient() if self._enrichment_options.container_names else None
         self._profiler_state = ProfilerState(
             stop_event=Event(),
             storage_dir=TEMPORARY_STORAGE_PATH,

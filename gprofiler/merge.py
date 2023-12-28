@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from granulate_utils.metadata import Metadata
 
-from gprofiler.containers_client import ContainerNamesClient
+from gprofiler.containers_client import ContainerNamesClientBase
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, ProfilingErrorStack, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.enrichment import EnrichmentOptions
@@ -39,7 +39,7 @@ def scale_sample_counts(stacks: StackToSampleCount, ratio: float) -> StackToSamp
 
 
 def _make_profile_metadata(
-    container_names_client: Optional[ContainerNamesClient],
+    container_names_client: Optional[ContainerNamesClientBase],
     add_container_names: bool,
     metadata: Metadata,
     metrics: Metrics,
@@ -175,7 +175,7 @@ def concatenate_from_external_file(
 
 def concatenate_profiles(
     process_profiles: ProcessToProfileData,
-    container_names_client: Optional[ContainerNamesClient],
+    container_names_client: Optional[ContainerNamesClientBase],
     enrichment_options: EnrichmentOptions,
     metadata: Metadata,
     metrics: Metrics,
@@ -211,7 +211,7 @@ def concatenate_profiles(
 def merge_profiles(
     perf_pid_to_profiles: ProcessToProfileData,
     process_profiles: ProcessToProfileData,
-    container_names_client: Optional[ContainerNamesClient],
+    container_names_client: Optional[ContainerNamesClientBase],
     enrichment_options: EnrichmentOptions,
     metadata: Metadata,
     metrics: Metrics,
