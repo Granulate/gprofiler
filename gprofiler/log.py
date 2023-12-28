@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 
 from glogger.extra_adapter import ExtraAdapter
 from glogger.handler import BatchRequestsHandler
-from glogger.sender import Sender
+from glogger.sender import AuthToken, Sender
 
 from gprofiler import __version__
 from gprofiler.state import get_state
@@ -56,7 +56,7 @@ class RemoteLogsHandler(BatchRequestsHandler):
         super().__init__(
             Sender(
                 application_name="gprofiler",
-                auth_token=auth_token,
+                auth=AuthToken(auth_token),
                 scheme=url.scheme,
                 server_address=url.netloc,
                 verify=verify,
