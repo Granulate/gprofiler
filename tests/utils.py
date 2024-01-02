@@ -425,3 +425,10 @@ def load_metadata(collapsed_text: str) -> ProfileMetadata:
     lines = collapsed_text.splitlines()
     assert lines[0].startswith("#")
     return cast(ProfileMetadata, json.loads(lines[0][1:]))
+
+
+def str_removesuffix(s: str, suffix: str, assert_suffixed: bool = True) -> str:
+    suffixed = s.endswith(suffix)
+    if assert_suffixed:
+        assert suffixed
+    return s[: -len(suffix)] if suffixed else s

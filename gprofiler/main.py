@@ -32,7 +32,6 @@ from gprofiler.client import (
     DEFAULT_API_SERVER_ADDRESS,
     DEFAULT_PROFILER_SERVER_ADDRESS,
     DEFAULT_UPLOAD_TIMEOUT,
-    APIClient,
     ProfilerAPIClient,
 )
 from gprofiler.consts import CPU_PROFILING_MODE
@@ -53,7 +52,6 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
-from gprofiler.spark.sampler import SparkSampler
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import Metrics, NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
 from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLoggerInterface
@@ -127,7 +125,6 @@ class GProfiler:
         profile_spawned_processes: bool = True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         controller_process: Optional[Process] = None,
-        spark_sampler: Optional[SparkSampler] = None,
         external_metadata_path: Optional[Path] = None,
     ):
         self._output_dir = output_dir
@@ -174,9 +171,7 @@ class GProfiler:
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
 
-        self._spark_sampler = spark_sampler
-
-        if isinstance(self.system_profiler, NoopProfiler) and not self.process_profilers and not self._spark_sampler:
+        if isinstance(self.system_profiler, NoopProfiler) and not self.process_profilers:
             raise NoProfilersEnabledError()
 
     @property
@@ -269,9 +264,6 @@ class GProfiler:
         self._profiler_state.stop_event.clear()
         self._system_metrics_monitor.start()
 
-        if self._spark_sampler:
-            self._spark_sampler.start()
-
         for prof in list(self.all_profilers):
             try:
                 prof.start()
@@ -289,8 +281,6 @@ class GProfiler:
         logger.info("Stopping ...")
         self._profiler_state.stop_event.set()
         self._system_metrics_monitor.stop()
-        if self._spark_sampler is not None and self._spark_sampler.is_running():
-            self._spark_sampler.stop()
         for prof in self.all_profilers:
             prof.stop()
 
@@ -568,14 +558,14 @@ def parse_cmd_args() -> configargparse.Namespace:
         "--spark-sample-period",
         type=int,
         default=120,
-        help="Time in seconds between each metric collection",
+        help="Deprecated! Removed in version 1.42.0",
     )
 
     spark_options.add_argument(
         "--collect-spark-metrics",
         default=False,
         action="store_true",
-        help="Collect Apache Spark metrics",
+        help="Deprecated! Removed in version 1.42.0",
     )
 
     nodejs_options = parser.add_argument_group("NodeJS")
@@ -995,6 +985,14 @@ def pids_to_processes(args: configargparse.Namespace) -> Optional[List[Process]]
         return None
 
 
+def warn_about_deprecated_args(args: configargparse.Namespace) -> None:
+    if args.spark_sample_period != 120:
+        logger.warning("--spark-sample-period is deprecated and removed in version 1.42.0")
+
+    if args.collect_spark_metrics:
+        logger.warning("--collect-spark-metrics is deprecated and removed in version 1.42.0")
+
+
 def main() -> None:
     args = parse_cmd_args()
 
@@ -1028,6 +1026,7 @@ def main() -> None:
         remote_logs_handler,
     )
 
+    warn_about_deprecated_args(args)
     setup_env(args.disable_core_files, args.pid_file)
 
     # assume we run in the root cgroup (when containerized, that's our view)
@@ -1119,24 +1118,6 @@ def main() -> None:
             )
             sys.exit(1)
 
-        if args.collect_spark_metrics:
-            if args.upload_results:
-                client_kwargs = {}
-                if "server_upload_timeout" in args:
-                    client_kwargs["timeout"] = args.server_upload_timeout
-                api_client = APIClient(
-                    args.server_token,
-                    args.service_name,
-                    args.api_server,
-                    args.curlify_requests,
-                    **client_kwargs,
-                )
-            else:
-                api_client = None
-            spark_sampler = SparkSampler(args.spark_sample_period, args.output_dir, api_client)
-        else:
-            spark_sampler = None
-
         if args.subcommand == UPLOAD_FILE_SUBCOMMAND:
             assert external_metadata_path is None  # not expecting it
             assert profiler_api_client is not None  # it's always initialized in upload-file mode
@@ -1170,7 +1151,6 @@ def main() -> None:
             profile_spawned_processes=args.profile_spawned_processes,
             remote_logs_handler=remote_logs_handler,
             controller_process=controller_process,
-            spark_sampler=spark_sampler,
             processes_to_profile=processes_to_profile,
             external_metadata_path=external_metadata_path,
         )
