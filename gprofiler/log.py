@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 
 from glogger.extra_adapter import ExtraAdapter
 from glogger.handler import BatchRequestsHandler
-from glogger.sender import Sender
+from glogger.sender import AuthToken, Sender
 
 from gprofiler import __version__
 from gprofiler.state import get_state
@@ -23,6 +23,7 @@ NO_SERVER_LOG_KEY = "no_server_log"
 NO_SERVER_EXTRA_KEY = "no_extra_to_server"
 CYCLE_ID_KEY = "cycle_id"
 LOGGER_NAME_RE = re.compile(r"gprofiler(?:\..+)?")
+LOGS_FORMAT = "[%(asctime)s] %(levelname)s: %(name)s: %(message)s"
 
 
 def get_logger_adapter(logger_name: str) -> logging.LoggerAdapter:
@@ -55,7 +56,7 @@ class RemoteLogsHandler(BatchRequestsHandler):
         super().__init__(
             Sender(
                 application_name="gprofiler",
-                auth_token=auth_token,
+                auth=AuthToken(auth_token),
                 scheme=url.scheme,
                 server_address=url.netloc,
                 verify=verify,
@@ -90,6 +91,14 @@ class RemoteLogsHandler(BatchRequestsHandler):
             metadata["hostname"] = hostname
 
         return metadata
+
+    def update_service_name(self, service_name: str) -> None:
+        """
+        Used to update the service name in services where it can change after gProfiler starts (for example, if the
+        service name is derived from the environment post inittialization).
+        The next batch sent will have the new service name.
+        """
+        self._service_name = service_name
 
 
 class _ExtraFormatter(logging.Formatter):
@@ -129,10 +138,7 @@ def initial_root_logger_setup(
 
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     stream_handler.setLevel(stream_level)
-    if stream_level < logging.INFO:
-        stream_handler.setFormatter(GProfilerFormatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s"))
-    else:
-        stream_handler.setFormatter(GProfilerFormatter("[%(asctime)s] %(message)s", "%H:%M:%S"))
+    stream_handler.setFormatter(GProfilerFormatter(LOGS_FORMAT))
     logger_adapter.logger.addHandler(stream_handler)
 
     os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
@@ -142,7 +148,7 @@ def initial_root_logger_setup(
         backupCount=rotate_backup_count,
     )
     file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(GProfilerFormatter("[%(asctime)s] %(levelname)s: %(name)s: %(message)s"))
+    file_handler.setFormatter(GProfilerFormatter(LOGS_FORMAT))
     logger_adapter.logger.addHandler(file_handler)
 
     if remote_logs_handler is not None:

@@ -39,16 +39,17 @@ RUNTIME_PROFILERS = [
     ("php", "phpspy"),
     ("ruby", "rbspy"),
     ("nodejs", "perf"),
+    ("dotnet", "dotnet-trace"),
 ]
 
 
 def start_container(
     docker_client: DockerClient,
     image: Image,
-    command: List[str],
+    command: Optional[List[str]] = None,
     volumes: Dict[str, Dict[str, str]] = None,
     privileged: bool = False,
-    pid_mode: Optional[str] = "host",
+    pid_mode: Optional[str] = None,
     **extra_kwargs: Any,
 ) -> Container:
     if volumes is None:
@@ -62,6 +63,7 @@ def start_container(
         pid_mode=pid_mode,
         userns_mode="host",
         volumes=volumes,
+        labels=[docker_client._gprofiler_test_id],
         stderr=True,
         detach=True,
         **extra_kwargs,
@@ -112,7 +114,9 @@ def run_privileged_container(
 ) -> str:
     container = None
     try:
-        container = start_container(docker_client, image, command, volumes, privileged=True, **extra_kwargs)
+        container = start_container(
+            docker_client, image, command, volumes, pid_mode="host", privileged=True, **extra_kwargs
+        )
         return wait_for_container(container)
 
     finally:
@@ -211,6 +215,7 @@ def make_java_profiler(
     java_collect_jvm_flags: str = JavaFlagCollectionOptions.DEFAULT,
     java_full_hserr: bool = False,
     java_include_method_modifiers: bool = False,
+    java_line_numbers: str = "none",
 ) -> JavaProfiler:
     return JavaProfiler(
         frequency=frequency,
@@ -229,6 +234,7 @@ def make_java_profiler(
         java_collect_jvm_flags=java_collect_jvm_flags,
         java_full_hserr=java_full_hserr,
         java_include_method_modifiers=java_include_method_modifiers,
+        java_line_numbers=java_line_numbers,
     )
 
 
@@ -333,27 +339,32 @@ def _application_process(command_line: List[str], check_app_exited: bool) -> Ite
     _print_process_output(popen)
 
 
-@contextmanager
-def _application_docker_container(
-    docker_client: DockerClient,
-    application_docker_image: Image,
-    application_docker_mounts: List[Mount],
-    application_docker_capabilities: List[str],
-    application_docker_command: Optional[List[str]] = None,
-) -> Container:
-    container: Container = docker_client.containers.run(
-        application_docker_image,
-        detach=True,
-        user="5555:6666",
-        mounts=application_docker_mounts,
-        cap_add=application_docker_capabilities,
-        command=application_docker_command,
-    )
+def wait_container_to_start(container: Container) -> None:
     while container.status != "running":
         if container.status == "exited":
             raise Exception(container.logs().decode())
         sleep(1)
         container.reload()
+
+
+@contextmanager
+def _application_docker_container(
+    docker_client: DockerClient,
+    application_docker_image: Image,
+    *,
+    application_docker_mounts: List[Mount],
+    application_docker_capabilities: List[str],
+    application_docker_command: Optional[List[str]] = None,
+) -> Container:
+    container: Container = start_container(
+        docker_client,
+        application_docker_image,
+        application_docker_command,
+        user="5555:6666",
+        mounts=application_docker_mounts,
+        cap_add=application_docker_capabilities,
+    )
+    wait_container_to_start(container)
     yield container
     container.remove(force=True)
 
@@ -397,3 +408,10 @@ def log_record_extra(r: LogRecord) -> Dict[Any, Any]:
     Gets the "extra" attached to a LogRecord
     """
     return getattr(r, "extra", {})
+
+
+def str_removesuffix(s: str, suffix: str, assert_suffixed: bool = True) -> str:
+    suffixed = s.endswith(suffix)
+    if assert_suffixed:
+        assert suffixed
+    return s[: -len(suffix)] if suffixed else s

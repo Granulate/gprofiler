@@ -8,6 +8,7 @@ import logging
 import logging.config
 import logging.handlers
 import os
+import shutil
 import signal
 import sys
 import time
@@ -22,6 +23,8 @@ import humanfriendly
 from granulate_utils.linux.ns import is_running_in_init_pid
 from granulate_utils.linux.process import is_process_running
 from granulate_utils.metadata import Metadata
+from granulate_utils.metadata.cloud import get_aws_execution_env
+from granulate_utils.metadata.databricks_client import DBXWebUIEnvWrapper, get_name_from_metadata
 from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
 
@@ -30,12 +33,10 @@ from gprofiler.client import (
     DEFAULT_API_SERVER_ADDRESS,
     DEFAULT_PROFILER_SERVER_ADDRESS,
     DEFAULT_UPLOAD_TIMEOUT,
-    APIClient,
     ProfilerAPIClient,
 )
 from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.containers_client import ContainerNamesClient
-from gprofiler.databricks_client import DatabricksClient
 from gprofiler.diagnostics import log_diagnostics, set_diagnostics
 from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, integers_list, positive_integer
@@ -50,7 +51,6 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
 from gprofiler.profilers.registry import get_profilers_registry
-from gprofiler.spark.sampler import SparkSampler
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import Metrics, NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
 from gprofiler.usage_loggers import CgroupsUsageLogger, NoopUsageLogger, UsageLoggerInterface
@@ -64,7 +64,7 @@ from gprofiler.utils import (
     resource_path,
     run_process,
 )
-from gprofiler.utils.fs import escape_filename
+from gprofiler.utils.fs import escape_filename, mkdir_owned_root
 from gprofiler.utils.proxy import get_https_proxy
 
 if is_linux():
@@ -122,7 +122,6 @@ class GProfiler:
         profile_spawned_processes: bool = True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         controller_process: Optional[Process] = None,
-        spark_sampler: Optional[SparkSampler] = None,
     ):
         self._output_dir = output_dir
         self._flamegraph = flamegraph
@@ -167,9 +166,7 @@ class GProfiler:
         else:
             self._system_metrics_monitor = NoopSystemMetricsMonitor()
 
-        self._spark_sampler = spark_sampler
-
-        if isinstance(self.system_profiler, NoopProfiler) and not self.process_profilers and not self._spark_sampler:
+        if isinstance(self.system_profiler, NoopProfiler) and not self.process_profilers:
             raise NoProfilersEnabledError()
 
     @property
@@ -262,9 +259,6 @@ class GProfiler:
         self._profiler_state.stop_event.clear()
         self._system_metrics_monitor.start()
 
-        if self._spark_sampler:
-            self._spark_sampler.start()
-
         for prof in list(self.all_profilers):
             try:
                 prof.start()
@@ -282,8 +276,6 @@ class GProfiler:
         logger.info("Stopping ...")
         self._profiler_state.stop_event.set()
         self._system_metrics_monitor.stop()
-        if self._spark_sampler is not None and self._spark_sampler.is_running():
-            self._spark_sampler.stop()
         for prof in self.all_profilers:
             prof.stop()
 
@@ -457,6 +449,11 @@ def send_collapsed_file_only(args: configargparse.Namespace, client: ProfilerAPI
     )
 
 
+def copy_resources(path: Path) -> None:
+    print(f"Copying gprofiler resources to {path}")
+    shutil.copytree(resource_path(), path, dirs_exist_ok=True)
+
+
 def parse_cmd_args() -> configargparse.Namespace:
     parser = configargparse.ArgumentParser(
         description="This is the gProfiler CLI documentation. You can access the general"
@@ -542,14 +539,14 @@ def parse_cmd_args() -> configargparse.Namespace:
         "--spark-sample-period",
         type=int,
         default=120,
-        help="Time in seconds between each metric collection",
+        help="Deprecated! Removed in version 1.42.0",
     )
 
     spark_options.add_argument(
         "--collect-spark-metrics",
         default=False,
         action="store_true",
-        help="Collect Apache Spark metrics",
+        help="Deprecated! Removed in version 1.42.0",
     )
 
     nodejs_options = parser.add_argument_group("NodeJS")
@@ -638,6 +635,15 @@ def parse_cmd_args() -> configargparse.Namespace:
         )
 
     upload_file.set_defaults(func=send_collapsed_file_only)
+
+    extract_resources = subparsers.add_parser("extract-resources")
+    extract_resources.set_defaults(func=copy_resources)
+    extract_resources.add_argument(
+        "--resources-dest",
+        dest="resources_dest",
+        default=None,
+        help="Path to which the resources will be extracted",
+    )
 
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
@@ -750,7 +756,10 @@ def parse_cmd_args() -> configargparse.Namespace:
         dest="databricks_job_name_as_service_name",
         default=False,
         help="gProfiler will set service name to Databricks' job name on ephemeral clusters. It'll delay the beginning"
-        " of the profiling due to repeated waiting for Spark's metrics server.",
+        " of the profiling due to repeated waiting for Spark's metrics server."
+        ' service name format is: "databricks-job-<JOB-NAME>".'
+        " Note that in any case that the job name is not available due to redaction,"
+        " gProfiler will fallback to use the clusterName property.",
     )
 
     parser.add_argument(
@@ -788,14 +797,22 @@ def parse_cmd_args() -> configargparse.Namespace:
     if args.subcommand == "upload-file":
         args.upload_results = True
 
+    if args.subcommand == "extract-resources":
+        args.extract_resources = True
+    else:
+        args.extract_resources = False
+
     if args.upload_results:
         if not args.server_token:
             parser.error("Must provide --token when --upload-results is passed")
         if not args.service_name and not args.databricks_job_name_as_service_name:
             parser.error("Must provide --service-name when --upload-results is passed")
 
-    if not args.upload_results and not args.output_dir:
+    if not args.upload_results and not args.output_dir and not args.extract_resources:
         parser.error("Must pass at least one output method (--upload-results / --output-dir)")
+
+    if args.extract_resources and args.resources_dest is None:
+        parser.error("Must provide --resources-dest when extract-resources")
 
     if args.perf_dwarf_stack_size > 65528:
         parser.error("--perf-dwarf-stack-size maximum size is 65528")
@@ -943,13 +960,28 @@ def pids_to_processes(args: configargparse.Namespace) -> Optional[List[Process]]
         return None
 
 
+def warn_about_deprecated_args(args: configargparse.Namespace) -> None:
+    if args.spark_sample_period != 120:
+        logger.warning("--spark-sample-period is deprecated and removed in version 1.42.0")
+
+    if args.collect_spark_metrics:
+        logger.warning("--collect-spark-metrics is deprecated and removed in version 1.42.0")
+
+
 def main() -> None:
     args = parse_cmd_args()
+
+    if hasattr(args, "func"):
+        if args.subcommand == "extract-resources":
+            args.func(args.resources_dest)
+            return
+
     processes_to_profile = pids_to_processes(args)
 
-    if is_windows():
+    if is_windows() or get_aws_execution_env() == "AWS_ECS_FARGATE":
         args.perf_mode = "disabled"
         args.pid_ns_check = False
+
     if args.subcommand != "upload-file":
         verify_preconditions(args, processes_to_profile)
 
@@ -969,6 +1001,7 @@ def main() -> None:
         remote_logs_handler,
     )
 
+    warn_about_deprecated_args(args)
     setup_env(args.disable_core_files, args.pid_file)
 
     # assume we run in the root cgroup (when containerized, that's our view)
@@ -977,9 +1010,15 @@ def main() -> None:
     if args.databricks_job_name_as_service_name:
         # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
         args.service_name = "databricks"
-        databricks_client = DatabricksClient()
-        if databricks_client.job_name is not None:
-            args.service_name = f"databricks-{databricks_client.job_name}"
+        dbx_web_ui_wrapper = DBXWebUIEnvWrapper(logger)
+        dbx_metadata = dbx_web_ui_wrapper.all_props_dict
+        if dbx_metadata is not None:
+            service_suffix = get_name_from_metadata(dbx_metadata)
+            if service_suffix is not None:
+                args.service_name = f"databricks-{service_suffix}"
+
+        if remote_logs_handler is not None:
+            remote_logs_handler.update_service_name(args.service_name)
 
     try:
         logger.info(
@@ -1011,8 +1050,7 @@ def main() -> None:
                 )
                 sys.exit(1)
 
-        if not os.path.exists(TEMPORARY_STORAGE_PATH):
-            os.mkdir(TEMPORARY_STORAGE_PATH)
+        mkdir_owned_root(TEMPORARY_STORAGE_PATH)
 
         try:
             client_kwargs = {}
@@ -1043,24 +1081,6 @@ def main() -> None:
                 f" Proxy used: {proxy_str}. Error: {e}"
             )
             sys.exit(1)
-
-        if args.collect_spark_metrics:
-            if args.upload_results:
-                client_kwargs = {}
-                if "server_upload_timeout" in args:
-                    client_kwargs["timeout"] = args.server_upload_timeout
-                api_client = APIClient(
-                    args.server_token,
-                    args.service_name,
-                    args.api_server,
-                    args.curlify_requests,
-                    **client_kwargs,
-                )
-            else:
-                api_client = None
-            spark_sampler = SparkSampler(args.spark_sample_period, args.output_dir, api_client)
-        else:
-            spark_sampler = None
 
         if hasattr(args, "func"):
             assert args.subcommand == "upload-file"
@@ -1094,7 +1114,6 @@ def main() -> None:
             profile_spawned_processes=args.profile_spawned_processes,
             remote_logs_handler=remote_logs_handler,
             controller_process=controller_process,
-            spark_sampler=spark_sampler,
             processes_to_profile=processes_to_profile,
         )
         logger.info("gProfiler initialized and ready to start profiling")

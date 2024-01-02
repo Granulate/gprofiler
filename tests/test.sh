@@ -11,7 +11,7 @@ if [ -z ${NO_APT_INSTALL+x} ]; then
   sudo DEBIAN_FRONTEND=noninteractive apt-get -qq update
   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends openjdk-8-jdk python3 python3-pip docker.io php
   if [ "$(uname -m)" = "aarch64" ]; then
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends python3-dev ruby3.0 build-essential nodejs
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends python3-dev ruby build-essential nodejs
     if ! [ -L "/usr/bin/dotnet" ] ; then
       # there is no dotnet apt package on aarch64
       curl -SL -o dotnet.tar.gz https://dotnetcli.blob.core.windows.net/dotnet/Sdk/master/dotnet-sdk-latest-linux-arm64.tar.gz
@@ -30,7 +30,7 @@ fi
 PERF_RESOURCE="$SCRIPT_DIR/../gprofiler/resources/perf"
 if [ ! -f "$PERF_RESOURCE" ] && [[ "$*" != *"--executable"* ]]; then
     echo "perf resource not found: $(readlink -f "$PERF_RESOURCE")"
-    echo "Please run $(readlink -f "$SCRIPT_DIR/../scripts/copy_resources_from_image.sh") to get all resources"
+    echo "Please run \"gprofiler extract-resources --resources-dest=$SCRIPT_DIR/../gprofiler/resources/\" to get all resources"
     exit 1
 fi
 

@@ -5,8 +5,9 @@
 
 import functools
 from threading import Event, Lock
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
+from granulate_utils.linux.elf import elf_arch_to_uname_arch, get_elf_arch
 from granulate_utils.linux.process import is_process_running, process_exe, read_process_execfn
 from psutil import NoSuchProcess, Process, ZombieProcess
 
@@ -69,22 +70,27 @@ class ApplicationMetadata:
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
         md = {}
 
-        try:
-            exe = process_exe(process)
-        except (NoSuchProcess, ZombieProcess):
-            raise  # let caller handle
-        except Exception as e:
-            logger.exception("Exception while reading process exe", pid=process.pid)
-            exe = f"error: {e.__class__.__name__}"
-        md["exe"] = exe
+        def _wrap_errors(fn: Callable[[Process], str], exception_log: str) -> str:
+            try:
+                return fn(process)
+            except (NoSuchProcess, ZombieProcess):
+                raise  # let caller handle
+            except Exception as e:
+                logger.exception(exception_log, pid=process.pid)
+                return f"error: {e.__class__.__name__}"
 
-        try:
-            execfn = "error: not supported on Windows" if is_windows() else read_process_execfn(process)
-        except (NoSuchProcess, ZombieProcess):
-            raise  # let caller handle
-        except Exception as e:
-            logger.exception("Exception while reading process execfn", pid=process.pid)
-            execfn = f"error: {e.__class__.__name__}"
-        md["execfn"] = execfn
+        md["exe"] = _wrap_errors(process_exe, "Exception while reading process exe")
+        md["execfn"] = _wrap_errors(
+            lambda p: "error: not supported on Windows" if is_windows() else read_process_execfn(p),
+            "Exception while reading process execfn",
+        )
+        # take arch from the executed elf, not the host system, because (although unlikely) it's possible
+        # that the process runs a different, emulated architecture.
+        md["arch"] = _wrap_errors(
+            lambda p: "error: not supported on Windows"
+            if is_windows()
+            else elf_arch_to_uname_arch(get_elf_arch(f"/proc/{process.pid}/exe")),
+            "Exception while getting process exe architecture",
+        )
 
         return md

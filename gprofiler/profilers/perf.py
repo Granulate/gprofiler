@@ -13,8 +13,9 @@ from subprocess import Popen
 from threading import Event
 from typing import Any, Dict, Iterable, List, Optional
 
+from granulate_utils.exceptions import MissingExePath
 from granulate_utils.golang import get_process_golang_version, is_golang_process
-from granulate_utils.linux.elf import is_statically_linked
+from granulate_utils.linux.elf import elf_is_stripped, is_statically_linked
 from granulate_utils.linux.process import is_musl, is_process_running
 from granulate_utils.node import is_node_process
 from psutil import NoSuchProcess, Process
@@ -35,7 +36,15 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils import reap_process, remove_path, run_process, start_process, wait_event, wait_for_file_by_prefix
+from gprofiler.utils import (
+    reap_process,
+    remove_files_by_prefix,
+    remove_path,
+    run_process,
+    start_process,
+    wait_event,
+    wait_for_file_by_prefix,
+)
 from gprofiler.utils.perf import perf_path, valid_perf_pid
 
 logger = get_logger_adapter(__name__)
@@ -44,7 +53,16 @@ DEFAULT_PERF_DWARF_STACK_SIZE = 8192
 # ffffffff81082227 mmput+0x57 ([kernel.kallsyms])
 # 0 [unknown] ([unknown])
 # 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
-FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \(\[?(.*?)\]?\)$")
+FRAME_REGEX = re.compile(
+    r"""
+    ^\s*[0-9a-f]+[ ]                                 # first a hexadecimal offset
+    (?P<symbol>.*)[ ]                                # a symbol name followed by a space
+    \( (?:                                           # dso name is either:
+        \[ (?P<dso_brackets> [^]]+) \]               # - text enclosed in square brackets, e.g.: [vdso]
+        | (?P<dso_plain> [^)]+(?:[ ]\(deleted\))? )  # - OR library name, optionally followed by " (deleted)" tag
+    ) \)$""",
+    re.VERBOSE,
+)
 SAMPLE_REGEX = re.compile(
     r"\s*(?P<comm>.+?)\s+(?P<pid>[\d-]+)/(?P<tid>[\d-]+)(?:\s+\[(?P<cpu>\d+)])?\s+(?P<time>\d+\.\d+):\s+"
     r"(?:(?P<freq>\d+)\s+)?(?P<event_family>[\w\-_/]+):(?:(?P<event>[\w-]+):)?(?P<suffix>[^\n]*)(?:\n(?P<stack>.*))?",
@@ -65,14 +83,19 @@ def get_average_frame_count(samples: Iterable[str]) -> float:
         if len(kernel_split) == 1:
             kernel_split = sample.split("_[k] ", 1)
 
+        # Check if there are any "[unknown]" frames in this sample, if they are ignore it. This is helpful
+        # in perf_mode="smart", because DWARF stack can be deep but some of the frames might be unknown. In
+        # that situation we want to avoid counting unknown frames and then choose stacks that has better
+        # sum(frame_count_per_samples)/len(frame_count_per_samples) ratio
+        frame_count_in_sample = kernel_split[0].count(";") - kernel_split[0].count("[unknown]")
         # Do we have any kernel frames in this sample?
         if len(kernel_split) > 1:
             # example: "a;b;c;d_[k];e_[k] 1" should return the same value as "a;b;c 1", so we don't
             # add 1 to the frames count like we do in the other branch.
-            frame_count_per_samples.append(kernel_split[0].count(";"))
+            frame_count_per_samples.append(frame_count_in_sample)
         else:
             # no kernel frames, so e.g "a;b;c 1" and frame count is one more than ";" count.
-            frame_count_per_samples.append(kernel_split[0].count(";") + 1)
+            frame_count_per_samples.append(frame_count_in_sample + 1)
     return sum(frame_count_per_samples) / len(frame_count_per_samples)
 
 
@@ -107,7 +130,7 @@ def _collapse_stack(comm: str, stack: str, insert_dso_name: bool = False) -> str
     for line in reversed(stack.splitlines()):
         m = FRAME_REGEX.match(line)
         assert m is not None, f"bad line: {line}"
-        sym, dso = m.groups()
+        sym, dso = m.group("symbol"), m.group("dso_brackets") or m.group("dso_plain")
         sym = sym.split("+")[0]  # strip the offset part.
         if sym == "[unknown]" and dso != "unknown":
             sym = f"({dso})"
@@ -180,13 +203,12 @@ def merge_global_perfs(
 
 # TODO: automatically disable this profiler if can_i_use_perf_events() returns False?
 class PerfProcess:
-    _dump_timeout_s = 5
-    _poll_timeout_s = 5
-    _restart_after_s = 3600
-    _perf_memory_usage_threshold = 512 * 1024 * 1024
+    _DUMP_TIMEOUT_S = 5  # timeout for waiting perf to write outputs after signaling (or right after starting)
+    _RESTART_AFTER_S = 3600
+    _PERF_MEMORY_USAGE_THRESHOLD = 512 * 1024 * 1024
     # default number of pages used by "perf record" when perf_event_mlock_kb=516
     # we use double for dwarf.
-    _mmap_sizes = {"fp": 129, "dwarf": 257}
+    _MMAP_SIZES = {"fp": 129, "dwarf": 257}
 
     def __init__(
         self,
@@ -197,6 +219,7 @@ class PerfProcess:
         inject_jit: bool,
         extra_args: List[str],
         processes_to_profile: Optional[List[Process]],
+        switch_timeout_s: int,
     ):
         self._start_time = 0.0
         self._frequency = frequency
@@ -211,6 +234,7 @@ class PerfProcess:
         else:
             self._pid_args.append("-a")
         self._extra_args = extra_args + (["-k", "1"] if self._inject_jit else [])
+        self._switch_timeout_s = switch_timeout_s
         self._process: Optional[Popen] = None
 
     @property
@@ -227,13 +251,14 @@ class PerfProcess:
                 "-g",
                 "-o",
                 self._output_path,
-                "--switch-output=signal",
+                f"--switch-output={self._switch_timeout_s}s,signal",
+                "--switch-max-files=1",
                 # explicitly pass '-m', otherwise perf defaults to deriving this number from perf_event_mlock_kb,
                 # and it ends up using it entirely (and we want to spare some for async-profiler)
                 # this number scales linearly with the number of active cores (so we don't need to do this calculation
                 # here)
                 "-m",
-                str(self._mmap_sizes[self._type]),
+                str(self._MMAP_SIZES[self._type]),
             ]
             + self._pid_args
             + self._extra_args
@@ -243,9 +268,9 @@ class PerfProcess:
         logger.info(f"Starting {self._log_name}")
         # remove old files, should they exist from previous runs
         remove_path(self._output_path, missing_ok=True)
-        process = start_process(self._get_perf_cmd(), via_staticx=False)
+        process = start_process(self._get_perf_cmd())
         try:
-            wait_event(self._poll_timeout_s, self._stop_event, lambda: os.path.exists(self._output_path))
+            wait_event(self._DUMP_TIMEOUT_S, self._stop_event, lambda: os.path.exists(self._output_path))
             self.start_time = time.monotonic()
         except TimeoutError:
             process.kill()
@@ -290,23 +315,27 @@ class PerfProcess:
         assert self._process is not None
         perf_rss = Process(self._process.pid).memory_info().rss
         if (
-            time.monotonic() - self._start_time >= self._restart_after_s
-            and perf_rss >= self._perf_memory_usage_threshold
+            time.monotonic() - self._start_time >= self._RESTART_AFTER_S
+            and perf_rss >= self._PERF_MEMORY_USAGE_THRESHOLD
         ):
             logger.debug(
                 f"Restarting {self._log_name} due to memory exceeding limit",
-                limit_rss=self._perf_memory_usage_threshold,
+                limit_rss=self._PERF_MEMORY_USAGE_THRESHOLD,
                 perf_rss=perf_rss,
             )
             self.restart()
 
     def switch_output(self) -> None:
         assert self._process is not None, "profiling not started!"
+        # clean stale files (can be emitted by perf timing out and switching output file).
+        # we clean them here before sending the signal, to be able to tell between the file generated by the signal
+        # to files generated by timeouts.
+        remove_files_by_prefix(f"{self._output_path}.")
         self._process.send_signal(signal.SIGUSR2)
 
     def wait_and_script(self) -> str:
         try:
-            perf_data = wait_for_file_by_prefix(f"{self._output_path}.", self._dump_timeout_s, self._stop_event)
+            perf_data = wait_for_file_by_prefix(f"{self._output_path}.", self._DUMP_TIMEOUT_S, self._stop_event)
         except Exception:
             assert self._process is not None and self._process.stdout is not None and self._process.stderr is not None
             logger.critical(
@@ -348,7 +377,7 @@ class PerfProcess:
 @register_profiler(
     "Perf",
     possible_modes=["fp", "dwarf", "smart", "disabled"],
-    default_mode="smart",
+    default_mode="fp",
     supported_archs=["x86_64", "aarch64"],
     profiler_mode_argument_help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge"
     " them by choosing the best result per process. If 'disabled' is chosen, do not invoke"
@@ -402,6 +431,7 @@ class SystemProfiler(ProfilerBase):
         self._node_processes: List[Process] = []
         self._node_processes_attached: List[Process] = []
         self._perf_memory_restart = perf_memory_restart
+        switch_timeout_s = duration * 3  # allow gprofiler to be delayed up to 3 intervals before timing out.
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
@@ -412,6 +442,7 @@ class SystemProfiler(ProfilerBase):
                 perf_inject,
                 [],
                 self._profiler_state.processes_to_profile,
+                switch_timeout_s,
             )
             self._perfs.append(self._perf_fp)
         else:
@@ -426,6 +457,7 @@ class SystemProfiler(ProfilerBase):
                 False,  # no inject in dwarf mode, yet
                 ["--call-graph", f"dwarf,{perf_dwarf_stack_size}"],
                 self._profiler_state.processes_to_profile,
+                switch_timeout_s,
             )
             self._perfs.append(self._perf_dwarf)
         else:
@@ -460,6 +492,8 @@ class SystemProfiler(ProfilerBase):
                 if collector.relevant_for_process(process):
                     return collector.get_metadata(process)
         except NoSuchProcess:
+            pass
+        except MissingExePath:
             pass
         return None
 
@@ -517,11 +551,7 @@ class PerfMetadata(ApplicationMetadata):
         return False
 
     def add_exe_metadata(self, process: Process, metadata: Dict[str, Any]) -> None:
-        try:
-            static = is_statically_linked(f"/proc/{process.pid}/exe")
-        except FileNotFoundError:
-            raise NoSuchProcess(process.pid)
-
+        static = is_statically_linked(f"/proc/{process.pid}/exe")
         exe_metadata: Dict[str, Any] = {"link": "static" if static else "dynamic"}
         if not static:
             exe_metadata["libc"] = "musl" if is_musl(process) else "glibc"
@@ -536,7 +566,10 @@ class GolangPerfMetadata(PerfMetadata):
         return is_golang_process(process)
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        metadata = {"golang_version": get_process_golang_version(process)}
+        metadata = {
+            "golang_version": get_process_golang_version(process),
+            "stripped": elf_is_stripped(f"/proc/{process.pid}/exe"),
+        }
         self.add_exe_metadata(process, metadata)
         metadata.update(super().make_application_metadata(process))
         return metadata

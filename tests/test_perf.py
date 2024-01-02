@@ -260,6 +260,9 @@ def test_perf_restarted_if_killed(
         (["d_[k] 1"], 0),
         (["d_[k];e_[k] 1"], 0),
         (["a;b;c;d_[k] 1"], 3),
+        # Tests if unknown frames are ignored when calculating avg frame count
+        # https://github.com/Granulate/gprofiler/issues/798
+        (["[unknown];[unknown];[unknown];a;b;c;d_[k] 1"], 3),
         (["a;b;c;d_[k];e_[k] 1"], 3),
         (["a 1", "a;b 1"], 1.5),
         (["d_[k] 1", "a;d_[k] 1"], 0.5),
@@ -378,6 +381,14 @@ def test_get_average_frame_count(samples: str, count: float) -> None:
                 dso_false="start_thread;JavaMain;(/tmp/perf-123.map);Resolver::_invokedynamic;[unknown]",
             ),
             id="mixed_java_stack",
+        ),
+        pytest.param(
+            "   1234 std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator() (/path/to/envoy)\n",  # noqa
+            dict(
+                dso_true="std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator() (/path/to/envoy)",  # noqa
+                dso_false="std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()",  # noqa
+            ),
+            id="frame_with_space_parenthesis",
         ),
     ],
 )

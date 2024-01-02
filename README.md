@@ -44,7 +44,9 @@ the results.
 
 ### Network requirements
 
-When `--upload-results` is used, gProfiler will communicate with `https://profiles.granulate.io` and `https://api.granulate.io`. Make sure those domains are accessible for HTTPS access. If you [require an HTTPS proxy](#Using-HTTP-proxies), make sure the proxy has those domains whitelisted.
+When `--upload-results` is used, gProfiler will communicate with `https://profiler.granulate.io` and `https://api.granulate.io`. Make sure those domains are accessible for HTTPS access. Additionally, if you download gProfiler from the GitHub releases you'll need `https://github.com`, or if you use the Docker image you'll need the Docker registry accessible (`https://index.docker.io` by default).
+
+If you [require an HTTPS proxy](#Using-HTTP-proxies), make sure the proxy has those domains whitelisted.
 
 ## Profiling options
 * `--profiling-frequency`: The sampling frequency of the profiling, in *hertz*.
@@ -93,12 +95,20 @@ In this mode, gProfiler will automatically load a library based on [node-linux-p
 gProfiler uses the inspector protocol (documented [here](https://nodejs.org/en/docs/guides/debugging-getting-started/#enable-inspector)) to connect to target processes. gProfiler will send `SIGUSR1`, connect to the process and request to it load the library matching its NodeJS version (gProfiler comes built-in with arsenal of libraries for common NodeJS versions). After the library is loaded, gProfiler invokes the `perf-pid.map` generation. This is done to all running NodeJS processes - those running before gProfiler started, and done starting during gProfiler's run. Upon stopping, gProfiler stops the functionality, so processes no longer continue to write those file.  
 This requires the entrypoint of application to be CommonJS script. (Doesn't work for ES modules)
 
+### Golang profiling options
+
+Golang profiling is based on `perf`, used via the system profiler (explained in [System profiling options](#System-profiling-options)).
+
+As with all native programs, the Golang program must have symbols - not stripped - otherwise, additional debug info files must be provided. Without symbols info (specifically the `.symtab` section) `perf` is unable to symbolicate the stacktraces of the program. In that case gProfiler will not tag the stacks as Golang and you will not see any symbols.
+
+Make sure you are not passing `-s` to the `-ldflags` during your build - `-s` omits the symbols table; see more details [here](https://pkg.go.dev/cmd/link#hdr-Command_Line).
+
 ### System profiling options
 
 * `--perf-mode`: Controls the global perf strategy. Must be one of the following options:
-    * `fp` - Use Frame Pointers for the call graph
+    * `fp` - Use Frame Pointers for the call graph. *This is the default.*
     * `dwarf` - Use DWARF for the call graph (adds the `--call-graph dwarf` argument to the `perf` command)
-    * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process. *This is the default.*
+    * `smart` - Run both `fp` and `dwarf`, then choose the result with the highest average of stack frames count, per process.
     * `disabled` - Avoids running `perf` at all. See [perf-less mode](#perf-less-mode).
 
 ## Other options
@@ -187,6 +197,16 @@ Additionally, 2 more flags need to be added to gProfiler's commandline: `--disab
 * `--disable-pidns-check` is required because gProfiler won't run in the init PID NS.
 * `--perf-mode=none` is required because gProfiler will not have permissions to run system-wide `perf`, so we will profile only runtime processes, such as Java. See [perf-less mode](#perf-less-mode) for more information.
 
+### Databricks unique service names for job clusters
+By using `--databricks-job-name-as-service-name`, gProfiler will use the Job Clusters' Job Name as service name.
+In case gProfiler successfully managed to extract the Job Name, the service name will be `databricks-job-<JOB_NAME>`.
+By default, this functionality relies on `spark.databricks.clusterUsageTags.clusterAllTags` property
+to extract the Job Name.
+
+In case gProfiler spots this property is redacted, gProfiler will use the
+`spark.databricks.clusterUsageTags.clusterName` property as service name.
+
+
 ## Running as a Kubernetes DaemonSet
 See [gprofiler.yaml](deploy/k8s/gprofiler.yaml) for a basic template of a DaemonSet running gProfiler.
 Make sure to insert the `GPROFILER_TOKEN` and `GPROFILER_SERVICE` variables in the appropriate location!
@@ -200,6 +220,14 @@ helm install --set gprofiler.token="GPROFILER_TOKEN" --set gprofiler.serviceName
 # To view additional configuration options you can run:
 helm show values .
 ```
+
+### OpenShift SCCs
+
+If your OpenShift cluster uses [SCCs](https://docs.openshift.com/container-platform/4.12/authentication/managing-security-context-constraints.html), the gProfiler Pods might get an error `FailedCreate` with the reason `unable to validate against any security context constraint`.
+
+If this happens, we must grant the `privileged` SCC to the gProfiler DaemonSet to have the Pods scheduled.
+
+This is done by creating a `Role` that's allowed to use the `privileged` SCC, then granting that `Role` via a `RoleBinding` to a `ServiceAccount` that is used in gProfiler's `DaemonSet`. The 3 objects (`ServiceAccount`, `Role`, `RoleBinding`) can be found in [scc.yaml](deploy/k8s/openshift/scc.yaml). After applying that file, all you need to do is add `serviceAccountName: granulate-service-account` to the gProfiler Pod spec, re-apply the `DaemonSet` and verify that created Pods have the `openshift.io/scc: privileged` annotation, which means they have successfully used the SCC.
 
 ## Running as an ECS (Elastic Container Service) Daemon service
 
@@ -247,7 +275,7 @@ Furthermore, Fargate does not allow using `"pidMode": "host"` in the task defini
 So in order to deploy gProfiler, we need to modify a container definition to include running gProfiler alongside the actual application. This can be done with the following steps:
 1. Modify the `command` & `entryPoint` parameters of your entry in the `containerDefinitions` array. The new command should include downloading of gProfiler & executing it in the background, and `entryPoint` will be `["/bin/bash"]`.
 
-    For example, if your default `command` is `["python", "/path/to/my/app.py"]`, we will now change it to: `["-c", "(wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler -O /tmp/gprofiler; chmod +x /tmp/gprofiler; /tmp/gprofiler -cu --token=<TOKEN> --service-name=<SERVICE NAME> --disable-pidns-check --perf-mode none) & python /path/to/my/app.py"]`.
+    For example, if your default `command` is `["python", "/path/to/my/app.py"]`, we will now change it to: `["-c", "(wget https://github.com/Granulate/gprofiler/releases/latest/download/gprofiler -O /tmp/gprofiler; chmod +x /tmp/gprofiler; /tmp/gprofiler -cu --token=<TOKEN> --service-name=<SERVICE NAME>) & python /path/to/my/app.py"]`.
 
     Make sure to:
     - Replace `<TOKEN>` in the command line with your token you got from the [gProfiler Performance Studio](https://profiler.granulate.io/) site.
@@ -257,7 +285,7 @@ So in order to deploy gProfiler, we need to modify a container definition to inc
 
     Additionally, we will set `entryPoint` to `["/bin/bash"]`. If you had used `entryPoint` prior to incorporating gProfiler, make sure to use it in the new `command`.
 
-    About `--disable-pidns-check` and `--perf-mode none` - please see the explanation in [running-on-databricks](#running-on-databricks), as it applies here as well.
+    gProfiler will assume `--disable-pidns-check` and `--perf-mode none` were given. These flags are explained in [running-on-databricks](#running-on-databricks).
 
     gProfiler and its installation process will send the outputs to your container's stdout & stderr. After verifying that everything works, you can append `> /dev/null 2>&1` to the gProfiler command parenthesis (in this example, before the `& python ...`) to prevent it from spamming your container logs.
 

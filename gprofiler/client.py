@@ -14,8 +14,6 @@ from requests import Session
 from gprofiler import __version__
 from gprofiler.exceptions import APIError
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata.system_metadata import get_hostname
-from gprofiler.metrics import MetricsSnapshot
 from gprofiler.utils import get_iso8601_format_time, get_iso8601_format_time_from_epoch_time
 
 if TYPE_CHECKING:
@@ -207,45 +205,3 @@ class ProfilerAPIClient(BaseAPIClient):
             api_version="v2" if profile_api_version is None else profile_api_version,
             params={"version": __version__},
         )
-
-
-class APIClient(BaseAPIClient):
-    def __init__(
-        self,
-        token: str,
-        service_name: str,
-        server_address: str = DEFAULT_API_SERVER_ADDRESS,
-        curlify_requests: bool = False,
-        timeout: int = DEFAULT_UPLOAD_TIMEOUT,
-    ):
-        self._token = token
-        self._service_name = service_name
-        self._server_address = server_address
-        self._timeout = timeout
-        super().__init__(curlify_requests)
-
-    def _init_session(self) -> None:
-        self._session = requests.Session()
-        self._session.headers.update(
-            {
-                "Authorization": f"Bearer {self._token}",
-                "X-Gprofiler-Service": self._service_name,
-                "X-GProfiler-Hostname": get_hostname(),
-            }
-        )
-
-    def submit_spark_metrics(self, snapshot: MetricsSnapshot) -> Dict:
-        return self._request_url(
-            "POST",
-            f"{self._server_address}/telemetry/gprofiler/spark/v1/update",
-            bake_metrics_payload(snapshot),
-            timeout=self._timeout,
-        )
-
-
-def bake_metrics_payload(snapshot: MetricsSnapshot) -> Dict[str, Any]:
-    return {
-        "format_version": 1,
-        "timestamp": get_iso8601_format_time(snapshot.timestamp),
-        "metrics": [sample.__dict__ for sample in snapshot.samples],
-    }

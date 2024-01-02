@@ -3,6 +3,8 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 import os
+import platform
+import secrets
 import stat
 import subprocess
 from contextlib import _GeneratorContextManager, contextmanager
@@ -72,7 +74,7 @@ def chdir(path: Path) -> Iterator[None]:
         os.chdir(cwd)
 
 
-@fixture(params=[False, True])
+@fixture(params=[False, True], ids=["on_host", "in_container"])
 def in_container(request: FixtureRequest) -> bool:
     return cast(bool, request.param)
 
@@ -220,17 +222,34 @@ def application_process(
 
 @fixture(scope="session")
 def docker_client() -> DockerClient:
-    return docker.from_env()
+    tests_id = secrets.token_hex(5)
+    docker_client = docker.from_env()
+    setattr(docker_client, "_gprofiler_test_id", tests_id)
+    yield docker_client
+
+    exited_ids: List[str] = []
+    exited_container_list = docker_client.containers.list(filters={"status": "exited", "label": tests_id})
+    for container in exited_container_list:
+        exited_ids.append(container.id)
+
+    pruned_ids = docker_client.containers.prune(filters={"label": tests_id}).get("ContainersDeleted", [])
+
+    for exited_id in exited_ids.copy():
+        if exited_id in pruned_ids:
+            exited_ids.remove(exited_id)
+
+    if len(exited_ids) > 0:
+        raise Exception(f"Containers with ids {exited_ids} have not been properly pruned")
 
 
 @fixture(scope="session")
 def gprofiler_docker_image(docker_client: DockerClient) -> Iterable[Image]:
     # access the prebuilt image.
     # this is built in the CI, in the "Build gProfiler image" step.
-    yield docker_client.images.get("gprofiler")
+    yield docker_client.images.get(f"gprofiler_{platform.machine()}")
 
 
-def _build_image(
+def build_image(
     docker_client: DockerClient, runtime: str, dockerfile: str = "Dockerfile", **kwargs: Mapping[str, Any]
 ) -> Image:
     base_path = CONTAINERS_DIRECTORY / runtime
@@ -363,7 +382,7 @@ def application_docker_image(
                 )
             if application_image_tag == "musl":
                 pytest.xfail("This test does not work on aarch64 https://github.com/Granulate/gprofiler/issues/743")
-    yield _build_image(docker_client, **application_docker_image_configs[image_name(runtime, application_image_tag)])
+    yield build_image(docker_client, **application_docker_image_configs[image_name(runtime, application_image_tag)])
 
 
 @fixture
@@ -410,6 +429,14 @@ def application_docker_capabilities() -> List[str]:
 
 
 @fixture
+def application_docker_command() -> Optional[List[str]]:
+    """
+    Command to issue to application docker as an override.
+    """
+    return None
+
+
+@fixture
 def application_docker_container(
     in_container: bool,
     docker_client: DockerClient,
@@ -417,13 +444,18 @@ def application_docker_container(
     output_directory: Path,
     application_docker_mounts: List[docker.types.Mount],
     application_docker_capabilities: List[str],
+    application_docker_command: Optional[List[str]],
 ) -> Iterable[Container]:
     if not in_container:
         yield None
         return
     else:
         with _application_docker_container(
-            docker_client, application_docker_image, application_docker_mounts, application_docker_capabilities
+            docker_client,
+            application_docker_image,
+            application_docker_mounts=application_docker_mounts,
+            application_docker_capabilities=application_docker_capabilities,
+            application_docker_command=application_docker_command,
         ) as container:
             yield container
 
@@ -453,7 +485,10 @@ def application_factory(
     def _run_application() -> Iterator[int]:
         if in_container:
             with _application_docker_container(
-                docker_client, application_docker_image, application_docker_mounts, application_docker_capabilities
+                docker_client,
+                application_docker_image,
+                application_docker_mounts=application_docker_mounts,
+                application_docker_capabilities=application_docker_capabilities,
             ) as container:
                 yield container.attrs["State"]["Pid"]
         else:
@@ -613,7 +648,8 @@ def python_version(in_container: bool, application_docker_container: Container) 
 
 
 @fixture
-def noexec_tmp_dir(in_container: bool, tmp_path: Path) -> Iterator[str]:
+def noexec_or_ro_tmp_dir(in_container: bool, tmp_path: Path, noexec_or_ro: str) -> Iterator[str]:
+    assert noexec_or_ro in ("noexec", "ro")
     if in_container:
         # only needed for non-container tests
         yield ""
@@ -622,7 +658,7 @@ def noexec_tmp_dir(in_container: bool, tmp_path: Path) -> Iterator[str]:
     tmpfs_path = tmp_path / "tmpfs"
     tmpfs_path.mkdir(0o755, exist_ok=True)
     try:
-        subprocess.run(["mount", "-t", "tmpfs", "-o", "noexec", "none", str(tmpfs_path)], check=True)
+        subprocess.run(["mount", "-t", "tmpfs", "-o", noexec_or_ro, "none", str(tmpfs_path)], check=True)
         yield str(tmpfs_path)
     finally:
         subprocess.run(["umount", str(tmpfs_path)], check=True)
