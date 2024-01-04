@@ -150,7 +150,7 @@ RUN yum install -y epel-release && \
     yum install -y libmodulemd && \
     yum clean all
 
-# python 3.10 installation
+# python 3.11 installation
 WORKDIR /python
 RUN yum install -y \
     bzip2-devel \
@@ -164,8 +164,9 @@ RUN yum install -y \
     yum clean all
 COPY ./scripts/openssl_build.sh .
 RUN ./openssl_build.sh
-COPY ./scripts/python310_build.sh .
-RUN ./python310_build.sh
+COPY ./scripts/python311_build.sh .
+RUN ./python311_build.sh && \ 
+    ln -s /usr/bin/python3.11 /usr/bin/python3
 
 # gProfiler part
 
@@ -186,7 +187,7 @@ RUN set -e; \
 # needed for aarch64, scons & wheel are needed to build staticx
 RUN set -e; \
     if [ "$(uname -m)" = "aarch64" ]; then \
-         ln -s /usr/lib64/python3.10/lib-dynload /usr/lib/python3.10/lib-dynload; \
+         ln -s /usr/lib64/python3.11/lib-dynload /usr/lib/python3.11/lib-dynload; \
     fi
 RUN set -e; \
     if [ "$(uname -m)" = "aarch64" ]; then \
