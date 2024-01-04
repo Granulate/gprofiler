@@ -2,6 +2,7 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import errno
 import functools
 import json
 import os
@@ -13,7 +14,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from threading import Event, Lock
 from types import TracebackType
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Type, TypeVar, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Type, TypeVar, Union, cast
 
 import psutil
 from granulate_utils.java import (
@@ -79,7 +80,7 @@ from gprofiler.utils import (
     touch_path,
     wait_event,
 )
-from gprofiler.utils.fs import is_rw_exec_dir, safe_copy
+from gprofiler.utils.fs import is_owned_by_root, is_rw_exec_dir, mkdir_owned_root, safe_copy
 from gprofiler.utils.perf import can_i_use_perf_events
 from gprofiler.utils.process import process_comm, search_proc_maps
 
@@ -236,11 +237,16 @@ class JattachJcmdRunner:
         self.jattach_timeout = jattach_timeout
 
     def run(self, process: Process, cmd: str) -> str:
-        return run_process(
-            [asprof_path(), "jcmd", "--jattach-cmd", cmd, str(process.pid)],
-            stop_event=self.stop_event,
-            timeout=self.jattach_timeout,
-        ).stdout.decode()
+        try:
+            return run_process(
+                [asprof_path(), "jcmd", "--jattach-cmd", cmd, str(process.pid)],
+                stop_event=self.stop_event,
+                timeout=self.jattach_timeout,
+            ).stdout.decode()
+        except CalledProcessError as e:
+            if f"Process {process.pid} not found" in str(e):
+                raise NoSuchProcess(process.pid)
+            raise e
 
 
 def is_java_basename(process: Process) -> bool:
@@ -252,16 +258,11 @@ _JAVA_VERSION_TIMEOUT = 5
 _JAVA_VERSION_CACHE_MAX = 1024
 
 
-# process is hashable and the same process instance compares equal
-@functools.lru_cache(maxsize=_JAVA_VERSION_CACHE_MAX)
-def get_java_version(process: Process, stop_event: Event) -> str:
-    # make sure we're only called for "java" processes, otherwise running "-version" makes no sense.
-    # our callers should check for it.
-    assert is_java_basename(process), f"expected java, found {process!r}"
-
-    nspid = get_process_nspid(process.pid)
-
-    # this has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
+def _get_process_ns_java_path(process: Process) -> Optional[str]:
+    """
+    Look up path to java executable installed together with this process' libjvm.
+    """
+    # This has the benefit of working even if the Java binary was replaced, e.g due to an upgrade.
     # in that case, the libraries would have been replaced as well, and therefore we're actually checking
     # the version of the now installed Java, and not the running one.
     # but since this is used for the "JDK type" check, it's good enough - we don't expect that to change.
@@ -272,12 +273,42 @@ def get_java_version(process: Process, stop_event: Event) -> str:
     # 2. assume JDK type by the path, e.g the "java" Docker image has
     #    "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java" which means "OpenJDK". needs to be checked for
     #    other JDK types.
-    java_path = f"/proc/{nspid}/exe"
+    if is_java_basename(process):
+        nspid = get_process_nspid(process.pid)
+        return f"/proc/{nspid}/exe"  # it's a symlink and will be resolveable under process' mnt ns
+    libjvm_path: Optional[str] = None
+    for m in process.memory_maps():
+        if re.match(DETECTED_JAVA_PROCESSES_REGEX, m.path):
+            libjvm_path = m.path
+            break
+    if libjvm_path is not None:
+        libjvm_dir = os.path.dirname(libjvm_path)
+        # support two java layouts - it's either lib/server/../../bin/java or lib/{arch}/server/../../../bin/java:
+        java_candidate_paths = [
+            Path(libjvm_dir, "../../bin/java").resolve(),
+            Path(libjvm_dir, "../../../bin/java").resolve(),
+        ]
+        for java_path in java_candidate_paths:
+            # don't need resolve_proc_root_links here - paths in /proc/pid/maps are normalized.
+            proc_relative_path = Path(f"/proc/{process.pid}/root", java_path.relative_to("/"))
+            if proc_relative_path.exists():
+                if os.access(proc_relative_path, os.X_OK):
+                    return str(java_path)
+    return None
+
+
+# process is hashable and the same process instance compares equal
+@functools.lru_cache(maxsize=_JAVA_VERSION_CACHE_MAX)
+def get_java_version(process: Process, stop_event: Event) -> Optional[str]:
+    # make sure we're able to find "java" binary bundled with process libjvm
+    process_java_path = _get_process_ns_java_path(process)
+    if process_java_path is None:
+        return None
 
     def _run_java_version() -> "CompletedProcess[bytes]":
         return run_process(
             [
-                java_path,
+                cast(str, process_java_path),
                 "-version",
             ],
             stop_event=stop_event,
@@ -289,7 +320,7 @@ def get_java_version(process: Process, stop_event: Event) -> str:
     return run_in_ns(["pid", "mnt"], _run_java_version, process.pid).stderr.decode().strip()
 
 
-def get_java_version_logged(process: Process, stop_event: Event) -> str:
+def get_java_version_logged(process: Process, stop_event: Event) -> Optional[str]:
     java_version = get_java_version(process, stop_event)
     logger.debug("java -version output", java_version_output=java_version, pid=process.pid)
     return java_version
@@ -307,10 +338,7 @@ class JavaMetadata(ApplicationMetadata):
         self.java_collect_jvm_flags = java_collect_jvm_flags
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        if is_java_basename(process):
-            version = get_java_version(process, self._stop_event)
-        else:
-            version = "not /java"
+        version = get_java_version(process, self._stop_event) or "/java not found"
         # libjvm elfid - we care only about libjvm, not about the java exe itself which is a just small program
         # that loads other libs.
         libjvm_elfid = get_mapped_dso_elf_id(process, "/libjvm")
@@ -444,6 +472,7 @@ class AsyncProfiledProcess:
         mcache: int = 0,
         collect_meminfo: bool = True,
         include_method_modifiers: bool = False,
+        java_line_numbers: str = "none",
     ):
         self.process = process
         self._profiler_state = profiler_state
@@ -466,9 +495,10 @@ class AsyncProfiledProcess:
         # because storage_dir changes between runs.
         # we embed the async-profiler version in the path, so future gprofiler versions which use another version
         # of AP case use it (will be loaded as a different DSO)
+        self._ap_dir_base = self._find_rw_exec_dir()
+        self._ap_dir_versioned = os.path.join(self._ap_dir_base, f"async-profiler-{get_ap_version()}")
         self._ap_dir_host = os.path.join(
-            self._find_rw_exec_dir(POSSIBLE_AP_DIRS),
-            f"async-profiler-{get_ap_version()}",
+            self._ap_dir_versioned,
             "musl" if self._needs_musl_ap() else "glibc",
         )
 
@@ -492,21 +522,50 @@ class AsyncProfiledProcess:
         self._mcache = mcache
         self._collect_meminfo = collect_meminfo
         self._include_method_modifiers = ",includemm" if include_method_modifiers else ""
+        self._include_line_numbers = ",includeln" if java_line_numbers == "line-of-function" else ""
 
-    def _find_rw_exec_dir(self, available_dirs: Sequence[str]) -> str:
+    def _find_rw_exec_dir(self) -> str:
         """
         Find a rw & executable directory (in the context of the process) where we can place libasyncProfiler.so
         and the target process will be able to load it.
+        This function creates the gprofiler_tmp directory as a directory owned by root, if it doesn't exist under the
+        chosen rwx directory.
+        It does not create the parent directory itself, if it doesn't exist (e.g /run).
+        The chosen rwx directory needs to be owned by root.
         """
-        for d in available_dirs:
-            full_dir = resolve_proc_root_links(self._process_root, d)
+        for d in POSSIBLE_AP_DIRS:
+            full_dir = Path(resolve_proc_root_links(self._process_root, d))
+            if not full_dir.parent.exists():
+                continue  # we do not create the parent.
+
+            if not is_owned_by_root(full_dir.parent):
+                continue  # the parent needs to be owned by root
+
+            try:
+                mkdir_owned_root(full_dir)
+            except OSError as e:
+                # dir is not r/w, try next one
+                if e.errno == errno.EROFS:
+                    continue
+                raise
+
             if is_rw_exec_dir(full_dir):
-                return full_dir
+                return str(full_dir)
         else:
-            raise NoRwExecDirectoryFoundError(f"Could not find a rw & exec directory out of {available_dirs}!")
+            raise NoRwExecDirectoryFoundError(
+                f"Could not find a rw & exec directory out of {POSSIBLE_AP_DIRS} for {self._process_root}!"
+            )
 
     def __enter__(self: T) -> T:
-        os.makedirs(self._ap_dir_host, 0o755, exist_ok=True)
+        # create the directory structure for executable libap, make sure it's owned by root
+        # for sanity & simplicity, mkdir_owned_root() does not support creating parent directories, as this allows
+        # the caller to absentmindedly ignore the check of the parents ownership.
+        # hence we create the structure here part by part.
+        assert is_owned_by_root(
+            Path(self._ap_dir_base)
+        ), f"expected {self._ap_dir_base} to be owned by root at this point"
+        mkdir_owned_root(self._ap_dir_versioned)
+        mkdir_owned_root(self._ap_dir_host)
         os.makedirs(self._storage_dir_host, 0o755, exist_ok=True)
 
         self._check_disk_requirements()
@@ -604,7 +663,7 @@ class AsyncProfiledProcess:
     def _get_ap_output_args(self) -> str:
         return (
             f",file={self._output_path_process},{self.OUTPUT_FORMAT},"
-            + f"{self.FORMAT_PARAMS}{self._include_method_modifiers}"
+            + f"{self.FORMAT_PARAMS}{self._include_method_modifiers}{self._include_line_numbers}"
         )
 
     def _get_interval_arg(self, interval: int) -> str:
@@ -834,6 +893,13 @@ class AsyncProfiledProcess:
             default=False,
             help="Add method modifiers to profiling data",
         ),
+        ProfilerArgument(
+            "--java-line-numbers",
+            dest="java_line_numbers",
+            choices=["none", "line-of-function"],
+            default="none",
+            help="Select if async-profiler should add line numbers to frames",
+        ),
     ],
     supported_profiling_modes=["cpu", "allocation"],
 )
@@ -849,8 +915,8 @@ class JavaProfiler(SpawningProcessProfilerBase):
         14: (Version("14"), 33),
         15: (Version("15.0.1"), 9),
         16: (Version("16"), 36),
-        17: (Version("17.0.1"), 12),
-        19: (Version("19.0.2"), 7),
+        17: (Version("17"), 11),
+        19: (Version("19.0.1"), 10),
     }
 
     # extra timeout seconds to add to the duration itself.
@@ -876,6 +942,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_collect_jvm_flags: str,
         java_full_hserr: bool,
         java_include_method_modifiers: bool,
+        java_line_numbers: str,
     ):
         assert java_mode == "ap", "Java profiler should not be initialized, wrong java_mode value given"
         super().__init__(frequency, duration, profiler_state)
@@ -915,6 +982,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         self._report_meminfo = java_async_profiler_report_meminfo
         self._java_full_hserr = java_full_hserr
         self._include_method_modifiers = java_include_method_modifiers
+        self._java_line_numbers = java_line_numbers
 
     def _init_ap_mode(self, profiling_mode: str, ap_mode: str) -> None:
         assert profiling_mode in ("cpu", "allocation"), "async-profiler support only cpu/allocation profiling modes"
@@ -1048,9 +1116,9 @@ class JavaProfiler(SpawningProcessProfilerBase):
            performed by _check_jvm_supported_extended().
         """
         if JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS in self._java_safemode:
-            if java_version_output is None:  # we don't get the java version if the exe isn't "java"
+            if java_version_output is None:  # we don't get the java version if we cannot find matching java binary
                 logger.warning(
-                    "Non-java basenamed process (cannot get Java version), skipping... (disable "
+                    "Couldn't get Java version for non-java basenamed process, skipping... (disable "
                     f"--java-safemode={JavaSafemodeOptions.JAVA_EXTENDED_VERSION_CHECKS} to profile it anyway)",
                     pid=process.pid,
                     exe=exe,
@@ -1102,12 +1170,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
     def _profile_process(self, process: Process, duration: int, spawned: bool) -> ProfileData:
         comm = process_comm(process)
         exe = process_exe(process)
-        # TODO we can get the "java" binary by extracting the java home from the libjvm path,
-        # then check with that instead (if exe isn't java)
-        if is_java_basename(process):
-            java_version_output: Optional[str] = get_java_version_logged(process, self._profiler_state.stop_event)
-        else:
-            java_version_output = None
+        java_version_output: Optional[str] = get_java_version_logged(process, self._profiler_state.stop_event)
 
         if self._enabled_proc_events_java:
             self._want_to_profile_pids.add(process.pid)
@@ -1155,6 +1218,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._ap_mcache,
             self._report_meminfo,
             self._include_method_modifiers,
+            self._java_line_numbers,
         ) as ap_proc:
             stackcollapse = self._profile_ap_process(ap_proc, comm, duration)
 

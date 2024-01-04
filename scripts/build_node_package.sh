@@ -10,7 +10,7 @@ git clone https://github.com/mmarchini-oss/node-linux-perf.git $MODULE_PATH
 cd $MODULE_PATH
 git reset --hard $GIT_REV
 
-npm install -g node-gyp
+npm install -g node-gyp@^9.4.1  # pinned, as 10.x.x was broken, see my commit message
 curl -L https://github.com/nodejs/nan/archive/refs/tags/v2.16.0.tar.gz -o nan.tar.gz
 tar -vxzf nan.tar.gz -C /tmp
 NAN_PATH=$(realpath /tmp/nan-*)

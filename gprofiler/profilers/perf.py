@@ -13,8 +13,9 @@ from subprocess import Popen
 from threading import Event
 from typing import Any, Dict, Iterable, List, Optional
 
+from granulate_utils.exceptions import MissingExePath
 from granulate_utils.golang import get_process_golang_version, is_golang_process
-from granulate_utils.linux.elf import is_statically_linked
+from granulate_utils.linux.elf import elf_is_stripped, is_statically_linked
 from granulate_utils.linux.process import is_musl, is_process_running
 from granulate_utils.node import is_node_process
 from psutil import NoSuchProcess, Process
@@ -52,7 +53,16 @@ DEFAULT_PERF_DWARF_STACK_SIZE = 8192
 # ffffffff81082227 mmput+0x57 ([kernel.kallsyms])
 # 0 [unknown] ([unknown])
 # 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
-FRAME_REGEX = re.compile(r"^\s*[0-9a-f]+ (.*?) \(\[?(.*?)\]?\)$")
+FRAME_REGEX = re.compile(
+    r"""
+    ^\s*[0-9a-f]+[ ]                                 # first a hexadecimal offset
+    (?P<symbol>.*)[ ]                                # a symbol name followed by a space
+    \( (?:                                           # dso name is either:
+        \[ (?P<dso_brackets> [^]]+) \]               # - text enclosed in square brackets, e.g.: [vdso]
+        | (?P<dso_plain> [^)]+(?:[ ]\(deleted\))? )  # - OR library name, optionally followed by " (deleted)" tag
+    ) \)$""",
+    re.VERBOSE,
+)
 SAMPLE_REGEX = re.compile(
     r"\s*(?P<comm>.+?)\s+(?P<pid>[\d-]+)/(?P<tid>[\d-]+)(?:\s+\[(?P<cpu>\d+)])?\s+(?P<time>\d+\.\d+):\s+"
     r"(?:(?P<freq>\d+)\s+)?(?P<event_family>[\w\-_/]+):(?:(?P<event>[\w-]+):)?(?P<suffix>[^\n]*)(?:\n(?P<stack>.*))?",
@@ -73,14 +83,19 @@ def get_average_frame_count(samples: Iterable[str]) -> float:
         if len(kernel_split) == 1:
             kernel_split = sample.split("_[k] ", 1)
 
+        # Check if there are any "[unknown]" frames in this sample, if they are ignore it. This is helpful
+        # in perf_mode="smart", because DWARF stack can be deep but some of the frames might be unknown. In
+        # that situation we want to avoid counting unknown frames and then choose stacks that has better
+        # sum(frame_count_per_samples)/len(frame_count_per_samples) ratio
+        frame_count_in_sample = kernel_split[0].count(";") - kernel_split[0].count("[unknown]")
         # Do we have any kernel frames in this sample?
         if len(kernel_split) > 1:
             # example: "a;b;c;d_[k];e_[k] 1" should return the same value as "a;b;c 1", so we don't
             # add 1 to the frames count like we do in the other branch.
-            frame_count_per_samples.append(kernel_split[0].count(";"))
+            frame_count_per_samples.append(frame_count_in_sample)
         else:
             # no kernel frames, so e.g "a;b;c 1" and frame count is one more than ";" count.
-            frame_count_per_samples.append(kernel_split[0].count(";") + 1)
+            frame_count_per_samples.append(frame_count_in_sample + 1)
     return sum(frame_count_per_samples) / len(frame_count_per_samples)
 
 
@@ -115,7 +130,7 @@ def _collapse_stack(comm: str, stack: str, insert_dso_name: bool = False) -> str
     for line in reversed(stack.splitlines()):
         m = FRAME_REGEX.match(line)
         assert m is not None, f"bad line: {line}"
-        sym, dso = m.groups()
+        sym, dso = m.group("symbol"), m.group("dso_brackets") or m.group("dso_plain")
         sym = sym.split("+")[0]  # strip the offset part.
         if sym == "[unknown]" and dso != "unknown":
             sym = f"({dso})"
@@ -362,7 +377,7 @@ class PerfProcess:
 @register_profiler(
     "Perf",
     possible_modes=["fp", "dwarf", "smart", "disabled"],
-    default_mode="smart",
+    default_mode="fp",
     supported_archs=["x86_64", "aarch64"],
     profiler_mode_argument_help="Run perf with either FP (Frame Pointers), DWARF, or run both and intelligently merge"
     " them by choosing the best result per process. If 'disabled' is chosen, do not invoke"
@@ -478,6 +493,8 @@ class SystemProfiler(ProfilerBase):
                     return collector.get_metadata(process)
         except NoSuchProcess:
             pass
+        except MissingExePath:
+            pass
         return None
 
     def _get_appid(self, pid: int) -> Optional[str]:
@@ -534,11 +551,7 @@ class PerfMetadata(ApplicationMetadata):
         return False
 
     def add_exe_metadata(self, process: Process, metadata: Dict[str, Any]) -> None:
-        try:
-            static = is_statically_linked(f"/proc/{process.pid}/exe")
-        except FileNotFoundError:
-            raise NoSuchProcess(process.pid)
-
+        static = is_statically_linked(f"/proc/{process.pid}/exe")
         exe_metadata: Dict[str, Any] = {"link": "static" if static else "dynamic"}
         if not static:
             exe_metadata["libc"] = "musl" if is_musl(process) else "glibc"
@@ -553,7 +566,10 @@ class GolangPerfMetadata(PerfMetadata):
         return is_golang_process(process)
 
     def make_application_metadata(self, process: Process) -> Dict[str, Any]:
-        metadata = {"golang_version": get_process_golang_version(process)}
+        metadata = {
+            "golang_version": get_process_golang_version(process),
+            "stripped": elf_is_stripped(f"/proc/{process.pid}/exe"),
+        }
         self.add_exe_metadata(process, metadata)
         metadata.update(super().make_application_metadata(process))
         return metadata

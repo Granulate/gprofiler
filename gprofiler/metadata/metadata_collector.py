@@ -1,12 +1,13 @@
 import datetime
 
+from granulate_utils.linux.ns import run_in_ns
 from granulate_utils.metadata import Metadata
-from granulate_utils.metadata.cloud import get_static_cloud_instance_metadata
+from granulate_utils.metadata.bigdata import get_bigdata_info
+from granulate_utils.metadata.cloud import get_static_cloud_metadata
 
 from gprofiler import __version__
 from gprofiler.gprofiler_types import UserArgs
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata.bigdata import get_bigdata_info
 from gprofiler.metadata.system_metadata import get_static_system_info
 
 logger = get_logger_adapter(__name__)
@@ -15,8 +16,8 @@ logger = get_logger_adapter(__name__)
 def get_static_metadata(spawn_time: float, run_args: UserArgs) -> Metadata:
     formatted_spawn_time = datetime.datetime.utcfromtimestamp(spawn_time).replace(microsecond=0).isoformat()
     static_system_metadata = get_static_system_info()
-    cloud_metadata = get_static_cloud_instance_metadata(logger)
-    bigdata = get_bigdata_info()
+    cloud_metadata = get_static_cloud_metadata(logger)
+    bigdata = run_in_ns(["mnt"], get_bigdata_info)
 
     metadata_dict: Metadata = {
         "cloud_provider": cloud_metadata.pop("provider") if cloud_metadata is not None else "unknown",

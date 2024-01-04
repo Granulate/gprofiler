@@ -4,5 +4,10 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 set -euo pipefail
-
-DOCKER_BUILDKIT=1 docker build . -t gprofiler "$@"
+ARCH="x86_64"
+if [ "$#" -gt 0 ] && [ "$1" == "--skip-exe-build" ]; then
+    shift
+else
+    ./scripts/build_x86_64_executable.sh
+fi
+docker buildx build -f container.Dockerfile --build-arg ARCH=$ARCH . "$@"

@@ -22,21 +22,25 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 from granulate_utils.java import parse_jvm_version
+from granulate_utils.linux.mountinfo import iter_mountinfo
 from granulate_utils.linux.ns import get_process_nspid
 from granulate_utils.linux.process import is_musl
 from packaging.version import Version
 from psutil import Process
 from pytest import LogCaptureFixture, MonkeyPatch
 
+import gprofiler.profilers.java
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import (
     JAVA_SAFEMODE_ALL,
     AsyncProfiledProcess,
     JavaFlagCollectionOptions,
     JavaProfiler,
+    _get_process_ns_java_path,
     frequency_to_ap_interval,
     get_java_version,
 )
+from gprofiler.utils import GPROFILER_DIRECTORY_NAME
 from tests.conftest import AssertInCollapsed
 from tests.type_utils import cast_away_optional
 from tests.utils import (
@@ -50,6 +54,7 @@ from tests.utils import (
     make_java_profiler,
     snapshot_pid_collapsed,
     snapshot_pid_profile,
+    str_removesuffix,
 )
 
 
@@ -208,7 +213,8 @@ def test_java_safemode_version_check(
 
     with make_java_profiler(profiler_state) as profiler:
         process = profiler._select_processes_to_profile()[0]
-        jvm_version = parse_jvm_version(get_java_version(process, profiler._profiler_state.stop_event))
+        jvm_version_str = cast_away_optional(get_java_version(process, profiler._profiler_state.stop_event))
+        jvm_version = parse_jvm_version(jvm_version_str)
         collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
 
@@ -226,7 +232,8 @@ def test_java_safemode_build_number_check(
 ) -> None:
     with make_java_profiler(profiler_state) as profiler:
         process = profiler._select_processes_to_profile()[0]
-        jvm_version = parse_jvm_version(get_java_version(process, profiler._profiler_state.stop_event))
+        jvm_version_str = cast_away_optional(get_java_version(process, profiler._profiler_state.stop_event))
+        jvm_version = parse_jvm_version(jvm_version_str)
         monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (jvm_version.version, 999))
         collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert collapsed == Counter({"java;[Profiling skipped: profiling this JVM is not supported]": 1})
@@ -394,9 +401,25 @@ def test_sanity_other_jvms(
         frequency=99,
         java_async_profiler_mode="cpu",
     ) as profiler:
-        assert search_for in get_java_version(psutil.Process(application_pid), profiler._profiler_state.stop_event)
+        process = psutil.Process(application_pid)
+        assert search_for in cast_away_optional(get_java_version(process, profiler._profiler_state.stop_event))
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
+
+
+def simulate_libjvm_delete(application_pid: int) -> None:
+    """
+    Simulate upgrade process - remove application's libjvm file and replace by another one.
+    """
+    assert not is_libjvm_deleted(application_pid)
+    libjvm = get_libjvm_path(application_pid)
+    libjvm_tmp = libjvm + "."
+    shutil.copy(libjvm, libjvm_tmp)
+    os.unlink(libjvm)
+    os.rename(libjvm_tmp, libjvm)
+    assert is_libjvm_deleted(
+        application_pid
+    ), f"Not (deleted) after deleting? libjvm={libjvm} maps={_read_pid_maps(application_pid)}"
 
 
 # test only once. in a container, so that we don't mess up the environment :)
@@ -410,17 +433,7 @@ def test_java_deleted_libjvm(
     """
     Tests that we can profile processes whose libjvm was deleted, e.g because Java was upgraded.
     """
-    assert not is_libjvm_deleted(application_pid)
-    # simulate upgrade process - file is removed and replaced by another one.
-    libjvm = get_libjvm_path(application_pid)
-    libjvm_tmp = libjvm + "."
-    shutil.copy(libjvm, libjvm_tmp)
-    os.unlink(libjvm)
-    os.rename(libjvm_tmp, libjvm)
-    assert is_libjvm_deleted(
-        application_pid
-    ), f"Not (deleted) after deleting? libjvm={libjvm} maps={_read_pid_maps(application_pid)}"
-
+    simulate_libjvm_delete(application_pid)
     with make_java_profiler(profiler_state, duration=3) as profiler:
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
@@ -442,48 +455,78 @@ def filter_jattach_load_records(records: List[LogRecord]) -> List[LogRecord]:
 
 
 @pytest.mark.parametrize(
-    "extra_application_docker_mounts",
+    "noexec_or_ro,extra_application_docker_mounts",
     [
-        pytest.param([docker.types.Mount(target="/tmp", source="", type="tmpfs", read_only=False)], id="noexec"),
+        pytest.param(
+            "noexec", [docker.types.Mount(target="/tmpfs", source="", type="tmpfs", read_only=False)], id="noexec"
+        ),
+        pytest.param("ro", [docker.types.Mount(target="/tmpfs", source="", type="tmpfs", read_only=True)], id="ro"),
     ],
 )
-def test_java_noexec_dirs(
-    tmp_path_world_accessible: Path,
+def test_java_noexec_or_ro_dirs(
+    tmp_path_world_accessible: Path,  # will be used by AP for logs & outputs
     application_pid: int,
+    extra_application_docker_mounts: List[docker.types.Mount],
     assert_collapsed: AssertInCollapsed,
     caplog: LogCaptureFixture,
-    noexec_tmp_dir: str,
+    noexec_or_ro_tmp_dir: str,
     in_container: bool,
     monkeypatch: MonkeyPatch,
     profiler_state: ProfilerState,
+    noexec_or_ro: str,
 ) -> None:
     """
     Tests that gProfiler is able to select a non-default directory for libasyncProfiler if the default one
-    is noexec, both container and host.
+    is noexec/ro - not rwx - both container and host.
     """
     caplog.set_level(logging.DEBUG)
 
-    if not in_container:
-        import gprofiler.profilers.java
+    # step 1: configure POSSIBLE_AP_DIRS to try first the noexec/ro dir we've set up for this test.
+    # the first dir will fail the rwx test, and gprofiler will try using the 2nd dir.
+    # the default "first" dir is /tmp, but we don't want mount onto /tmp because it's not legit on a live
+    # on a live system (will hide existing files if /tmp is not tmpfs, as we'll create a new mount),
+    # and making it ro in a container creates other problems. A new mount it is.
+    if in_container:
+        assert len(extra_application_docker_mounts) == 1
+        mount = extra_application_docker_mounts[0]
+        test_dir = mount["Target"]
+    else:
+        test_dir = noexec_or_ro_tmp_dir
+    monkeypatch.setattr(
+        gprofiler.profilers.java,
+        "POSSIBLE_AP_DIRS",
+        (
+            os.path.join(test_dir, GPROFILER_DIRECTORY_NAME),
+            gprofiler.profilers.java.POSSIBLE_AP_DIRS[1],
+        ),
+    )
 
-        run_dir = gprofiler.profilers.java.POSSIBLE_AP_DIRS[1]
-        assert run_dir.startswith("/run")
-        # noexec_tmp_dir won't work and gprofiler will try using run_dir
-        # this is done because modifying /tmp on a live system is not legit (we need to create a new tmpfs
-        # mount because /tmp is not necessarily tmpfs; and that'll hide all current files in /tmp).
-        monkeypatch.setattr(gprofiler.profilers.java, "POSSIBLE_AP_DIRS", (noexec_tmp_dir, run_dir))
+    # step 2: verify that the first dir gprofiler will try is truly mounted with our desired options.
+    # for the sake of the test - we expect it to be a mountpint.
+    mounted_directory = str_removesuffix(
+        gprofiler.profilers.java.POSSIBLE_AP_DIRS[0], f"/{GPROFILER_DIRECTORY_NAME}", assert_suffixed=True
+    )
+    assert (
+        noexec_or_ro
+        in next(filter(lambda m: m.mount_point == mounted_directory, iter_mountinfo(application_pid))).mount_options
+    )
 
+    # step 3: ensure none of the possible dirs share a common path - otherwise, it's possible that
+    # they share a mount, too, and both are noexec/ro.
+    assert os.path.commonpath(gprofiler.profilers.java.POSSIBLE_AP_DIRS) == "/"
+
+    # run a profiling session...
     with make_java_profiler(profiler_state) as profiler:
         assert_collapsed(snapshot_pid_collapsed(profiler, application_pid))
 
-    # should use this path instead of /tmp/gprofiler_tmp/...
-
+    # step 4: ensure we truly used the second dir - POSSIBLE_AP_DIRS[1]
     jattach_loads = filter_jattach_load_records(caplog.records)
     # 2 entries - start and stop
     assert len(jattach_loads) == 2
-    # 3rd part of commandline to AP - shall begin with non-default directory
+    # 3rd part of commandline to AP - shall begin with POSSIBLE_AP_DIRS[1]
     assert all(
-        log_record_extra(jl)["command"][3].startswith("/run/gprofiler_tmp/async-profiler-") for jl in jattach_loads
+        log_record_extra(jl)["command"][3].startswith(f"{gprofiler.profilers.java.POSSIBLE_AP_DIRS[1]}/async-profiler-")
+        for jl in jattach_loads
     )
 
 
@@ -660,8 +703,8 @@ def test_java_different_basename(
         with _application_docker_container(
             docker_client,
             application_docker_image,
-            [],
-            [],
+            application_docker_mounts=[],
+            application_docker_capabilities=[],
             application_docker_command=[
                 "bash",
                 "-c",
@@ -670,31 +713,68 @@ def test_java_different_basename(
         ) as container:
             application_pid = container.attrs["State"]["Pid"]
             profile = snapshot_pid_profile(profiler, application_pid)
-            if change_argv0:
-                # we changed basename - we should have run the profiler
-                assert profile.app_metadata is not None
-                assert (
-                    os.path.basename(profile.app_metadata["execfn"])
-                    == os.path.basename(profile.app_metadata["exe"])
-                    == java_notjava_basename
+            assert profile.app_metadata is not None
+            assert (
+                os.path.basename(profile.app_metadata["execfn"])
+                == os.path.basename(profile.app_metadata["exe"])
+                == java_notjava_basename
+            )
+            assert_function_in_collapsed(f"{java_notjava_basename};", profile.stacks)
+            assert_collapsed(profile.stacks)
+
+
+@pytest.mark.parametrize("libjvm_removed", [False, True], ids=["libjvm_intact", "libjvm_removed"])
+def test_non_java_basename_version(
+    docker_client: DockerClient,
+    application_docker_image: Image,
+    assert_collapsed: AssertInCollapsed,
+    profiler_state: ProfilerState,
+    libjvm_removed: bool,
+    caplog: LogCaptureFixture,
+) -> None:
+    """
+    Tests that we can profile and collect version for a java application with a different basename.
+    """
+    java_notjava_basename = "java-notjava"
+
+    with _application_docker_container(
+        docker_client,
+        application_docker_image,
+        application_docker_mounts=[],
+        application_docker_capabilities=[],
+        application_docker_command=[
+            "bash",
+            "-c",
+            f"{java_notjava_basename} -jar Fibonacci.jar",
+        ],
+    ) as container:
+        caplog.set_level(logging.DEBUG)
+        application_pid = container.attrs["State"]["Pid"]
+        # record process' java path that should be used to extract java version
+        process_java_path = _get_process_ns_java_path(Process(application_pid))
+        if libjvm_removed:
+            # test extracting java version even if libjvm was replaced
+            simulate_libjvm_delete(application_pid)
+        with make_java_profiler(
+            profiler_state,
+            duration=1,
+            java_safemode=JAVA_SAFEMODE_ALL,  # explicitly enable, for basename checks
+        ) as profiler:
+            profile = snapshot_pid_profile(profiler, application_pid)
+            assert_function_in_collapsed(f"{java_notjava_basename};", profile.stacks)
+            assert_collapsed(profile.stacks)
+            assert profile.app_metadata is not None and "java_version" in profile.app_metadata
+            assert profile.appid == "java: Fibonacci.jar"
+            # find log statement of calling java to get version
+            log_records = list(
+                filter(
+                    lambda r: r.message == "Running command" and "-version" in log_record_extra(r)["command"],
+                    caplog.records,
                 )
-                assert_function_in_collapsed(f"{java_notjava_basename};", profile.stacks)
-                assert_collapsed(profile.stacks)
-            else:
-                # we didn't change basename - we should not have run the profiler due to a different basename.
-                assert profile.stacks == Counter(
-                    {f"{java_notjava_basename};[Profiling skipped: profiling this JVM is not supported]": 1}
-                )
-                log_records = list(
-                    filter(
-                        lambda r: r.message
-                        == "Non-java basenamed process (cannot get Java version), skipping... (disable"
-                        " --java-safemode=java-extended-version-checks to profile it anyway)",
-                        caplog.records,
-                    )
-                )
-                assert len(log_records) == 1
-                assert os.path.basename(log_record_extra(log_records[0])["exe"]) == java_notjava_basename
+            )
+            assert len(log_records) == 1
+            log_record = log_records[0]
+            assert log_record_extra(log_record)["command"][0] == process_java_path
 
 
 @pytest.mark.parametrize("in_container", [True])
@@ -1084,8 +1164,8 @@ def test_collect_cmdline_and_env_jvm_flags(
         with _application_docker_container(
             docker_client,
             application_docker_image,
-            [],
-            [],
+            application_docker_mounts=[],
+            application_docker_capabilities=[],
             application_docker_command=[
                 "bash",
                 "-c",
@@ -1119,8 +1199,8 @@ def test_collect_flags_unsupported_filtered_out(
         with _application_docker_container(
             docker_client,
             application_docker_image,
-            [],
-            [],
+            application_docker_mounts=[],
+            application_docker_capabilities=[],
             application_docker_command=[
                 "bash",
                 "-c",
@@ -1164,3 +1244,21 @@ def test_including_method_modifiers(
             assert is_function_in_collapsed("private static Fibonacci.fibonacci(I)J_[j]", collapsed)
         else:
             assert not is_function_in_collapsed("private static Fibonacci.fibonacci(I)J_[j]", collapsed)
+
+
+@pytest.mark.parametrize("java_line_numbers", ["none", "line-of-function"])
+@pytest.mark.parametrize("in_container", [True])
+def test_including_line_numbers(
+    application_pid: int,
+    profiler_state: ProfilerState,
+    java_line_numbers: str,
+) -> None:
+    function_with_line_numbers = "Fibonacci.fibonacci:9(I)J_[j]"
+    with make_java_profiler(profiler_state, java_line_numbers=java_line_numbers) as profiler:
+        collapsed = snapshot_pid_collapsed(profiler, application_pid)
+        if java_line_numbers == "line-of-function":
+            assert is_function_in_collapsed(function_with_line_numbers, collapsed)
+        else:
+            assert java_line_numbers == "none"
+            assert is_function_in_collapsed("Fibonacci.fibonacci(I)J_[j]", collapsed)
+            assert not is_function_in_collapsed(function_with_line_numbers, collapsed)

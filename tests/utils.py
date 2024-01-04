@@ -39,6 +39,7 @@ RUNTIME_PROFILERS = [
     ("php", "phpspy"),
     ("ruby", "rbspy"),
     ("nodejs", "perf"),
+    ("dotnet", "dotnet-trace"),
 ]
 
 
@@ -214,6 +215,7 @@ def make_java_profiler(
     java_collect_jvm_flags: str = JavaFlagCollectionOptions.DEFAULT,
     java_full_hserr: bool = False,
     java_include_method_modifiers: bool = False,
+    java_line_numbers: str = "none",
 ) -> JavaProfiler:
     return JavaProfiler(
         frequency=frequency,
@@ -232,6 +234,7 @@ def make_java_profiler(
         java_collect_jvm_flags=java_collect_jvm_flags,
         java_full_hserr=java_full_hserr,
         java_include_method_modifiers=java_include_method_modifiers,
+        java_line_numbers=java_line_numbers,
     )
 
 
@@ -348,6 +351,7 @@ def wait_container_to_start(container: Container) -> None:
 def _application_docker_container(
     docker_client: DockerClient,
     application_docker_image: Image,
+    *,
     application_docker_mounts: List[Mount],
     application_docker_capabilities: List[str],
     application_docker_command: Optional[List[str]] = None,
@@ -404,3 +408,10 @@ def log_record_extra(r: LogRecord) -> Dict[Any, Any]:
     Gets the "extra" attached to a LogRecord
     """
     return getattr(r, "extra", {})
+
+
+def str_removesuffix(s: str, suffix: str, assert_suffixed: bool = True) -> str:
+    suffixed = s.endswith(suffix)
+    if assert_suffixed:
+        assert suffixed
+    return s[: -len(suffix)] if suffixed else s
