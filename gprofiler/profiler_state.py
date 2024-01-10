@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from psutil import Process
 
-from gprofiler.containers_client import ContainerNamesClient
+from gprofiler.containers_client import ContainerNamesClientBase
 from gprofiler.utils import TemporaryDirectoryWithMode
 
 
@@ -19,7 +19,7 @@ class ProfilerState:
     profile_spawned_processes: bool
     insert_dso_name: bool
     profiling_mode: str
-    container_names_client: Optional[ContainerNamesClient]
+    container_names_client: Optional[ContainerNamesClientBase]
     processes_to_profile: Optional[List[Process]]
 
     def __post_init__(self) -> None:

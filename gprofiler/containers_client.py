@@ -15,8 +15,28 @@ from gprofiler.utils.perf import valid_perf_pid
 logger = get_logger_adapter(__name__)
 
 
-class ContainerNamesClient:
+class ContainerNamesClientBase:
     def __init__(self) -> None:
+        self._current_container_names: Set[str] = set()
+
+    def get_container_name(self, pid: int) -> str:
+        raise NotImplementedError
+
+    def reset_cache(self) -> None:
+        self._current_container_names.clear()
+
+    @property
+    def container_names(self) -> List[str]:
+        return list(self._current_container_names)
+
+
+class ContainerNamesClient(ContainerNamesClientBase):
+    """
+    Container names are from Docker & CRI containers.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
         try:
             self._containers_client: Optional[ContainersClient] = ContainersClient()
             logger.info(f"Discovered container runtimes: {self._containers_client.get_runtimes()}")
@@ -30,16 +50,11 @@ class ContainerNamesClient:
             self._containers_client = None
 
         self._pid_to_container_name_cache: Dict[int, str] = {}
-        self._current_container_names: Set[str] = set()
         self._container_id_to_name_cache: Dict[str, Optional[str]] = {}
 
     def reset_cache(self) -> None:
+        super().reset_cache()
         self._pid_to_container_name_cache.clear()
-        self._current_container_names.clear()
-
-    @property
-    def container_names(self) -> List[str]:
-        return list(self._current_container_names)
 
     def get_container_name(self, pid: int) -> str:
         if self._containers_client is None:
@@ -94,3 +109,34 @@ class ContainerNamesClient:
         self._container_id_to_name_cache.clear()
         for container in self._containers_client.list_containers() if self._containers_client is not None else []:
             self._container_id_to_name_cache[container.id] = container.name
+
+
+class SparkContainerNamesClient(ContainerNamesClientBase):
+    """
+    Container names are Spark application ids.
+    """
+
+    def get_container_name(self, pid: int) -> str:
+        if not valid_perf_pid(pid):
+            return ""
+
+        try:
+            process = Process(pid)
+            args = process.cmdline()
+        except NoSuchProcess:
+            return ""
+
+        try:
+            it = iter(args)
+            for arg in it:
+                if arg == "--app-id":
+                    name = f"spark: {next(it)}"
+                    self._current_container_names.add(name)
+                    return name
+            else:
+                return ""  # not found
+        except StopIteration:
+            return ""
+        except Exception:
+            logger.exception("Unexpected error getting --app-id argument for pid", pid=pid, args=args)
+            return ""
