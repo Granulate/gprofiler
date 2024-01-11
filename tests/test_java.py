@@ -35,6 +35,7 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import (
     JAVA_SAFEMODE_ALL,
     AsyncProfiledProcess,
+    AsyncProfilerStartStatus,
     JavaFlagCollectionOptions,
     JavaProfiler,
     _get_process_ns_java_path,
@@ -128,7 +129,7 @@ def test_async_profiler_already_running(
             ap_safemode=0,
             ap_args="",
         ) as ap_proc:
-            assert ap_proc.start_async_profiler(frequency_to_ap_interval(11))
+            assert ap_proc.start_async_profiler(frequency_to_ap_interval(11)) == AsyncProfilerStartStatus.STARTED_BY_US
         assert any("libasyncProfiler.so" in m.path for m in process.memory_maps())
         # run "status"
         with AsyncProfiledProcessForTests(
@@ -260,7 +261,9 @@ def test_hotspot_error_file(
     start_async_profiler = AsyncProfiledProcess.start_async_profiler
 
     # Simulate crashing process
-    def start_async_profiler_and_crash(self: AsyncProfiledProcess, *args: Any, **kwargs: Any) -> bool:
+    def start_async_profiler_and_crash(
+        self: AsyncProfiledProcess, *args: Any, **kwargs: Any
+    ) -> AsyncProfilerStartStatus:
         result = start_async_profiler(self, *args, **kwargs)
         self.process.send_signal(signal.SIGBUS)
         return result
@@ -372,7 +375,10 @@ def test_async_profiler_stops_after_given_timeout(
         ap_safemode=0,
         ap_args="",
     ) as ap_proc:
-        assert ap_proc.start_async_profiler(frequency_to_ap_interval(11), ap_timeout=timeout_s)
+        assert (
+            ap_proc.start_async_profiler(frequency_to_ap_interval(11), ap_timeout=timeout_s)
+            == AsyncProfilerStartStatus.STARTED_BY_US
+        )
 
         ap_proc.status_async_profiler()
         assert "Profiling is running for " in cast_away_optional(ap_proc.read_output())
@@ -449,7 +455,7 @@ def filter_jattach_load_records(records: List[LogRecord]) -> List[LogRecord]:
             r.message == "Running command"
             and len(log_record_extra(r)["command"]) >= 6
             and log_record_extra(r)["command"][1] == "jattach"
-            and any(map(lambda k: k in log_record_extra(r)["command"][5], ["start,", "stop,"]))
+            and any(map(lambda k: k in log_record_extra(r)["command"][5], ["start,", "stop,", "dump,"]))
         )
 
     return list(filter(_filter_record, records))
@@ -522,13 +528,15 @@ def test_java_noexec_or_ro_dirs(
 
     # step 4: ensure we truly used the second dir - POSSIBLE_AP_DIRS[1]
     jattach_loads = filter_jattach_load_records(caplog.records)
-    # 2 entries - start and stop
+    # 2 entries - start and dump
     assert len(jattach_loads) == 2
     # 3rd part of commandline to AP - shall begin with POSSIBLE_AP_DIRS[1]
     assert all(
         log_record_extra(jl)["command"][3].startswith(f"{gprofiler.profilers.java.POSSIBLE_AP_DIRS[1]}/async-profiler-")
         for jl in jattach_loads
     )
+    # test the invoked async-profiler actions against the sequence start, dump
+    assert [log_record_extra(jl)["command"][5].split(",", 1)[0] for jl in jattach_loads] == ["start", "dump"]
 
 
 @pytest.mark.parametrize("in_container", [True])
@@ -572,10 +580,12 @@ def test_java_symlinks_in_paths(
         assert_collapsed(snapshot_pid_collapsed(profiler, application_pid))
 
     jattach_loads = filter_jattach_load_records(caplog.records)
-    # 2 entries - start and stop
+    # 2 entries - start and dump
     assert len(jattach_loads) == 2
     # 3rd part of commandline to AP - shall begin with the final, resolved path.
     assert all(log_record_extra(jl)["command"][3].startswith("/run/final_tmp/gprofiler_tmp/") for jl in jattach_loads)
+    # test the invoked async-profiler actions against the sequence start, dump, stop
+    assert [log_record_extra(jl)["command"][5].split(",", 1)[0] for jl in jattach_loads] == ["start", "dump"]
 
 
 @pytest.mark.parametrize("in_container", [True])  # only in container is enough
@@ -595,7 +605,9 @@ def test_java_appid_and_metadata_before_process_exits(
     start_async_profiler = AsyncProfiledProcess.start_async_profiler
 
     # Make the process exit before profiling ends
-    def start_async_profiler_and_interrupt(self: AsyncProfiledProcess, *args: Any, **kwargs: Any) -> bool:
+    def start_async_profiler_and_interrupt(
+        self: AsyncProfiledProcess, *args: Any, **kwargs: Any
+    ) -> AsyncProfilerStartStatus:
         result = start_async_profiler(self, *args, **kwargs)
         time.sleep(3)
         self.process.send_signal(signal.SIGINT)
@@ -625,7 +637,8 @@ def test_java_attach_socket_missing(
     profiler_state: ProfilerState,
 ) -> None:
     """
-    Tests that we get the proper JattachMissingSocketException when the attach socket is deleted.
+    Tests that we get the proper JattachSocketMissingException when the attach socket is deleted.
+    This indicates that socket won't be recreated and we won't be able to utilize jattach.
     """
     with make_java_profiler(
         profiler_state,
@@ -639,6 +652,44 @@ def test_java_attach_socket_missing(
         profile = snapshot_pid_profile(profiler, application_pid)
         assert len(profile.stacks) == 1
         assert next(iter(profile.stacks.keys())) == "java;[Profiling error: exception JattachSocketMissingException]"
+
+
+@pytest.mark.parametrize("in_container", [True])  # only in container is enough
+def test_async_profiler_dump_profiling_recovery(
+    application_pid: int,
+    profiler_state: ProfilerState,
+    assert_collapsed: AssertInCollapsed,
+    caplog: LogCaptureFixture,
+) -> None:
+    """
+    Tests that async-profiler can recover from a timeout.
+    Continuous profiling with dump can fail, if dump call gets delayed.
+    Another profiling cycle should recover from timeout and start profiler again.
+    """
+    caplog.set_level(logging.DEBUG)
+    with make_java_profiler(
+        profiler_state,
+        duration=1,
+        # java_jattach_timeout=31,
+    ) as profiler:
+        profiler._ap_timeout = 2
+        assert_collapsed(snapshot_pid_collapsed(profiler, application_pid))
+
+        # delay next snapshot to trigger timeout
+        time.sleep(3)
+        round2_stacks = snapshot_pid_collapsed(profiler, application_pid)
+        assert round2_stacks == Counter({"java;[Profiling error: profiler wasn't ready for collecting stacks]": 1})
+
+        # start another round to test recovery of async-profiler
+        caplog.clear()
+        round3_stacks = snapshot_pid_collapsed(profiler, application_pid)
+        assert_collapsed(round3_stacks)
+        # verify async-profiler was started before another dump
+        jattach_loads = filter_jattach_load_records(caplog.records)
+        # 2 entries - start and dump and stop
+        assert len(jattach_loads) == 2
+        # test the invoked async-profiler actions against the sequence start, dump
+        assert [log_record_extra(jl)["command"][5].split(",", 1)[0] for jl in jattach_loads] == ["start", "dump"]
 
 
 # we know what messages to expect when in container, not on the host Java
@@ -866,21 +917,21 @@ def test_no_stray_output_in_stdout_stderr(
     assert_collapsed: AssertInCollapsed,
     profiler_state: ProfilerState,
 ) -> None:
-    # save original stop function
-    stop_async_profiler = AsyncProfiledProcess.stop_async_profiler
+    # save original dump function
+    dump_from_async_profiler = AsyncProfiledProcess.dump_from_async_profiler
 
-    # replace async profiler stop routine to trigger flushing standard output
-    def flush_output_and_stop_async_profiler(self: AsyncProfiledProcess, *args: Any, **kwargs: Any) -> str:
+    # replace async profiler dump routine to trigger flushing standard output
+    def flush_output_and_dump_from_async_profiler(self: AsyncProfiledProcess, *args: Any, **kwargs: Any) -> str:
         # Call 'version' action on async-profiler to make sure writes to stdout are flushed. Handling of 'version'
         # action involves calling flush on output stream:
         # (https://github.com/Granulate/async-profiler/blob/58c62fe4e816b60907ca84e315936834fc1cbae4/src/profiler.cpp#L1548)
         self._run_async_profiler(
             self._get_base_cmd() + [f"version" f",log={self._log_path_process}"],
         )
-        result = stop_async_profiler(self, *args, **kwargs)
+        result = dump_from_async_profiler(self, *args, **kwargs)
         return result
 
-    monkeypatch.setattr(AsyncProfiledProcess, "stop_async_profiler", flush_output_and_stop_async_profiler)
+    monkeypatch.setattr(AsyncProfiledProcess, "dump_from_async_profiler", flush_output_and_dump_from_async_profiler)
 
     with make_java_profiler(
         profiler_state,
