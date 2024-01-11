@@ -23,14 +23,13 @@ from psutil import NoSuchProcess, Process
 from gprofiler import merge
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import (
-    AppMetadata,
     ProcessToProfileData,
     ProcessToStackSampleCounters,
     ProfileData,
     StackToSampleCount,
 )
 from gprofiler.log import get_logger_adapter
-from gprofiler.metadata import application_identifiers
+from gprofiler.metadata import ProfileMetadata, application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
@@ -482,7 +481,7 @@ class SystemProfiler(ProfilerBase):
         for perf in reversed(self._perfs):
             perf.stop()
 
-    def _get_metadata(self, pid: int) -> Optional[AppMetadata]:
+    def _get_metadata(self, pid: int) -> Optional[ProfileMetadata]:
         if not valid_perf_pid(pid):
             return None
 

@@ -98,7 +98,13 @@ def test_merge_profiles_onto_errors(input_dict: Dict[str, str], expected: str) -
     perf_pid_to_profiles = parse_profiles_text(input_dict["perf_text"])
     process_profiles = parse_profiles_text(input_dict["process_text"])
     header_outcome = merge_profiles(
-        perf_pid_to_profiles, process_profiles, None, enrichment_options, metadata, metrics
+        perf_pid_to_profiles=perf_pid_to_profiles,
+        process_profiles=process_profiles,
+        container_names_client=None,
+        enrichment_options=enrichment_options,
+        metadata=metadata,
+        metrics=metrics,
+        external_app_metadata={},
     ).split("\n", maxsplit=1)
     header, outcome = header_outcome[0], header_outcome[1] if len(header_outcome) == 2 else ""
     assert header.startswith("#")

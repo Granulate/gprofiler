@@ -6,13 +6,14 @@
 import re
 from collections import Counter
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, MutableMapping, Optional, Union
+from typing import Callable, Dict, List, MutableMapping, Optional, Union
 
 import configargparse
 
+from gprofiler.metadata import ProfileMetadata
+
 StackToSampleCount = Counter
 UserArgs = Dict[str, Optional[Union[int, bool, str]]]
-AppMetadata = Dict[str, Any]
 
 
 @dataclass
@@ -26,7 +27,7 @@ class ProfileData:
 
     stacks: StackToSampleCount
     appid: Optional[str]
-    app_metadata: Optional[AppMetadata]
+    app_metadata: Optional[ProfileMetadata]
     container_name: Optional[str]
 
 
