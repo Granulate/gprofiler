@@ -917,6 +917,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         16: (Version("16"), 36),
         17: (Version("17"), 11),
         19: (Version("19.0.1"), 10),
+        21: (Version("21.0.1"), 12),
     }
 
     # extra timeout seconds to add to the duration itself.
