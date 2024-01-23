@@ -23,7 +23,7 @@ apk add --no-cache musl-dev make git curl  # git & curl used by next scripts
 
 mkdir builds && cd builds
 
-ZLIB_VERSION=1.3
+ZLIB_VERSION="1.3.1"
 ZLIB_FILE="zlib-$ZLIB_VERSION.tar.xz"
 wget "https://zlib.net/$ZLIB_FILE"
 tar -xf "$ZLIB_FILE"
