@@ -1,4 +1,5 @@
 import array
+import codecs
 import errno
 import ipaddress
 import os
@@ -259,8 +260,7 @@ def get_static_system_info() -> SystemInfo:
         processors=cpu_count,
         cpu_model_name=cpu_model_name,
         cpu_flags=cpu_flags,
-        memory_capacity_mb=round(psutil.virtual_memory().total / 1024 / 1024),  # type: ignore # virtual_memory doesn't
-        # have a return type is types-psutil
+        memory_capacity_mb=round(psutil.virtual_memory().total / 1024 / 1024),
         hostname=hostname,
         system=platform.system(),
         os_name=os_name,
@@ -324,6 +324,10 @@ def _initialize_system_info() -> Any:
     libc_version = (UNKNOWN_VALUE, UNKNOWN_VALUE)
     mac_address = UNKNOWN_VALUE
     local_ip = UNKNOWN_VALUE
+
+    # ensure the "ascii" codec module is loaded - it used used by "distro" which is run in a separate
+    # mount namespace, unable to load the library if loaded lazily.
+    codecs.lookup("ascii")
 
     # move to host mount NS for distro & ldd.
     # now, distro will read the files on host.
