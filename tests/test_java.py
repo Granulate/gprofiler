@@ -126,6 +126,7 @@ def test_async_profiler_already_running(
             profiler_state=profiler._profiler_state,
             mode=profiler._mode,
             ap_safemode=0,
+            ap_features=[],
             ap_args="",
         ) as ap_proc:
             assert ap_proc.start_async_profiler(frequency_to_ap_interval(11))
@@ -136,6 +137,7 @@ def test_async_profiler_already_running(
             profiler_state=profiler._profiler_state,
             mode="itimer",
             ap_safemode=0,
+            ap_features=[],
             ap_args="",
         ) as ap_proc:
             ap_proc.status_async_profiler()
@@ -370,6 +372,7 @@ def test_async_profiler_stops_after_given_timeout(
         profiler_state=profiler_state,
         mode="itimer",
         ap_safemode=0,
+        ap_features=[],
         ap_args="",
     ) as ap_proc:
         assert ap_proc.start_async_profiler(frequency_to_ap_interval(11), ap_timeout=timeout_s)
@@ -893,6 +896,7 @@ def test_no_stray_output_in_stdout_stderr(
             profiler_state=profiler._profiler_state,
             mode="itimer",
             ap_safemode=0,
+            ap_features=[],
             ap_args="",
         ) as ap_proc:
             ap_version = ap_proc.read_ap_version()
