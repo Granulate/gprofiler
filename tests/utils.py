@@ -2,6 +2,7 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
+import json
 import os
 import platform
 import re
@@ -11,7 +12,7 @@ from logging import LogRecord
 from pathlib import Path
 from threading import Event
 from time import sleep
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, cast
 
 from docker import DockerClient
 from docker.errors import ContainerError
@@ -21,6 +22,7 @@ from docker.types import Mount
 from psutil import Process
 
 from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
+from gprofiler.metadata import ProfileMetadata
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import (
     JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
@@ -248,8 +250,10 @@ def start_gprofiler_in_container_for_one_session(
     privileged: bool = True,
     user: int = 0,
     pid_mode: Optional[str] = "host",
+    inner_output_directory: Optional[str] = None,
 ) -> Container:
-    inner_output_directory = "/tmp/gprofiler"
+    if inner_output_directory is None:
+        inner_output_directory = "/tmp/gprofiler"
     volumes = {
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
     }
@@ -283,6 +287,7 @@ def run_gprofiler_in_container_for_one_session(
     output_path: Path,
     runtime_specific_args: List[str],
     profiler_flags: List[str],
+    inner_output_directory: Optional[str] = None,
 ) -> str:
     """
     Runs the gProfiler container image for a single profiling session, and collects the output.
@@ -290,7 +295,13 @@ def run_gprofiler_in_container_for_one_session(
     container: Container = None
     try:
         container = start_gprofiler_in_container_for_one_session(
-            docker_client, gprofiler_docker_image, output_directory, output_path, runtime_specific_args, profiler_flags
+            docker_client,
+            gprofiler_docker_image,
+            output_directory,
+            output_path,
+            runtime_specific_args,
+            profiler_flags,
+            inner_output_directory=inner_output_directory,
         )
         return wait_for_gprofiler_container(container, output_path)
     finally:
@@ -408,3 +419,16 @@ def log_record_extra(r: LogRecord) -> Dict[Any, Any]:
     Gets the "extra" attached to a LogRecord
     """
     return getattr(r, "extra", {})
+
+
+def load_metadata(collapsed_text: str) -> ProfileMetadata:
+    lines = collapsed_text.splitlines()
+    assert lines[0].startswith("#")
+    return cast(ProfileMetadata, json.loads(lines[0][1:]))
+
+
+def str_removesuffix(s: str, suffix: str, assert_suffixed: bool = True) -> str:
+    suffixed = s.endswith(suffix)
+    if assert_suffixed:
+        assert suffixed
+    return s[: -len(suffix)] if suffixed else s

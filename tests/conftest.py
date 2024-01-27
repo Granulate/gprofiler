@@ -157,9 +157,9 @@ def dotnet_command_line(path: Path) -> List[str]:
 
 @fixture
 def command_line(runtime: str, artifacts_dir: Path, java_args: Tuple[str]) -> List[str]:
-    if runtime.startswith("native"):
+    if runtime.startswith("native") or runtime == "golang":
         # these do not have non-container application - so it will result in an error if the command
-        # line is used.
+        # line is used. however, the fixture itself is potentially evaluated so we need to return a value.
         return ["/bin/false"]
     elif runtime == "java":
         return java_command_line(artifacts_dir, java_args)
@@ -649,7 +649,8 @@ def python_version(in_container: bool, application_docker_container: Container) 
 
 
 @fixture
-def noexec_tmp_dir(in_container: bool, tmp_path: Path) -> Iterator[str]:
+def noexec_or_ro_tmp_dir(in_container: bool, tmp_path: Path, noexec_or_ro: str) -> Iterator[str]:
+    assert noexec_or_ro in ("noexec", "ro")
     if in_container:
         # only needed for non-container tests
         yield ""
@@ -658,7 +659,7 @@ def noexec_tmp_dir(in_container: bool, tmp_path: Path) -> Iterator[str]:
     tmpfs_path = tmp_path / "tmpfs"
     tmpfs_path.mkdir(0o755, exist_ok=True)
     try:
-        subprocess.run(["mount", "-t", "tmpfs", "-o", "noexec", "none", str(tmpfs_path)], check=True)
+        subprocess.run(["mount", "-t", "tmpfs", "-o", noexec_or_ro, "none", str(tmpfs_path)], check=True)
         yield str(tmpfs_path)
     finally:
         subprocess.run(["umount", str(tmpfs_path)], check=True)

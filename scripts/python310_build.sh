@@ -5,8 +5,10 @@
 #
 set -euo pipefail
 
-wget https://www.python.org/ftp/python/3.10.8/Python-3.10.8.tgz
-tar -xzf Python-3.10.8.tgz
-cd Python-3.10.8
+VERSION=3.10.13
+
+wget "https://www.python.org/ftp/python/$VERSION/Python-$VERSION.tgz"
+tar -xzf "Python-$VERSION.tgz"
+cd "Python-$VERSION"
 ./configure --enable-optimizations --enable-shared --prefix=/usr LDFLAGS="-Wl,-rpath /usr/lib" --with-openssl=/usr --with-lto
 make python install -j "$(nproc)"

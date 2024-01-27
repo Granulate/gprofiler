@@ -44,7 +44,9 @@ the results.
 
 ### Network requirements
 
-When `--upload-results` is used, gProfiler will communicate with `https://profiles.granulate.io` and `https://api.granulate.io`. Make sure those domains are accessible for HTTPS access. If you [require an HTTPS proxy](#Using-HTTP-proxies), make sure the proxy has those domains whitelisted.
+When `--upload-results` is used, gProfiler will communicate with `https://profiler.granulate.io` and `https://api.granulate.io`. Make sure those domains are accessible for HTTPS access. Additionally, if you download gProfiler from the GitHub releases you'll need `https://github.com`, or if you use the Docker image you'll need the Docker registry accessible (`https://index.docker.io` by default).
+
+If you [require an HTTPS proxy](#Using-HTTP-proxies), make sure the proxy has those domains whitelisted.
 
 ## Profiling options
 * `--profiling-frequency`: The sampling frequency of the profiling, in *hertz*.

@@ -7,6 +7,7 @@ import os
 import psutil
 import pytest
 from granulate_utils.linux.process import is_musl
+from granulate_utils.type_utils import assert_cast
 
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.python import PythonProfiler
@@ -123,11 +124,11 @@ def test_python_matrix(
         assert_function_in_collapsed("lister.Lister.lister", collapsed)
 
     assert profile.app_metadata is not None
-    assert os.path.basename(profile.app_metadata["execfn"]) == app
+    assert os.path.basename(assert_cast(str, profile.app_metadata["execfn"])) == app
     # searching for "python_version.", because ours is without the patchlevel.
-    assert profile.app_metadata["python_version"].startswith(f"Python {python_version}.")
+    assert assert_cast(str, profile.app_metadata["python_version"]).startswith(f"Python {python_version}.")
     if python_version == "2.7" and app == "python":
-        assert profile.app_metadata["sys_maxunicode"] == "1114111"
+        assert assert_cast(str, profile.app_metadata["sys_maxunicode"]) == "1114111"
     else:
         assert profile.app_metadata["sys_maxunicode"] is None
 

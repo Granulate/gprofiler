@@ -2,7 +2,6 @@
 # Copyright (c) Granulate. All rights reserved.
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
-import json
 import platform
 from pathlib import Path
 from typing import Dict, List
@@ -14,7 +13,7 @@ from docker.models.images import Image
 
 from gprofiler.utils.collapsed_format import parse_one_collapsed
 from tests.conftest import AssertInCollapsed
-from tests.utils import assert_jvm_flags_equal, is_aarch64, run_gprofiler_in_container_for_one_session
+from tests.utils import assert_jvm_flags_equal, is_aarch64, load_metadata, run_gprofiler_in_container_for_one_session
 
 
 @pytest.mark.parametrize(
@@ -227,20 +226,20 @@ def test_app_metadata(
     run_gprofiler_in_container_for_one_session(
         docker_client, gprofiler_docker_image, output_directory, output_collapsed, runtime_specific_args, profiler_flags
     )
-    collapsed_text = Path(output_directory / "last_profile.col").read_text()
+    collapsed_text = Path(output_collapsed).read_text()
     # sanity
     collapsed = parse_one_collapsed(collapsed_text)
     assert_collapsed(collapsed)
 
-    # check the metadata
-    lines = collapsed_text.splitlines()
-    assert lines[0].startswith("#")
-    metadata = json.loads(lines[0][1:])
+    metadata = load_metadata(collapsed_text)
 
     assert application_docker_container.name in metadata["containers"]
     # find its app metadata index - find a stack line from the app of this container
     stack = next(
-        filter(lambda line: application_docker_container.name in line and application_executable in line, lines[1:])
+        filter(
+            lambda line: application_docker_container.name in line and application_executable in line,
+            collapsed_text.splitlines()[1:],
+        )
     )
     # stack begins with index
     idx = int(stack.split(";")[0])
