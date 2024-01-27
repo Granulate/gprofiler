@@ -704,7 +704,7 @@ class AsyncProfiledProcess:
             f"log={self._log_path_process}"
             f"{f',fdtransfer={self._fdtransfer_path}' if self._mode == 'cpu' else ''}"
             f",safemode={self._ap_safemode},"
-            f",features={'+'.join(self._ap_features)},"  # asprof uses '+' as a separator: https://github.com/async-profiler/async-profiler/blob/a17529378b47e6700d84f89d74ca5e6284ffd1a6/src/launcher/main.cpp#L441
+            f",features={'+'.join(self._ap_features)},"  # asprof uses '+' as a separator: https://github.com/async-profiler/async-profiler/blob/a17529378b47e6700d84f89d74ca5e6284ffd1a6/src/launcher/main.cpp#L441  # noqa
             f"timeout={ap_timeout}"
             f"{',lib' if self._profiler_state.insert_dso_name else ''}{self._get_extra_ap_args()}"
         ]
