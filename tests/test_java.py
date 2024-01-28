@@ -391,8 +391,9 @@ def test_sanity_other_jvms(
     assert_collapsed: AssertInCollapsed,
     search_for: str,
     profiler_state: ProfilerState,
+    application_image_tag: str,
 ) -> None:
-    if is_aarch64():
+    if is_aarch64() and application_image_tag in ("j9", "zing"):
         pytest.xfail(
             "Different JVMs are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
         )
@@ -406,6 +407,28 @@ def test_sanity_other_jvms(
         assert search_for in cast_away_optional(get_java_version(process, profiler._profiler_state.stop_event))
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
+
+
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("application_image_tag,search_for", [("eclipse-temurin-latest", "Temurin")])
+def test_sanity_latest_jvms(
+    application_pid: int,
+    assert_collapsed: AssertInCollapsed,
+    search_for: str,
+    profiler_state: ProfilerState,
+) -> None:
+    """
+    Test that we can profile various "latest" JVM builds. This test is by design using JVM images with the :latest tag,
+    as opposed to the other tests which used a pinned hash for reproducatibility. This is done in hope
+    that if a release breaks gProfiler, we'll know about it sooner, as part of regular development.
+    """
+
+    with make_java_profiler(profiler_state) as profiler:
+        # sanity check that this is the correct JVM we're targeting
+        assert search_for in cast_away_optional(
+            get_java_version(psutil.Process(application_pid), profiler._profiler_state.stop_event)
+        )
+        assert_collapsed(snapshot_pid_collapsed(profiler, application_pid))
 
 
 def simulate_libjvm_delete(application_pid: int) -> None:
