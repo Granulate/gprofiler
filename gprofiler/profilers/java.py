@@ -801,7 +801,10 @@ class AsyncProfiledProcess:
             if e.is_ap_loaded:
                 if (
                     e.returncode == 200  # 200 == AP's COMMAND_ERROR
-                    and e.get_ap_log() == "[ERROR] Profiler already started\n"
+                    # this is the error we get when we try to start AP on a process that already has it loaded.
+                    # check with "in" and not "==" in case other warnings/infos are printed alongside it,
+                    # but generally, we expect it to be the only output in this case.
+                    and "[ERROR] Profiler already started\n" in e.get_ap_log()
                 ):
                     # profiler was already running
                     return False

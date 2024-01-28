@@ -446,12 +446,12 @@ def test_java_deleted_libjvm(
 def filter_jattach_load_records(records: List[LogRecord]) -> List[LogRecord]:
     def _filter_record(r: LogRecord) -> bool:
         # find the log record of
-        # Running command (command=['/app/gprofiler/resources/java/apsprof', 'jattach',
-        # '-L', '/path/to/libasyncProfiler.so', "--jattach-cmd", "start,..."])
+        # Running command (command=['/app/gprofiler/resources/java/apsprof', '<PID>', 'load',
+        # '/path/to/libasyncProfiler.so', 'true', 'start,...'])
         return (
             r.message == "Running command"
-            and len(log_record_extra(r)["command"]) >= 6
-            and log_record_extra(r)["command"][1] == "jattach"
+            and len(log_record_extra(r)["command"]) == 6
+            and log_record_extra(r)["command"][2] == "load"
             and any(map(lambda k: k in log_record_extra(r)["command"][5], ["start,", "stop,"]))
         )
 
