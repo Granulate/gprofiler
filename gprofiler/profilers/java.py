@@ -171,7 +171,7 @@ DEFAULT_AP_FEATURES = [AsyncProfilerFeatures.probe_sp.value, AsyncProfilerFeatur
 
 # see options still here and not in "features":
 # https://github.com/async-profiler/async-profiler/blob/a17529378b47e6700d84f89d74ca5e6284ffd1a6/src/arguments.cpp#L262
-# we don't want any of them enabled by default.
+# we don't want any of them disabled by default.
 JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 0
 
 PROBLEMATIC_FRAME_REGEX = re.compile(r"^# Problematic frame:\n# (.*?)\n#\n", re.MULTILINE | re.DOTALL)
