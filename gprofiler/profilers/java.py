@@ -149,6 +149,7 @@ SUPPORTED_AP_MODES = ["cpu", "itimer", "alloc"]
 
 
 # see StackWalkFeatures
+# https://github.com/async-profiler/async-profiler/blob/a17529378b47e6700d84f89d74ca5e6284ffd1a6/src/arguments.h#L95-L112
 class AsyncProfilerFeatures(str, Enum):
     # these will be controllable via "features" in a future AP release:
     #
