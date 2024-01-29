@@ -126,6 +126,7 @@ def test_async_profiler_already_running(
             profiler_state=profiler._profiler_state,
             mode=profiler._mode,
             ap_safemode=0,
+            ap_features=[],
             ap_args="",
         ) as ap_proc:
             assert ap_proc.start_async_profiler(frequency_to_ap_interval(11))
@@ -136,6 +137,7 @@ def test_async_profiler_already_running(
             profiler_state=profiler._profiler_state,
             mode="itimer",
             ap_safemode=0,
+            ap_features=[],
             ap_args="",
         ) as ap_proc:
             ap_proc.status_async_profiler()
@@ -370,6 +372,7 @@ def test_async_profiler_stops_after_given_timeout(
         profiler_state=profiler_state,
         mode="itimer",
         ap_safemode=0,
+        ap_features=[],
         ap_args="",
     ) as ap_proc:
         assert ap_proc.start_async_profiler(frequency_to_ap_interval(11), ap_timeout=timeout_s)
@@ -466,12 +469,12 @@ def test_java_deleted_libjvm(
 def filter_jattach_load_records(records: List[LogRecord]) -> List[LogRecord]:
     def _filter_record(r: LogRecord) -> bool:
         # find the log record of
-        # Running command (command=['/app/gprofiler/resources/java/apsprof', 'jattach',
-        # '-L', '/path/to/libasyncProfiler.so', "--jattach-cmd", "start,..."])
+        # Running command (command=['/app/gprofiler/resources/java/apsprof', '<PID>', 'load',
+        # '/path/to/libasyncProfiler.so', 'true', 'start,...'])
         return (
             r.message == "Running command"
-            and len(log_record_extra(r)["command"]) >= 6
-            and log_record_extra(r)["command"][1] == "jattach"
+            and len(log_record_extra(r)["command"]) == 6
+            and log_record_extra(r)["command"][2] == "load"
             and any(map(lambda k: k in log_record_extra(r)["command"][5], ["start,", "stop,"]))
         )
 
@@ -916,6 +919,7 @@ def test_no_stray_output_in_stdout_stderr(
             profiler_state=profiler._profiler_state,
             mode="itimer",
             ap_safemode=0,
+            ap_features=[],
             ap_args="",
         ) as ap_proc:
             ap_version = ap_proc.read_ap_version()

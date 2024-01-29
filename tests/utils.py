@@ -25,6 +25,7 @@ from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
 from gprofiler.metadata import ProfileMetadata
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import (
+    DEFAULT_AP_FEATURES,
     JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
     JAVA_SAFEMODE_ALL,
     AsyncProfiledProcess,
@@ -207,6 +208,7 @@ def make_java_profiler(
     java_version_check: bool = True,
     java_async_profiler_mode: str = "cpu",
     java_async_profiler_safemode: int = JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
+    java_async_profiler_features: List[str] = DEFAULT_AP_FEATURES,
     java_async_profiler_args: str = "",
     java_safemode: str = JAVA_SAFEMODE_ALL,
     java_jattach_timeout: int = AsyncProfiledProcess._DEFAULT_JATTACH_TIMEOUT,
@@ -226,6 +228,7 @@ def make_java_profiler(
         java_version_check=java_version_check,
         java_async_profiler_mode=java_async_profiler_mode,
         java_async_profiler_safemode=java_async_profiler_safemode,
+        java_async_profiler_features=java_async_profiler_features,
         java_async_profiler_args=java_async_profiler_args,
         java_safemode=java_safemode,
         java_jattach_timeout=java_jattach_timeout,

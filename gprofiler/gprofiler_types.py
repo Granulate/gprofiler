@@ -96,3 +96,11 @@ def integer_range(min_range: int, max_range: int) -> Callable[[str], int]:
         return value
 
     return integer_range_check
+
+
+def comma_separated_enum_list(options: List[str], value: str) -> List[str]:
+    values = value.split(",")
+    for v in values:
+        if v not in options:
+            raise configargparse.ArgumentTypeError(f"invalid value {v!r} (allowed values: {options!r})")
+    return values
