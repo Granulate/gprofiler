@@ -18,7 +18,7 @@ logger = get_logger_adapter(__name__)
 
 
 class SUPPORTED_PERF_EVENTS(Enum):
-    PERF_DEFAULT = None
+    PERF_DEFAULT = "default"
     PERF_SW_CPU_CLOCK = "cpu-clock"
     PERF_SW_TASK_CLOCK = "task-clock"
 
