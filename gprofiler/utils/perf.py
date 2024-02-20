@@ -9,7 +9,7 @@ from enum import Enum
 from pathlib import Path
 from typing import cast
 
-from gprofiler.exceptions import CalledProcessError
+from gprofiler.exceptions import CalledProcessError, PerfNoSupportedEvent
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import random_prefix, resource_path, run_process
 from gprofiler.utils.fs import mkdir_owned_root
@@ -26,10 +26,6 @@ class SUPPORTED_PERF_EVENTS(Enum):
         if self == SUPPORTED_PERF_EVENTS.PERF_DEFAULT:
             return []
         return ["-e", self.value]
-
-
-class PerfNoSupportedEvent(Exception):
-    pass
 
 
 def perf_sanity_record_to_json(working_dir: Path, perf_record_extra_args: list) -> dict:

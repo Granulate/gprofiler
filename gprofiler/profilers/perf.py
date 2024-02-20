@@ -21,7 +21,7 @@ from granulate_utils.node import is_node_process
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
-from gprofiler.exceptions import StopEventSetException
+from gprofiler.exceptions import PerfNoSupportedEvent, StopEventSetException
 from gprofiler.gprofiler_types import (
     ProcessToProfileData,
     ProcessToStackSampleCounters,
@@ -44,7 +44,7 @@ from gprofiler.utils import (
     wait_event,
     wait_for_file_by_prefix,
 )
-from gprofiler.utils.perf import PerfNoSupportedEvent, perf_default_event_works, perf_path, valid_perf_pid
+from gprofiler.utils.perf import perf_default_event_works, perf_path, valid_perf_pid
 
 logger = get_logger_adapter(__name__)
 

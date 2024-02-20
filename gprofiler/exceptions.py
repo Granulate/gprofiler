@@ -15,6 +15,10 @@ class ProcessStoppedException(Exception):
     pass
 
 
+class PerfNoSupportedEvent(Exception):
+    pass
+
+
 class CalledProcessError(subprocess.CalledProcessError):
     # Enough characters for 200 long lines
     MAX_STDIO_LENGTH = 120 * 200
