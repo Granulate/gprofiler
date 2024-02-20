@@ -3,17 +3,19 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
-from enum import Enum
 import json
 import shutil
+from enum import Enum
+from pathlib import Path
+from typing import cast
+
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
-from gprofiler.utils import resource_path, run_process, random_prefix
-from pathlib import Path
-
+from gprofiler.utils import random_prefix, resource_path, run_process
 from gprofiler.utils.fs import mkdir_owned_root
 
 logger = get_logger_adapter(__name__)
+
 
 class SUPPORTED_PERF_EVENTS(Enum):
     PERF_DEFAULT = None
@@ -25,8 +27,10 @@ class SUPPORTED_PERF_EVENTS(Enum):
             return []
         return ["-e", self.value]
 
+
 class PerfNoSupportedEvent(Exception):
     pass
+
 
 def perf_sanity_record_to_json(working_dir: Path, perf_record_extra_args: list) -> dict:
     """
@@ -55,14 +59,19 @@ def perf_sanity_record_to_json(working_dir: Path, perf_record_extra_args: list) 
         run_process(perf_record_cmd)
         # `perf data` will read from `record_sample_file` and write to `json_data_file`
         run_process(perf_data_cmd)
-        with open(json_data_file, 'r', encoding='utf-8') as file:
-            return json.load(file)
+        with open(json_data_file, "r", encoding="utf-8") as file:
+            return cast(dict, json.load(file))
     except json.JSONDecodeError as e:
-        logger.critical("Failed to parse perf data to JSON", exc_info=e, extra={"perf_data": json_data_file.read_text(encoding='latin-1')})
+        logger.critical(
+            "Failed to parse perf data to JSON",
+            exc_info=e,
+            extra={"perf_data": json_data_file.read_text(encoding="latin-1")},
+        )
         raise
     finally:
         # ensures cleanup
         shutil.rmtree(tmp_dir, ignore_errors=True)
+
 
 def perf_default_event_works(work_directory: Path) -> list:
     """
@@ -83,9 +92,15 @@ def perf_default_event_works(work_directory: Path) -> list:
             if perf_samples:
                 # We have samples, we can use this event.
                 return event.perf_extra_args()
-        except Exception:   # pylint: disable=broad-except
-            logger.warning("Failed to collect samples for perf event", exc_info=True, perf_event=event.name, perf_record_output=perf_record_output)
+        except Exception:  # pylint: disable=broad-except
+            logger.warning(
+                "Failed to collect samples for perf event",
+                exc_info=True,
+                perf_event=event.name,
+                perf_record_output=perf_record_output,
+            )
     raise PerfNoSupportedEvent
+
 
 def perf_path() -> str:
     return resource_path("perf")
