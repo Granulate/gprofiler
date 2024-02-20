@@ -44,7 +44,7 @@ from gprofiler.utils import (
     wait_event,
     wait_for_file_by_prefix,
 )
-from gprofiler.utils.perf import perf_path, valid_perf_pid
+from gprofiler.utils.perf import PerfNoSupportedEvent, perf_default_event_works, perf_path, valid_perf_pid
 
 logger = get_logger_adapter(__name__)
 
@@ -431,6 +431,11 @@ class SystemProfiler(ProfilerBase):
         self._node_processes_attached: List[Process] = []
         self._perf_memory_restart = perf_memory_restart
         switch_timeout_s = duration * 3  # allow gprofiler to be delayed up to 3 intervals before timing out.
+        if perf_mode in ("fp", "dwarf", "smart"):
+            try:
+                perf_default_event_works(Path(self._profiler_state.storage_dir))
+            except PerfNoSupportedEvent:
+                logger.critical("Failed to determine perf event to use")
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
