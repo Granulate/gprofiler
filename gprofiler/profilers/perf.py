@@ -219,6 +219,7 @@ class PerfProcess:
         extra_args: List[str],
         processes_to_profile: Optional[List[Process]],
         switch_timeout_s: int,
+        executable_args_to_profile: Optional[list],
     ):
         self._start_time = 0.0
         self._frequency = frequency
@@ -230,8 +231,9 @@ class PerfProcess:
         if processes_to_profile is not None:
             self._pid_args.append("--pid")
             self._pid_args.append(",".join([str(process.pid) for process in processes_to_profile]))
-        else:
+        elif executable_args_to_profile is None:
             self._pid_args.append("-a")
+        self._executable_args_to_profile = executable_args_to_profile
         self._extra_args = extra_args + (["-k", "1"] if self._inject_jit else [])
         self._switch_timeout_s = switch_timeout_s
         self._process: Optional[Popen] = None
@@ -260,7 +262,11 @@ class PerfProcess:
                 str(self._MMAP_SIZES[self._type]),
             ]
             + self._pid_args
-            + self._extra_args
+            + ["-k", "1"]
+            if self._inject_jit
+            else [] + self._extra_args + ["--"] + self._executable_args_to_profile
+            if self._executable_args_to_profile
+            else []
         )
 
     def start(self) -> None:
@@ -434,7 +440,9 @@ class SystemProfiler(ProfilerBase):
         extra_args = []
         if perf_mode in ("fp", "dwarf", "smart"):
             try:
-                extra_args.extend(perf_default_event_works(Path(self._profiler_state.storage_dir)))
+                extra_args.extend(
+                    perf_default_event_works(Path(self._profiler_state.storage_dir), self._profiler_state.stop_event)
+                )
             except PerfNoSupportedEvent:
                 logger.critical("Failed to determine perf event to use")
 
@@ -448,6 +456,7 @@ class SystemProfiler(ProfilerBase):
                 extra_args,
                 self._profiler_state.processes_to_profile,
                 switch_timeout_s,
+                None,
             )
             self._perfs.append(self._perf_fp)
         else:
@@ -464,6 +473,7 @@ class SystemProfiler(ProfilerBase):
                 extra_args,
                 self._profiler_state.processes_to_profile,
                 switch_timeout_s,
+                None,
             )
             self._perfs.append(self._perf_dwarf)
         else:
