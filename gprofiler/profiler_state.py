@@ -1,10 +1,13 @@
+import typing
 from dataclasses import dataclass
 from threading import Event
 from typing import List, Optional
 
 from psutil import Process
 
-from gprofiler.containers_client import ContainerNamesClient
+if typing.TYPE_CHECKING:
+    from gprofiler.containers_client import ContainerNamesClient
+
 from gprofiler.utils import TemporaryDirectoryWithMode
 
 
