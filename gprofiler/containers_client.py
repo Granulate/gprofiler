@@ -10,7 +10,7 @@ from granulate_utils.linux.containers import get_process_container_id
 from psutil import NoSuchProcess, Process
 
 from gprofiler.log import get_logger_adapter
-from gprofiler.utils.perf import valid_perf_pid
+from gprofiler.utils import perf
 
 logger = get_logger_adapter(__name__)
 
@@ -45,7 +45,7 @@ class ContainerNamesClient:
         if self._containers_client is None:
             return ""
 
-        if not valid_perf_pid(pid):
+        if not perf.valid_perf_pid(pid):
             return ""
 
         if pid in self._pid_to_container_name_cache:

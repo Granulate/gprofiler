@@ -9,7 +9,7 @@ from threading import Event
 
 from gprofiler.exceptions import CalledProcessError, PerfNoSupportedEvent
 from gprofiler.log import get_logger_adapter
-from gprofiler.profilers import perf as perf_module  # resolve circular import
+from gprofiler.profilers.perf import PerfProcess
 from gprofiler.utils import resource_path, run_process
 
 logger = get_logger_adapter(__name__)
@@ -37,11 +37,11 @@ def perf_default_event_works(work_directory: Path, stop_event: Event) -> list:
     :param work_directory: working directory of this function
     :return: `perf record` extra arguments to use (e.g. `["-e", "cpu-clock"]`)
     """
-    perf_process: perf_module.PerfProcess
+    perf_process: PerfProcess
     for event in SUPPORTED_PERF_EVENTS:
         perf_script_output: str
         try:
-            perf_process = perf_module.PerfProcess(
+            perf_process = PerfProcess(
                 frequency=11,
                 stop_event=stop_event,
                 output_path=str(work_directory),
