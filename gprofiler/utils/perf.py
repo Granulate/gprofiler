@@ -9,8 +9,8 @@ from threading import Event
 
 from gprofiler.exceptions import CalledProcessError, PerfNoSupportedEvent
 from gprofiler.log import get_logger_adapter
-from gprofiler.profilers.perf import PerfProcess
-from gprofiler.utils import resource_path, run_process
+from gprofiler.utils import run_process
+from gprofiler.utils.perf_process import PerfProcess, perf_path
 
 logger = get_logger_adapter(__name__)
 
@@ -29,28 +29,26 @@ class SUPPORTED_PERF_EVENTS(Enum):
 def perf_default_event_works(work_directory: Path, stop_event: Event) -> list:
     """
     Validate that `perf record`'s default event actually collects samples.
-
     We generally would not want to change the default event chosen by `perf record`, so before
     any change we apply to collected sample event, we want to make sure that the default event
     actually collects samples.
-
     :param work_directory: working directory of this function
     :return: `perf record` extra arguments to use (e.g. `["-e", "cpu-clock"]`)
     """
     perf_process: PerfProcess
     for event in SUPPORTED_PERF_EVENTS:
-        perf_script_output: str
+        perf_script_output = ""
         try:
             perf_process = PerfProcess(
                 frequency=11,
                 stop_event=stop_event,
-                output_path=str(work_directory),
+                output_path=str(work_directory / "perf_default_event.fp"),
                 is_dwarf=False,
                 inject_jit=False,
                 extra_args=event.perf_extra_args(),
-                processes_to_profile=[],
+                processes_to_profile=None,
                 switch_timeout_s=1,
-                executable_args_to_profile=["sleep", "0.5"],
+                executable_args_to_profile=["sleep", "1.5"],
             )
             perf_process.start()
             perf_script_output = perf_process.wait_and_script()
@@ -66,8 +64,12 @@ def perf_default_event_works(work_directory: Path, stop_event: Event) -> list:
     raise PerfNoSupportedEvent
 
 
-def perf_path() -> str:
-    return resource_path("perf")
+def valid_perf_pid(pid: int) -> bool:
+    """
+    perf, in some cases, reports PID 0 / -1. These are not real PIDs and we don't want to
+    try and look up the processes related to them.
+    """
+    return pid not in (0, -1)
 
 
 def can_i_use_perf_events() -> bool:
@@ -95,11 +97,3 @@ def can_i_use_perf_events() -> bool:
     else:
         # all good
         return True
-
-
-def valid_perf_pid(pid: int) -> bool:
-    """
-    perf, in some cases, reports PID 0 / -1. These are not real PIDs and we don't want to
-    try and look up the processes related to them.
-    """
-    return pid not in (0, -1)
