@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import typing
 from dataclasses import dataclass
 from threading import Event
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from psutil import Process
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from gprofiler.containers_client import ContainerNamesClient
+
 from gprofiler.utils import TemporaryDirectoryWithMode
 
 
