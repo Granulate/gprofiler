@@ -37,19 +37,21 @@ apt-get install -y --no-install-recommends \
 cd /tmp
 
 # build & install libzstd (elfutils requires newer versions than available in apt)
-curl -L https://github.com/facebook/zstd/releases/download/v1.5.2/zstd-1.5.2.tar.gz -o zstd-1.5.2.tar.gz
-tar -xf zstd-1.5.2.tar.gz
-pushd zstd-1.5.2
+ZSTD_VERSION=1.5.2
+curl -L https://github.com/facebook/zstd/releases/download/v$ZSTD_VERSION/zstd-$ZSTD_VERSION.tar.gz -o zstd-$ZSTD_VERSION.tar.gz
+tar -xf zstd-$ZSTD_VERSION.tar.gz
+pushd zstd-$ZSTD_VERSION
 make -j && make install
 popd
-rm -r zstd-1.5.2 zstd-1.5.2.tar.gz
+rm -r zstd-$ZSTD_VERSION zstd-$ZSTD_VERSION.tar.gz
 
 # install newer versions of elfutils
-curl --retry-delay 5 --retry 5 -L https://sourceware.org/elfutils/ftp/0.187/elfutils-0.187.tar.bz2 -o elfutils-0.187.tar.bz2  # sourceware is flaky, so we have some retries
-tar -xf elfutils-0.187.tar.bz2
-pushd elfutils-0.187
+ELFUTILS_VERSION=0.187
+curl --retry-delay 5 --retry 5 -L https://sourceware.org/elfutils/ftp/$ELFUTILS_VERSION/elfutils-$ELFUTILS_VERSION.tar.bz2 -o elfutils-$ELFUTILS_VERSION.tar.bz2  # sourceware is flaky, so we have some retries
+tar -xf elfutils-$ELFUTILS_VERSION.tar.bz2
+pushd elfutils-$ELFUTILS_VERSION
 # disable debuginfod, otherwise it will try to dlopen("libdebuginfod.so") in runtime & that can
 # cause problems, see https://github.com/Granulate/gprofiler/issues/340.
 ./configure --disable-debuginfod --disable-libdebuginfod --prefix=/usr && make -j 8 && make install
 popd
-rm -r elfutils-0.187 elfutils-0.187.tar.bz2
+rm -r elfutils-$ELFUTILS_VERSION elfutils-$ELFUTILS_VERSION.tar.bz2
