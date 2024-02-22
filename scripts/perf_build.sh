@@ -44,8 +44,8 @@ EOF
 
 fi
 
-make -C tools/perf LDFLAGS=-static -j $(nproc) perf
+make -C tools/perf LDFLAGS=-static -j "$(nproc)" perf
 cp tools/perf/perf /
 # need it static as well, even though it's used only during build (relies on libpcap, ...)
-make -C tools/bpf LDFLAGS=-static -j $(nproc) bpftool
+make -C tools/bpf LDFLAGS=-static -j "$(nproc)" bpftool
 cp tools/bpf/bpftool/bpftool /
