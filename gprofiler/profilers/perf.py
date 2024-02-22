@@ -256,6 +256,7 @@ class SystemProfiler(ProfilerBase):
                 [],
                 self._profiler_state.processes_to_profile,
                 switch_timeout_s,
+                None,
             )
             self._perfs.append(self._perf_fp)
         else:
@@ -271,6 +272,7 @@ class SystemProfiler(ProfilerBase):
                 ["--call-graph", f"dwarf,{perf_dwarf_stack_size}"],
                 self._profiler_state.processes_to_profile,
                 switch_timeout_s,
+                None,
             )
             self._perfs.append(self._perf_dwarf)
         else:

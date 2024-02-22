@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from psutil import Process
 
@@ -27,7 +27,6 @@ def perf_path() -> str:
     return resource_path("perf")
 
 
-# TODO: automatically disable this profiler if can_i_use_perf_events() returns False?
 class PerfProcess:
     _DUMP_TIMEOUT_S = 5  # timeout for waiting perf to write outputs after signaling (or right after starting)
     _RESTART_AFTER_S = 3600
@@ -38,7 +37,7 @@ class PerfProcess:
 
     def __init__(
         self,
-        frequency: int,
+        frequency: Union[int, str],
         stop_event: Event,
         output_path: str,
         is_dwarf: bool,
@@ -46,6 +45,7 @@ class PerfProcess:
         extra_args: List[str],
         processes_to_profile: Optional[List[Process]],
         switch_timeout_s: int,
+        executable_args_to_profile: Optional[list],
     ):
         self._start_time = 0.0
         self._frequency = frequency
@@ -57,9 +57,10 @@ class PerfProcess:
         if processes_to_profile is not None:
             self._pid_args.append("--pid")
             self._pid_args.append(",".join([str(process.pid) for process in processes_to_profile]))
-        else:
+        elif executable_args_to_profile is None:
             self._pid_args.append("-a")
-        self._extra_args = extra_args + (["-k", "1"] if self._inject_jit else [])
+        self._executable_args_to_profile = (["--"] + executable_args_to_profile) if executable_args_to_profile else None
+        self._extra_args = extra_args
         self._switch_timeout_s = switch_timeout_s
         self._process: Optional[Popen] = None
 
@@ -87,7 +88,9 @@ class PerfProcess:
                 str(self._MMAP_SIZES[self._type]),
             ]
             + self._pid_args
+            + (["-k", "1"] if self._inject_jit else [])
             + self._extra_args
+            + (self._executable_args_to_profile if self._executable_args_to_profile else [])
         )
 
     def start(self) -> None:
