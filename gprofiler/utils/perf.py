@@ -47,7 +47,7 @@ def perf_default_event_works(work_directory: Path, stop_event: Event) -> list:
                 inject_jit=False,
                 extra_args=event.perf_extra_args(),
                 processes_to_profile=None,
-                switch_timeout_s=1,
+                switch_timeout_s=15,
                 executable_args_to_profile=["sleep", "1.5"],
             )
             perf_process.start()
