@@ -40,7 +40,7 @@ def perf_default_event_works(work_directory: Path, stop_event: Event) -> list:
         perf_script_output = ""
         try:
             perf_process = PerfProcess(
-                frequency="max",
+                frequency=11,
                 stop_event=stop_event,
                 output_path=str(work_directory / "perf_default_event.fp"),
                 is_dwarf=False,

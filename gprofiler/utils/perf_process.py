@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
-from typing import List, Optional, Union
+from typing import List, Optional
 
 from psutil import Process
 
@@ -37,7 +37,7 @@ class PerfProcess:
 
     def __init__(
         self,
-        frequency: Union[int, str],
+        frequency: int,
         stop_event: Event,
         output_path: str,
         is_dwarf: bool,
@@ -54,12 +54,14 @@ class PerfProcess:
         self._type = "dwarf" if is_dwarf else "fp"
         self._inject_jit = inject_jit
         self._pid_args = []
+        self._executable_args_to_profile = []
+        if executable_args_to_profile is not None:
+            self._executable_args_to_profile.extend(["--"] + executable_args_to_profile)
         if processes_to_profile is not None:
             self._pid_args.append("--pid")
             self._pid_args.append(",".join([str(process.pid) for process in processes_to_profile]))
-        elif executable_args_to_profile is None:
+        else:
             self._pid_args.append("-a")
-        self._executable_args_to_profile = (["--"] + executable_args_to_profile) if executable_args_to_profile else None
         self._extra_args = extra_args
         self._switch_timeout_s = switch_timeout_s
         self._process: Optional[Popen] = None
@@ -90,7 +92,7 @@ class PerfProcess:
             + self._pid_args
             + (["-k", "1"] if self._inject_jit else [])
             + self._extra_args
-            + (self._executable_args_to_profile if self._executable_args_to_profile else [])
+            + self._executable_args_to_profile
         )
 
     def start(self) -> None:
