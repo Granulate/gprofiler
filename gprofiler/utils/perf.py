@@ -30,7 +30,8 @@ def perf_default_event_works(tmp_dir: Path, stop_event: Event) -> list:
     """
     Validate that `perf record`'s default event actually collects samples.
 
-    We generally would not want to change the default event chosen by `perf record`, so before
+    We've observed that on some machines the default event `perf record` chooses doesn't actually collect samples.
+    And we generally would not want to change the default event chosen by `perf record`, so before
     any change we apply to collected sample event, we want to make sure that the default event
     actually collects samples.
 
@@ -55,6 +56,7 @@ def perf_default_event_works(tmp_dir: Path, stop_event: Event) -> list:
             perf_process.start()
             perf_script_output = perf_process.wait_and_script()
             if perf_script_output != "":
+                # `perf script` isn't empty, we'll use this event.
                 return event.perf_extra_args()
         except Exception:  # pylint: disable=broad-except
             logger.warning(
