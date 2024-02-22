@@ -5,13 +5,10 @@
 
 from gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
-from gprofiler.utils import resource_path, run_process
+from gprofiler.utils import run_process
+from gprofiler.utils.perf_process import perf_path
 
 logger = get_logger_adapter(__name__)
-
-
-def perf_path() -> str:
-    return resource_path("perf")
 
 
 def can_i_use_perf_events() -> bool:
