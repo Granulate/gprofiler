@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from subprocess import Popen
 from threading import Event
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from psutil import Process
 
@@ -37,7 +37,7 @@ class PerfProcess:
 
     def __init__(
         self,
-        frequency: int,
+        frequency: Union[int, str],
         stop_event: Event,
         output_path: str,
         is_dwarf: bool,

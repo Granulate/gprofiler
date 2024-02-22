@@ -40,7 +40,7 @@ def perf_default_event_works(work_directory: Path, stop_event: Event) -> list:
         perf_script_output = ""
         try:
             perf_process = PerfProcess(
-                frequency=11,
+                frequency="max",
                 stop_event=stop_event,
                 output_path=str(work_directory / "perf_default_event.fp"),
                 is_dwarf=False,
@@ -48,7 +48,7 @@ def perf_default_event_works(work_directory: Path, stop_event: Event) -> list:
                 extra_args=event.perf_extra_args(),
                 processes_to_profile=None,
                 switch_timeout_s=15,
-                executable_args_to_profile=["sleep", "1.5"],
+                executable_args_to_profile=["sleep", "0.5"],
             )
             perf_process.start()
             perf_script_output = perf_process.wait_and_script()
