@@ -27,6 +27,7 @@ def perf_path() -> str:
     return resource_path("perf")
 
 
+# TODO: automatically disable this profiler if can_i_use_perf_events() returns False?
 class PerfProcess:
     _DUMP_TIMEOUT_S = 5  # timeout for waiting perf to write outputs after signaling (or right after starting)
     _RESTART_AFTER_S = 3600
