@@ -44,7 +44,7 @@ EOF
 
 fi
 
-NO_JEVENTS=1 make -C tools/perf LDFLAGS=-static -j "$(nproc)" perf
+NO_LIBTRACEEVENT=1 NO_JEVENTS=1 make -C tools/perf LDFLAGS=-static -j "$(nproc)" perf
 cp tools/perf/perf /
 # need it static as well, even though it's used only during build (relies on libpcap, ...)
 make -C tools/bpf LDFLAGS=-static -j "$(nproc)" bpftool
