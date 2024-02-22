@@ -6,6 +6,7 @@
 import os
 import re
 from collections import Counter, defaultdict
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from granulate_utils.exceptions import MissingExePath
@@ -16,7 +17,7 @@ from granulate_utils.node import is_node_process
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
-from gprofiler.exceptions import StopEventSetException
+from gprofiler.exceptions import PerfNoSupportedEvent, StopEventSetException
 from gprofiler.gprofiler_types import (
     ProcessToProfileData,
     ProcessToStackSampleCounters,
@@ -30,7 +31,7 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils.perf import valid_perf_pid
+from gprofiler.utils.perf import perf_default_event_works, valid_perf_pid
 from gprofiler.utils.perf_process import PerfProcess
 
 logger = get_logger_adapter(__name__)
@@ -245,6 +246,14 @@ class SystemProfiler(ProfilerBase):
         self._node_processes_attached: List[Process] = []
         self._perf_memory_restart = perf_memory_restart
         switch_timeout_s = duration * 3  # allow gprofiler to be delayed up to 3 intervals before timing out.
+        extra_args = []
+        if perf_mode in ("fp", "dwarf", "smart"):
+            try:
+                extra_args.extend(
+                    perf_default_event_works(Path(self._profiler_state.storage_dir), self._profiler_state.stop_event)
+                )
+            except PerfNoSupportedEvent:
+                logger.critical("Failed to determine perf event to use")
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
@@ -253,7 +262,7 @@ class SystemProfiler(ProfilerBase):
                 os.path.join(self._profiler_state.storage_dir, "perf.fp"),
                 False,
                 perf_inject,
-                [],
+                extra_args,
                 self._profiler_state.processes_to_profile,
                 switch_timeout_s,
                 None,
@@ -263,13 +272,14 @@ class SystemProfiler(ProfilerBase):
             self._perf_fp = None
 
         if perf_mode in ("dwarf", "smart"):
+            extra_args.extend(["--call-graph", f"dwarf,{perf_dwarf_stack_size}"])
             self._perf_dwarf: Optional[PerfProcess] = PerfProcess(
                 self._frequency,
                 self._profiler_state.stop_event,
                 os.path.join(self._profiler_state.storage_dir, "perf.dwarf"),
                 True,
                 False,  # no inject in dwarf mode, yet
-                ["--call-graph", f"dwarf,{perf_dwarf_stack_size}"],
+                extra_args,
                 self._profiler_state.processes_to_profile,
                 switch_timeout_s,
                 None,

@@ -3,12 +3,65 @@
 # Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
 #
 
-from gprofiler.exceptions import CalledProcessError
+from enum import Enum
+from pathlib import Path
+from threading import Event
+
+from gprofiler.exceptions import CalledProcessError, PerfNoSupportedEvent
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import run_process
-from gprofiler.utils.perf_process import perf_path
+from gprofiler.utils.perf_process import PerfProcess, perf_path
 
 logger = get_logger_adapter(__name__)
+
+
+class SUPPORTED_PERF_EVENTS(Enum):
+    PERF_DEFAULT = "default"
+    PERF_SW_CPU_CLOCK = "cpu-clock"
+    PERF_SW_TASK_CLOCK = "task-clock"
+
+    def perf_extra_args(self) -> list:
+        if self == SUPPORTED_PERF_EVENTS.PERF_DEFAULT:
+            return []
+        return ["-e", self.value]
+
+
+def perf_default_event_works(work_directory: Path, stop_event: Event) -> list:
+    """
+    Validate that `perf record`'s default event actually collects samples.
+    We generally would not want to change the default event chosen by `perf record`, so before
+    any change we apply to collected sample event, we want to make sure that the default event
+    actually collects samples.
+    :param work_directory: working directory of this function
+    :return: `perf record` extra arguments to use (e.g. `["-e", "cpu-clock"]`)
+    """
+    perf_process: PerfProcess
+    for event in SUPPORTED_PERF_EVENTS:
+        perf_script_output = ""
+        try:
+            perf_process = PerfProcess(
+                frequency="max",
+                stop_event=stop_event,
+                output_path=str(work_directory / "perf_default_event.fp"),
+                is_dwarf=False,
+                inject_jit=False,
+                extra_args=event.perf_extra_args(),
+                processes_to_profile=None,
+                switch_timeout_s=15,
+                executable_args_to_profile=["sleep", "0.5"],
+            )
+            perf_process.start()
+            perf_script_output = perf_process.wait_and_script()
+            if perf_script_output != "":
+                return event.perf_extra_args()
+        except Exception:  # pylint: disable=broad-except
+            logger.warning(
+                "Failed to collect samples for perf event",
+                exc_info=True,
+                perf_event=event.name,
+                perf_script_output=perf_script_output,
+            )
+    raise PerfNoSupportedEvent
 
 
 def can_i_use_perf_events() -> bool:
