@@ -26,13 +26,15 @@ class SUPPORTED_PERF_EVENTS(Enum):
         return ["-e", self.value]
 
 
-def perf_default_event_works(work_directory: Path, stop_event: Event) -> list:
+def perf_default_event_works(tmp_dir: Path, stop_event: Event) -> list:
     """
     Validate that `perf record`'s default event actually collects samples.
+
     We generally would not want to change the default event chosen by `perf record`, so before
     any change we apply to collected sample event, we want to make sure that the default event
     actually collects samples.
-    :param work_directory: working directory of this function
+
+    :param tmp_dir: working directory of this function
     :return: `perf record` extra arguments to use (e.g. `["-e", "cpu-clock"]`)
     """
     perf_process: PerfProcess
@@ -42,7 +44,7 @@ def perf_default_event_works(work_directory: Path, stop_event: Event) -> list:
             perf_process = PerfProcess(
                 frequency=11,
                 stop_event=stop_event,
-                output_path=str(work_directory / "perf_default_event.fp"),
+                output_path=str(tmp_dir / "perf_default_event.fp"),
                 is_dwarf=False,
                 inject_jit=False,
                 extra_args=event.perf_extra_args(),
