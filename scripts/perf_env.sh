@@ -52,6 +52,6 @@ tar -xf elfutils-$ELFUTILS_VERSION.tar.bz2
 pushd elfutils-$ELFUTILS_VERSION
 # disable debuginfod, otherwise it will try to dlopen("libdebuginfod.so") in runtime & that can
 # cause problems, see https://github.com/Granulate/gprofiler/issues/340.
-./configure --disable-debuginfod --disable-libdebuginfod --prefix=/usr && make -j 8 && make install
+./configure --disable-debuginfod --disable-libdebuginfod --prefix=/usr && make -j && make install
 popd
 rm -r elfutils-$ELFUTILS_VERSION elfutils-$ELFUTILS_VERSION.tar.bz2
