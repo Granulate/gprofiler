@@ -6,6 +6,7 @@
 from enum import Enum
 from pathlib import Path
 from threading import Event
+from typing import List
 
 from gprofiler.exceptions import CalledProcessError, PerfNoSupportedEvent
 from gprofiler.log import get_logger_adapter
@@ -20,7 +21,7 @@ class SUPPORTED_PERF_EVENTS(Enum):
     PERF_SW_CPU_CLOCK = "cpu-clock"
     PERF_SW_TASK_CLOCK = "task-clock"
 
-    def perf_extra_args(self) -> list:
+    def perf_extra_args(self) -> List[str]:
         if self == SUPPORTED_PERF_EVENTS.PERF_DEFAULT:
             return []
         return ["-e", self.value]
