@@ -16,7 +16,7 @@ from gprofiler.utils.perf_process import PerfProcess, perf_path
 logger = get_logger_adapter(__name__)
 
 
-class SUPPORTED_PERF_EVENTS(Enum):
+class SUPPORTED_PERF_EVENTS(Enum):  # pylint: disable=C0103
     """
     order here is crucial, the first one we try and succeed - will be used.
     keep it mind that we should always use `PERF_DEFAULT` as a first try.
