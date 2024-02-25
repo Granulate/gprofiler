@@ -47,7 +47,6 @@ class PerfProcess:
         extra_args: List[str],
         processes_to_profile: Optional[List[Process]],
         switch_timeout_s: int,
-        executable_args_to_profile: Optional[list],
     ):
         self._start_time = 0.0
         self._frequency = frequency
@@ -56,9 +55,6 @@ class PerfProcess:
         self._type = "dwarf" if is_dwarf else "fp"
         self._inject_jit = inject_jit
         self._pid_args = []
-        self._executable_args_to_profile = []
-        if executable_args_to_profile is not None:
-            self._executable_args_to_profile.extend(["--"] + executable_args_to_profile)
         if processes_to_profile is not None:
             self._pid_args.append("--pid")
             self._pid_args.append(",".join([str(process.pid) for process in processes_to_profile]))
@@ -94,7 +90,6 @@ class PerfProcess:
             + self._pid_args
             + (["-k", "1"] if self._inject_jit else [])
             + self._extra_args
-            + self._executable_args_to_profile
         )
 
     def start(self) -> None:

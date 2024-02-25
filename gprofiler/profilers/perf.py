@@ -266,7 +266,6 @@ class SystemProfiler(ProfilerBase):
                 extra_args=extra_args,
                 processes_to_profile=self._profiler_state.processes_to_profile,
                 switch_timeout_s=switch_timeout_s,
-                executable_args_to_profile=None,
             )
             self._perfs.append(self._perf_fp)
         else:
@@ -283,7 +282,6 @@ class SystemProfiler(ProfilerBase):
                 extra_args=extra_args,
                 processes_to_profile=self._profiler_state.processes_to_profile,
                 switch_timeout_s=switch_timeout_s,
-                executable_args_to_profile=None,
             )
             self._perfs.append(self._perf_dwarf)
         else:

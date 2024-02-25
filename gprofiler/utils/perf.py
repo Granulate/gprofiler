@@ -49,16 +49,16 @@ def perf_default_event_works(tmp_dir: Path, stop_event: Event) -> list:
     for event in SUPPORTED_PERF_EVENTS:
         perf_script_output = ""
         try:
+            current_extra_args = event.perf_extra_args() + ["sleep", "0.5"]
             perf_process = PerfProcess(
                 frequency=11,
                 stop_event=stop_event,
                 output_path=str(tmp_dir / "perf_default_event.fp"),
                 is_dwarf=False,
                 inject_jit=False,
-                extra_args=event.perf_extra_args(),
+                extra_args=current_extra_args,
                 processes_to_profile=None,
                 switch_timeout_s=15,
-                executable_args_to_profile=["sleep", "0.5"],
             )
             perf_process.start()
             perf_script_output = perf_process.wait_and_script()
