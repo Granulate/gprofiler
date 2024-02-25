@@ -47,7 +47,7 @@ def perf_default_event_works(tmp_dir: Path, stop_event: Event) -> list:
     """
     perf_process: PerfProcess
     for event in SUPPORTED_PERF_EVENTS:
-        perf_script_output = ""
+        perf_script_output = None
         try:
             current_extra_args = event.perf_extra_args() + ["sleep", "0.5"]
             perf_process = PerfProcess(
@@ -62,7 +62,7 @@ def perf_default_event_works(tmp_dir: Path, stop_event: Event) -> list:
             )
             perf_process.start()
             perf_script_output = perf_process.wait_and_script()
-            if perf_script_output != "":
+            if perf_script_output:
                 # `perf script` isn't empty, we'll use this event.
                 return event.perf_extra_args()
         except Exception:  # pylint: disable=broad-except
