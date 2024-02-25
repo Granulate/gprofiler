@@ -5,6 +5,7 @@
 
 import os
 import re
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
@@ -255,6 +256,7 @@ class SystemProfiler(ProfilerBase):
                 )
             except PerfNoSupportedEvent:
                 logger.critical("Failed to determine perf event to use")
+                sys.exit(1)
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
