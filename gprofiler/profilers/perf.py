@@ -258,15 +258,15 @@ class SystemProfiler(ProfilerBase):
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
-                self._frequency,
-                self._profiler_state.stop_event,
-                os.path.join(self._profiler_state.storage_dir, "perf.fp"),
-                False,
-                perf_inject,
-                extra_args,
-                self._profiler_state.processes_to_profile,
-                switch_timeout_s,
-                None,
+                frequency=self._frequency,
+                stop_event=self._profiler_state.stop_event,
+                output_path=os.path.join(self._profiler_state.storage_dir, "perf.fp"),
+                is_dwarf=False,
+                inject_jit=perf_inject,
+                extra_args=extra_args,
+                processes_to_profile=self._profiler_state.processes_to_profile,
+                switch_timeout_s=switch_timeout_s,
+                executable_args_to_profile=None,
             )
             self._perfs.append(self._perf_fp)
         else:
@@ -275,15 +275,15 @@ class SystemProfiler(ProfilerBase):
         if perf_mode in ("dwarf", "smart"):
             extra_args.extend(["--call-graph", f"dwarf,{perf_dwarf_stack_size}"])
             self._perf_dwarf: Optional[PerfProcess] = PerfProcess(
-                self._frequency,
-                self._profiler_state.stop_event,
-                os.path.join(self._profiler_state.storage_dir, "perf.dwarf"),
-                True,
-                False,  # no inject in dwarf mode, yet
-                extra_args,
-                self._profiler_state.processes_to_profile,
-                switch_timeout_s,
-                None,
+                frequency=self._frequency,
+                stop_event=self._profiler_state.stop_event,
+                output_path=os.path.join(self._profiler_state.storage_dir, "perf.dwarf"),
+                is_dwarf=True,
+                inject_jit=False,  # no inject in dwarf mode, yet
+                extra_args=extra_args,
+                processes_to_profile=self._profiler_state.processes_to_profile,
+                switch_timeout_s=switch_timeout_s,
+                executable_args_to_profile=None,
             )
             self._perfs.append(self._perf_dwarf)
         else:

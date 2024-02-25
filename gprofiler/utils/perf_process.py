@@ -38,6 +38,7 @@ class PerfProcess:
 
     def __init__(
         self,
+        *,
         frequency: int,
         stop_event: Event,
         output_path: str,
