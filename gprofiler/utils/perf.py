@@ -17,6 +17,12 @@ logger = get_logger_adapter(__name__)
 
 
 class SUPPORTED_PERF_EVENTS(Enum):
+    """
+    order here is crucial, the first one we try and succeed - will be used.
+    keep it mind that we should always use `PERF_DEFAULT` as a first try.
+    meaning - keeping with `perf`s' default is always preferred.
+    """
+
     PERF_DEFAULT = "default"
     PERF_SW_CPU_CLOCK = "cpu-clock"
     PERF_SW_TASK_CLOCK = "task-clock"
