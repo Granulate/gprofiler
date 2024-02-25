@@ -66,6 +66,8 @@ def perf_default_event_works(tmp_dir: Path, stop_event: Event) -> list:
                 perf_event=event.name,
                 perf_script_output=perf_script_output,
             )
+        finally:
+            perf_process.stop()
     raise PerfNoSupportedEvent
 
 
