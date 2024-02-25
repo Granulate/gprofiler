@@ -45,8 +45,10 @@ def perf_default_event_works(tmp_dir: Path, stop_event: Event) -> list:
     :param tmp_dir: working directory of this function
     :return: `perf record` extra arguments to use (e.g. `["-e", "cpu-clock"]`)
     """
+
     for event in SUPPORTED_PERF_EVENTS:
         perf_script_output = None
+
         try:
             current_extra_args = event.perf_extra_args() + ["sleep", "0.5"]
             perf_process = PerfProcess(
@@ -73,6 +75,7 @@ def perf_default_event_works(tmp_dir: Path, stop_event: Event) -> list:
             )
         finally:
             perf_process.stop()
+
     raise PerfNoSupportedEvent
 
 
