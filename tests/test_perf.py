@@ -12,9 +12,9 @@ from docker.models.containers import Container
 from pytest import LogCaptureFixture
 
 from gprofiler.profiler_state import ProfilerState
-from gprofiler.profilers.perf import SystemProfiler, get_average_frame_count
+from gprofiler.profilers.perf import DEFAULT_PERF_DWARF_STACK_SIZE, SystemProfiler, get_average_frame_count
 from gprofiler.utils import wait_event
-from gprofiler.utils.perf import DEFAULT_PERF_DWARF_STACK_SIZE, _collapse_stack
+from gprofiler.utils.perf import _collapse_stack
 from tests.utils import (
     assert_function_in_collapsed,
     is_aarch64,

@@ -29,10 +29,12 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils.perf import DEFAULT_PERF_DWARF_STACK_SIZE, _parse_perf_script, valid_perf_pid
+from gprofiler.utils.perf import _parse_perf_script, valid_perf_pid
 from gprofiler.utils.perf_process import PerfProcess
 
 logger = get_logger_adapter(__name__)
+
+DEFAULT_PERF_DWARF_STACK_SIZE = 8192
 
 
 def get_average_frame_count(samples: Iterable[str]) -> float:
