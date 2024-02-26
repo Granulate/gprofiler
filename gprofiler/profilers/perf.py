@@ -29,7 +29,7 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils.perf import _parse_perf_script, valid_perf_pid
+from gprofiler.utils.perf import parse_perf_script, valid_perf_pid
 from gprofiler.utils.perf_process import PerfProcess
 
 logger = get_logger_adapter(__name__)
@@ -92,8 +92,8 @@ def add_highest_avg_depth_stacks_per_process(
 def merge_global_perfs(
     raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str], insert_dso_name: bool = False
 ) -> ProcessToStackSampleCounters:
-    fp_perf = _parse_perf_script(raw_fp_perf, insert_dso_name)
-    dwarf_perf = _parse_perf_script(raw_dwarf_perf, insert_dso_name)
+    fp_perf = parse_perf_script(raw_fp_perf, insert_dso_name)
+    dwarf_perf = parse_perf_script(raw_dwarf_perf, insert_dso_name)
 
     if raw_fp_perf is None:
         return dwarf_perf

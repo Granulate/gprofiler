@@ -15,7 +15,6 @@ from gprofiler.utils.perf_process import perf_path
 
 logger = get_logger_adapter(__name__)
 
-DEFAULT_PERF_DWARF_STACK_SIZE = 8192
 # ffffffff81082227 mmput+0x57 ([kernel.kallsyms])
 # 0 [unknown] ([unknown])
 # 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
@@ -71,7 +70,7 @@ def valid_perf_pid(pid: int) -> bool:
     return pid not in (0, -1)
 
 
-def _collapse_stack(comm: str, stack: str, insert_dso_name: bool = False) -> str:
+def collapse_stack(comm: str, stack: str, insert_dso_name: bool = False) -> str:
     """
     Collapse a single stack from "perf".
     """
@@ -92,7 +91,7 @@ def _collapse_stack(comm: str, stack: str, insert_dso_name: bool = False) -> str
     return ";".join(funcs)
 
 
-def _parse_perf_script(script: Optional[str], insert_dso_name: bool = False) -> ProcessToStackSampleCounters:
+def parse_perf_script(script: Optional[str], insert_dso_name: bool = False) -> ProcessToStackSampleCounters:
     pid_to_collapsed_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
 
     if script is None:
@@ -113,7 +112,7 @@ def _parse_perf_script(script: Optional[str], insert_dso_name: bool = False) -> 
             comm = sample_dict["comm"]
             stack = sample_dict["stack"]
             if stack is not None:
-                pid_to_collapsed_stacks_counters[pid][_collapse_stack(comm, stack, insert_dso_name)] += 1
+                pid_to_collapsed_stacks_counters[pid][collapse_stack(comm, stack, insert_dso_name)] += 1
         except Exception:
             logger.exception(f"Error processing sample: {sample}")
     return pid_to_collapsed_stacks_counters
