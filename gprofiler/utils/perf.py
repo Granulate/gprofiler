@@ -72,7 +72,10 @@ def get_perf_event_args(tmp_dir: Path, stop_event: Event) -> List[str]:
         perf_script_output = None
 
         try:
-            current_extra_args = event.perf_extra_args() + ["sleep", "0.5"]
+            current_extra_args = event.perf_extra_args() + [
+                "sleep",
+                "0.5",
+            ]  # `sleep 0.5` is enough to be certain some samples should've been collected.
             perf_process = PerfProcess(
                 frequency=11,
                 stop_event=stop_event,
