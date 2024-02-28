@@ -55,7 +55,7 @@ class SUPPORTED_PERF_EVENTS(Enum):  # pylint: disable=C0103
         return ["-e", self.value]
 
 
-def perf_default_event_works(tmp_dir: Path, stop_event: Event) -> list:
+def perf_default_event_works(tmp_dir: Path, stop_event: Event) -> List[str]:
     """
     Validate that `perf record`'s default event actually collects samples.
 
