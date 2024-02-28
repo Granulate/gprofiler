@@ -4,7 +4,6 @@
 #
 
 import os
-import re
 from collections import Counter, defaultdict
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -30,30 +29,12 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils.perf import valid_perf_pid
+from gprofiler.utils.perf import parse_perf_script, valid_perf_pid
 from gprofiler.utils.perf_process import PerfProcess
 
 logger = get_logger_adapter(__name__)
 
 DEFAULT_PERF_DWARF_STACK_SIZE = 8192
-# ffffffff81082227 mmput+0x57 ([kernel.kallsyms])
-# 0 [unknown] ([unknown])
-# 7fe48f00faff __poll+0x4f (/lib/x86_64-linux-gnu/libc-2.31.so)
-FRAME_REGEX = re.compile(
-    r"""
-    ^\s*[0-9a-f]+[ ]                                 # first a hexadecimal offset
-    (?P<symbol>.*)[ ]                                # a symbol name followed by a space
-    \( (?:                                           # dso name is either:
-        \[ (?P<dso_brackets> [^]]+) \]               # - text enclosed in square brackets, e.g.: [vdso]
-        | (?P<dso_plain> [^)]+(?:[ ]\(deleted\))? )  # - OR library name, optionally followed by " (deleted)" tag
-    ) \)$""",
-    re.VERBOSE,
-)
-SAMPLE_REGEX = re.compile(
-    r"\s*(?P<comm>.+?)\s+(?P<pid>[\d-]+)/(?P<tid>[\d-]+)(?:\s+\[(?P<cpu>\d+)])?\s+(?P<time>\d+\.\d+):\s+"
-    r"(?:(?P<freq>\d+)\s+)?(?P<event_family>[\w\-_/]+):(?:(?P<event>[\w-]+):)?(?P<suffix>[^\n]*)(?:\n(?P<stack>.*))?",
-    re.MULTILINE | re.DOTALL,
-)
 
 
 def get_average_frame_count(samples: Iterable[str]) -> float:
@@ -108,59 +89,11 @@ def add_highest_avg_depth_stacks_per_process(
             merged_pid_to_stacks_counters[pid] = dwarf_collapsed_stacks_counters
 
 
-def _collapse_stack(comm: str, stack: str, insert_dso_name: bool = False) -> str:
-    """
-    Collapse a single stack from "perf".
-    """
-    funcs = [comm]
-    for line in reversed(stack.splitlines()):
-        m = FRAME_REGEX.match(line)
-        assert m is not None, f"bad line: {line}"
-        sym, dso = m.group("symbol"), m.group("dso_brackets") or m.group("dso_plain")
-        sym = sym.split("+")[0]  # strip the offset part.
-        if sym == "[unknown]" and dso != "unknown":
-            sym = f"({dso})"
-        # append kernel annotation
-        elif "kernel" in dso or "vmlinux" in dso:
-            sym += "_[k]"
-        elif insert_dso_name:
-            sym += f" ({dso})"
-        funcs.append(sym)
-    return ";".join(funcs)
-
-
-def _parse_perf_script(script: Optional[str], insert_dso_name: bool = False) -> ProcessToStackSampleCounters:
-    pid_to_collapsed_stacks_counters: ProcessToStackSampleCounters = defaultdict(Counter)
-
-    if script is None:
-        return pid_to_collapsed_stacks_counters
-
-    for sample in script.split("\n\n"):
-        try:
-            if sample.strip() == "":
-                continue
-            if sample.startswith("#"):
-                continue
-            match = SAMPLE_REGEX.match(sample)
-            if match is None:
-                raise Exception("Failed to match sample")
-            sample_dict = match.groupdict()
-
-            pid = int(sample_dict["pid"])
-            comm = sample_dict["comm"]
-            stack = sample_dict["stack"]
-            if stack is not None:
-                pid_to_collapsed_stacks_counters[pid][_collapse_stack(comm, stack, insert_dso_name)] += 1
-        except Exception:
-            logger.exception(f"Error processing sample: {sample}")
-    return pid_to_collapsed_stacks_counters
-
-
 def merge_global_perfs(
     raw_fp_perf: Optional[str], raw_dwarf_perf: Optional[str], insert_dso_name: bool = False
 ) -> ProcessToStackSampleCounters:
-    fp_perf = _parse_perf_script(raw_fp_perf, insert_dso_name)
-    dwarf_perf = _parse_perf_script(raw_dwarf_perf, insert_dso_name)
+    fp_perf = parse_perf_script(raw_fp_perf, insert_dso_name)
+    dwarf_perf = parse_perf_script(raw_dwarf_perf, insert_dso_name)
 
     if raw_fp_perf is None:
         return dwarf_perf
