@@ -55,9 +55,9 @@ class SUPPORTED_PERF_EVENTS(Enum):  # pylint: disable=C0103
         return ["-e", self.value]
 
 
-def perf_default_event_works(tmp_dir: Path, stop_event: Event) -> List[str]:
+def get_perf_event_args(tmp_dir: Path, stop_event: Event) -> List[str]:
     """
-    Validate that `perf record`'s default event actually collects samples.
+    Get the list of arguments to use the appropriate event in `perf record`.
 
     We've observed that on some machines the default event `perf record` chooses doesn't actually collect samples.
     And we generally would not want to change the default event chosen by `perf record`, so before
