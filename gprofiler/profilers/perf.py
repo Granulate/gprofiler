@@ -185,7 +185,7 @@ class SystemProfiler(ProfilerBase):
             discovered_perf_event = discover_appropriate_perf_event(
                 Path(self._profiler_state.storage_dir), self._profiler_state.stop_event
             )
-            logger.debug("Discovered perf event", chosen_perf_event=discovered_perf_event)
+            logger.debug("Discovered perf event", discovered_perf_event=discovered_perf_event.name)
             extra_args.extend(discovered_perf_event.perf_extra_args())
         except PerfNoSupportedEvent:
             logger.critical("Failed to determine perf event to use")
