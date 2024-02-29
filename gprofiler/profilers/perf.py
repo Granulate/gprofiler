@@ -30,7 +30,7 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils.perf import get_perf_event_args, parse_perf_script, valid_perf_pid
+from gprofiler.utils.perf import discover_appropriate_perf_event, parse_perf_script, valid_perf_pid
 from gprofiler.utils.perf_process import PerfProcess
 
 logger = get_logger_adapter(__name__)
@@ -181,9 +181,12 @@ class SystemProfiler(ProfilerBase):
         switch_timeout_s = duration * 3  # allow gprofiler to be delayed up to 3 intervals before timing out.
         extra_args = []
         try:
-            extra_args.extend(
-                get_perf_event_args(Path(self._profiler_state.storage_dir), self._profiler_state.stop_event)
+            # We want to be certain that `perf record` will collect samples.
+            discovered_perf_event = discover_appropriate_perf_event(
+                Path(self._profiler_state.storage_dir), self._profiler_state.stop_event
             )
+            logger.debug("Discovered perf event", chosen_perf_event=discovered_perf_event)
+            extra_args.extend(discovered_perf_event.perf_extra_args())
         except PerfNoSupportedEvent:
             logger.critical("Failed to determine perf event to use")
             raise

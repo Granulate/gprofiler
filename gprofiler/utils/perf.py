@@ -55,9 +55,9 @@ class SupportedPerfEvent(Enum):
         return ["-e", self.value]
 
 
-def get_perf_event_args(tmp_dir: Path, stop_event: Event) -> List[str]:
+def discover_appropriate_perf_event(tmp_dir: Path, stop_event: Event) -> SupportedPerfEvent:
     """
-    Get the list of arguments to use the appropriate event in `perf record`.
+    Get the appropriate event should be used by `perf record`.
 
     We've observed that on some machines the default event `perf record` chooses doesn't actually collect samples.
     And we generally would not want to change the default event chosen by `perf record`, so before
@@ -91,7 +91,7 @@ def get_perf_event_args(tmp_dir: Path, stop_event: Event) -> List[str]:
             parsed_perf_script = parse_perf_script(perf_process.wait_and_script())
             if len(parsed_perf_script) > 0:
                 # `perf script` isn't empty, we'll use this event.
-                return event.perf_extra_args()
+                return event
         except Exception:  # pylint: disable=broad-except
             logger.warning(
                 "Failed to collect samples for perf event",
