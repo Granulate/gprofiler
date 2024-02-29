@@ -38,7 +38,7 @@ SAMPLE_REGEX = re.compile(
 )
 
 
-class SUPPORTED_PERF_EVENTS(Enum):  # pylint: disable=C0103
+class SupportedPerfEvent(Enum):
     """
     order here is crucial, the first one we try and succeed - will be used.
     keep it mind that we should always use `PERF_DEFAULT` as a first try.
@@ -50,7 +50,7 @@ class SUPPORTED_PERF_EVENTS(Enum):  # pylint: disable=C0103
     PERF_SW_TASK_CLOCK = "task-clock"
 
     def perf_extra_args(self) -> List[str]:
-        if self == SUPPORTED_PERF_EVENTS.PERF_DEFAULT:
+        if self == SupportedPerfEvent.PERF_DEFAULT:
             return []
         return ["-e", self.value]
 
@@ -68,7 +68,7 @@ def get_perf_event_args(tmp_dir: Path, stop_event: Event) -> List[str]:
     :return: `perf record` extra arguments to use (e.g. `["-e", "cpu-clock"]`)
     """
 
-    for event in SUPPORTED_PERF_EVENTS:
+    for event in SupportedPerfEvent:
         perf_script_output = None
 
         try:
