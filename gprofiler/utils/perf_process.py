@@ -78,9 +78,7 @@ class PerfProcess:
                 "-g",
                 "-o",
                 self._output_path,
-                f"--switch-output={self._switch_timeout_s}s,signal"
-                if self._switch_timeout_s
-                else "--switch-output=signal",
+                f"--switch-output={self._switch_timeout_s}s,signal" if self._switch_timeout_s else "",
                 "--switch-max-files=1",
                 # explicitly pass '-m', otherwise perf defaults to deriving this number from perf_event_mlock_kb,
                 # and it ends up using it entirely (and we want to spare some for async-profiler)
