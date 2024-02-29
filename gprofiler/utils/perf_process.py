@@ -78,6 +78,7 @@ class PerfProcess:
                 "-g",
                 "-o",
                 self._output_path,
+                f"--switch-output={self._switch_timeout_s}s,signal" if self._switch_timeout_s else "",
                 "--switch-max-files=1",
                 # explicitly pass '-m', otherwise perf defaults to deriving this number from perf_event_mlock_kb,
                 # and it ends up using it entirely (and we want to spare some for async-profiler)
@@ -86,7 +87,6 @@ class PerfProcess:
                 "-m",
                 str(self._MMAP_SIZES[self._type]),
             ]
-            + ([f"--switch-output={self._switch_timeout_s}s,signal"] if self._switch_timeout_s else [])
             + self._pid_args
             + (["-k", "1"] if self._inject_jit else [])
             + self._extra_args
@@ -164,9 +164,6 @@ class PerfProcess:
     def wait_and_script(self) -> str:
         try:
             perf_data = wait_for_file_by_prefix(f"{self._output_path}", self._DUMP_TIMEOUT_S, self._stop_event)
-            if self._switch_timeout_s is None:
-                # in this case, we wait for `perf record` to finish
-                wait_event(self._DUMP_TIMEOUT_S, self._stop_event, lambda: not self.is_running())
         except Exception:
             assert self._process is not None and self._process.stdout is not None and self._process.stderr is not None
             logger.critical(
