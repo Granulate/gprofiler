@@ -85,7 +85,7 @@ def discover_appropriate_perf_event(tmp_dir: Path, stop_event: Event) -> Support
                 inject_jit=False,
                 extra_args=current_extra_args,
                 processes_to_profile=None,
-                switch_timeout_s=15,
+                switch_timeout_s=None,
             )
             perf_process.start()
             parsed_perf_script = parse_perf_script(perf_process.wait_and_script())
