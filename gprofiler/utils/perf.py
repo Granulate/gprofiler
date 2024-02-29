@@ -73,6 +73,7 @@ def get_perf_event_args(tmp_dir: Path, stop_event: Event) -> List[str]:
 
         try:
             current_extra_args = event.perf_extra_args() + [
+                "--",
                 "sleep",
                 "0.5",
             ]  # `sleep 0.5` is enough to be certain some samples should've been collected.
