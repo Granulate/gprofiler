@@ -1292,7 +1292,7 @@ def test_including_line_numbers(
     profiler_state: ProfilerState,
     java_line_numbers: str,
 ) -> None:
-    function_with_line_numbers = "Fibonacci.fibonacci:9(I)J_[j]"
+    function_with_line_numbers = "Fibonacci.fibonacci:20(I)J_[j]"
     with make_java_profiler(profiler_state, java_line_numbers=java_line_numbers) as profiler:
         collapsed = snapshot_pid_collapsed(profiler, application_pid)
         if java_line_numbers == "line-of-function":
