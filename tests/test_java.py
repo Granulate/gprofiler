@@ -1,6 +1,17 @@
 #
-# Copyright (c) Granulate. All rights reserved.
-# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+# Copyright (C) 2022 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 import logging
 import os
@@ -1281,7 +1292,7 @@ def test_including_line_numbers(
     profiler_state: ProfilerState,
     java_line_numbers: str,
 ) -> None:
-    function_with_line_numbers = "Fibonacci.fibonacci:9(I)J_[j]"
+    function_with_line_numbers = "Fibonacci.fibonacci:20(I)J_[j]"
     with make_java_profiler(profiler_state, java_line_numbers=java_line_numbers) as profiler:
         collapsed = snapshot_pid_collapsed(profiler, application_pid)
         if java_line_numbers == "line-of-function":
