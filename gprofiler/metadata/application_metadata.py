@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2023 Intel Corporation
+# Copyright (C) 2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -98,9 +98,11 @@ class ApplicationMetadata:
         # take arch from the executed elf, not the host system, because (although unlikely) it's possible
         # that the process runs a different, emulated architecture.
         md["arch"] = _wrap_errors(
-            lambda p: "error: not supported on Windows"
-            if is_windows()
-            else elf_arch_to_uname_arch(get_elf_arch(f"/proc/{process.pid}/exe")),
+            lambda p: (
+                "error: not supported on Windows"
+                if is_windows()
+                else elf_arch_to_uname_arch(get_elf_arch(f"/proc/{process.pid}/exe"))
+            ),
             "Exception while getting process exe architecture",
         )
 

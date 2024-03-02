@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2023 Intel Corporation
+# Copyright (C) 2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,12 +38,16 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, load_metadata, run_g
             {
                 "exe": "/usr/local/bin/python3.6",
                 "execfn": "/usr/local/bin/python",
-                "libpython_elfid": "buildid:64b7f8a37ff81f574936de12c263aade340ed3db"
-                if is_aarch64()
-                else "buildid:0ef3fce0ef90d8f40ad9236793d30081001ee898",
-                "exe_elfid": "buildid:d627b889c0ac0642ea715651ebb7436ce1ee7444"
-                if is_aarch64()
-                else "buildid:a04b9016e15a247fbc21c91260c13e17a458ed33",
+                "libpython_elfid": (
+                    "buildid:64b7f8a37ff81f574936de12c263aade340ed3db"
+                    if is_aarch64()
+                    else "buildid:0ef3fce0ef90d8f40ad9236793d30081001ee898"
+                ),
+                "exe_elfid": (
+                    "buildid:d627b889c0ac0642ea715651ebb7436ce1ee7444"
+                    if is_aarch64()
+                    else "buildid:a04b9016e15a247fbc21c91260c13e17a458ed33"
+                ),
                 "python_version": "Python 3.6.15",
                 "sys_maxunicode": None,
                 "arch": platform.machine(),
@@ -57,15 +61,21 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, load_metadata, run_g
             {
                 "exe": "/usr/local/bin/ruby",
                 "execfn": "/usr/local/bin/ruby",
-                "libruby_elfid": "buildid:3dd53a0b231fb14f1aaa81e10be000c58a09ee45"
-                if is_aarch64()
-                else "buildid:bf7da94bfdf3cb595ae0af450112076bdaaabee8",
-                "exe_elfid": "buildid:8a28e8baf87a769f077bf28c053811ce4ffbebed"
-                if is_aarch64()
-                else "buildid:cbc0ab21749fe48b904fff4e73b88413270bd8ba",
-                "ruby_version": "ruby 2.6.7p197 (2021-04-05 revision 67941) [aarch64-linux]"
-                if is_aarch64()
-                else "ruby 2.6.7p197 (2021-04-05 revision 67941) [x86_64-linux]",
+                "libruby_elfid": (
+                    "buildid:3dd53a0b231fb14f1aaa81e10be000c58a09ee45"
+                    if is_aarch64()
+                    else "buildid:bf7da94bfdf3cb595ae0af450112076bdaaabee8"
+                ),
+                "exe_elfid": (
+                    "buildid:8a28e8baf87a769f077bf28c053811ce4ffbebed"
+                    if is_aarch64()
+                    else "buildid:cbc0ab21749fe48b904fff4e73b88413270bd8ba"
+                ),
+                "ruby_version": (
+                    "ruby 2.6.7p197 (2021-04-05 revision 67941) [aarch64-linux]"
+                    if is_aarch64()
+                    else "ruby 2.6.7p197 (2021-04-05 revision 67941) [x86_64-linux]"
+                ),
                 "arch": platform.machine(),
             },
         ),
@@ -80,9 +90,11 @@ from tests.utils import assert_jvm_flags_equal, is_aarch64, load_metadata, run_g
                 "java_version": 'openjdk version "1.8.0_322"\n'
                 "OpenJDK Runtime Environment (build 1.8.0_322-b06)\n"
                 "OpenJDK 64-Bit Server VM (build 25.322-b06, mixed mode)",
-                "libjvm_elfid": "buildid:33a1021cade63f16e30726be4111f20c34444764"
-                if is_aarch64()
-                else "buildid:622795512a2c037aec4d7ca6da05527dae86e460",
+                "libjvm_elfid": (
+                    "buildid:33a1021cade63f16e30726be4111f20c34444764"
+                    if is_aarch64()
+                    else "buildid:622795512a2c037aec4d7ca6da05527dae86e460"
+                ),
                 "arch": platform.machine(),
                 "jvm_flags": [
                     {
