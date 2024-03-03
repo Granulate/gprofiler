@@ -38,6 +38,7 @@ class PerfProcess:
 
     def __init__(
         self,
+        *,
         frequency: int,
         stop_event: Event,
         output_path: str,
@@ -59,7 +60,7 @@ class PerfProcess:
             self._pid_args.append(",".join([str(process.pid) for process in processes_to_profile]))
         else:
             self._pid_args.append("-a")
-        self._extra_args = extra_args + (["-k", "1"] if self._inject_jit else [])
+        self._extra_args = extra_args
         self._switch_timeout_s = switch_timeout_s
         self._process: Optional[Popen] = None
 
@@ -87,6 +88,7 @@ class PerfProcess:
                 str(self._MMAP_SIZES[self._type]),
             ]
             + self._pid_args
+            + (["-k", "1"] if self._inject_jit else [])
             + self._extra_args
         )
 

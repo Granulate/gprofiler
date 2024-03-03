@@ -16,6 +16,7 @@
 
 import os
 from collections import Counter, defaultdict
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from granulate_utils.exceptions import MissingExePath
@@ -26,7 +27,7 @@ from granulate_utils.node import is_node_process
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
-from gprofiler.exceptions import StopEventSetException
+from gprofiler.exceptions import PerfNoSupportedEvent, StopEventSetException
 from gprofiler.gprofiler_types import (
     ProcessToProfileData,
     ProcessToStackSampleCounters,
@@ -40,7 +41,7 @@ from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils.perf import parse_perf_script, valid_perf_pid
+from gprofiler.utils.perf import discover_appropriate_perf_event, parse_perf_script, valid_perf_pid
 from gprofiler.utils.perf_process import PerfProcess
 
 logger = get_logger_adapter(__name__)
@@ -189,32 +190,44 @@ class SystemProfiler(ProfilerBase):
         self._node_processes_attached: List[Process] = []
         self._perf_memory_restart = perf_memory_restart
         switch_timeout_s = duration * 3  # allow gprofiler to be delayed up to 3 intervals before timing out.
+        extra_args = []
+        try:
+            # We want to be certain that `perf record` will collect samples.
+            discovered_perf_event = discover_appropriate_perf_event(
+                Path(self._profiler_state.storage_dir), self._profiler_state.stop_event
+            )
+            logger.debug("Discovered perf event", discovered_perf_event=discovered_perf_event.name)
+            extra_args.extend(discovered_perf_event.perf_extra_args())
+        except PerfNoSupportedEvent:
+            logger.critical("Failed to determine perf event to use")
+            raise
 
         if perf_mode in ("fp", "smart"):
             self._perf_fp: Optional[PerfProcess] = PerfProcess(
-                self._frequency,
-                self._profiler_state.stop_event,
-                os.path.join(self._profiler_state.storage_dir, "perf.fp"),
-                False,
-                perf_inject,
-                [],
-                self._profiler_state.processes_to_profile,
-                switch_timeout_s,
+                frequency=self._frequency,
+                stop_event=self._profiler_state.stop_event,
+                output_path=os.path.join(self._profiler_state.storage_dir, "perf.fp"),
+                is_dwarf=False,
+                inject_jit=perf_inject,
+                extra_args=extra_args,
+                processes_to_profile=self._profiler_state.processes_to_profile,
+                switch_timeout_s=switch_timeout_s,
             )
             self._perfs.append(self._perf_fp)
         else:
             self._perf_fp = None
 
         if perf_mode in ("dwarf", "smart"):
+            extra_args.extend(["--call-graph", f"dwarf,{perf_dwarf_stack_size}"])
             self._perf_dwarf: Optional[PerfProcess] = PerfProcess(
-                self._frequency,
-                self._profiler_state.stop_event,
-                os.path.join(self._profiler_state.storage_dir, "perf.dwarf"),
-                True,
-                False,  # no inject in dwarf mode, yet
-                ["--call-graph", f"dwarf,{perf_dwarf_stack_size}"],
-                self._profiler_state.processes_to_profile,
-                switch_timeout_s,
+                frequency=self._frequency,
+                stop_event=self._profiler_state.stop_event,
+                output_path=os.path.join(self._profiler_state.storage_dir, "perf.dwarf"),
+                is_dwarf=True,
+                inject_jit=False,  # no inject in dwarf mode, yet
+                extra_args=extra_args,
+                processes_to_profile=self._profiler_state.processes_to_profile,
+                switch_timeout_s=switch_timeout_s,
             )
             self._perfs.append(self._perf_dwarf)
         else:

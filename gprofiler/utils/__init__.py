@@ -548,3 +548,7 @@ def merge_dicts(source: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any]:
         else:
             dest[key] = value
     return dest
+
+
+def is_profiler_disabled(profile_mode: str) -> bool:
+    return profile_mode in ("none", "disabled")

@@ -18,6 +18,10 @@ import subprocess
 from typing import List, Union
 
 
+class PerfNoSupportedEvent(Exception):
+    pass
+
+
 class StopEventSetException(Exception):
     pass
 

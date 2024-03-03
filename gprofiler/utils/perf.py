@@ -16,13 +16,16 @@
 
 import re
 from collections import Counter, defaultdict
-from typing import Optional
+from enum import Enum
+from pathlib import Path
+from threading import Event
+from typing import List, Optional
 
-from gprofiler.exceptions import CalledProcessError
+from gprofiler.exceptions import CalledProcessError, PerfNoSupportedEvent
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import run_process
-from gprofiler.utils.perf_process import perf_path
+from gprofiler.utils.perf_process import PerfProcess, perf_path
 
 logger = get_logger_adapter(__name__)
 
@@ -44,6 +47,73 @@ SAMPLE_REGEX = re.compile(
     r"(?:(?P<freq>\d+)\s+)?(?P<event_family>[\w\-_/]+):(?:(?P<event>[\w-]+):)?(?P<suffix>[^\n]*)(?:\n(?P<stack>.*))?",
     re.MULTILINE | re.DOTALL,
 )
+
+
+class SupportedPerfEvent(Enum):
+    """
+    order here is crucial, the first one we try and succeed - will be used.
+    keep it mind that we should always use `PERF_DEFAULT` as a first try.
+    meaning - keeping with `perf`s' default is always preferred.
+    """
+
+    PERF_DEFAULT = "default"
+    PERF_SW_CPU_CLOCK = "cpu-clock"
+    PERF_SW_TASK_CLOCK = "task-clock"
+
+    def perf_extra_args(self) -> List[str]:
+        if self == SupportedPerfEvent.PERF_DEFAULT:
+            return []
+        return ["-e", self.value]
+
+
+def discover_appropriate_perf_event(tmp_dir: Path, stop_event: Event) -> SupportedPerfEvent:
+    """
+    Get the appropriate event should be used by `perf record`.
+
+    We've observed that on some machines the default event `perf record` chooses doesn't actually collect samples.
+    And we generally would not want to change the default event chosen by `perf record`, so before
+    any change we apply to collected sample event, we want to make sure that the default event
+    actually collects samples, and make changes only if it doesn't.
+
+    :param tmp_dir: working directory of this function
+    :return: `perf record` extra arguments to use (e.g. `["-e", "cpu-clock"]`)
+    """
+
+    for event in SupportedPerfEvent:
+        perf_script_output = None
+
+        try:
+            current_extra_args = event.perf_extra_args() + [
+                "--",
+                "sleep",
+                "0.5",
+            ]  # `sleep 0.5` is enough to be certain some samples should've been collected.
+            perf_process = PerfProcess(
+                frequency=11,
+                stop_event=stop_event,
+                output_path=str(tmp_dir / "perf_default_event.fp"),
+                is_dwarf=False,
+                inject_jit=False,
+                extra_args=current_extra_args,
+                processes_to_profile=None,
+                switch_timeout_s=15,
+            )
+            perf_process.start()
+            parsed_perf_script = parse_perf_script(perf_process.wait_and_script())
+            if len(parsed_perf_script) > 0:
+                # `perf script` isn't empty, we'll use this event.
+                return event
+        except Exception:  # pylint: disable=broad-except
+            logger.warning(
+                "Failed to collect samples for perf event",
+                exc_info=True,
+                perf_event=event.name,
+                perf_script_output=perf_script_output,
+            )
+        finally:
+            perf_process.stop()
+
+    raise PerfNoSupportedEvent
 
 
 def can_i_use_perf_events() -> bool:
