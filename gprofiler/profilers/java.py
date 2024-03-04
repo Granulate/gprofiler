@@ -970,6 +970,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         15: (Version("15.0.1"), 9),
         16: (Version("16"), 36),
         17: (Version("17"), 11),
+        18: (Version("18"), 36),
         19: (Version("19.0.1"), 10),
         21: (Version("21"), 35),
     }
