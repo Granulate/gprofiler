@@ -24,6 +24,8 @@ WHERE /Q go || (
 ECHO Building burn.
 CD burn
 SET CGO_ENABLED=0
+go get -u golang.org/x/text@v0.4.0
+go get github.com/fsnotify/fsnotify@v1.4.7
 go build
 IF ERRORLEVEL 1 ( ECHO Burn build failed. & GOTO exit_with_error )
 ECHO Burn build complete
