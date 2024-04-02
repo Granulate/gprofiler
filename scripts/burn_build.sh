@@ -20,7 +20,5 @@ DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 git clone -b "$(awk '/VERSION/{print $2}' <"${DIR}/burn_version.txt")" https://github.com/granulate/burn
 cd burn
 git reset --hard "$(awk '/COMMIT/{print $2}' <"${DIR}/burn_version.txt")"
-go get -u golang.org/x/text@v0.4.0
-go get github.com/fsnotify/fsnotify@v1.4.7
 
 CGO_ENABLED=0 go build
