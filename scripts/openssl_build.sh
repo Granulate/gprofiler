@@ -15,10 +15,13 @@
 # limitations under the License.
 #
 set -euo pipefail
+
+OPEN_SSL_VERSION=3.2.1
+
 cd /usr/src
-wget https://www.openssl.org/source/openssl-1.1.1q.tar.gz
-tar -xzvf openssl-1.1.1q.tar.gz
-cd openssl-1.1.1q
+wget https://www.openssl.org/source/openssl-$OPEN_SSL_VERSION.tar.gz
+tar -xzvf openssl-$OPEN_SSL_VERSION.tar.gz
+cd openssl-$OPEN_SSL_VERSION
 ./config --prefix=/usr --openssldir=/etc/ssl --libdir=lib no-shared zlib-dynamic
 make
 make install
