@@ -16,7 +16,7 @@
 #
 set -euo pipefail
 
-OPEN_SSL_VERSION=3.2.1
+OPEN_SSL_VERSION=3.0.11
 
 cd /usr/src
 wget https://www.openssl.org/source/openssl-$OPEN_SSL_VERSION.tar.gz
