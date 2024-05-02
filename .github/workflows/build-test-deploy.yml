@@ -102,7 +102,6 @@ jobs:
           NO_APT_INSTALL=1 ./tests/test.sh --exec-container-image ${{ matrix.containers }} --executable dist/gprofiler -k test_executable
 
   build-executable-aarch64:
-    if: startsWith(github.ref, 'refs/tags/')
     runs-on:
       - self-hosted
       - public
@@ -116,7 +115,8 @@ jobs:
        with:
          fetch-depth: 0
          submodules: true
-
+     - name: shahar's dubug
+       run: sleep 3600
      - name: Set up requirements
        run: scripts/setup_runner_requirements.sh
 
