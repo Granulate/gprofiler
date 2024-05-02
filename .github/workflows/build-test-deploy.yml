@@ -115,8 +115,7 @@ jobs:
        with:
          fetch-depth: 0
          submodules: true
-     - name: shahar's dubug
-       run: sleep 3600
+     
      - name: Set up requirements
        run: scripts/setup_runner_requirements.sh
 
