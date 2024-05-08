@@ -15,8 +15,10 @@
 #
 import os
 import shutil
+import signal
 from pathlib import Path
 from subprocess import Popen
+from threading import Event
 from typing import Callable, List, Mapping, Optional
 
 import pytest
@@ -24,6 +26,7 @@ from docker import DockerClient
 from docker.models.containers import Container
 from docker.models.images import Image
 
+from gprofiler.utils import wait_event
 from gprofiler.utils.collapsed_format import parse_one_collapsed
 from tests.utils import RUNTIME_PROFILERS, _no_errors, is_aarch64, run_gprofiler_in_container
 
@@ -151,3 +154,55 @@ def test_executable_not_privileged(
 
     collapsed = parse_one_collapsed(Path(output_directory / "last_profile.col").read_text())
     assert_collapsed(collapsed)
+
+
+@pytest.mark.parametrize(
+    "runtime,profiler_type",
+    [
+        ("python", "py-spy"),
+    ],
+)
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("application_docker_mount", [True])
+@pytest.mark.parametrize("application_docker_capabilities", ["SYS_PTRACE"])
+def test_killing_spawned_processes(
+    gprofiler_exe: Path,
+    application_docker_container: Container,
+    runtime_specific_args: List[str],
+    output_directory: Path,
+    profiler_flags: List[str],
+    application_docker_mount: bool,
+) -> None:
+    """Tests if killing gprofiler with -9 results in killing py-spy"""
+    os.makedirs(str(output_directory), mode=0o755, exist_ok=True)
+
+    mount_gprofiler_exe = str(output_directory / "gprofiler")
+    if not os.path.exists(mount_gprofiler_exe):
+        shutil.copy(str(gprofiler_exe), mount_gprofiler_exe)
+
+    command = (
+        [
+            mount_gprofiler_exe,
+            "-v",
+            "--output-dir",
+            str(output_directory),
+            "--disable-pidns-check",
+            "--no-perf",
+        ]
+        + runtime_specific_args
+        + profiler_flags
+    )
+    application_docker_container.exec_run(cmd=command, privileged=True, user="root:root", detach=True)
+    wait_event(30, Event(), lambda: "py-spy record" in str(application_docker_container.top().get("Processes")))
+    processes_in_container = application_docker_container.top().get("Processes")
+    gprofiler_pids = [process[1] for process in processes_in_container if "disable-pidns-check" in process[-1]]
+    for pid in gprofiler_pids:
+        os.kill(int(pid), signal.SIGKILL)
+    processes_in_container = application_docker_container.top().get("Processes")
+    processes_in_container = [process for process in processes_in_container if "<defunct>" not in process[-1]]
+    print(f"Processes left in container: {processes_in_container}")
+    assert len(processes_in_container) == 1
+    assert "py-spy record" not in str(processes_in_container)
+    command = ["ls", "/tmp/gprofiler_tmp"]
+    e, ls_output = application_docker_container.exec_run(cmd=command, privileged=True, user="root:root", detach=False)
+    assert "tmp" in ls_output.decode()
