@@ -105,6 +105,7 @@ POSSIBLE_AP_DIRS = (
     TEMPORARY_STORAGE_PATH,
     f"/run/{GPROFILER_DIRECTORY_NAME}",
     f"/opt/{GPROFILER_DIRECTORY_NAME}",
+    f"/dev/{GPROFILER_DIRECTORY_NAME}",  # unfortunately, we encoundered some systems that left us no other option
 )
 
 
