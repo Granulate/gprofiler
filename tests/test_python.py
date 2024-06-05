@@ -1,12 +1,24 @@
 #
-# Copyright (c) Granulate. All rights reserved.
-# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+# Copyright (C) 2022 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 import os
 
 import psutil
 import pytest
 from granulate_utils.linux.process import is_musl
+from granulate_utils.type_utils import assert_cast
 
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.python import PythonProfiler
@@ -123,11 +135,11 @@ def test_python_matrix(
         assert_function_in_collapsed("lister.Lister.lister", collapsed)
 
     assert profile.app_metadata is not None
-    assert os.path.basename(profile.app_metadata["execfn"]) == app
+    assert os.path.basename(assert_cast(str, profile.app_metadata["execfn"])) == app
     # searching for "python_version.", because ours is without the patchlevel.
-    assert profile.app_metadata["python_version"].startswith(f"Python {python_version}.")
+    assert assert_cast(str, profile.app_metadata["python_version"]).startswith(f"Python {python_version}.")
     if python_version == "2.7" and app == "python":
-        assert profile.app_metadata["sys_maxunicode"] == "1114111"
+        assert assert_cast(str, profile.app_metadata["sys_maxunicode"]) == "1114111"
     else:
         assert profile.app_metadata["sys_maxunicode"] is None
 

@@ -1,4 +1,18 @@
-import json
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from pathlib import Path
 from typing import Container, List
 
@@ -7,7 +21,7 @@ from docker import DockerClient
 from docker.models.images import Image
 
 from gprofiler.utils.collapsed_format import parse_one_collapsed
-from tests.utils import assert_function_in_collapsed, run_gprofiler_in_container_for_one_session
+from tests.utils import assert_function_in_collapsed, load_metadata, run_gprofiler_in_container_for_one_session
 
 
 @pytest.mark.parametrize(
@@ -31,11 +45,7 @@ def test_sanity(
         docker_client, gprofiler_docker_image, output_directory, output_collapsed, [], profiler_flags
     )
     collapsed_text = Path(output_directory / "last_profile.col").read_text()
-    # check the metadata
-    lines = collapsed_text.splitlines()
-    assert lines[0].startswith("#")
-    metadata = json.loads(lines[0][1:])
-    assert metadata["profiling_mode"] == expected_profiling_mode
+    assert load_metadata(collapsed_text)["profiling_mode"] == expected_profiling_mode
 
 
 @pytest.mark.parametrize(
@@ -69,11 +79,7 @@ def test_allocation_being_profiled(
 
     collapsed_text = Path(output_collapsed).read_text()
     print(collapsed_text)
-    # check the metadata
-    lines = collapsed_text.splitlines()
-    assert lines[0].startswith("#")
-    metadata = json.loads(lines[0][1:])
-    assert metadata["profiling_mode"] == "allocation"
+    assert load_metadata(collapsed_text)["profiling_mode"] == "allocation"
 
     collapsed = parse_one_collapsed(collapsed_text)
     assert_function_in_collapsed(expected_frame, collapsed)

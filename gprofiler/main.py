@@ -1,6 +1,17 @@
 #
-# Copyright (c) Granulate. All rights reserved.
-# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+# Copyright (C) 2022 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 import concurrent.futures
 import datetime
@@ -22,7 +33,6 @@ import configargparse
 import humanfriendly
 from granulate_utils.linux.ns import is_running_in_init_pid
 from granulate_utils.linux.process import is_process_running
-from granulate_utils.metadata import Metadata
 from granulate_utils.metadata.cloud import get_aws_execution_env
 from granulate_utils.metadata.databricks_client import DBXWebUIEnvWrapper, get_name_from_metadata
 from psutil import NoSuchProcess, Process
@@ -42,8 +52,10 @@ from gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, integers_list, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import concatenate_from_external_file, concatenate_profiles, merge_profiles
+from gprofiler.metadata import ProfileMetadata
 from gprofiler.metadata.application_identifiers import ApplicationIdentifiers
 from gprofiler.metadata.enrichment import EnrichmentOptions
+from gprofiler.metadata.external_metadata import ExternalMetadataStaleError, read_external_metadata
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
 from gprofiler.platform import is_linux, is_windows
@@ -85,6 +97,8 @@ DEFAULT_ALLOC_INTERVAL = "2mb"
 
 DIAGNOSTICS_INTERVAL_S = 15 * 60
 
+UPLOAD_FILE_SUBCOMMAND = "upload-file"
+
 # 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
 SIGINT_RATELIMIT = 0.5
 
@@ -122,6 +136,7 @@ class GProfiler:
         profile_spawned_processes: bool = True,
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         controller_process: Optional[Process] = None,
+        external_metadata_path: Optional[Path] = None,
     ):
         self._output_dir = output_dir
         self._flamegraph = flamegraph
@@ -133,14 +148,15 @@ class GProfiler:
         self._collect_metrics = collect_metrics
         self._collect_metadata = collect_metadata
         self._enrichment_options = enrichment_options
-        self._static_metadata: Optional[Metadata] = None
+        self._static_metadata: Optional[ProfileMetadata] = None
         self._spawn_time = time.time()
         self._last_diagnostics = 0.0
         self._gpid = ""
         self._controller_process = controller_process
         self._duration = duration
+        self._external_metadata_path = external_metadata_path
         if self._collect_metadata:
-            self._static_metadata = get_static_metadata(spawn_time=self._spawn_time, run_args=user_args)
+            self._static_metadata = get_static_metadata(self._spawn_time, user_args, self._external_metadata_path)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         # TODO: we actually need 2 types of temporary directories.
         # 1. accessible by everyone - for profilers that run code in target processes, like async-profiler
@@ -309,30 +325,39 @@ class GProfiler:
             )
             raise
         metadata = (
-            get_current_metadata(cast(Metadata, self._static_metadata))
+            get_current_metadata(cast(ProfileMetadata, self._static_metadata))
             if self._collect_metadata
             else {"hostname": get_hostname()}
         )
         metadata.update({"profiling_mode": self._profiler_state.profiling_mode})
         metrics = self._system_metrics_monitor.get_metrics()
+
+        try:
+            external_app_metadata = read_external_metadata(self._external_metadata_path).application
+        except ExternalMetadataStaleError:
+            logger.warning("External metadata is stale, ignoring it")
+            external_app_metadata = {}
+
         if NoopProfiler.is_noop_profiler(self.system_profiler):
             assert system_result == {}, system_result  # should be empty!
             merged_result = concatenate_profiles(
-                process_profiles,
-                self._profiler_state.container_names_client,
-                self._enrichment_options,
-                metadata,
-                metrics,
+                process_profiles=process_profiles,
+                container_names_client=self._profiler_state.container_names_client,
+                enrichment_options=self._enrichment_options,
+                metadata=metadata,
+                metrics=metrics,
+                external_app_metadata=external_app_metadata,
             )
 
         else:
             merged_result = merge_profiles(
-                system_result,
-                process_profiles,
-                self._profiler_state.container_names_client,
-                self._enrichment_options,
-                metadata,
-                metrics,
+                perf_pid_to_profiles=system_result,
+                process_profiles=process_profiles,
+                container_names_client=self._profiler_state.container_names_client,
+                enrichment_options=self._enrichment_options,
+                metadata=metadata,
+                metrics=metrics,
+                external_app_metadata=external_app_metadata,
             )
 
         if self._output_dir:
@@ -417,15 +442,20 @@ def _submit_profile_logged(
     return ""
 
 
-def send_collapsed_file_only(args: configargparse.Namespace, client: ProfilerAPIClient) -> None:
+def send_collapsed_file_only(
+    args: configargparse.Namespace,
+    client: ProfilerAPIClient,
+) -> None:
     spawn_time = time.time()
     gpid = ""
     metrics = NoopSystemMetricsMonitor().get_metrics()
-    static_metadata: Optional[Metadata] = None
+    static_metadata: Optional[ProfileMetadata] = None
     if args.collect_metadata:
-        static_metadata = get_static_metadata(spawn_time=spawn_time, run_args=args.__dict__)
+        static_metadata = get_static_metadata(spawn_time, args.__dict__, None)
     metadata = (
-        get_current_metadata(cast(Metadata, static_metadata)) if args.collect_metadata else {"hostname": get_hostname()}
+        get_current_metadata(cast(ProfileMetadata, static_metadata))
+        if args.collect_metadata
+        else {"hostname": get_hostname()}
     )
     local_start_time, local_end_time, merged_result = concatenate_from_external_file(
         args.file_path,
@@ -594,7 +624,7 @@ def parse_cmd_args() -> configargparse.Namespace:
     )
 
     subparsers = parser.add_subparsers(dest="subcommand")
-    upload_file = subparsers.add_parser("upload-file")
+    upload_file = subparsers.add_parser(UPLOAD_FILE_SUBCOMMAND)
     upload_file.add_argument(
         "--file-path",
         type=str,
@@ -633,8 +663,6 @@ def parse_cmd_args() -> configargparse.Namespace:
         connectivity.add_argument(
             "--no-verify", help="Do not verify server certificates", action="store_false", dest="verify"
         )
-
-    upload_file.set_defaults(func=send_collapsed_file_only)
 
     extract_resources = subparsers.add_parser("extract-resources")
     extract_resources.set_defaults(func=copy_resources)
@@ -751,6 +779,14 @@ def parse_cmd_args() -> configargparse.Namespace:
     )
 
     parser.add_argument(
+        "--external-metadata",
+        default=None,
+        type=str,
+        help="Path to a file containing static & application metadata to be added to the profile. This option is"
+        " used by other Granulate components to enrich the profile with additional metadata.",
+    )
+
+    parser.add_argument(
         "--databricks-job-name-as-service-name",
         action="store_true",
         dest="databricks_job_name_as_service_name",
@@ -794,7 +830,7 @@ def parse_cmd_args() -> configargparse.Namespace:
             args.alloc_interval = DEFAULT_ALLOC_INTERVAL
         args.frequency = humanfriendly.parse_size(args.alloc_interval, binary=True)
 
-    if args.subcommand == "upload-file":
+    if args.subcommand == UPLOAD_FILE_SUBCOMMAND:
         args.upload_results = True
 
     if args.subcommand == "extract-resources":
@@ -982,7 +1018,7 @@ def main() -> None:
         args.perf_mode = "disabled"
         args.pid_ns_check = False
 
-    if args.subcommand != "upload-file":
+    if args.subcommand != UPLOAD_FILE_SUBCOMMAND:
         verify_preconditions(args, processes_to_profile)
 
     state = init_state()
@@ -1035,6 +1071,17 @@ def main() -> None:
         else:
             controller_process = None
 
+        external_metadata_path: Optional[Path] = None
+        if args.external_metadata is not None:
+            if args.subcommand == UPLOAD_FILE_SUBCOMMAND:
+                logger.error(f"External metadata is not supported in {UPLOAD_FILE_SUBCOMMAND} mode!")
+                sys.exit(1)
+
+            external_metadata_path = Path(args.external_metadata)
+            if not external_metadata_path.is_file():
+                logger.error(f"External metadata file {args.external_metadata} does not exist!")
+                sys.exit(1)
+
         try:
             log_system_info()
         except Exception:
@@ -1082,9 +1129,10 @@ def main() -> None:
             )
             sys.exit(1)
 
-        if hasattr(args, "func"):
-            assert args.subcommand == "upload-file"
-            args.func(args, profiler_api_client)
+        if args.subcommand == UPLOAD_FILE_SUBCOMMAND:
+            assert external_metadata_path is None  # not expecting it
+            assert profiler_api_client is not None  # it's always initialized in upload-file mode
+            send_collapsed_file_only(args, profiler_api_client)
             return
 
         enrichment_options = EnrichmentOptions(
@@ -1115,6 +1163,7 @@ def main() -> None:
             remote_logs_handler=remote_logs_handler,
             controller_process=controller_process,
             processes_to_profile=processes_to_profile,
+            external_metadata_path=external_metadata_path,
         )
         logger.info("gProfiler initialized and ready to start profiling")
         if args.continuous:
@@ -1126,6 +1175,9 @@ def main() -> None:
         pass
     except NoProfilersEnabledError:
         logger.error("All profilers are disabled! Please enable at least one of them!")
+        sys.exit(1)
+    except ExternalMetadataStaleError:
+        logger.error("External metadata file is stale! Please update it or disable external metadata, and try again.")
         sys.exit(1)
     except Exception:
         logger.exception("Unexpected error occurred")

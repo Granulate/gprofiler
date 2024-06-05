@@ -1,6 +1,17 @@
 #
-# Copyright (c) Granulate. All rights reserved.
-# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+# Copyright (C) 2022 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 import errno
 import functools
@@ -59,6 +70,7 @@ from gprofiler.gprofiler_types import (
     ProcessToProfileData,
     ProfileData,
     StackToSampleCount,
+    comma_separated_enum_list,
     integer_range,
     positive_integer,
 )
@@ -93,6 +105,7 @@ POSSIBLE_AP_DIRS = (
     TEMPORARY_STORAGE_PATH,
     f"/run/{GPROFILER_DIRECTORY_NAME}",
     f"/opt/{GPROFILER_DIRECTORY_NAME}",
+    f"/dev/{GPROFILER_DIRECTORY_NAME}",  # unfortunately, we encoundered some systems that left us no other option
 )
 
 
@@ -110,9 +123,6 @@ def needs_musl_ap_cached(process: Process) -> bool:
     """
     maps = process.memory_maps()
     return is_musl(process, maps) and not any("glibc-compat" in m.path for m in maps)
-
-
-JAVA_SAFEMODE_ALL = "all"  # magic value for *all* options from JavaSafemodeOptions
 
 
 class JavaSafemodeOptions(str, Enum):
@@ -138,6 +148,7 @@ class JavaSafemodeOptions(str, Enum):
     AP_LOADED_CHECK = "ap-loaded-check"
 
 
+JAVA_SAFEMODE_ALL = "all"  # magic value for *all* options from JavaSafemodeOptions
 JAVA_SAFEMODE_ALL_OPTIONS = [o.value for o in JavaSafemodeOptions]
 JAVA_SAFEMODE_DEFAULT_OPTIONS = [
     JavaSafemodeOptions.PROFILED_OOM.value,
@@ -145,10 +156,36 @@ JAVA_SAFEMODE_DEFAULT_OPTIONS = [
     JavaSafemodeOptions.HSERR.value,
 ]
 
-# https://github.com/jvm-profiling-tools/async-profiler/blob/63799a6055363cbd7ca8ef951e2393db0d0ba7dd/src/profiler.cpp#L77
-JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 256  # StackRecovery.PROBE_SP
 
 SUPPORTED_AP_MODES = ["cpu", "itimer", "alloc"]
+
+
+# see StackWalkFeatures
+# https://github.com/async-profiler/async-profiler/blob/a17529378b47e6700d84f89d74ca5e6284ffd1a6/src/arguments.h#L95-L112
+class AsyncProfilerFeatures(str, Enum):
+    # these will be controllable via "features" in a future AP release:
+    #
+    # unknown_java
+    # unwind_stub
+    # unwind_comp
+    # unwind_native
+    # java_anchor
+    # gc_traces
+
+    # these are controllable via "features" in AP 3.0
+    probe_sp = "probesp"
+    vtable_target = "vtable"
+    comp_task = "comptask"
+    # as of AP 3.0
+
+
+SUPPORTED_AP_FEATURES = [o.value for o in AsyncProfilerFeatures]
+DEFAULT_AP_FEATURES = [AsyncProfilerFeatures.probe_sp.value, AsyncProfilerFeatures.vtable_target.value]
+
+# see options still here and not in "features":
+# https://github.com/async-profiler/async-profiler/blob/a17529378b47e6700d84f89d74ca5e6284ffd1a6/src/arguments.cpp#L262
+# we don't want any of them disabled by default.
+JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE = 0
 
 PROBLEMATIC_FRAME_REGEX = re.compile(r"^# Problematic frame:\n# (.*?)\n#\n", re.MULTILINE | re.DOTALL)
 """
@@ -239,7 +276,7 @@ class JattachJcmdRunner:
     def run(self, process: Process, cmd: str) -> str:
         try:
             return run_process(
-                [asprof_path(), "jcmd", "--jattach-cmd", cmd, str(process.pid)],
+                [asprof_path(), "jcmd", str(process.pid), cmd],
                 stop_event=self.stop_event,
                 timeout=self.jattach_timeout,
             ).stdout.decode()
@@ -467,6 +504,7 @@ class AsyncProfiledProcess:
         profiler_state: ProfilerState,
         mode: str,
         ap_safemode: int,
+        ap_features: List[str],
         ap_args: str,
         jattach_timeout: int = _DEFAULT_JATTACH_TIMEOUT,
         mcache: int = 0,
@@ -517,6 +555,7 @@ class AsyncProfiledProcess:
         self._mode = mode
         self._fdtransfer_path = f"@async-profiler-{process.pid}-{secrets.token_hex(10)}" if mode == "cpu" else None
         self._ap_safemode = ap_safemode
+        self._ap_features = ap_features
         self._ap_args = ap_args
         self._jattach_timeout = jattach_timeout
         self._mcache = mcache
@@ -651,10 +690,10 @@ class AsyncProfiledProcess:
     def _get_base_cmd(self) -> List[str]:
         return [
             asprof_path(),
-            "jattach",
-            "-L",
+            str(self.process.pid),
+            "load",
             self._libap_path_process,
-            "--jattach-cmd",
+            "true",  # 'true' means the given path ^^ is absolute.
         ]
 
     def _get_extra_ap_args(self) -> str:
@@ -677,7 +716,9 @@ class AsyncProfiledProcess:
             f"{self._get_ap_output_args()}{self._get_interval_arg(interval)},"
             f"log={self._log_path_process}"
             f"{f',fdtransfer={self._fdtransfer_path}' if self._mode == 'cpu' else ''}"
-            f",safemode={self._ap_safemode},timeout={ap_timeout}"
+            f",safemode={self._ap_safemode},"
+            f",features={'+'.join(self._ap_features)},"  # asprof uses '+' as a separator: https://github.com/async-profiler/async-profiler/blob/a17529378b47e6700d84f89d74ca5e6284ffd1a6/src/launcher/main.cpp#L441  # noqa
+            f"timeout={ap_timeout}"
             f"{',lib' if self._profiler_state.insert_dso_name else ''}{self._get_extra_ap_args()}"
         ]
 
@@ -705,7 +746,7 @@ class AsyncProfiledProcess:
         try:
             # kill jattach with SIGTERM if it hangs. it will go down
             run_process(
-                cmd + [str(self.process.pid)],
+                cmd,
                 stop_event=self._profiler_state.stop_event,
                 timeout=self._jattach_timeout,
                 kill_signal=signal.SIGTERM,
@@ -773,7 +814,10 @@ class AsyncProfiledProcess:
             if e.is_ap_loaded:
                 if (
                     e.returncode == 200  # 200 == AP's COMMAND_ERROR
-                    and e.get_ap_log() == "[ERROR] Profiler already started\n"
+                    # this is the error we get when we try to start AP on a process that already has it loaded.
+                    # check with "in" and not "==" in case other warnings/infos are printed alongside it,
+                    # but generally, we expect it to be the only output in this case.
+                    and "[ERROR] Profiler already started\n" in e.get_ap_log()
                 ):
                     # profiler was already running
                     return False
@@ -817,11 +861,22 @@ class AsyncProfiledProcess:
             "--java-async-profiler-safemode",
             dest="java_async_profiler_safemode",
             default=JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
-            type=integer_range(0, 0x200),
-            metavar="[0-511]",
+            type=integer_range(0, 0x40),
+            metavar="[0-63]",
             help="Controls the 'safemode' parameter passed to async-profiler. This is parameter denotes multiple"
-            " bits that describe different stack recovery techniques which async-profiler uses (see StackRecovery"
-            " enum in async-profiler's code, in profiler.cpp)."
+            " bits that describe different stack recovery techniques which async-profiler uses. In a future release,"
+            " these optinos will be migrated to the 'features' parameter."
+            " Defaults to '%(default)s'.",
+        ),
+        ProfilerArgument(
+            "--java-async-profiler-features",
+            dest="java_async_profiler_features",
+            default=DEFAULT_AP_FEATURES,
+            metavar=",".join(SUPPORTED_AP_FEATURES),
+            type=functools.partial(comma_separated_enum_list, SUPPORTED_AP_FEATURES),
+            help="Controls the 'features' parameter passed to async-profiler. This is parameter is a comma-separated"
+            " list of options which describe async-profiler's available features (see StackWalkFeatures"
+            " enum in async-profiler's code, in arguments.h)."
             " Defaults to '%(default)s').",
         ),
         ProfilerArgument(
@@ -916,7 +971,9 @@ class JavaProfiler(SpawningProcessProfilerBase):
         15: (Version("15.0.1"), 9),
         16: (Version("16"), 36),
         17: (Version("17"), 11),
+        18: (Version("18"), 36),
         19: (Version("19.0.1"), 10),
+        21: (Version("21"), 22),
     }
 
     # extra timeout seconds to add to the duration itself.
@@ -932,6 +989,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
         java_version_check: bool,
         java_async_profiler_mode: str,
         java_async_profiler_safemode: int,
+        java_async_profiler_features: List[str],
         java_async_profiler_args: str,
         java_safemode: str,
         java_jattach_timeout: int,
@@ -956,6 +1014,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             logger.warning("Java version checks are disabled")
         self._init_ap_mode(self._profiler_state.profiling_mode, java_async_profiler_mode)
         self._ap_safemode = java_async_profiler_safemode
+        self._ap_features = java_async_profiler_features
         self._ap_args = java_async_profiler_args
         self._jattach_timeout = java_jattach_timeout
         self._ap_mcache = java_async_profiler_mcache
@@ -1213,6 +1272,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._profiler_state,
             self._mode,
             self._ap_safemode,
+            self._ap_features,
             self._ap_args,
             self._jattach_timeout,
             self._ap_mcache,

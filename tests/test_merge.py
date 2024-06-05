@@ -1,6 +1,17 @@
 #
-# Copyright (c) Granulate. All rights reserved.
-# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+# Copyright (C) 2022 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 
 """
@@ -98,7 +109,13 @@ def test_merge_profiles_onto_errors(input_dict: Dict[str, str], expected: str) -
     perf_pid_to_profiles = parse_profiles_text(input_dict["perf_text"])
     process_profiles = parse_profiles_text(input_dict["process_text"])
     header_outcome = merge_profiles(
-        perf_pid_to_profiles, process_profiles, None, enrichment_options, metadata, metrics
+        perf_pid_to_profiles=perf_pid_to_profiles,
+        process_profiles=process_profiles,
+        container_names_client=None,
+        enrichment_options=enrichment_options,
+        metadata=metadata,
+        metrics=metrics,
+        external_app_metadata={},
     ).split("\n", maxsplit=1)
     header, outcome = header_outcome[0], header_outcome[1] if len(header_outcome) == 2 else ""
     assert header.startswith("#")
