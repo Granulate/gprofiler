@@ -409,11 +409,11 @@ class GProfiler:
                     logger.info(f"Controller process {self._controller_process.pid} has exited; gProfiler stopping...")
                     break
 
-            self._state.set_cycle_id(None)
+                if self._heartbeat_file_path:
+                    # --heart-beat flag
+                    self._heartbeat_file_path.touch(mode=755, exist_ok=True)
 
-            if self._heartbeat_file_path:
-                # --heart-beat flag
-                self._heartbeat_file_path.touch(mode=755, exist_ok=True)
+            self._state.set_cycle_id(None)
 
 
 def _submit_profile_logged(
