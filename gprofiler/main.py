@@ -137,6 +137,7 @@ class GProfiler:
         remote_logs_handler: Optional[RemoteLogsHandler] = None,
         controller_process: Optional[Process] = None,
         external_metadata_path: Optional[Path] = None,
+        heartbeat_file_path: Optional[Path] = None,
     ):
         self._output_dir = output_dir
         self._flamegraph = flamegraph
@@ -155,6 +156,7 @@ class GProfiler:
         self._controller_process = controller_process
         self._duration = duration
         self._external_metadata_path = external_metadata_path
+        self._heartbeat_file_path = heartbeat_file_path
         if self._collect_metadata:
             self._static_metadata = get_static_metadata(self._spawn_time, user_args, self._external_metadata_path)
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
@@ -408,6 +410,10 @@ class GProfiler:
                     break
 
             self._state.set_cycle_id(None)
+
+            if self._heartbeat_file_path:
+                # --heart-beat flag
+                self._heartbeat_file_path.touch(mode=755, exist_ok=True)
 
 
 def _submit_profile_logged(
@@ -813,6 +819,15 @@ def parse_cmd_args() -> configargparse.Namespace:
         help="Log extra verbose information, making the debugging of gProfiler easier",
     )
 
+    parser.add_argument(
+        "--heartbeat-file",
+        type=str,
+        dest="heartbeat_file",
+        default=None,
+        help="Heartbeat file used to indicate gProfiler is functioning."
+        "The file modification indicates the last snapshot time.",
+    )
+
     args = parser.parse_args()
 
     args.perf_inject = args.nodejs_mode == "perf"
@@ -1082,6 +1097,10 @@ def main() -> None:
                 logger.error(f"External metadata file {args.external_metadata} does not exist!")
                 sys.exit(1)
 
+        heartbeat_file_path: Optional[Path] = None
+        if args.heartbeat_file is not None:
+            heartbeat_file_path = Path(args.heartbeat_file)
+
         try:
             log_system_info()
         except Exception:
@@ -1164,6 +1183,7 @@ def main() -> None:
             controller_process=controller_process,
             processes_to_profile=processes_to_profile,
             external_metadata_path=external_metadata_path,
+            heartbeat_file_path=heartbeat_file_path,
         )
         logger.info("gProfiler initialized and ready to start profiling")
         if args.continuous:
