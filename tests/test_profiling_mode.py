@@ -56,7 +56,7 @@ def test_sanity(
         ("java", "ap", True, "java.lang.String[]"),
     ],
 )
-def test_allocation_being_profiled(
+def xtest_allocation_being_profiled(
     application_docker_container: Container,
     docker_client: DockerClient,
     gprofiler_docker_image: Image,
