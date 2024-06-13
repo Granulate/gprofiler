@@ -118,7 +118,7 @@ class AsyncProfiledProcessForTests(AsyncProfiledProcess):
         return version
 
 
-def xtest_async_profiler_already_running(
+def test_async_profiler_already_running(
     application_pid: int,
     profiler_state: ProfilerState,
     assert_collapsed: AssertInCollapsed,
@@ -163,7 +163,7 @@ def xtest_async_profiler_already_running(
 
 
 @pytest.mark.parametrize("in_container", [True])
-def xtest_java_async_profiler_cpu_mode(
+def test_java_async_profiler_cpu_mode(
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     profiler_state: ProfilerState,
@@ -186,7 +186,7 @@ def xtest_java_async_profiler_cpu_mode(
 
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("application_image_tag", ["musl"])
-def xtest_java_async_profiler_musl_and_cpu(
+def test_java_async_profiler_musl_and_cpu(
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     profiler_state: ProfilerState,
@@ -215,7 +215,7 @@ def test_java_safemode_parameters(profiler_state: ProfilerState) -> None:
     assert "Java version checks are mandatory in --java-safemode" in str(excinfo.value)
 
 
-def xtest_java_safemode_version_check(
+def test_java_safemode_version_check(
     monkeypatch: MonkeyPatch,
     caplog: LogCaptureFixture,
     application_pid: int,
@@ -226,6 +226,7 @@ def xtest_java_safemode_version_check(
     monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (Version("8.999"), 0))
 
     with make_java_profiler(profiler_state) as profiler:
+        profiler._profiler_state.get_container_name(application_pid)
         process = profiler._select_processes_to_profile()[0]
         jvm_version_str = cast_away_optional(get_java_version(process, profiler._profiler_state.stop_event))
         jvm_version = parse_jvm_version(jvm_version_str)
@@ -236,7 +237,7 @@ def xtest_java_safemode_version_check(
     assert log_record_extra(log_record)["jvm_version"] == repr(jvm_version)
 
 
-def xtest_java_safemode_build_number_check(
+def test_java_safemode_build_number_check(
     monkeypatch: MonkeyPatch,
     caplog: LogCaptureFixture,
     application_pid: int,
@@ -245,6 +246,7 @@ def xtest_java_safemode_build_number_check(
     profiler_state: ProfilerState,
 ) -> None:
     with make_java_profiler(profiler_state) as profiler:
+        profiler._profiler_state.get_container_name(application_pid)
         process = profiler._select_processes_to_profile()[0]
         jvm_version_str = cast_away_optional(get_java_version(process, profiler._profiler_state.stop_event))
         jvm_version = parse_jvm_version(jvm_version_str)
@@ -261,10 +263,10 @@ def xtest_java_safemode_build_number_check(
     [
         (False, (), False),  # default
         (False, ("-XX:ErrorFile=/tmp/my_custom_error_file.log",), False),  # custom error file
-        #   (True, (), False),  # containerized (other params are ignored)
+        (True, (), False),  # containerized (other params are ignored)
     ],
 )
-def xtest_hotspot_error_file(
+def test_hotspot_error_file(
     application_pid: int,
     monkeypatch: MonkeyPatch,
     caplog: LogCaptureFixture,
@@ -297,7 +299,7 @@ def xtest_hotspot_error_file(
     assert profiler._safemode_disable_reason is not None
 
 
-def xtest_disable_java_profiling(
+def test_disable_java_profiling(
     application_pid: int,
     monkeypatch: MonkeyPatch,
     caplog: LogCaptureFixture,
@@ -315,7 +317,7 @@ def xtest_disable_java_profiling(
     assert "Java profiling has been disabled, skipping profiling of all java process" in caplog.text
 
 
-def xtest_already_loaded_async_profiler_profiling_failure(
+def test_already_loaded_async_profiler_profiling_failure(
     monkeypatch: MonkeyPatch,
     caplog: LogCaptureFixture,
     application_pid: int,
@@ -339,7 +341,7 @@ def xtest_already_loaded_async_profiler_profiling_failure(
 # test only once; and don't test in container - as it will go down once we kill the Java app.
 @pytest.mark.parametrize("in_container", [False])
 @pytest.mark.parametrize("check_app_exited", [False])  # we're killing it, the exit check will raise.
-def xtest_async_profiler_output_written_upon_jvm_exit(
+def test_async_profiler_output_written_upon_jvm_exit(
     tmp_path_world_accessible: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
@@ -367,7 +369,7 @@ def xtest_async_profiler_output_written_upon_jvm_exit(
 
 # test only once
 @pytest.mark.parametrize("in_container", [False])
-def xtest_async_profiler_stops_after_given_timeout(
+def test_async_profiler_stops_after_given_timeout(
     tmp_path_world_accessible: Path,
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
@@ -400,7 +402,7 @@ def xtest_async_profiler_stops_after_given_timeout(
 
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("application_image_tag,search_for", [("j9", "OpenJ9"), ("zing", "Zing")])
-def xtest_sanity_other_jvms(
+def test_sanity_other_jvms(
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     search_for: str,
@@ -417,6 +419,7 @@ def xtest_sanity_other_jvms(
         frequency=99,
         java_async_profiler_mode="cpu",
     ) as profiler:
+        profiler._profiler_state.get_container_name(application_pid)
         process = psutil.Process(application_pid)
         assert search_for in cast_away_optional(get_java_version(process, profiler._profiler_state.stop_event))
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
@@ -425,7 +428,7 @@ def xtest_sanity_other_jvms(
 
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("application_image_tag,search_for", [("eclipse-temurin-latest", "Temurin")])
-def xtest_sanity_latest_jvms(
+def test_sanity_latest_jvms(
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     search_for: str,
@@ -438,6 +441,7 @@ def xtest_sanity_latest_jvms(
     """
 
     with make_java_profiler(profiler_state) as profiler:
+        profiler._profiler_state.get_container_name(application_pid)
         # sanity check that this is the correct JVM we're targeting
         assert search_for in cast_away_optional(
             get_java_version(psutil.Process(application_pid), profiler._profiler_state.stop_event)
@@ -462,7 +466,7 @@ def simulate_libjvm_delete(application_pid: int) -> None:
 
 # test only once. in a container, so that we don't mess up the environment :)
 @pytest.mark.parametrize("in_container", [True])
-def xtest_java_deleted_libjvm(
+def test_java_deleted_libjvm(
     application_pid: int,
     application_docker_container: Container,
     assert_collapsed: AssertInCollapsed,
@@ -501,7 +505,7 @@ def filter_jattach_load_records(records: List[LogRecord]) -> List[LogRecord]:
         pytest.param("ro", [docker.types.Mount(target="/tmpfs", source="", type="tmpfs", read_only=True)], id="ro"),
     ],
 )
-def xtest_java_noexec_or_ro_dirs(
+def test_java_noexec_or_ro_dirs(
     tmp_path_world_accessible: Path,  # will be used by AP for logs & outputs
     application_pid: int,
     extra_application_docker_mounts: List[docker.types.Mount],
@@ -569,7 +573,7 @@ def xtest_java_noexec_or_ro_dirs(
 
 
 @pytest.mark.parametrize("in_container", [True])
-def xtest_java_symlinks_in_paths(
+def test_java_symlinks_in_paths(
     application_pid: int,
     application_docker_container: Container,
     assert_collapsed: AssertInCollapsed,
@@ -616,7 +620,7 @@ def xtest_java_symlinks_in_paths(
 
 
 @pytest.mark.parametrize("in_container", [True])  # only in container is enough
-def xtest_java_appid_and_metadata_before_process_exits(
+def test_java_appid_and_metadata_before_process_exits(
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     monkeypatch: MonkeyPatch,
@@ -657,7 +661,7 @@ def xtest_java_appid_and_metadata_before_process_exits(
 
 
 @pytest.mark.parametrize("in_container", [True])  # only in container is enough
-def xtest_java_attach_socket_missing(
+def test_java_attach_socket_missing(
     application_pid: int,
     profiler_state: ProfilerState,
 ) -> None:
@@ -680,7 +684,7 @@ def xtest_java_attach_socket_missing(
 
 # we know what messages to expect when in container, not on the host Java
 @pytest.mark.parametrize("in_container", [True])
-def xtest_java_jattach_async_profiler_log_output(
+def test_java_jattach_async_profiler_log_output(
     application_pid: int,
     caplog: LogCaptureFixture,
     profiler_state: ProfilerState,
@@ -817,7 +821,7 @@ def test_non_java_basename_version(
 
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("insert_dso_name", [False, True])
-def xtest_dso_name_in_ap_profile(
+def test_dso_name_in_ap_profile(
     application_pid: int,
     insert_dso_name: bool,
     profiler_state: ProfilerState,
@@ -836,7 +840,7 @@ def xtest_dso_name_in_ap_profile(
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("insert_dso_name", [False, True])
 @pytest.mark.parametrize("libc_pattern", [r"(^|;)\(/.*/libc-.*\.so\)($|;)"])
-def xtest_handling_missing_symbol_in_profile(
+def test_handling_missing_symbol_in_profile(
     application_pid: int,
     insert_dso_name: bool,
     libc_pattern: str,
@@ -852,7 +856,7 @@ def xtest_handling_missing_symbol_in_profile(
 
 
 @pytest.mark.parametrize("in_container", [True])
-def xtest_meminfo_logged(
+def test_meminfo_logged(
     application_pid: int,
     caplog: LogCaptureFixture,
     profiler_state: ProfilerState,
@@ -869,7 +873,7 @@ def xtest_meminfo_logged(
 
 # test that java frames include no semicolon but use a pipe '|' character instead, as implemented by AP
 @pytest.mark.parametrize("in_container", [True])
-def xtest_java_frames_include_no_semicolons(
+def test_java_frames_include_no_semicolons(
     application_pid: int,
     profiler_state: ProfilerState,
 ) -> None:
@@ -896,7 +900,7 @@ def xtest_java_frames_include_no_semicolons(
 
 # test that async profiler doesn't print anything to applications stdout, stderr streams
 @pytest.mark.parametrize("in_container", [True])
-def xtest_no_stray_output_in_stdout_stderr(
+def test_no_stray_output_in_stdout_stderr(
     application_pid: int,
     application_docker_container: Container,
     monkeypatch: MonkeyPatch,
@@ -1094,7 +1098,7 @@ def xtest_no_stray_output_in_stdout_stderr(
         ),
     ],
 )
-def xtest_collect_default_jvm_flags(
+def test_collect_default_jvm_flags(
     profiler_state: ProfilerState,
     tmp_path: Path,
     application_pid: int,
@@ -1178,7 +1182,7 @@ def xtest_collect_default_jvm_flags(
         ),
     ],
 )
-def xtest_collect_cmdline_and_env_jvm_flags(
+def test_collect_cmdline_and_env_jvm_flags(
     docker_client: DockerClient,
     application_docker_image: Image,
     assert_collapsed: AssertInCollapsed,
@@ -1218,7 +1222,7 @@ def xtest_collect_cmdline_and_env_jvm_flags(
 @pytest.mark.parametrize("java_cli_flags", ["-XX:MinHeapFreeRatio=5 -XX:MaxHeapFreeRatio=95"])
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("expected_flags", [[]])
-def xtest_collect_flags_unsupported_filtered_out(
+def test_collect_flags_unsupported_filtered_out(
     docker_client: DockerClient,
     application_docker_image: Image,
     assert_collapsed: AssertInCollapsed,
@@ -1246,10 +1250,9 @@ def xtest_collect_flags_unsupported_filtered_out(
                 f"exec java {java_cli_flags} -jar Fibonacci.jar",
             ],
         ) as container:
-            assert (
-                profiler._metadata.get_jvm_flags_serialized(psutil.Process(container.attrs["State"]["Pid"]))
-                == expected_flags
-            )
+            pid = container.attrs["State"]["Pid"]
+            profiler._profiler_state.get_container_name(pid)
+            assert profiler._metadata.get_jvm_flags_serialized(psutil.Process(pid)) == expected_flags
         log_record = next(filter(lambda r: r.message == "Missing requested flags:", caplog.records))
         # use slicing to remove the leading -XX: instead of removeprefix as it's not available in python 3.8
         assert (
@@ -1260,7 +1263,7 @@ def xtest_collect_flags_unsupported_filtered_out(
 
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("expected_flags", [[]])
-def xtest_collect_none_jvm_flags(
+def test_collect_none_jvm_flags(
     profiler_state: ProfilerState,
     tmp_path: Path,
     application_pid: int,
@@ -1272,7 +1275,7 @@ def xtest_collect_none_jvm_flags(
 
 @pytest.mark.parametrize("in_container", [True])
 @pytest.mark.parametrize("include_mmm", [True, False])
-def xtest_including_method_modifiers(
+def test_including_method_modifiers(
     application_pid: int,
     profiler_state: ProfilerState,
     include_mmm: bool,
@@ -1287,7 +1290,7 @@ def xtest_including_method_modifiers(
 
 @pytest.mark.parametrize("java_line_numbers", ["none", "line-of-function"])
 @pytest.mark.parametrize("in_container", [True])
-def xtest_including_line_numbers(
+def test_including_line_numbers(
     application_pid: int,
     profiler_state: ProfilerState,
     java_line_numbers: str,

@@ -50,7 +50,7 @@ from tests.utils import (
 
 
 @pytest.mark.parametrize("runtime", ["java"])
-def xtest_java_from_host(
+def test_java_from_host(
     tmp_path_world_accessible: Path,
     application_pid: int,
     assert_app_id: Callable,
@@ -68,7 +68,7 @@ def xtest_java_from_host(
 
 
 @pytest.mark.parametrize("runtime", ["python"])
-def xtest_pyspy(
+def test_pyspy(
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     assert_app_id: Callable,
@@ -108,7 +108,7 @@ def test_phpspy(
 
 
 @pytest.mark.parametrize("runtime", ["ruby"])
-def xtest_rbspy(
+def test_rbspy(
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,
@@ -120,7 +120,7 @@ def xtest_rbspy(
 
 
 @pytest.mark.parametrize("runtime", ["dotnet"])
-def xtest_dotnet_trace(
+def test_dotnet_trace(
     application_pid: int,
     assert_collapsed: AssertInCollapsed,
     gprofiler_docker_image: Image,

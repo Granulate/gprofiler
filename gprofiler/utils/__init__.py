@@ -90,45 +90,7 @@ def is_root() -> bool:
         return os.geteuid() == 0
 
 
-libc: Optional[ctypes.CDLL] = None
-
-
-def prctl(*argv: Any) -> int:
-    global libc
-    if libc is None:
-        libc = ctypes.CDLL("libc.so.6", use_errno=True)
-    return cast(int, libc.prctl(*argv))
-
-
-PR_SET_PDEATHSIG = 1
-
-
-def set_child_termination_on_parent_death() -> int:
-    ret = prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
-    if ret != 0:
-        errno = ctypes.get_errno()
-        logger.warning(
-            f"Failed to set parent-death signal on child process. errno: {errno}, strerror: {os.strerror(errno)}"
-        )
-    return ret
-
-
-def wrap_callbacks(callbacks: List[Callable]) -> Callable:
-    # Expects array of callback.
-    # Returns one callback that call each one of them, and returns the retval of last callback
-    def wrapper() -> Any:
-        ret = None
-        for cb in callbacks:
-            ret = cb()
-
-        return ret
-
-    return wrapper
-
-
-def start_process(
-    cmd: Union[str, List[str]], via_staticx: bool = False, term_on_parent_death: bool = True, **kwargs: Any
-) -> Popen:
+def start_process(cmd: Union[str, List[str]], via_staticx: bool = False, **kwargs: Any) -> Popen:
     if isinstance(cmd, str):
         cmd = [cmd]
 
@@ -150,19 +112,12 @@ def start_process(
             env = env if env is not None else os.environ.copy()
             env.update({"LD_LIBRARY_PATH": ""})
 
-    if is_windows():
-        cur_preexec_fn = None  # preexec_fn is not supported on Windows platforms. subprocess.py reports this.
-    else:
-        cur_preexec_fn = kwargs.pop("preexec_fn", os.setpgrp)
-        if term_on_parent_death:
-            cur_preexec_fn = wrap_callbacks([set_child_termination_on_parent_death, cur_preexec_fn])
-
     popen = Popen(
         cmd,
         stdout=kwargs.pop("stdout", subprocess.PIPE),
         stderr=kwargs.pop("stderr", subprocess.PIPE),
         stdin=subprocess.PIPE,
-        preexec_fn=cur_preexec_fn,
+        start_new_session=is_linux(),  # TODO: change to "process_group" after upgrade to Python 3.11+
         env=env,
         **kwargs,
     )
