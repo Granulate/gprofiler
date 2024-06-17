@@ -790,11 +790,7 @@ def parse_cmd_args() -> configargparse.Namespace:
         action="store_true",
         dest="databricks_job_name_as_service_name",
         default=False,
-        help="gProfiler will set service name to Databricks' job name on ephemeral clusters. It'll delay the beginning"
-        " of the profiling due to repeated waiting for Spark's metrics server."
-        ' service name format is: "databricks-job-<JOB-NAME>".'
-        " Note that in any case that the job name is not available due to redaction,"
-        " gProfiler will fallback to use the clusterName property.",
+        help="Deprecated! Removed in version 1.49.0",
     )
 
     parser.add_argument(
@@ -1002,6 +998,9 @@ def warn_about_deprecated_args(args: configargparse.Namespace) -> None:
     if args.collect_spark_metrics:
         logger.warning("--collect-spark-metrics is deprecated and removed in version 1.42.0")
 
+    if args.databricks_job_name_as_service_name:
+        logger.warning("--databricks-job-name-as-service-name is deprecated and removed in version 1.49.0")
+
 
 def main() -> None:
     args = parse_cmd_args()
@@ -1041,19 +1040,6 @@ def main() -> None:
 
     # assume we run in the root cgroup (when containerized, that's our view)
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
-
-    # if args.databricks_job_name_as_service_name:
-    #     # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
-    #     args.service_name = "databricks"
-    #     dbx_web_ui_wrapper = DBXWebUIEnvWrapper(logger)
-    #     dbx_metadata = dbx_web_ui_wrapper.all_props_dict
-    #     if dbx_metadata is not None:
-    #         service_suffix = get_name_from_metadata(dbx_metadata)
-    #         if service_suffix is not None:
-    #             args.service_name = f"databricks-{service_suffix}"
-    #
-    #     if remote_logs_handler is not None:
-    #         remote_logs_handler.update_service_name(args.service_name)
 
     try:
         logger.info(
