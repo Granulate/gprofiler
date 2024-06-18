@@ -225,7 +225,7 @@ class PythonEbpfProfiler(ProfilerBase):
 
     def _unregister_process_selectors(self) -> None:
         assert self.process_selector
-        for selector_key in self.process_selector.get_map().values():
+        for selector_key in list(self.process_selector.get_map().values()):
             self.process_selector.unregister(selector_key.fileobj)
 
     def _read_process_standard_outputs(self) -> Tuple[Optional[str], Optional[str]]:
