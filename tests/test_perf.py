@@ -15,6 +15,7 @@
 #
 
 import logging
+import time
 from threading import Event
 from typing import Dict, cast
 
@@ -144,6 +145,7 @@ def test_perf_comm_change(
     I'm not sure it can be done, i.e is this info even kept anywhere).
     """
     with system_profiler as profiler:
+        time.sleep(2)
         # first run - we get the changed name, because the app started before perf began recording.
         _assert_comm_in_profile(profiler, application_pid, False)
 
@@ -170,6 +172,7 @@ def test_perf_thread_comm_is_process_comm(
     starts after perf, the exec comm of the process should be used (see test_perf_comm_change)
     """
     with system_profiler as profiler:
+        time.sleep(2)
         # running perf & script now with --show-task-events would show:
         #   pative 1925947 [010] 987095.272656: PERF_RECORD_COMM: pative:1925904/1925947
         # our perf will prefer to use the exec comm, OR oldest comm available if exec

@@ -206,15 +206,17 @@ def assert_ldd_version_container(container: Container, version: str) -> None:
 
 
 def snapshot_pid_profile(profiler: ProfilerInterface, pid: int) -> ProfileData:
-    last_snapshot = None
+    last_snapshot = profiler.snapshot()
 
     def has_profile() -> bool:
         nonlocal last_snapshot
+        if pid in last_snapshot:
+            return True
         last_snapshot = profiler.snapshot()
         return pid in last_snapshot
 
-    wait_event(timeout=5, stop_event=Event(), condition=has_profile, interval=1)
-    return last_snapshot[pid]  # type: ignore
+    wait_event(timeout=5, stop_event=Event(), condition=has_profile, interval=0.1)
+    return last_snapshot[pid]
 
 
 def snapshot_pid_collapsed(profiler: ProfilerInterface, pid: int) -> StackToSampleCount:
