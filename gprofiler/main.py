@@ -396,6 +396,11 @@ class GProfiler:
                 self._state.init_new_cycle()
 
                 snapshot_start = time.monotonic()
+
+                if self._heartbeat_file_path:
+                    # --heart-beat flag
+                    self._heartbeat_file_path.touch(mode=755, exist_ok=True)
+
                 try:
                     self._snapshot()
                 except Exception:
@@ -408,10 +413,6 @@ class GProfiler:
                 if self._controller_process is not None and not is_process_running(self._controller_process):
                     logger.info(f"Controller process {self._controller_process.pid} has exited; gProfiler stopping...")
                     break
-
-                if self._heartbeat_file_path:
-                    # --heart-beat flag
-                    self._heartbeat_file_path.touch(mode=755, exist_ok=True)
 
             self._state.set_cycle_id(None)
 
