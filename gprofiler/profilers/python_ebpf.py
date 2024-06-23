@@ -243,7 +243,7 @@ class PythonEbpfProfiler(ProfilerBase):
             output = cast(str, output)
             if key.fileobj is self.process.stdout:
                 stdout = output
-            if key.fileobj is self.process.stderr:
+            elif key.fileobj is self.process.stderr:
                 stderr = output
         return stdout, stderr
 
