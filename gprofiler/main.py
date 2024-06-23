@@ -399,7 +399,7 @@ class GProfiler:
 
                 if self._heartbeat_file_path:
                     # --heart-beat flag
-                    self._heartbeat_file_path.touch(mode=755, exist_ok=True)
+                    self._heartbeat_file_path.touch(mode=644, exist_ok=True)
 
                 try:
                     self._snapshot()
