@@ -141,6 +141,7 @@ def run_privileged_container(
 def _no_errors(logs: str) -> None:
     # example line: [2021-06-12 10:13:57,528] ERROR: gprofiler: ruby profiling failed
     assert "] ERROR: " not in logs, f"found ERRORs in gProfiler logs!: {logs}"
+    assert "Could not acquire gProfiler's lock" not in logs, f"found lock error in gProfiler logs!: {logs}"
 
 
 def run_gprofiler_in_container(docker_client: DockerClient, image: Image, command: List[str], **kwargs: Any) -> None:
@@ -205,7 +206,17 @@ def assert_ldd_version_container(container: Container, version: str) -> None:
 
 
 def snapshot_pid_profile(profiler: ProfilerInterface, pid: int) -> ProfileData:
-    return profiler.snapshot()[pid]
+    last_snapshot = profiler.snapshot()
+
+    def has_profile() -> bool:
+        nonlocal last_snapshot
+        if pid in last_snapshot:
+            return True
+        last_snapshot = profiler.snapshot()
+        return pid in last_snapshot
+
+    wait_event(timeout=5, stop_event=Event(), condition=has_profile, interval=0.1)
+    return last_snapshot[pid]
 
 
 def snapshot_pid_collapsed(profiler: ProfilerInterface, pid: int) -> StackToSampleCount:

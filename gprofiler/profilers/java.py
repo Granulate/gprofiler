@@ -1229,6 +1229,7 @@ class JavaProfiler(SpawningProcessProfilerBase):
     def _profile_process(self, process: Process, duration: int, spawned: bool) -> ProfileData:
         comm = process_comm(process)
         exe = process_exe(process)
+        container_name = self._profiler_state.get_container_name(process.pid)
         java_version_output: Optional[str] = get_java_version_logged(process, self._profiler_state.stop_event)
 
         if self._enabled_proc_events_java:
@@ -1258,7 +1259,6 @@ class JavaProfiler(SpawningProcessProfilerBase):
             self._profiled_pids.add(process.pid)
 
         logger.info(f"Profiling{' spawned' if spawned else ''} process {process.pid} with async-profiler")
-        container_name = self._profiler_state.get_container_name(process.pid)
         app_metadata = self._metadata.get_metadata(process)
         appid = application_identifiers.get_java_app_id(process, self._collect_spark_app_name)
 
