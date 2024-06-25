@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import time
 from typing import Dict, List, Optional, Set
 
 from granulate_utils.containers.client import ContainersClient
@@ -25,8 +24,6 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.utils.perf import valid_perf_pid
 
 logger = get_logger_adapter(__name__)
-
-NEWLY_CREATED_CONTAINER_AGE_IN_SECONDS = 3
 
 
 class ContainerNamesClient:
@@ -76,13 +73,9 @@ class ContainerNamesClient:
     def _safely_get_process_container_name(self, pid: int) -> Optional[str]:
         try:
             try:
-                process = Process(pid)
-                container_id = get_process_container_id(process)
+                container_id = get_process_container_id(Process(pid))
                 if container_id is None:
                     return None
-                # If the container is newly created, we wait a bit to make sure the container is available
-                if time.time() - process.create_time() <= NEWLY_CREATED_CONTAINER_AGE_IN_SECONDS:
-                    time.sleep(2)
             except NoSuchProcess:
                 return None
             return self._get_container_name(container_id)

@@ -262,9 +262,9 @@ class PythonEbpfProfiler(ProfilerBase):
                 if self._profiler_state.processes_to_profile is not None:
                     if process not in self._profiler_state.processes_to_profile:
                         continue
-                container_name = self._profiler_state.get_container_name(pid)
                 appid = application_identifiers.get_python_app_id(process)
                 app_metadata = self._metadata.get_metadata(process)
+                container_name = self._profiler_state.get_container_name(pid)
             except NoSuchProcess:
                 appid = None
                 app_metadata = None
