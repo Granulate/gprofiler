@@ -210,10 +210,11 @@ class PHPSpyProfiler(ProfilerBase):
             if profiler_state.processes_to_profile is not None:
                 if pid not in [process.pid for process in profiler_state.processes_to_profile]:
                     continue
+            container_name = profiler_state.get_container_name(pid)
             # TODO: appid & app metadata for php!
             appid = None
             app_metadata = None
-            profiles[pid] = ProfileData(results[pid], appid, app_metadata, profiler_state.get_container_name(pid))
+            profiles[pid] = ProfileData(results[pid], appid, app_metadata, container_name)
 
         return profiles
 
