@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import atexit
 import ctypes
 import datetime
 import glob
@@ -70,6 +71,10 @@ TEMPORARY_STORAGE_PATH = (
 
 gprofiler_mutex: Optional[socket.socket] = None
 
+STATUS_KILL = 137
+STATUS_INTERRUPT = 130
+_processes: List[Popen] = []
+
 
 @lru_cache(maxsize=None)
 def resource_path(relative_path: str = "") -> str:
@@ -91,6 +96,8 @@ def is_root() -> bool:
 
 
 def start_process(cmd: Union[str, List[str]], via_staticx: bool = False, **kwargs: Any) -> Popen:
+    global _processes
+
     if isinstance(cmd, str):
         cmd = [cmd]
 
@@ -112,7 +119,7 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool = False, **kwarg
             env = env if env is not None else os.environ.copy()
             env.update({"LD_LIBRARY_PATH": ""})
 
-    popen = Popen(
+    process = Popen(
         cmd,
         stdout=kwargs.pop("stdout", subprocess.PIPE),
         stderr=kwargs.pop("stderr", subprocess.PIPE),
@@ -121,7 +128,8 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool = False, **kwarg
         env=env,
         **kwargs,
     )
-    return popen
+    _processes.append(process)
+    return process
 
 
 def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool], interval: float = 0.1) -> None:
@@ -507,3 +515,17 @@ def merge_dicts(source: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any]:
 
 def is_profiler_disabled(profile_mode: str) -> bool:
     return profile_mode in ("none", "disabled")
+
+
+def _exit_handler() -> None:
+    for process in _processes:
+        process.kill()
+
+
+def _kill_handler(*args: Any) -> None:
+    sys.exit(STATUS_KILL if args[0] == signal.SIGTERM else STATUS_INTERRUPT)
+
+
+atexit.register(_exit_handler)
+signal.signal(signal.SIGINT, _kill_handler)
+signal.signal(signal.SIGTERM, _kill_handler)
