@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) Granulate. All rights reserved.
-# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+# Copyright (C) 2022 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 set -euo pipefail
 
@@ -14,8 +25,8 @@ fi
 
 # pyspy & rbspy, using the same builder for both pyspy and rbspy since they share build dependencies - rust:1.59-alpine3.15
 RUST_BUILDER_VERSION=@sha256:65b63b7d003f7a492cc8e550a4830aaa1f4155b74387549a82985c8efb3d0e88
-# perf - ubuntu:16.04 (IIRC for older glibc, to support older kernels)
-UBUNTU_VERSION_1604=@sha256:d7bb0589725587f2f67d0340edb81fd1fcba6c5f38166639cf2a252c939aa30c
+# perf - ubuntu:18.04 (for older glibc, to support older kernels)
+UBUNTU_VERSION_1804=@sha256:dca176c9663a7ba4c1f0e710986f5a25e672842963d95b960191e2d9f7185ebe
 # phpspy & pyperf - ubuntu:20.04
 UBUNTU_VERSION=@sha256:cf31af331f38d1d7158470e095b132acd126a7180a54f263d386da88eb681d93
 # async-profiler glibc - centos:7
@@ -43,7 +54,7 @@ mkdir -p build/x86_64
 docker buildx build -f executable.Dockerfile --output type=local,dest=build/x86_64/ \
     --build-arg RUST_BUILDER_VERSION=$RUST_BUILDER_VERSION \
     --build-arg PYPERF_BUILDER_UBUNTU=$UBUNTU_VERSION \
-    --build-arg PERF_BUILDER_UBUNTU=$UBUNTU_VERSION_1604 \
+    --build-arg PERF_BUILDER_UBUNTU=$UBUNTU_VERSION_1804 \
     --build-arg PHPSPY_BUILDER_UBUNTU=$UBUNTU_VERSION \
     --build-arg AP_BUILDER_CENTOS=$AP_BUILDER_CENTOS \
     --build-arg AP_BUILDER_ALPINE=$AP_BUILDER_ALPINE \

@@ -1,7 +1,19 @@
 #
-# Copyright (c) Granulate. All rights reserved.
-# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+# Copyright (C) 2022 Intel Corporation
 #
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+import atexit
 import ctypes
 import datetime
 import glob
@@ -59,6 +71,10 @@ TEMPORARY_STORAGE_PATH = (
 
 gprofiler_mutex: Optional[socket.socket] = None
 
+STATUS_KILL = 137
+STATUS_INTERRUPT = 130
+_processes: List[Popen] = []
+
 
 @lru_cache(maxsize=None)
 def resource_path(relative_path: str = "") -> str:
@@ -79,45 +95,9 @@ def is_root() -> bool:
         return os.geteuid() == 0
 
 
-libc: Optional[ctypes.CDLL] = None
+def start_process(cmd: Union[str, List[str]], via_staticx: bool = False, **kwargs: Any) -> Popen:
+    global _processes
 
-
-def prctl(*argv: Any) -> int:
-    global libc
-    if libc is None:
-        libc = ctypes.CDLL("libc.so.6", use_errno=True)
-    return cast(int, libc.prctl(*argv))
-
-
-PR_SET_PDEATHSIG = 1
-
-
-def set_child_termination_on_parent_death() -> int:
-    ret = prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
-    if ret != 0:
-        errno = ctypes.get_errno()
-        logger.warning(
-            f"Failed to set parent-death signal on child process. errno: {errno}, strerror: {os.strerror(errno)}"
-        )
-    return ret
-
-
-def wrap_callbacks(callbacks: List[Callable]) -> Callable:
-    # Expects array of callback.
-    # Returns one callback that call each one of them, and returns the retval of last callback
-    def wrapper() -> Any:
-        ret = None
-        for cb in callbacks:
-            ret = cb()
-
-        return ret
-
-    return wrapper
-
-
-def start_process(
-    cmd: Union[str, List[str]], via_staticx: bool = False, term_on_parent_death: bool = True, **kwargs: Any
-) -> Popen:
     if isinstance(cmd, str):
         cmd = [cmd]
 
@@ -139,23 +119,17 @@ def start_process(
             env = env if env is not None else os.environ.copy()
             env.update({"LD_LIBRARY_PATH": ""})
 
-    if is_windows():
-        cur_preexec_fn = None  # preexec_fn is not supported on Windows platforms. subprocess.py reports this.
-    else:
-        cur_preexec_fn = kwargs.pop("preexec_fn", os.setpgrp)
-        if term_on_parent_death:
-            cur_preexec_fn = wrap_callbacks([set_child_termination_on_parent_death, cur_preexec_fn])
-
-    popen = Popen(
+    process = Popen(
         cmd,
         stdout=kwargs.pop("stdout", subprocess.PIPE),
         stderr=kwargs.pop("stderr", subprocess.PIPE),
         stdin=subprocess.PIPE,
-        preexec_fn=cur_preexec_fn,
+        start_new_session=is_linux(),  # TODO: change to "process_group" after upgrade to Python 3.11+
         env=env,
         **kwargs,
     )
-    return popen
+    _processes.append(process)
+    return process
 
 
 def wait_event(timeout: float, stop_event: Event, condition: Callable[[], bool], interval: float = 0.1) -> None:
@@ -537,3 +511,21 @@ def merge_dicts(source: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any]:
         else:
             dest[key] = value
     return dest
+
+
+def is_profiler_disabled(profile_mode: str) -> bool:
+    return profile_mode in ("none", "disabled")
+
+
+def _exit_handler() -> None:
+    for process in _processes:
+        process.kill()
+
+
+def _kill_handler(*args: Any) -> None:
+    sys.exit(STATUS_KILL if args[0] == signal.SIGTERM else STATUS_INTERRUPT)
+
+
+atexit.register(_exit_handler)
+signal.signal(signal.SIGINT, _kill_handler)
+signal.signal(signal.SIGTERM, _kill_handler)

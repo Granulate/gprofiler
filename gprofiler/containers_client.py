@@ -1,7 +1,19 @@
 #
-# Copyright (c) Granulate. All rights reserved.
-# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+# Copyright (C) 2022 Intel Corporation
 #
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+import time
 from typing import Dict, List, Optional, Set
 
 from granulate_utils.containers.client import ContainersClient
@@ -13,6 +25,8 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.utils.perf import valid_perf_pid
 
 logger = get_logger_adapter(__name__)
+
+NEWLY_CREATED_CONTAINER_AGE_IN_SECONDS = 3
 
 
 class ContainerNamesClient:
@@ -62,9 +76,13 @@ class ContainerNamesClient:
     def _safely_get_process_container_name(self, pid: int) -> Optional[str]:
         try:
             try:
-                container_id = get_process_container_id(Process(pid))
+                process = Process(pid)
+                container_id = get_process_container_id(process)
                 if container_id is None:
                     return None
+                # If the container is newly created, we wait a bit to make sure the container is available
+                if time.time() - process.create_time() <= NEWLY_CREATED_CONTAINER_AGE_IN_SECONDS:
+                    time.sleep(2)
             except NoSuchProcess:
                 return None
             return self._get_container_name(container_id)

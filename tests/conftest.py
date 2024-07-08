@@ -1,6 +1,17 @@
 #
-# Copyright (c) Granulate. All rights reserved.
-# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+# Copyright (C) 2022 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 import os
 import platform
@@ -157,9 +168,9 @@ def dotnet_command_line(path: Path) -> List[str]:
 
 @fixture
 def command_line(runtime: str, artifacts_dir: Path, java_args: Tuple[str]) -> List[str]:
-    if runtime.startswith("native"):
+    if runtime.startswith("native") or runtime == "golang":
         # these do not have non-container application - so it will result in an error if the command
-        # line is used.
+        # line is used. however, the fixture itself is potentially evaluated so we need to return a value.
         return ["/bin/false"]
     elif runtime == "java":
         return java_command_line(artifacts_dir, java_args)
@@ -275,6 +286,7 @@ def application_docker_image_configs() -> Mapping[str, Dict[str, Any]]:
             "hotspot-jdk-8": {},  # add for clarity when testing with multiple JDKs
             "hotspot-jdk-11": dict(buildargs={"JAVA_BASE_IMAGE": "openjdk:11-jdk"}),
             "j9": dict(buildargs={"JAVA_BASE_IMAGE": "adoptopenjdk/openjdk8-openj9"}),
+            "eclipse-temurin-latest": dict(buildargs={"JAVA_BASE_IMAGE": "eclipse-temurin:latest"}),
             "zing": dict(dockerfile="zing.Dockerfile"),
             "musl": dict(dockerfile="musl.Dockerfile"),
         },

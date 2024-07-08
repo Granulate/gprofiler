@@ -1,18 +1,30 @@
 #
-# Copyright (c) Granulate. All rights reserved.
-# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+# Copyright (C) 2022 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 
 import re
 from collections import Counter
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, MutableMapping, Optional, Union
+from typing import Callable, Dict, List, MutableMapping, Optional, Union
 
 import configargparse
 
+from gprofiler.metadata import ProfileMetadata
+
 StackToSampleCount = Counter
 UserArgs = Dict[str, Optional[Union[int, bool, str]]]
-AppMetadata = Dict[str, Any]
 
 
 @dataclass
@@ -26,7 +38,7 @@ class ProfileData:
 
     stacks: StackToSampleCount
     appid: Optional[str]
-    app_metadata: Optional[AppMetadata]
+    app_metadata: Optional[ProfileMetadata]
     container_name: Optional[str]
 
 
@@ -95,3 +107,11 @@ def integer_range(min_range: int, max_range: int) -> Callable[[str], int]:
         return value
 
     return integer_range_check
+
+
+def comma_separated_enum_list(options: List[str], value: str) -> List[str]:
+    values = value.split(",")
+    for v in values:
+        if v not in options:
+            raise configargparse.ArgumentTypeError(f"invalid value {v!r} (allowed values: {options!r})")
+    return values

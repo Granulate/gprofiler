@@ -1,9 +1,21 @@
 #
-# Copyright (c) Granulate. All rights reserved.
-# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+# Copyright (C) 2022 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 
 import logging
+import time
 from threading import Event
 from typing import Dict, cast
 
@@ -12,13 +24,9 @@ from docker.models.containers import Container
 from pytest import LogCaptureFixture
 
 from gprofiler.profiler_state import ProfilerState
-from gprofiler.profilers.perf import (
-    DEFAULT_PERF_DWARF_STACK_SIZE,
-    SystemProfiler,
-    _collapse_stack,
-    get_average_frame_count,
-)
+from gprofiler.profilers.perf import DEFAULT_PERF_DWARF_STACK_SIZE, SystemProfiler, get_average_frame_count
 from gprofiler.utils import wait_event
+from gprofiler.utils.perf import collapse_stack
 from tests.utils import (
     assert_function_in_collapsed,
     is_aarch64,
@@ -137,6 +145,7 @@ def test_perf_comm_change(
     I'm not sure it can be done, i.e is this info even kept anywhere).
     """
     with system_profiler as profiler:
+        time.sleep(2)
         # first run - we get the changed name, because the app started before perf began recording.
         _assert_comm_in_profile(profiler, application_pid, False)
 
@@ -163,6 +172,7 @@ def test_perf_thread_comm_is_process_comm(
     starts after perf, the exec comm of the process should be used (see test_perf_comm_change)
     """
     with system_profiler as profiler:
+        time.sleep(2)
         # running perf & script now with --show-task-events would show:
         #   pative 1925947 [010] 987095.272656: PERF_RECORD_COMM: pative:1925904/1925947
         # our perf will prefer to use the exec comm, OR oldest comm available if exec
@@ -394,4 +404,4 @@ def test_get_average_frame_count(samples: str, count: float) -> None:
 )
 def test_collapse_stack_consider_dso(stack: str, insert_dso_name: bool, outcome_dict: Dict[str, str]) -> None:
     expected = f"program;{outcome_dict['dso_true' if insert_dso_name else 'dso_false']}"
-    assert expected == _collapse_stack("program", stack, insert_dso_name)
+    assert expected == collapse_stack("program", stack, insert_dso_name)

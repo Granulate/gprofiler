@@ -1,5 +1,5 @@
 import sys
-from typing import TYPE_CHECKING, Any, List, Tuple, Union
+from typing import TYPE_CHECKING, Any, List, Tuple, Union, cast
 
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_arch
@@ -7,6 +7,7 @@ from gprofiler.platform import is_windows
 from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.profiler_base import NoopProfiler
 from gprofiler.profilers.registry import get_profilers_registry
+from gprofiler.utils import is_profiler_disabled
 
 if TYPE_CHECKING:
     from gprofiler.gprofiler_types import UserArgs
@@ -29,7 +30,7 @@ def get_profilers(
         for profiler_name, profiler_config in get_profilers_registry().items():
             lower_profiler_name = profiler_name.lower()
             profiler_mode = user_args.get(f"{lower_profiler_name}_mode")
-            if profiler_mode in ("none", "disabled"):
+            if is_profiler_disabled(cast(str, profiler_mode)):
                 continue
 
             supported_archs = (

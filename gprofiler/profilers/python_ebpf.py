@@ -1,14 +1,26 @@
 #
-# Copyright (c) Granulate. All rights reserved.
-# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+# Copyright (C) 2022 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 import glob
 import os
 import resource
+import selectors
 import signal
 from pathlib import Path
 from subprocess import Popen
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, cast
 
 from granulate_utils.linux.ns import is_running_in_init_pid
 from psutil import NoSuchProcess, Process
@@ -53,7 +65,7 @@ class PythonEbpfProfiler(ProfilerBase):
     _DUMP_TIMEOUT = 5  # seconds
     _POLL_TIMEOUT = 10  # seconds
     _GET_OFFSETS_TIMEOUT = 5  # seconds
-    _STDERR_READ_SIZE = 65536  # bytes read every cycle from stderr
+    _OUTPUT_READ_SIZE = 65536  # bytes read every cycle from stderr
 
     def __init__(
         self,
@@ -67,6 +79,7 @@ class PythonEbpfProfiler(ProfilerBase):
     ):
         super().__init__(frequency, duration, profiler_state)
         self.process: Optional[Popen] = None
+        self.process_selector: Optional[selectors.BaseSelector] = None
         self.output_path = Path(self._profiler_state.storage_dir) / f"pyperf.{random_prefix()}.col"
         self.add_versions = add_versions
         self.user_stacks_pages = user_stacks_pages
@@ -202,6 +215,36 @@ class PythonEbpfProfiler(ProfilerBase):
             raise
         else:
             self.process = process
+            self._register_process_selectors()
+
+    def _register_process_selectors(self) -> None:
+        self.process_selector = selectors.DefaultSelector()
+        assert self.process_selector and self.process and self.process.stdout and self.process.stderr  # for mypy
+        self.process_selector.register(self.process.stdout, selectors.EVENT_READ)
+        self.process_selector.register(self.process.stderr, selectors.EVENT_READ)
+
+    def _unregister_process_selectors(self) -> None:
+        assert self.process_selector
+        self.process_selector.close()
+        self.process_selector = None
+
+    def _read_process_standard_outputs(self) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Read the process standard outputs in a non-blocking manner.
+
+        :return: tuple[stdout, stderr]
+        """
+        stdout: Optional[str] = None
+        stderr: Optional[str] = None
+        assert self.process_selector and self.process
+        for key, _ in self.process_selector.select(timeout=0):
+            output = key.fileobj.read1(self._OUTPUT_READ_SIZE)  # type: ignore
+            output = cast(str, output)
+            if key.fileobj is self.process.stdout:
+                stdout = output
+            elif key.fileobj is self.process.stderr:
+                stderr = output
+        return stdout, stderr
 
     def _dump(self) -> Path:
         assert self.is_running()
@@ -213,11 +256,8 @@ class PythonEbpfProfiler(ProfilerBase):
             output = wait_for_file_by_prefix(
                 f"{self.output_path}.", self._DUMP_TIMEOUT, self._profiler_state.stop_event
             )
-            # PyPerf outputs sampling & error counters every interval (after writing the output file), print them.
-            # also, makes sure its output pipe doesn't fill up.
-            # using read1() which performs just a single read() call and doesn't read until EOF
-            # (unlike Popen.communicate())
-            logger.debug("PyPerf dump output", stderr=self.process.stderr.read1(self._STDERR_READ_SIZE))  # type: ignore
+            stdout, stderr = self._read_process_standard_outputs()
+            logger.debug("PyPerf dump output", stdout=stdout, stderr=stderr)
             return output
         except TimeoutError:
             # error flow :(
@@ -251,9 +291,9 @@ class PythonEbpfProfiler(ProfilerBase):
                 if self._profiler_state.processes_to_profile is not None:
                     if process not in self._profiler_state.processes_to_profile:
                         continue
+                container_name = self._profiler_state.get_container_name(pid)
                 appid = application_identifiers.get_python_app_id(process)
                 app_metadata = self._metadata.get_metadata(process)
-                container_name = self._profiler_state.get_container_name(pid)
             except NoSuchProcess:
                 appid = None
                 app_metadata = None
@@ -263,6 +303,7 @@ class PythonEbpfProfiler(ProfilerBase):
         return profiles
 
     def _terminate(self) -> Tuple[Optional[int], str, str]:
+        self._unregister_process_selectors()
         if self.is_running():
             assert self.process is not None  # for mypy
             self.process.terminate()  # okay to call even if process is already dead

@@ -1,6 +1,17 @@
 #
-# Copyright (c) Granulate. All rights reserved.
-# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+# Copyright (C) 2022 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 import logging
 import os
@@ -25,6 +36,7 @@ from granulate_utils.java import parse_jvm_version
 from granulate_utils.linux.mountinfo import iter_mountinfo
 from granulate_utils.linux.ns import get_process_nspid
 from granulate_utils.linux.process import is_musl
+from granulate_utils.type_utils import assert_cast
 from packaging.version import Version
 from psutil import Process
 from pytest import LogCaptureFixture, MonkeyPatch
@@ -125,6 +137,7 @@ def test_async_profiler_already_running(
             profiler_state=profiler._profiler_state,
             mode=profiler._mode,
             ap_safemode=0,
+            ap_features=[],
             ap_args="",
         ) as ap_proc:
             assert ap_proc.start_async_profiler(frequency_to_ap_interval(11))
@@ -135,6 +148,7 @@ def test_async_profiler_already_running(
             profiler_state=profiler._profiler_state,
             mode="itimer",
             ap_safemode=0,
+            ap_features=[],
             ap_args="",
         ) as ap_proc:
             ap_proc.status_async_profiler()
@@ -212,6 +226,7 @@ def test_java_safemode_version_check(
     monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (Version("8.999"), 0))
 
     with make_java_profiler(profiler_state) as profiler:
+        profiler._profiler_state.get_container_name(application_pid)
         process = profiler._select_processes_to_profile()[0]
         jvm_version_str = cast_away_optional(get_java_version(process, profiler._profiler_state.stop_event))
         jvm_version = parse_jvm_version(jvm_version_str)
@@ -231,6 +246,7 @@ def test_java_safemode_build_number_check(
     profiler_state: ProfilerState,
 ) -> None:
     with make_java_profiler(profiler_state) as profiler:
+        profiler._profiler_state.get_container_name(application_pid)
         process = profiler._select_processes_to_profile()[0]
         jvm_version_str = cast_away_optional(get_java_version(process, profiler._profiler_state.stop_event))
         jvm_version = parse_jvm_version(jvm_version_str)
@@ -369,6 +385,7 @@ def test_async_profiler_stops_after_given_timeout(
         profiler_state=profiler_state,
         mode="itimer",
         ap_safemode=0,
+        ap_features=[],
         ap_args="",
     ) as ap_proc:
         assert ap_proc.start_async_profiler(frequency_to_ap_interval(11), ap_timeout=timeout_s)
@@ -390,8 +407,9 @@ def test_sanity_other_jvms(
     assert_collapsed: AssertInCollapsed,
     search_for: str,
     profiler_state: ProfilerState,
+    application_image_tag: str,
 ) -> None:
-    if is_aarch64():
+    if is_aarch64() and application_image_tag in ("j9", "zing"):
         pytest.xfail(
             "Different JVMs are not supported on aarch64, see https://github.com/Granulate/gprofiler/issues/717"
         )
@@ -401,10 +419,34 @@ def test_sanity_other_jvms(
         frequency=99,
         java_async_profiler_mode="cpu",
     ) as profiler:
+        profiler._profiler_state.get_container_name(application_pid)
         process = psutil.Process(application_pid)
         assert search_for in cast_away_optional(get_java_version(process, profiler._profiler_state.stop_event))
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)
+
+
+@pytest.mark.parametrize("in_container", [True])
+@pytest.mark.parametrize("application_image_tag,search_for", [("eclipse-temurin-latest", "Temurin")])
+def test_sanity_latest_jvms(
+    application_pid: int,
+    assert_collapsed: AssertInCollapsed,
+    search_for: str,
+    profiler_state: ProfilerState,
+) -> None:
+    """
+    Test that we can profile various "latest" JVM builds. This test is by design using JVM images with the :latest tag,
+    as opposed to the other tests which used a pinned hash for reproducatibility. This is done in hope
+    that if a release breaks gProfiler, we'll know about it sooner, as part of regular development.
+    """
+
+    with make_java_profiler(profiler_state) as profiler:
+        profiler._profiler_state.get_container_name(application_pid)
+        # sanity check that this is the correct JVM we're targeting
+        assert search_for in cast_away_optional(
+            get_java_version(psutil.Process(application_pid), profiler._profiler_state.stop_event)
+        )
+        assert_collapsed(snapshot_pid_collapsed(profiler, application_pid))
 
 
 def simulate_libjvm_delete(application_pid: int) -> None:
@@ -442,12 +484,12 @@ def test_java_deleted_libjvm(
 def filter_jattach_load_records(records: List[LogRecord]) -> List[LogRecord]:
     def _filter_record(r: LogRecord) -> bool:
         # find the log record of
-        # Running command (command=['/app/gprofiler/resources/java/apsprof', 'jattach',
-        # '-L', '/path/to/libasyncProfiler.so', "--jattach-cmd", "start,..."])
+        # Running command (command=['/app/gprofiler/resources/java/apsprof', '<PID>', 'load',
+        # '/path/to/libasyncProfiler.so', 'true', 'start,...'])
         return (
             r.message == "Running command"
-            and len(log_record_extra(r)["command"]) >= 6
-            and log_record_extra(r)["command"][1] == "jattach"
+            and len(log_record_extra(r)["command"]) == 6
+            and log_record_extra(r)["command"][2] == "load"
             and any(map(lambda k: k in log_record_extra(r)["command"][5], ["start,", "stop,"]))
         )
 
@@ -715,8 +757,8 @@ def test_java_different_basename(
             profile = snapshot_pid_profile(profiler, application_pid)
             assert profile.app_metadata is not None
             assert (
-                os.path.basename(profile.app_metadata["execfn"])
-                == os.path.basename(profile.app_metadata["exe"])
+                os.path.basename(assert_cast(str, profile.app_metadata["execfn"]))
+                == os.path.basename(assert_cast(str, profile.app_metadata["exe"]))
                 == java_notjava_basename
             )
             assert_function_in_collapsed(f"{java_notjava_basename};", profile.stacks)
@@ -892,6 +934,7 @@ def test_no_stray_output_in_stdout_stderr(
             profiler_state=profiler._profiler_state,
             mode="itimer",
             ap_safemode=0,
+            ap_features=[],
             ap_args="",
         ) as ap_proc:
             ap_version = ap_proc.read_ap_version()
@@ -1207,10 +1250,9 @@ def test_collect_flags_unsupported_filtered_out(
                 f"exec java {java_cli_flags} -jar Fibonacci.jar",
             ],
         ) as container:
-            assert (
-                profiler._metadata.get_jvm_flags_serialized(psutil.Process(container.attrs["State"]["Pid"]))
-                == expected_flags
-            )
+            pid = container.attrs["State"]["Pid"]
+            profiler._profiler_state.get_container_name(pid)
+            assert profiler._metadata.get_jvm_flags_serialized(psutil.Process(pid)) == expected_flags
         log_record = next(filter(lambda r: r.message == "Missing requested flags:", caplog.records))
         # use slicing to remove the leading -XX: instead of removeprefix as it's not available in python 3.8
         assert (
@@ -1253,7 +1295,7 @@ def test_including_line_numbers(
     profiler_state: ProfilerState,
     java_line_numbers: str,
 ) -> None:
-    function_with_line_numbers = "Fibonacci.fibonacci:9(I)J_[j]"
+    function_with_line_numbers = "Fibonacci.fibonacci:20(I)J_[j]"
     with make_java_profiler(profiler_state, java_line_numbers=java_line_numbers) as profiler:
         collapsed = snapshot_pid_collapsed(profiler, application_pid)
         if java_line_numbers == "line-of-function":

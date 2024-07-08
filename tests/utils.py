@@ -1,7 +1,19 @@
 #
-# Copyright (c) Granulate. All rights reserved.
-# Licensed under the AGPL3 License. See LICENSE.md in the project root for license information.
+# Copyright (C) 2022 Intel Corporation
 #
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+import json
 import os
 import platform
 import re
@@ -11,7 +23,7 @@ from logging import LogRecord
 from pathlib import Path
 from threading import Event
 from time import sleep
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, cast
 
 from docker import DockerClient
 from docker.errors import ContainerError
@@ -21,8 +33,10 @@ from docker.types import Mount
 from psutil import Process
 
 from gprofiler.gprofiler_types import ProfileData, StackToSampleCount
+from gprofiler.metadata import ProfileMetadata
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.java import (
+    DEFAULT_AP_FEATURES,
     JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
     JAVA_SAFEMODE_ALL,
     AsyncProfiledProcess,
@@ -127,6 +141,7 @@ def run_privileged_container(
 def _no_errors(logs: str) -> None:
     # example line: [2021-06-12 10:13:57,528] ERROR: gprofiler: ruby profiling failed
     assert "] ERROR: " not in logs, f"found ERRORs in gProfiler logs!: {logs}"
+    assert "Could not acquire gProfiler's lock" not in logs, f"found lock error in gProfiler logs!: {logs}"
 
 
 def run_gprofiler_in_container(docker_client: DockerClient, image: Image, command: List[str], **kwargs: Any) -> None:
@@ -191,7 +206,17 @@ def assert_ldd_version_container(container: Container, version: str) -> None:
 
 
 def snapshot_pid_profile(profiler: ProfilerInterface, pid: int) -> ProfileData:
-    return profiler.snapshot()[pid]
+    last_snapshot = profiler.snapshot()
+
+    def has_profile() -> bool:
+        nonlocal last_snapshot
+        if pid in last_snapshot:
+            return True
+        last_snapshot = profiler.snapshot()
+        return pid in last_snapshot
+
+    wait_event(timeout=5, stop_event=Event(), condition=has_profile, interval=0.1)
+    return last_snapshot[pid]
 
 
 def snapshot_pid_collapsed(profiler: ProfilerInterface, pid: int) -> StackToSampleCount:
@@ -205,6 +230,7 @@ def make_java_profiler(
     java_version_check: bool = True,
     java_async_profiler_mode: str = "cpu",
     java_async_profiler_safemode: int = JAVA_ASYNC_PROFILER_DEFAULT_SAFEMODE,
+    java_async_profiler_features: List[str] = DEFAULT_AP_FEATURES,
     java_async_profiler_args: str = "",
     java_safemode: str = JAVA_SAFEMODE_ALL,
     java_jattach_timeout: int = AsyncProfiledProcess._DEFAULT_JATTACH_TIMEOUT,
@@ -224,6 +250,7 @@ def make_java_profiler(
         java_version_check=java_version_check,
         java_async_profiler_mode=java_async_profiler_mode,
         java_async_profiler_safemode=java_async_profiler_safemode,
+        java_async_profiler_features=java_async_profiler_features,
         java_async_profiler_args=java_async_profiler_args,
         java_safemode=java_safemode,
         java_jattach_timeout=java_jattach_timeout,
@@ -248,8 +275,10 @@ def start_gprofiler_in_container_for_one_session(
     privileged: bool = True,
     user: int = 0,
     pid_mode: Optional[str] = "host",
+    inner_output_directory: Optional[str] = None,
 ) -> Container:
-    inner_output_directory = "/tmp/gprofiler"
+    if inner_output_directory is None:
+        inner_output_directory = "/tmp/gprofiler"
     volumes = {
         str(output_directory): {"bind": inner_output_directory, "mode": "rw"},
     }
@@ -283,6 +312,7 @@ def run_gprofiler_in_container_for_one_session(
     output_path: Path,
     runtime_specific_args: List[str],
     profiler_flags: List[str],
+    inner_output_directory: Optional[str] = None,
 ) -> str:
     """
     Runs the gProfiler container image for a single profiling session, and collects the output.
@@ -290,7 +320,13 @@ def run_gprofiler_in_container_for_one_session(
     container: Container = None
     try:
         container = start_gprofiler_in_container_for_one_session(
-            docker_client, gprofiler_docker_image, output_directory, output_path, runtime_specific_args, profiler_flags
+            docker_client,
+            gprofiler_docker_image,
+            output_directory,
+            output_path,
+            runtime_specific_args,
+            profiler_flags,
+            inner_output_directory=inner_output_directory,
         )
         return wait_for_gprofiler_container(container, output_path)
     finally:
@@ -408,6 +444,12 @@ def log_record_extra(r: LogRecord) -> Dict[Any, Any]:
     Gets the "extra" attached to a LogRecord
     """
     return getattr(r, "extra", {})
+
+
+def load_metadata(collapsed_text: str) -> ProfileMetadata:
+    lines = collapsed_text.splitlines()
+    assert lines[0].startswith("#")
+    return cast(ProfileMetadata, json.loads(lines[0][1:]))
 
 
 def str_removesuffix(s: str, suffix: str, assert_suffixed: bool = True) -> str:
