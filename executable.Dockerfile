@@ -169,8 +169,7 @@ RUN yum install -y \
 COPY ./scripts/openssl_build.sh .
 RUN ./openssl_build.sh
 COPY ./scripts/python311_build.sh .
-RUN ./python311_build.sh && \ 
-    ln -s /usr/bin/python3.11 /usr/bin/python3
+RUN ./python311_build.sh
 
 # gProfiler part
 
@@ -179,23 +178,16 @@ WORKDIR /app
 RUN yum --setopt=skip_missing_names_on_install=False install -y \
         gcc \
         curl \
+        glibc-static \
         libicu && \
     yum clean all
 
 # needed for aarch64 (for staticx)
 RUN set -e; \
     if [ "$(uname -m)" = "aarch64" ]; then \
-        yum install -y glibc-static zlib-devel.aarch64 && \
+        ln -s /usr/lib64/python3.11/lib-dynload /usr/lib/python3.11/lib-dynload && \
+        yum install -y zlib-devel.aarch64 && \
         yum clean all; \
-    fi
-# needed for aarch64, scons & wheel are needed to build staticx
-RUN set -e; \
-    if [ "$(uname -m)" = "aarch64" ]; then \
-         ln -s /usr/lib64/python3.11/lib-dynload /usr/lib/python3.11/lib-dynload; \
-    fi
-RUN set -e; \
-    if [ "$(uname -m)" = "aarch64" ]; then \
-        python3 -m pip install --no-cache-dir 'wheel==0.37.0' 'scons==4.2.0'; \
     fi
 
 # we want the latest pip
@@ -228,7 +220,8 @@ COPY granulate-utils/glogger granulate-utils/glogger
 RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
 COPY exe-requirements.txt exe-requirements.txt
-RUN python3 -m pip install --no-cache-dir -r exe-requirements.txt
+RUN python3 -m pip install --no-cache-dir -r exe-requirements.txt && \
+    python3 -m pip install --no-cache-dir --no-binary=:all: staticx==0.14.1 # fixes gprofiler segfault
 
 # copy PyPerf, licenses and notice file.
 RUN mkdir -p gprofiler/resources/ruby && \
@@ -280,6 +273,7 @@ RUN pyinstaller pyinstaller.spec \
 # for aarch64 - build a patched version of staticx 0.13.6. we remove calls to getpwnam and getgrnam, for these end up doing dlopen()s which
 # crash the staticx bootloader. we don't need them anyway (all files in our staticx tar are uid 0 and we don't need the names translation)
 COPY scripts/staticx_patch.diff staticx_patch.diff
+# TODO: fix me
 # hadolint ignore=DL3003
 RUN if [ "$(uname -m)" = "aarch64" ]; then \
         git clone -b v0.13.6 https://github.com/JonathonReinhart/staticx.git && \

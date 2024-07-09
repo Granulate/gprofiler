@@ -21,5 +21,5 @@ VERSION=3.11.9
 wget "https://www.python.org/ftp/python/$VERSION/Python-$VERSION.tgz"
 tar -xzf "Python-$VERSION.tgz"
 cd "Python-$VERSION"
-./configure --enable-optimizations --enable-shared --prefix=/usr LDFLAGS="-Wl,-rpath /usr/lib" --with-openssl=/usr --with-lto
+./configure --enable-optimizations --enable-shared --prefix=/usr LDFLAGS="-Wl,-rpath /usr/lib"
 make -j "$(nproc)" && make python install -j "$(nproc)"
