@@ -121,7 +121,6 @@ COPY --from=perf-builder /bpftool /bpftool
 
 WORKDIR /bcc
 COPY scripts/staticx_for_pyperf_patch.diff .
-COPY scripts/staticx_patch.diff .
 COPY scripts/bcc_helpers_build.sh .
 COPY scripts/pyperf_env.sh .
 RUN ./pyperf_env.sh --with-staticx
@@ -270,16 +269,12 @@ RUN pyinstaller pyinstaller.spec \
     && test -f build/pyinstaller/warn-pyinstaller.txt \
     && ./check_pyinstaller.sh
 
-# for aarch64 - build a patched version of staticx 0.13.6. we remove calls to getpwnam and getgrnam, for these end up doing dlopen()s which
-# crash the staticx bootloader. we don't need them anyway (all files in our staticx tar are uid 0 and we don't need the names translation)
-COPY scripts/staticx_patch.diff staticx_patch.diff
-# TODO: fix me
+# for aarch64 - build a patched version of staticx
 # hadolint ignore=DL3003
 RUN if [ "$(uname -m)" = "aarch64" ]; then \
-        git clone -b v0.13.6 https://github.com/JonathonReinhart/staticx.git && \
+        git clone -b v0.14.1 https://github.com/JonathonReinhart/staticx.git && \
         cd staticx && \
-        git reset --hard 819d8eafecbaab3646f70dfb1e3e19f6bbc017f8 && \
-        git apply ../staticx_patch.diff && \
+        git reset --hard 033d694a6fbf0ab0952cf0ff4a476269828167af && \
         ln -s libnss_files.so.2 /lib64/libnss_files.so && \
         ln -s libnss_dns.so.2 /lib64/libnss_dns.so && \
         python3 -m pip install --no-cache-dir . ; \
