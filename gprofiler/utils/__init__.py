@@ -34,6 +34,7 @@ from pathlib import Path
 from subprocess import CompletedProcess, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
 from threading import Event
+from types import FrameType
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union, cast
 
 import importlib_resources
@@ -71,8 +72,10 @@ TEMPORARY_STORAGE_PATH = (
 
 gprofiler_mutex: Optional[socket.socket] = None
 
-STATUS_KILL = 137
-STATUS_INTERRUPT = 130
+# 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
+SIGINT_RATELIMIT = 0.5
+
+_last_signal_ts: Optional[float] = None
 _processes: List[Popen] = []
 
 
@@ -522,10 +525,23 @@ def _exit_handler() -> None:
         process.kill()
 
 
-def _kill_handler(*args: Any) -> None:
-    sys.exit(STATUS_KILL if args[0] == signal.SIGTERM else STATUS_INTERRUPT)
+def _sigint_handler(sig: int, frame: Optional[FrameType]) -> None:
+    global _last_signal_ts
+    ts = time.monotonic()
+    # no need for atomicity here: we can't get another SIGINT before this one returns.
+    # https://www.gnu.org/software/libc/manual/html_node/Signals-in-Handler.html#Signals-in-Handler
+    if _last_signal_ts is None or ts > _last_signal_ts + SIGINT_RATELIMIT:
+        _last_signal_ts = ts
+        raise KeyboardInterrupt
 
 
-atexit.register(_exit_handler)
-signal.signal(signal.SIGINT, _kill_handler)
-signal.signal(signal.SIGTERM, _kill_handler)
+def setup_signals() -> None:
+    atexit.register(_exit_handler)
+    # When we run under staticx & PyInstaller, both of them forward (some of the) signals to gProfiler.
+    # We catch SIGINTs and ratelimit them, to avoid being interrupted again during the handling of the
+    # first INT.
+    # See my commit message for more information.
+    signal.signal(signal.SIGINT, _sigint_handler)
+    # handle SIGTERM in the same manner - gracefully stop gProfiler.
+    # SIGTERM is also forwarded by staticx & PyInstaller, so we need to ratelimit it.
+    signal.signal(signal.SIGTERM, _sigint_handler)
