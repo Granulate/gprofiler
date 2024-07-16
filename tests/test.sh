@@ -48,4 +48,4 @@ fi
 python3 -m pip install -q --upgrade setuptools pip
 python3 -m pip install -r ./requirements.txt -r ./exe-requirements.txt -r ./dev-requirements.txt
 # TODO: python3 -m pip install .
-sudo env "PATH=$PATH" python3 -m pytest -v tests/ "$@"
+sudo -E env "PATH=$PATH" python3 -m pytest -v tests/ "$@"

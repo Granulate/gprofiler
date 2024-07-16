@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import time
 from typing import Dict, List, Optional, Set
 
 from granulate_utils.containers.client import ContainersClient
@@ -26,14 +25,16 @@ from gprofiler.utils.perf import valid_perf_pid
 
 logger = get_logger_adapter(__name__)
 
-NEWLY_CREATED_CONTAINER_AGE_IN_SECONDS = 3
+_containers_client: Optional[ContainersClient] = None
 
 
 class ContainerNamesClient:
     def __init__(self) -> None:
+        global _containers_client
         try:
-            self._containers_client: Optional[ContainersClient] = ContainersClient()
-            logger.info(f"Discovered container runtimes: {self._containers_client.get_runtimes()}")
+            if _containers_client is None:
+                _containers_client = ContainersClient()
+            logger.info(f"Discovered container runtimes: {_containers_client.get_runtimes()}")
         except NoContainerRuntimesError:
             logger.warning(
                 "Could not find a Docker daemon or CRI-compatible daemon, profiling data will not"
@@ -41,7 +42,6 @@ class ContainerNamesClient:
                 " please open a new issue here:"
                 " https://github.com/Granulate/gprofiler/issues/new"
             )
-            self._containers_client = None
 
         self._pid_to_container_name_cache: Dict[int, str] = {}
         self._current_container_names: Set[str] = set()
@@ -56,7 +56,7 @@ class ContainerNamesClient:
         return list(self._current_container_names)
 
     def get_container_name(self, pid: int) -> str:
-        if self._containers_client is None:
+        if _containers_client is None:
             return ""
 
         if not valid_perf_pid(pid):
@@ -80,9 +80,6 @@ class ContainerNamesClient:
                 container_id = get_process_container_id(process)
                 if container_id is None:
                     return None
-                # If the container is newly created, we wait a bit to make sure the container is available
-                if time.time() - process.create_time() <= NEWLY_CREATED_CONTAINER_AGE_IN_SECONDS:
-                    time.sleep(2)
             except NoSuchProcess:
                 return None
             return self._get_container_name(container_id)
@@ -110,5 +107,5 @@ class ContainerNamesClient:
     def _refresh_container_names_cache(self) -> None:
         # We re-fetch all of the currently running containers, so in order to keep the cache small we clear it
         self._container_id_to_name_cache.clear()
-        for container in self._containers_client.list_containers() if self._containers_client is not None else []:
+        for container in _containers_client.list_containers() if _containers_client is not None else []:
             self._container_id_to_name_cache[container.id] = container.name
