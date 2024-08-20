@@ -34,7 +34,6 @@ import humanfriendly
 from granulate_utils.linux.ns import is_running_in_init_pid
 from granulate_utils.linux.process import is_process_running
 from granulate_utils.metadata.cloud import get_aws_execution_env
-from granulate_utils.metadata.databricks_client import DBXWebUIEnvWrapper, get_name_from_metadata
 from psutil import NoSuchProcess, Process
 from requests import RequestException, Timeout
 
@@ -1059,18 +1058,18 @@ def main() -> None:
     # assume we run in the root cgroup (when containerized, that's our view)
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
 
-    if args.databricks_job_name_as_service_name:
-        # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
-        args.service_name = "databricks"
-        dbx_web_ui_wrapper = DBXWebUIEnvWrapper(logger)
-        dbx_metadata = dbx_web_ui_wrapper.all_props_dict
-        if dbx_metadata is not None:
-            service_suffix = get_name_from_metadata(dbx_metadata)
-            if service_suffix is not None:
-                args.service_name = f"databricks-{service_suffix}"
-
-        if remote_logs_handler is not None:
-            remote_logs_handler.update_service_name(args.service_name)
+    # if args.databricks_job_name_as_service_name:
+    #     # "databricks" will be the default name in case of failure with --databricks-job-name-as-service-name flag
+    #     args.service_name = "databricks"
+    #     dbx_web_ui_wrapper = DBXWebUIEnvWrapper(logger)
+    #     dbx_metadata = dbx_web_ui_wrapper.all_props_dict
+    #     if dbx_metadata is not None:
+    #         service_suffix = get_name_from_metadata(dbx_metadata)
+    #         if service_suffix is not None:
+    #             args.service_name = f"databricks-{service_suffix}"
+    #
+    #     if remote_logs_handler is not None:
+    #         remote_logs_handler.update_service_name(args.service_name)
 
     try:
         logger.info(
