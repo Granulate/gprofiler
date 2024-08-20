@@ -74,8 +74,10 @@ RUN ./phpspy_build.sh
 # async-profiler glibc
 FROM centos${AP_BUILDER_CENTOS} AS async-profiler-builder-glibc
 WORKDIR /tmp
-
-COPY scripts/async_profiler_env_glibc.sh .
+COPY scripts/async_profiler_env_glibc.sh scripts/fix_centos7.sh ./
+RUN if grep -q "CentOS Linux 7" /etc/os-release ; then \
+      ./fix_centos7.sh; \
+    fi
 RUN ./async_profiler_env_glibc.sh
 
 COPY scripts/async_profiler_build_shared.sh .
@@ -139,10 +141,12 @@ RUN ./pyperf_build.sh --with-staticx
 FROM centos${GPROFILER_BUILDER} AS build-prepare
 
 WORKDIR /tmp
-COPY scripts/fix_centos8.sh .
+COPY scripts/fix_centos7.sh scripts/fix_centos8.sh ./
 # fix repo links for CentOS 8, and enable powertools (required to download glibc-static)
 RUN if grep -q "CentOS Linux 8" /etc/os-release ; then \
         ./fix_centos8.sh; \
+    elif grep -q "CentOS Linux 7" /etc/os-release ; then \
+        ./fix_centos7.sh; \
     fi
 
 # update libmodulemd to fix https://bugzilla.redhat.com/show_bug.cgi?id=2004853
@@ -200,7 +204,10 @@ RUN python3 -m pip install --no-cache-dir --upgrade pip
 FROM ${NODE_PACKAGE_BUILDER_GLIBC} as node-package-builder-glibc
 USER 0
 WORKDIR /tmp
-COPY scripts/node_builder_glibc_env.sh .
+COPY scripts/node_builder_glibc_env.sh scripts/fix_centos7.sh ./
+RUN if grep -q "CentOS Linux 7" /etc/os-release ; then \
+      ./fix_centos7.sh; \
+    fi
 RUN ./node_builder_glibc_env.sh
 COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
