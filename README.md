@@ -12,6 +12,7 @@ For installation methods, jump to [run as...](#run-as)
 
 ![Granulate Performance Studio example view](https://user-images.githubusercontent.com/58514213/124375504-36b0b200-dcab-11eb-8d64-caf20687a29f.gif)
 
+
 # Configuration & parameters
 
 This section describes the possible options to control gProfiler's behavior.
