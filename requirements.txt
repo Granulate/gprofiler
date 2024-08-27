@@ -13,4 +13,4 @@ netifaces==0.11.0; sys.platform == "win32"
 WMI==1.5.1; sys.platform == "win32"
 ./granulate-utils/
 humanfriendly==10.0
-beautifulsoup4~=4.11.1
+beautifulsoup4~=4.11
