@@ -104,6 +104,9 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool = False, **kwarg
     if isinstance(cmd, str):
         cmd = [cmd]
 
+    if is_linux():
+        cmd = [resource_path("pdeathsigger")] + cmd if is_linux() else cmd
+
     logger.debug("Running command", command=cmd)
 
     env = kwargs.pop("env", None)
@@ -123,7 +126,7 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool = False, **kwarg
             env.update({"LD_LIBRARY_PATH": ""})
 
     process = Popen(
-        [resource_path("pdeathsigger")] + cmd if is_linux() else cmd,
+        cmd,
         stdout=kwargs.pop("stdout", subprocess.PIPE),
         stderr=kwargs.pop("stderr", subprocess.PIPE),
         stdin=subprocess.PIPE,
@@ -310,10 +313,9 @@ def pgrep_maps(match: str) -> List[Process]:
     # this is much faster than iterating over processes' maps with psutil.
     # We use flag -E in grep to support systems where grep is not PCRE
     result = run_process(
-        f"grep -lE '{match}' /proc/*/maps",
+        ["sh", "-c", f"grep -lE '{match}' /proc/*/maps"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        shell=True,
         suppress_log=True,
         check=False,
     )
