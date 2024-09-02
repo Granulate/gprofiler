@@ -123,7 +123,7 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool = False, **kwarg
             env.update({"LD_LIBRARY_PATH": ""})
 
     process = Popen(
-        cmd,
+        [resource_path("pdeathsigger")] + cmd if is_linux() else cmd,
         stdout=kwargs.pop("stdout", subprocess.PIPE),
         stderr=kwargs.pop("stderr", subprocess.PIPE),
         stdin=subprocess.PIPE,
