@@ -74,11 +74,12 @@ RUN ./phpspy_build.sh
 # async-profiler glibc
 FROM centos${AP_BUILDER_CENTOS} AS async-profiler-builder-glibc
 WORKDIR /tmp
-COPY scripts/async_profiler_env_glibc.sh scripts/fix_centos7.sh ./
+COPY scripts/async_profiler_env_glibc.sh scripts/fix_centos7.sh scripts/pdeathsigger.c ./
 RUN if grep -q "CentOS Linux 7" /etc/os-release ; then \
       ./fix_centos7.sh; \
     fi
-RUN ./async_profiler_env_glibc.sh
+RUN ./async_profiler_env_glibc.sh && \
+    gcc -static -o pdeathsigger pdeathsigger.c
 
 COPY scripts/async_profiler_build_shared.sh .
 RUN ./async_profiler_build_shared.sh
@@ -212,9 +213,6 @@ RUN ./node_builder_glibc_env.sh
 COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
 
-COPY scripts/pdeathsigger.c .
-RUN gcc -o pdeathsigger pdeathsigger.c
-
 # needed for hadolint
 WORKDIR /app
 USER 1001
@@ -260,12 +258,12 @@ COPY --from=async-profiler-builder-glibc /usr/bin/xargs gprofiler/resources/php/
 
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/bin/asprof gprofiler/resources/java/asprof
 COPY --from=async-profiler-builder-glibc /tmp/async-profiler/build/async-profiler-version gprofiler/resources/java/async-profiler-version
+COPY --from=async-profiler-builder-glibc /tmp/pdeathsigger gprofiler/resources/pdeathsigger
 COPY --from=async-profiler-centos-min-test-glibc /libasyncProfiler.so gprofiler/resources/java/glibc/libasyncProfiler.so
 COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/lib/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
 COPY --from=node-package-builder-musl /tmp/module_build gprofiler/resources/node/module/musl
 COPY --from=node-package-builder-glibc /tmp/module_build gprofiler/resources/node/module/glibc
 
-COPY --from=node-package-builder-glibc /tmp/pdeathsigger gprofiler/resources/pdeathsigger
 
 COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
 

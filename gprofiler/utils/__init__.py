@@ -2,6 +2,7 @@
 # Copyright (C) 2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
+
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
@@ -104,7 +105,7 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool = False, **kwarg
     if isinstance(cmd, str):
         cmd = [cmd]
 
-    if is_linux():
+    if kwargs.pop("pdeathsigger", True) and is_linux():
         cmd = [resource_path("pdeathsigger")] + cmd if is_linux() else cmd
 
     logger.debug("Running command", command=cmd)
