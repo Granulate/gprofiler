@@ -127,7 +127,11 @@ def wrap_callbacks(callbacks: List[Callable]) -> Callable:
 
 
 def start_process(
-    cmd: Union[str, List[str]], via_staticx: bool = False, term_on_parent_death: bool = True, **kwargs: Any
+    cmd: Union[str, List[str]],
+    via_staticx: bool = False,
+    term_on_parent_death: bool = True,
+    tmpdir: Optional[Path] = None,
+    **kwargs: Any,
 ) -> Popen:
     if isinstance(cmd, str):
         cmd = [cmd]
@@ -149,6 +153,8 @@ def start_process(
             # explicitly remove our directory from LD_LIBRARY_PATH
             env = env if env is not None else os.environ.copy()
             env.update({"LD_LIBRARY_PATH": ""})
+            if tmpdir is not None:
+                env.update({"TMPDIR": tmpdir})
 
     if is_windows():
         cur_preexec_fn = None  # preexec_fn is not supported on Windows platforms. subprocess.py reports this.
