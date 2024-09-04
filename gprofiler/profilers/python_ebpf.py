@@ -188,11 +188,11 @@ class PythonEbpfProfiler(ProfilerBase):
             poll_process(process, self._POLL_TIMEOUT, self._profiler_state.stop_event)
         except TimeoutError:
             process.kill()
-            self._staticx_cleanup()
             raise
         else:
-            self._staticx_cleanup()
             self._check_output(process, self.output_path)
+        finally:
+            self._staticx_cleanup()
 
     def start(self) -> None:
         logger.info("Starting profiling of Python processes with PyPerf")
