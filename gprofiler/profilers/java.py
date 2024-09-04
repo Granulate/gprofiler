@@ -350,6 +350,7 @@ def get_java_version(process: Process, stop_event: Event) -> Optional[str]:
             ],
             stop_event=stop_event,
             timeout=_JAVA_VERSION_TIMEOUT,
+            pdeathsigger=False,
         )
 
     # doesn't work without changing PID NS as well (I'm getting ENOENT for libjli.so)

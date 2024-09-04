@@ -486,11 +486,12 @@ def filter_jattach_load_records(records: List[LogRecord]) -> List[LogRecord]:
         # find the log record of
         # Running command (command=['/app/gprofiler/resources/java/apsprof', '<PID>', 'load',
         # '/path/to/libasyncProfiler.so', 'true', 'start,...'])
+        command = log_record_extra(r).get("command", [])
         return (
             r.message == "Running command"
-            and len(log_record_extra(r)["command"]) == 6
-            and log_record_extra(r)["command"][2] == "load"
-            and any(map(lambda k: k in log_record_extra(r)["command"][5], ["start,", "stop,"]))
+            and len(command) == 7
+            and command[3] == "load"
+            and any(map(lambda k: k in command[6], ["start,", "stop,"]))
         )
 
     return list(filter(_filter_record, records))
@@ -567,7 +568,7 @@ def test_java_noexec_or_ro_dirs(
     assert len(jattach_loads) == 2
     # 3rd part of commandline to AP - shall begin with POSSIBLE_AP_DIRS[1]
     assert all(
-        log_record_extra(jl)["command"][3].startswith(f"{gprofiler.profilers.java.POSSIBLE_AP_DIRS[1]}/async-profiler-")
+        log_record_extra(jl)["command"][4].startswith(f"{gprofiler.profilers.java.POSSIBLE_AP_DIRS[1]}/async-profiler-")
         for jl in jattach_loads
     )
 
@@ -616,7 +617,7 @@ def test_java_symlinks_in_paths(
     # 2 entries - start and stop
     assert len(jattach_loads) == 2
     # 3rd part of commandline to AP - shall begin with the final, resolved path.
-    assert all(log_record_extra(jl)["command"][3].startswith("/run/final_tmp/gprofiler_tmp/") for jl in jattach_loads)
+    assert all(log_record_extra(jl)["command"][4].startswith("/run/final_tmp/gprofiler_tmp/") for jl in jattach_loads)
 
 
 @pytest.mark.parametrize("in_container", [True])  # only in container is enough

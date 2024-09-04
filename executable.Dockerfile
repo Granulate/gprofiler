@@ -212,7 +212,6 @@ RUN if grep -q "CentOS Linux 7" /etc/os-release ; then \
 RUN ./node_builder_glibc_env.sh
 COPY scripts/build_node_package.sh .
 RUN ./build_node_package.sh
-
 # needed for hadolint
 WORKDIR /app
 USER 1001
@@ -263,7 +262,6 @@ COPY --from=async-profiler-centos-min-test-glibc /libasyncProfiler.so gprofiler/
 COPY --from=async-profiler-builder-musl /tmp/async-profiler/build/lib/libasyncProfiler.so gprofiler/resources/java/musl/libasyncProfiler.so
 COPY --from=node-package-builder-musl /tmp/module_build gprofiler/resources/node/module/musl
 COPY --from=node-package-builder-glibc /tmp/module_build gprofiler/resources/node/module/glibc
-
 
 COPY --from=burn-builder /tmp/burn/burn gprofiler/resources/burn
 
