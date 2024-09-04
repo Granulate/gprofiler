@@ -162,7 +162,7 @@ class PythonEbpfProfiler(ProfilerBase):
         """
         We experienced issues with PyPerf's staticx'd directory, so we want to clean it up on termination.
         """
-        assert not self.is_running(), "_cleanup is impossible while PyPerf is running"
+        assert not self.is_running(), "_staticx_cleanup is impossible while PyPerf is running"
         if self._pyperf_staticx_tmpdir is not None and self._pyperf_staticx_tmpdir.exists():
             shutil.rmtree(self._pyperf_staticx_tmpdir.as_posix())
 
