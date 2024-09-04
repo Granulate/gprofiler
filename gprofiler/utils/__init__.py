@@ -154,6 +154,7 @@ def start_process(
             env = env if env is not None else os.environ.copy()
             env.update({"LD_LIBRARY_PATH": ""})
             if tmpdir is not None:
+                tmpdir.mkdir(exist_ok=True)
                 env.update({"TMPDIR": tmpdir})
 
     if is_windows():
