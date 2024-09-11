@@ -148,7 +148,9 @@ def start_process(
         else:
             # explicitly remove our directory from LD_LIBRARY_PATH
             env = env if env is not None else os.environ.copy()
-            env.update({"LD_LIBRARY_PATH": ""})
+            if "TMPDIR" not in env and "TMPDIR" in os.environ:
+                env["TMPDIR"] = os.environ.get("TMPDIR")
+            env["LD_LIBRARY_PATH"] = ""
 
     if is_windows():
         cur_preexec_fn = None  # preexec_fn is not supported on Windows platforms. subprocess.py reports this.
