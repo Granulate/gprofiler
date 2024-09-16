@@ -90,7 +90,7 @@ class PythonEbpfProfiler(ProfilerBase):
         self._pyperf_staticx_tmpdir: Optional[Path] = None
         if os.environ.get("TMPDIR", None) is not None:
             # We want to create a new level of hirerachy in our current staticx tempdir.
-            self._pyperf_staticx_tmpdir = Path(os.environ["TMPDIR"]) / "pyperf_" + random_prefix()
+            self._pyperf_staticx_tmpdir = Path(os.environ["TMPDIR"]) / ("pyperf_" + random_prefix())
 
     @classmethod
     def _check_output(cls, process: Popen, output_path: Path) -> None:
