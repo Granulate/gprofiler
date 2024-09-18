@@ -19,7 +19,7 @@ from typing import Optional
 
 from psutil import Process
 
-from gprofiler.exceptions import CalledProcessError
+from granulate_utils.gprofiler.exceptions import CalledProcessError
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.base_application_identifier import _ApplicationIdentifier
 from gprofiler.profilers.java import JattachJcmdRunner

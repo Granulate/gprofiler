@@ -48,7 +48,7 @@ from gprofiler.client import (
 from gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.diagnostics import log_diagnostics, set_diagnostics
-from gprofiler.exceptions import APIError, NoProfilersEnabledError
+from granulate_utils.gprofiler.exceptions import APIError, NoProfilersEnabledError
 from gprofiler.gprofiler_types import ProcessToProfileData, UserArgs, integers_list, positive_integer
 from gprofiler.log import RemoteLogsHandler, initial_root_logger_setup
 from gprofiler.merge import concatenate_from_external_file, concatenate_profiles, merge_profiles
@@ -58,7 +58,7 @@ from gprofiler.metadata.enrichment import EnrichmentOptions
 from gprofiler.metadata.external_metadata import ExternalMetadataStaleError, read_external_metadata
 from gprofiler.metadata.metadata_collector import get_current_metadata, get_static_metadata
 from gprofiler.metadata.system_metadata import get_hostname, get_run_mode, get_static_system_info
-from gprofiler.platform import is_linux, is_windows
+from granulate_utils.gprofiler.platform import is_linux, is_windows
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
@@ -76,7 +76,7 @@ from gprofiler.utils import (
     resource_path,
     run_process,
 )
-from gprofiler.utils.fs import escape_filename, mkdir_owned_root
+from granulate_utils.gprofiler.utils.fs import escape_filename, mkdir_owned_root
 from gprofiler.utils.proxy import get_https_proxy
 
 if is_linux():

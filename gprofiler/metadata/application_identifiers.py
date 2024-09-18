@@ -28,7 +28,7 @@ from psutil import NoSuchProcess, Process
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.base_application_identifier import _ApplicationIdentifier
 from gprofiler.metadata.enrichment import EnrichmentOptions
-from gprofiler.platform import is_linux
+from granulate_utils.gprofiler.platform import is_linux
 
 if is_linux():
     from gprofiler.metadata.application_identifiers_java import (

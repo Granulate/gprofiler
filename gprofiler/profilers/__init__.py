@@ -1,5 +1,5 @@
 # NOTE: Make sure to import any new process profilers to load it
-from gprofiler.platform import is_linux
+from granulate_utils.gprofiler.platform import is_linux
 from gprofiler.profilers.dotnet import DotnetProfiler
 from gprofiler.profilers.python import PythonProfiler
 

@@ -24,13 +24,19 @@ from pathlib import Path
 from subprocess import Popen
 from typing import List, Optional, Pattern, cast
 
-from gprofiler.exceptions import StopEventSetException
+from granulate_utils.gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProcessToStackSampleCounters, ProfileData
 from gprofiler.log import get_logger_adapter
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
-from gprofiler.utils import random_prefix, reap_process, resource_path, start_process, wait_event
+from gprofiler.utils import (
+    random_prefix,
+    reap_process,
+    resource_path,
+    start_process,
+    wait_event,
+)
 
 logger = get_logger_adapter(__name__)
 # Currently tracing only php-fpm, TODO: support mod_php in apache.

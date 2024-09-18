@@ -32,7 +32,7 @@ from granulate_utils.linux.process import (
 from granulate_utils.python import _BLACKLISTED_PYTHON_PROCS, DETECTED_PYTHON_PROCESSES_REGEX
 from psutil import NoSuchProcess, Process
 
-from gprofiler.exceptions import (
+from granulate_utils.gprofiler.exceptions import (
     CalledProcessError,
     CalledProcessTimeoutError,
     ProcessStoppedException,
@@ -50,7 +50,7 @@ from gprofiler.metadata import application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.metadata.py_module_version import get_modules_versions
 from gprofiler.metadata.system_metadata import get_arch
-from gprofiler.platform import is_linux, is_windows
+from granulate_utils.gprofiler.platform import is_linux, is_windows
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.profiler_base import ProfilerInterface, SpawningProcessProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
@@ -59,7 +59,14 @@ from gprofiler.utils.collapsed_format import parse_one_collapsed_file
 if is_linux():
     from gprofiler.profilers.python_ebpf import PythonEbpfProfiler, PythonEbpfError
 
-from gprofiler.utils import pgrep_exe, pgrep_maps, random_prefix, removed_path, resource_path, run_process
+from gprofiler.utils import (
+    pgrep_exe,
+    pgrep_maps,
+    random_prefix,
+    removed_path,
+    resource_path,
+    run_process,
+)
 from gprofiler.utils.process import process_comm, search_proc_maps
 
 logger = get_logger_adapter(__name__)

@@ -24,7 +24,7 @@ from psutil import NoSuchProcess, Process, ZombieProcess
 
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.versions import get_exe_version
-from gprofiler.platform import is_windows
+from granulate_utils.gprofiler.platform import is_windows
 
 logger = get_logger_adapter(__name__)
 

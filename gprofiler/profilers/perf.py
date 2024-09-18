@@ -27,7 +27,10 @@ from granulate_utils.node import is_node_process
 from psutil import NoSuchProcess, Process
 
 from gprofiler import merge
-from gprofiler.exceptions import PerfNoSupportedEvent, StopEventSetException
+from granulate_utils.gprofiler.exceptions import (
+    PerfNoSupportedEvent,
+    StopEventSetException,
+)
 from gprofiler.gprofiler_types import (
     ProcessToProfileData,
     ProcessToStackSampleCounters,

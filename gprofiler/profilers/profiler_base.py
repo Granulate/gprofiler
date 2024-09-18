@@ -30,7 +30,7 @@ from granulate_utils.linux.proc_events import register_exec_callback, unregister
 from granulate_utils.linux.process import is_process_running
 from psutil import NoSuchProcess, Process, ZombieProcess
 
-from gprofiler.exceptions import StopEventSetException
+from granulate_utils.gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, ProfilingErrorStack, StackToSampleCount
 from gprofiler.log import get_logger_adapter
 from gprofiler.profiler_state import ProfilerState

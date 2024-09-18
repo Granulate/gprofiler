@@ -20,7 +20,7 @@ from typing import Callable, Iterator, Match, Optional
 from granulate_utils.linux.process import is_process_running, read_proc_file
 from psutil import AccessDenied, NoSuchProcess, Process, process_iter
 
-from gprofiler.platform import is_windows
+from granulate_utils.gprofiler.platform import is_windows
 
 
 def search_proc_maps(process: Process, pattern: str) -> Optional[Match[str]]:

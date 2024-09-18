@@ -96,7 +96,12 @@ def _log_processes() -> None:
 def _log_dmesg() -> None:
     try:
         output = run_process(
-            "dmesg -T | tail -n 100", shell=True, check=False, suppress_log=True, stderr=subprocess.STDOUT
+            "dmesg -T | tail -n 100",
+            logger,
+            shell=True,
+            check=False,
+            suppress_log=True,
+            stderr=subprocess.STDOUT,
         ).stdout.decode()
     except Exception as e:
         output = str(e)

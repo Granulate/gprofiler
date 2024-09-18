@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any, List, Tuple, Union, cast
 
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_arch
-from gprofiler.platform import is_windows
+from granulate_utils.gprofiler.platform import is_windows
 from gprofiler.profilers.perf import SystemProfiler
 from gprofiler.profilers.profiler_base import NoopProfiler
 from gprofiler.profilers.registry import get_profilers_registry

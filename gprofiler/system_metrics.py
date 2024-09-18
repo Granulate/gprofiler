@@ -6,7 +6,7 @@ from typing import List, Optional
 
 import psutil
 
-from gprofiler.exceptions import ThreadStopTimeoutError
+from granulate_utils.gprofiler.exceptions import ThreadStopTimeoutError
 
 DEFAULT_POLLING_INTERVAL_SECONDS = 5
 STOP_TIMEOUT_SECONDS = 2

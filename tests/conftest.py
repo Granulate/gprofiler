@@ -33,7 +33,7 @@ from docker.models.images import Image
 from psutil import Process
 from pytest import FixtureRequest, TempPathFactory, fixture
 
-from gprofiler.consts import CPU_PROFILING_MODE
+from granulate_utils.gprofiler.consts import CPU_PROFILING_MODE
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.diagnostics import set_diagnostics
 from gprofiler.gprofiler_types import StackToSampleCount

@@ -23,7 +23,7 @@ import requests
 from requests import Session
 
 from gprofiler import __version__
-from gprofiler.exceptions import APIError
+from granulate_utils.gprofiler.exceptions import APIError
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import get_iso8601_format_time, get_iso8601_format_time_from_epoch_time
 
