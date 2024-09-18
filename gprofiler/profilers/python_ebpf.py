@@ -25,10 +25,7 @@ from typing import Dict, List, Optional, Tuple, cast
 from granulate_utils.linux.ns import is_running_in_init_pid
 from psutil import NoSuchProcess, Process
 
-from granulate_utils.gprofiler.exceptions import (
-    CalledProcessError,
-    StopEventSetException,
-)
+from granulate_utils.gprofiler.exceptions import CalledProcessError, StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata import application_identifiers

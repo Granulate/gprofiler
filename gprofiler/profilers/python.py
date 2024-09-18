@@ -59,14 +59,7 @@ from gprofiler.utils.collapsed_format import parse_one_collapsed_file
 if is_linux():
     from gprofiler.profilers.python_ebpf import PythonEbpfProfiler, PythonEbpfError
 
-from gprofiler.utils import (
-    pgrep_exe,
-    pgrep_maps,
-    random_prefix,
-    removed_path,
-    resource_path,
-    run_process,
-)
+from gprofiler.utils import pgrep_exe, pgrep_maps, random_prefix, removed_path, resource_path, run_process
 from gprofiler.utils.process import process_comm, search_proc_maps
 
 logger = get_logger_adapter(__name__)

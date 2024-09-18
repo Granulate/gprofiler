@@ -35,12 +35,7 @@ from websocket._core import WebSocket
 
 from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.versions import get_exe_version
-from gprofiler.utils import (
-    TEMPORARY_STORAGE_PATH,
-    add_permission_dir,
-    pgrep_exe,
-    resource_path,
-)
+from gprofiler.utils import TEMPORARY_STORAGE_PATH, add_permission_dir, pgrep_exe, resource_path
 
 logger = get_logger_adapter(__name__)
 

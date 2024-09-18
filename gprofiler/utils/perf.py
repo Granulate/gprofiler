@@ -21,10 +21,7 @@ from pathlib import Path
 from threading import Event
 from typing import List, Optional
 
-from granulate_utils.gprofiler.exceptions import (
-    CalledProcessError,
-    PerfNoSupportedEvent,
-)
+from granulate_utils.gprofiler.exceptions import CalledProcessError, PerfNoSupportedEvent
 from gprofiler.gprofiler_types import ProcessToStackSampleCounters
 from gprofiler.log import get_logger_adapter
 from gprofiler.utils import run_process
