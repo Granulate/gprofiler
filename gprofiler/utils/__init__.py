@@ -149,7 +149,7 @@ def start_process(
             # explicitly remove our directory from LD_LIBRARY_PATH
             env = env if env is not None else os.environ.copy()
             if "TMPDIR" not in env and "TMPDIR" in os.environ:
-                env["TMPDIR"] = os.environ.get("TMPDIR")
+                env["TMPDIR"] = os.environ["TMPDIR"]
             env["LD_LIBRARY_PATH"] = ""
 
     if is_windows():
