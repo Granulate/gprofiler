@@ -90,7 +90,7 @@ jobs:
           submodules: true
 
       - name: Download the executable from previous job
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: gprofiler_x86_64
           path: dist/
@@ -155,13 +155,13 @@ jobs:
         run: ./scripts/verify_tag.sh
 
       - name: Download x86_64 executable from a previous job
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: gprofiler_x86_64
           path: output/
 
       - name: Download aarch64 executable from a previous job
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: gprofiler_aarch64
           path: output/
@@ -189,7 +189,7 @@ jobs:
         fetch-depth: 0
 
     - name: Download executables from the previous job
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: gprofiler_x86_64
         path: output/
@@ -250,13 +250,13 @@ jobs:
         submodules: true
 
     - name: Download the executable from previous job
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: gprofiler_x86_64
         path: output/
 
     - name: Download the image from previous job
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: gprofiler_x86_64.img
         path: output/
@@ -309,7 +309,7 @@ jobs:
         uses: docker/setup-buildx-action@v1
 
       - name: Download executables from the previous job
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: gprofiler_aarch64
           path: output/
@@ -347,7 +347,7 @@ jobs:
       # build-container-aarch64 has pushed the image to DockerHub, so we'll pull it later when creating
       # the manifest.
       - name: Download the x86_64 image from previous job
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: gprofiler_x86_64.img
           path: output/
