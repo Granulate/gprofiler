@@ -146,10 +146,11 @@ def start_process(
             # see https://github.com/JonathonReinhart/staticx#run-time-information
             cmd = [f"{staticx_dir}/.staticx.interp", "--library-path", staticx_dir] + cmd
         else:
-            # explicitly remove our directory from LD_LIBRARY_PATH
             env = env if env is not None else os.environ.copy()
+            # ensure `TMPDIR` env is propagated to the child processes (used by staticx)
             if "TMPDIR" not in env and "TMPDIR" in os.environ:
                 env["TMPDIR"] = os.environ["TMPDIR"]
+            # explicitly remove our directory from LD_LIBRARY_PATH
             env["LD_LIBRARY_PATH"] = ""
 
     if is_windows():
