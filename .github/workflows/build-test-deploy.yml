@@ -35,7 +35,7 @@ jobs:
         cp output/gprofiler_x86_64 output/gprofiler  # for backwards compatibility, we upload both with arch suffix and without
 
      - name: Upload the executables as job artifacts
-       uses: actions/upload-artifact@v3
+       uses: actions/upload-artifact@v2
        with:
          name: gprofiler_x86_64
          path: output/
@@ -130,7 +130,7 @@ jobs:
          mv build/aarch64/gprofiler output/gprofiler_aarch64
 
      - name: Upload the executables as job artifacts
-       uses: actions/upload-artifact@v3
+       uses: actions/upload-artifact@v2
        with:
          name: gprofiler_aarch64
          path: output/
@@ -205,7 +205,7 @@ jobs:
       run: mkdir -p output && docker image save gprofiler_x86_64 > output/gprofiler_x86_64.img
 
     - name: Upload the image artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v2
       with:
         name: gprofiler_x86_64.img
         path: output/
