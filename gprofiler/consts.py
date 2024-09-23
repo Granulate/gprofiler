@@ -1,2 +1,1 @@
-CPU_PROFILING_MODE = "cpu"
-DEFAULT_PROFILING_MODE = CPU_PROFILING_MODE
+from granulate_utils.gprofiler.consts import *  # noqa: F403,F401
