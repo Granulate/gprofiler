@@ -150,12 +150,16 @@ def start_process(
             # see https://github.com/JonathonReinhart/staticx#run-time-information
             cmd = [f"{staticx_dir}/.staticx.interp", "--library-path", staticx_dir] + cmd
         else:
-            # explicitly remove our directory from LD_LIBRARY_PATH
             env = env if env is not None else os.environ.copy()
-            env.update({"LD_LIBRARY_PATH": ""})
             if tmpdir is not None:
                 tmpdir.mkdir(exist_ok=True)
-                env.update({"TMPDIR": tmpdir})
+                env["TMPDIR"] = tmpdir.as_posix()
+            elif "TMPDIR" not in env and "TMPDIR" in os.environ:
+                # ensure `TMPDIR` env is propagated to the child processes (used by staticx)
+                env["TMPDIR"] = os.environ["TMPDIR"]
+
+            # explicitly remove our directory from LD_LIBRARY_PATH
+            env["LD_LIBRARY_PATH"] = ""
 
     if is_windows():
         cur_preexec_fn = None  # preexec_fn is not supported on Windows platforms. subprocess.py reports this.
