@@ -1,1 +1,1 @@
-from granulate_utils.gprofiler.consts import *
+from granulate_utils.gprofiler.consts import *  # noqa: F403,F401
