@@ -17,10 +17,11 @@ import glob
 import os
 import resource
 import selectors
+import shutil
 import signal
 from pathlib import Path
 from subprocess import Popen
-from typing import Dict, List, Optional, Tuple, cast
+from typing import Dict, List, Optional, Tuple, Union, cast
 
 from granulate_utils.linux.ns import is_running_in_init_pid
 from psutil import NoSuchProcess, Process
@@ -86,6 +87,10 @@ class PythonEbpfProfiler(ProfilerBase):
         self._kernel_offsets: Dict[str, int] = {}
         self._metadata = python.PythonMetadata(self._profiler_state.stop_event)
         self._verbose = verbose
+        self._pyperf_staticx_tmpdir: Optional[Path] = None
+        if os.environ.get("TMPDIR", None) is not None:
+            # We want to create a new level of hirerachy in our current staticx tempdir.
+            self._pyperf_staticx_tmpdir = Path(os.environ["TMPDIR"]) / ("pyperf_" + random_prefix())
 
     @classmethod
     def _check_output(cls, process: Popen, output_path: Path) -> None:
@@ -153,6 +158,14 @@ class PythonEbpfProfiler(ProfilerBase):
             cmd.extend(["-v", "4"])
         return cmd
 
+    def _staticx_cleanup(self) -> None:
+        """
+        We experienced issues with PyPerf's staticx'd directory, so we want to clean it up on termination.
+        """
+        assert not self.is_running(), "_staticx_cleanup is impossible while PyPerf is running"
+        if self._pyperf_staticx_tmpdir is not None and self._pyperf_staticx_tmpdir.exists():
+            shutil.rmtree(self._pyperf_staticx_tmpdir.as_posix())
+
     def test(self) -> None:
         self._ebpf_environment()
 
@@ -170,7 +183,7 @@ class PythonEbpfProfiler(ProfilerBase):
             "--duration",
             "1",
         ]
-        process = start_process(cmd)
+        process = start_process(cmd, tmpdir=self._pyperf_staticx_tmpdir)
         try:
             poll_process(process, self._POLL_TIMEOUT, self._profiler_state.stop_event)
         except TimeoutError:
@@ -178,6 +191,8 @@ class PythonEbpfProfiler(ProfilerBase):
             raise
         else:
             self._check_output(process, self.output_path)
+        finally:
+            self._staticx_cleanup()
 
     def start(self) -> None:
         logger.info("Starting profiling of Python processes with PyPerf")
@@ -201,7 +216,7 @@ class PythonEbpfProfiler(ProfilerBase):
         for f in glob.glob(f"{str(self.output_path)}.*"):
             os.unlink(f)
 
-        process = start_process(cmd)
+        process = start_process(cmd, tmpdir=self._pyperf_staticx_tmpdir)
         # wait until the transient data file appears - because once returning from here, PyPerf may
         # be polled via snapshot() and we need it to finish installing its signal handler.
         try:
@@ -212,6 +227,7 @@ class PythonEbpfProfiler(ProfilerBase):
             stdout = process.stdout.read()
             stderr = process.stderr.read()
             logger.error("PyPerf failed to start", stdout=stdout, stderr=stderr)
+            self._staticx_cleanup()
             raise
         else:
             self.process = process
@@ -303,16 +319,23 @@ class PythonEbpfProfiler(ProfilerBase):
         return profiles
 
     def _terminate(self) -> Tuple[Optional[int], str, str]:
+        exit_status: Optional[int] = None
+        stdout: Union[str, bytes] = ""
+        stderr: Union[str, bytes] = ""
+
         self._unregister_process_selectors()
         if self.is_running():
             assert self.process is not None  # for mypy
             self.process.terminate()  # okay to call even if process is already dead
             exit_status, stdout, stderr = reap_process(self.process)
             self.process = None
-            return exit_status, stdout.decode(), stderr.decode()
+
+        stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
+        stderr = stderr.decode() if isinstance(stderr, bytes) else stderr
 
         assert self.process is None  # means we're not running
-        return None, "", ""
+        self._staticx_cleanup()
+        return exit_status, stdout, stderr
 
     def stop(self) -> None:
         exit_status, stdout, stderr = self._terminate()

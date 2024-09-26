@@ -127,7 +127,11 @@ def wrap_callbacks(callbacks: List[Callable]) -> Callable:
 
 
 def start_process(
-    cmd: Union[str, List[str]], via_staticx: bool = False, term_on_parent_death: bool = True, **kwargs: Any
+    cmd: Union[str, List[str]],
+    via_staticx: bool = False,
+    term_on_parent_death: bool = True,
+    tmpdir: Optional[Path] = None,
+    **kwargs: Any,
 ) -> Popen:
     if isinstance(cmd, str):
         cmd = [cmd]
@@ -147,9 +151,13 @@ def start_process(
             cmd = [f"{staticx_dir}/.staticx.interp", "--library-path", staticx_dir] + cmd
         else:
             env = env if env is not None else os.environ.copy()
-            # ensure `TMPDIR` env is propagated to the child processes (used by staticx)
-            if "TMPDIR" not in env and "TMPDIR" in os.environ:
+            if tmpdir is not None:
+                tmpdir.mkdir(exist_ok=True)
+                env["TMPDIR"] = tmpdir.as_posix()
+            elif "TMPDIR" not in env and "TMPDIR" in os.environ:
+                # ensure `TMPDIR` env is propagated to the child processes (used by staticx)
                 env["TMPDIR"] = os.environ["TMPDIR"]
+
             # explicitly remove our directory from LD_LIBRARY_PATH
             env["LD_LIBRARY_PATH"] = ""
 
