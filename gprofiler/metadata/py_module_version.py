@@ -106,7 +106,7 @@ def _files_from_record(dist: pkg_resources.Distribution) -> Optional[Iterator[st
     """Based on _files_from_record in pip._internal.commands.show.search_packages_info"""
     try:
         text = dist.get_metadata("RECORD")
-    except (FileNotFoundError, KeyError):
+    except (OSError, KeyError):
         return None
     # This extra Path-str cast normalizes entries.
     return (str(pathlib.Path(row[0])) for row in csv.reader(text.splitlines()))
@@ -116,7 +116,7 @@ def _files_from_legacy(dist: pkg_resources.Distribution) -> Optional[Iterator[st
     """Based on _files_from_legacy in pip._internal.commands.show.search_packages_info"""
     try:
         text = dist.get_metadata("installed-files.txt")
-    except (FileNotFoundError, KeyError):
+    except (OSError, KeyError):
         return None
     paths = (p for p in text.splitlines(keepends=False) if p)
     root = dist.location
