@@ -2,7 +2,6 @@
 # Copyright (C) 2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
-
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
@@ -99,7 +98,12 @@ def is_root() -> bool:
         return os.geteuid() == 0
 
 
-def start_process(cmd: Union[str, List[str]], via_staticx: bool = False, **kwargs: Any) -> Popen:
+def start_process(
+    cmd: Union[str, List[str]],
+    via_staticx: bool = False,
+    tmpdir: Optional[Path] = None,
+    **kwargs: Any,
+) -> Popen:
     global _processes
 
     if isinstance(cmd, str):
@@ -122,9 +126,16 @@ def start_process(cmd: Union[str, List[str]], via_staticx: bool = False, **kwarg
             # see https://github.com/JonathonReinhart/staticx#run-time-information
             cmd = [f"{staticx_dir}/.staticx.interp", "--library-path", staticx_dir] + cmd
         else:
-            # explicitly remove our directory from LD_LIBRARY_PATH
             env = env if env is not None else os.environ.copy()
-            env.update({"LD_LIBRARY_PATH": ""})
+            if tmpdir is not None:
+                tmpdir.mkdir(exist_ok=True)
+                env["TMPDIR"] = tmpdir.as_posix()
+            elif "TMPDIR" not in env and "TMPDIR" in os.environ:
+                # ensure `TMPDIR` env is propagated to the child processes (used by staticx)
+                env["TMPDIR"] = os.environ["TMPDIR"]
+
+            # explicitly remove our directory from LD_LIBRARY_PATH
+            env["LD_LIBRARY_PATH"] = ""
 
     process = Popen(
         cmd,
