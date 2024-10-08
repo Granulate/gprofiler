@@ -35,7 +35,9 @@ def get_exe_version(
     exe_path = f"/proc/{get_process_nspid(process.pid)}/exe"
 
     def _run_get_version() -> "CompletedProcess[bytes]":
-        return run_process([exe_path, version_arg], stop_event=stop_event, timeout=get_version_timeout)
+        return run_process(
+            [exe_path, version_arg], stop_event=stop_event, timeout=get_version_timeout, pdeathsigger=False
+        )
 
     try:
         cp = run_in_ns(["pid", "mnt"], _run_get_version, process.pid)
