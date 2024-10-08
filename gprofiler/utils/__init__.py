@@ -330,6 +330,7 @@ def pgrep_maps(match: str) -> List[Process]:
         stderr=subprocess.PIPE,
         suppress_log=True,
         check=False,
+        pdeathsigger=False,
     )
     # 0 - found
     # 1 - not found
