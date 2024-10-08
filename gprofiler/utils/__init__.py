@@ -325,9 +325,10 @@ def pgrep_maps(match: str) -> List[Process]:
     # this is much faster than iterating over processes' maps with psutil.
     # We use flag -E in grep to support systems where grep is not PCRE
     result = run_process(
-        ["sh", "-c", f"grep -lE '{match}' /proc/*/maps"],
+        f"grep -lE '{match}' /proc/*/maps",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        shell=True,
         suppress_log=True,
         check=False,
         pdeathsigger=False,
