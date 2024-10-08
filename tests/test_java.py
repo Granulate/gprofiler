@@ -226,7 +226,6 @@ def test_java_safemode_version_check(
     monkeypatch.setitem(JavaProfiler.MINIMAL_SUPPORTED_VERSIONS, 8, (Version("8.999"), 0))
 
     with make_java_profiler(profiler_state) as profiler:
-        profiler._profiler_state.get_container_name(application_pid)
         process = profiler._select_processes_to_profile()[0]
         jvm_version_str = cast_away_optional(get_java_version(process, profiler._profiler_state.stop_event))
         jvm_version = parse_jvm_version(jvm_version_str)
@@ -246,7 +245,6 @@ def test_java_safemode_build_number_check(
     profiler_state: ProfilerState,
 ) -> None:
     with make_java_profiler(profiler_state) as profiler:
-        profiler._profiler_state.get_container_name(application_pid)
         process = profiler._select_processes_to_profile()[0]
         jvm_version_str = cast_away_optional(get_java_version(process, profiler._profiler_state.stop_event))
         jvm_version = parse_jvm_version(jvm_version_str)
@@ -419,7 +417,6 @@ def test_sanity_other_jvms(
         frequency=99,
         java_async_profiler_mode="cpu",
     ) as profiler:
-        profiler._profiler_state.get_container_name(application_pid)
         process = psutil.Process(application_pid)
         assert search_for in cast_away_optional(get_java_version(process, profiler._profiler_state.stop_event))
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
@@ -441,7 +438,6 @@ def test_sanity_latest_jvms(
     """
 
     with make_java_profiler(profiler_state) as profiler:
-        profiler._profiler_state.get_container_name(application_pid)
         # sanity check that this is the correct JVM we're targeting
         assert search_for in cast_away_optional(
             get_java_version(psutil.Process(application_pid), profiler._profiler_state.stop_event)
