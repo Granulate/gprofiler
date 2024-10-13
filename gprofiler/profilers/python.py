@@ -276,6 +276,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
                 pass
             except Exception:
                 logger.exception(f"Couldn't add pid {process.pid} to list")
+
         return filtered_procs + [Process(pid) for pid in self._python_pyspy_processes]
 
     def _should_profile_process(self, process: Process) -> bool:
