@@ -347,7 +347,9 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             dest="python_pyspy_processes",
             nargs="+",
             type=int,
-            help="List of processes (by PID) to profile with py-spy." "This option forces gProfiler to ",
+            help="List of processes (by PID) to profile with py-spy."
+            "This option forces gProfiler to profile these processes with py-spy, "
+            "even if they are not detected as Python processes.",
         ),
     ],
     supported_profiling_modes=["cpu"],
