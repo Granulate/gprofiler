@@ -185,10 +185,12 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         profiler_state: ProfilerState,
         *,
         add_versions: bool,
+        python_pyspy_processes: List[int],
     ):
         super().__init__(frequency, duration, profiler_state)
         self.add_versions = add_versions
         self._metadata = PythonMetadata(self._profiler_state.stop_event)
+        self._python_pyspy_processes = python_pyspy_processes
 
     def _make_command(self, pid: int, output_path: str, duration: int) -> List[str]:
         command = [
@@ -274,8 +276,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
                 pass
             except Exception:
                 logger.exception(f"Couldn't add pid {process.pid} to list")
-
-        return filtered_procs
+        return filtered_procs + [Process(pid) for pid in self._python_pyspy_processes]
 
     def _should_profile_process(self, process: Process) -> bool:
         return search_proc_maps(process, DETECTED_PYTHON_PROCESSES_REGEX) is not None and not self._should_skip_process(
@@ -340,6 +341,13 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             action="store_true",
             help="Enable PyPerf in verbose mode (max verbosity)",
         ),
+        ProfilerArgument(
+            name="--python-pyspy-processes",
+            dest="python_pyspy_processes",
+            nargs="+",
+            type=int,
+            help="List of processes (by PID) to profile with py-spy." "This option forces gProfiler to ",
+        ),
     ],
     supported_profiling_modes=["cpu"],
 )
@@ -358,6 +366,7 @@ class PythonProfiler(ProfilerInterface):
         python_add_versions: bool,
         python_pyperf_user_stacks_pages: Optional[int],
         python_pyperf_verbose: bool,
+        python_pyspy_processes: List[int],
     ):
         if python_mode == "py-spy":
             python_mode = "pyspy"
@@ -387,6 +396,7 @@ class PythonProfiler(ProfilerInterface):
                 duration,
                 profiler_state,
                 add_versions=python_add_versions,
+                python_pyspy_processes=python_pyspy_processes,
             )
         else:
             self._pyspy_profiler = None
