@@ -348,8 +348,9 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             nargs="+",
             type=int,
             help="List of processes (by PID) to profile with py-spy."
-            "This option forces gProfiler to profile these processes with py-spy, "
-            "even if they are not detected as Python processes.",
+            "This option forces gProfiler to profile given processes with py-spy, even if"
+            "they are not recognized by gProfiler as Python processes."
+            "Note - gProfiler assumes that the given processes are alive and running forever.",
         ),
     ],
     supported_profiling_modes=["cpu"],
