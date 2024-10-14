@@ -21,7 +21,6 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from typing import Any, Dict, List, Match, Optional, cast
 
-from gprofiler_types import integers_list
 from granulate_utils.linux.elf import get_elf_id
 from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from granulate_utils.linux.process import (
@@ -44,6 +43,7 @@ from gprofiler.gprofiler_types import (
     ProcessToStackSampleCounters,
     ProfileData,
     StackToSampleCount,
+    integers_list,
     nonnegative_integer,
 )
 from gprofiler.log import get_logger_adapter
