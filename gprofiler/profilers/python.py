@@ -21,6 +21,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from typing import Any, Dict, List, Match, Optional, cast
 
+from gprofiler_types import integers_list
 from granulate_utils.linux.elf import get_elf_id
 from granulate_utils.linux.ns import get_process_nspid, run_in_ns
 from granulate_utils.linux.process import (
@@ -345,8 +346,9 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         ProfilerArgument(
             name="--python-pyspy-processes",
             dest="python_pyspy_processes",
-            nargs="+",
-            type=int,
+            action="extend",
+            default=[],
+            type=integers_list,
             help="List of processes (by PID) to profile with py-spy."
             " This option forces gProfiler to profile given processes with py-spy, even if"
             " they are not recognized by gProfiler as Python processes."
