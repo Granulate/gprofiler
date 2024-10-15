@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from threading import Lock
 from typing import Dict, List, Optional, Set
 
 from granulate_utils.containers.client import ContainersClient
@@ -26,15 +27,22 @@ from gprofiler.utils.perf import valid_perf_pid
 logger = get_logger_adapter(__name__)
 
 _containers_client: Optional[ContainersClient] = None
+_containers_client_lock = Lock()
+
+
+def get_containers_client() -> ContainersClient:
+    global _containers_client
+    with _containers_client_lock:
+        if _containers_client is None:
+            _containers_client = ContainersClient()
+        return _containers_client
 
 
 class ContainerNamesClient:
     def __init__(self) -> None:
-        global _containers_client
         try:
-            if _containers_client is None:
-                _containers_client = ContainersClient()
-            logger.info(f"Discovered container runtimes: {_containers_client.get_runtimes()}")
+            self._containers_client: Optional[ContainersClient] = get_containers_client()
+            logger.info(f"Discovered container runtimes: {self._containers_client.get_runtimes()}")
         except NoContainerRuntimesError:
             logger.warning(
                 "Could not find a Docker daemon or CRI-compatible daemon, profiling data will not"
@@ -42,6 +50,7 @@ class ContainerNamesClient:
                 " please open a new issue here:"
                 " https://github.com/Granulate/gprofiler/issues/new"
             )
+            self._containers_client = None
 
         self._pid_to_container_name_cache: Dict[int, str] = {}
         self._current_container_names: Set[str] = set()
@@ -56,7 +65,7 @@ class ContainerNamesClient:
         return list(self._current_container_names)
 
     def get_container_name(self, pid: int) -> str:
-        if _containers_client is None:
+        if self._containers_client is None:
             return ""
 
         if not valid_perf_pid(pid):
@@ -107,5 +116,5 @@ class ContainerNamesClient:
     def _refresh_container_names_cache(self) -> None:
         # We re-fetch all of the currently running containers, so in order to keep the cache small we clear it
         self._container_id_to_name_cache.clear()
-        for container in _containers_client.list_containers() if _containers_client is not None else []:
+        for container in self._containers_client.list_containers() if self._containers_client is not None else []:
             self._container_id_to_name_cache[container.id] = container.name
