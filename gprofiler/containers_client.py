@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from threading import Lock
 from typing import Dict, List, Optional, Set
 
 from granulate_utils.containers.client import ContainersClient
@@ -25,11 +26,22 @@ from gprofiler.utils.perf import valid_perf_pid
 
 logger = get_logger_adapter(__name__)
 
+_containers_client: Optional[ContainersClient] = None
+_containers_client_lock = Lock()
+
+
+def get_containers_client() -> ContainersClient:
+    global _containers_client
+    with _containers_client_lock:
+        if _containers_client is None:
+            _containers_client = ContainersClient()
+        return _containers_client
+
 
 class ContainerNamesClient:
     def __init__(self) -> None:
         try:
-            self._containers_client: Optional[ContainersClient] = ContainersClient()
+            self._containers_client: Optional[ContainersClient] = get_containers_client()
             logger.info(f"Discovered container runtimes: {self._containers_client.get_runtimes()}")
         except NoContainerRuntimesError:
             logger.warning(
@@ -73,7 +85,8 @@ class ContainerNamesClient:
     def _safely_get_process_container_name(self, pid: int) -> Optional[str]:
         try:
             try:
-                container_id = get_process_container_id(Process(pid))
+                process = Process(pid)
+                container_id = get_process_container_id(process)
                 if container_id is None:
                     return None
             except NoSuchProcess:
