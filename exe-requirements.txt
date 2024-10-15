@@ -1,13 +1,4 @@
 # requirements for the standalone executable
-pyinstaller==4.6; platform.machine == "x86_64"
-# aarch64 requires a later version due to the use of a newer centos version.
-# see https://github.com/pyinstaller/pyinstaller/issues/5540
-pyinstaller==4.10; platform.machine == "aarch64" or sys.platform == "win32"
-# for aarch64 we build a slightly patched version
-# I tried upgrading to 0.13.6 but it crashes when the botoloader is run as non-root :/
-# I got this error in gdb:
-# (gdb) run
-# Starting program: /path/to/build/x86_64/gprofiler
-# During startup program terminated with signal SIGSEGV, Segmentation fault.
-# staying with 0.12.1 for the mean time...
-staticx==0.12.1; platform.machine == "x86_64"
+pyinstaller==5.13.2
+wheel==0.37.0
+scons==4.2.0
