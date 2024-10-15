@@ -263,7 +263,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             return ProfileData(parsed, appid, app_metadata, container_name)
 
     def _select_processes_to_profile(self) -> List[Process]:
-        filtered_procs = []
+        filtered_procs = set()
         if is_windows():
             all_processes = [x for x in pgrep_exe("python")]
         else:
@@ -272,13 +272,14 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         for process in all_processes:
             try:
                 if not self._should_skip_process(process):
-                    filtered_procs.append(process)
+                    filtered_procs.add(process)
             except NoSuchProcess:
                 pass
             except Exception:
                 logger.exception(f"Couldn't add pid {process.pid} to list")
 
-        return filtered_procs + [Process(pid) for pid in self._python_pyspy_process]
+        filtered_procs.update([Process(pid) for pid in self._python_pyspy_process])
+        return list(filtered_procs)
 
     def _should_profile_process(self, process: Process) -> bool:
         return search_proc_maps(process, DETECTED_PYTHON_PROCESSES_REGEX) is not None and not self._should_skip_process(
