@@ -215,7 +215,7 @@ def snapshot_pid_profile(profiler: ProfilerInterface, pid: int) -> ProfileData:
         last_snapshot = profiler.snapshot()
         return pid in last_snapshot
 
-    wait_event(timeout=5, stop_event=Event(), condition=has_profile, interval=0.1)
+    wait_event(timeout=5, stop_event=Event(), condition=has_profile, interval=2.0)
     return last_snapshot[pid]
 
 
