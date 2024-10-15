@@ -138,6 +138,7 @@ class PythonMetadata(ApplicationMetadata):
                     [python_path, "-S", "-c", "import sys; print(sys.maxunicode)"],
                     stop_event=self._stop_event,
                     timeout=self._PYTHON_TIMEOUT,
+                    pdeathsigger=False,
                 )
 
             return run_in_ns(["pid", "mnt"], _run_python_process_in_ns, process.pid).stdout.decode().strip()
