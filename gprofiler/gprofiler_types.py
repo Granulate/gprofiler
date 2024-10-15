@@ -89,12 +89,12 @@ def nonnegative_integer(value_str: str) -> int:
 
 def integers_list(value_str: str) -> List[int]:
     try:
-        pids = [int(pid) for pid in value_str.split(",")]
+        values = [int(value) for value in value_str.split(",")]
     except ValueError:
         raise configargparse.ArgumentTypeError(
             "Integer list should be a single integer, or comma separated list of integers f.e. 13,452,2388"
         )
-    return pids
+    return values
 
 
 def integer_range(min_range: int, max_range: int) -> Callable[[str], int]:

@@ -76,7 +76,7 @@ def test_pyspy(
     profiler_state: ProfilerState,
 ) -> None:
     _ = assert_app_id  # Required for mypy unused argument warning
-    with PySpyProfiler(1000, 3, profiler_state, add_versions=True) as profiler:
+    with PySpyProfiler(1000, 3, profiler_state, add_versions=True, python_pyspy_process=[]) as profiler:
         # not using snapshot_one_collapsed because there are multiple Python processes running usually.
         process_collapsed = snapshot_pid_collapsed(profiler, application_pid)
         assert_collapsed(process_collapsed)

@@ -43,6 +43,7 @@ from gprofiler.gprofiler_types import (
     ProcessToStackSampleCounters,
     ProfileData,
     StackToSampleCount,
+    integers_list,
     nonnegative_integer,
 )
 from gprofiler.log import get_logger_adapter
@@ -185,10 +186,12 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         profiler_state: ProfilerState,
         *,
         add_versions: bool,
+        python_pyspy_process: List[int],
     ):
         super().__init__(frequency, duration, profiler_state)
         self.add_versions = add_versions
         self._metadata = PythonMetadata(self._profiler_state.stop_event)
+        self._python_pyspy_process = python_pyspy_process
 
     def _make_command(self, pid: int, output_path: str, duration: int) -> List[str]:
         command = [
@@ -260,7 +263,7 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             return ProfileData(parsed, appid, app_metadata, container_name)
 
     def _select_processes_to_profile(self) -> List[Process]:
-        filtered_procs = []
+        filtered_procs = set()
         if is_windows():
             all_processes = [x for x in pgrep_exe("python")]
         else:
@@ -269,13 +272,14 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         for process in all_processes:
             try:
                 if not self._should_skip_process(process):
-                    filtered_procs.append(process)
+                    filtered_procs.add(process)
             except NoSuchProcess:
                 pass
             except Exception:
                 logger.exception(f"Couldn't add pid {process.pid} to list")
 
-        return filtered_procs
+        filtered_procs.update([Process(pid) for pid in self._python_pyspy_process])
+        return list(filtered_procs)
 
     def _should_profile_process(self, process: Process) -> bool:
         return search_proc_maps(process, DETECTED_PYTHON_PROCESSES_REGEX) is not None and not self._should_skip_process(
@@ -340,6 +344,17 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             action="store_true",
             help="Enable PyPerf in verbose mode (max verbosity)",
         ),
+        ProfilerArgument(
+            name="--python-pyspy-process",
+            dest="python_pyspy_process",
+            action="extend",
+            default=[],
+            type=integers_list,
+            help="PID to profile with py-spy."
+            " This option forces gProfiler to profile given processes with py-spy, even if"
+            " they are not recognized by gProfiler as Python processes."
+            " Note - gProfiler assumes that the given processes are kept running as long as gProfiler runs.",
+        ),
     ],
     supported_profiling_modes=["cpu"],
 )
@@ -358,6 +373,7 @@ class PythonProfiler(ProfilerInterface):
         python_add_versions: bool,
         python_pyperf_user_stacks_pages: Optional[int],
         python_pyperf_verbose: bool,
+        python_pyspy_process: List[int],
     ):
         if python_mode == "py-spy":
             python_mode = "pyspy"
@@ -387,6 +403,7 @@ class PythonProfiler(ProfilerInterface):
                 duration,
                 profiler_state,
                 add_versions=python_add_versions,
+                python_pyspy_process=python_pyspy_process,
             )
         else:
             self._pyspy_profiler = None
