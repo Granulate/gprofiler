@@ -190,7 +190,7 @@ systemctl start granulate-gprofiler.service
 ```
 
 ## Running on Databricks
-For Databricks, the same installation instructions as specified in the [running as an executable](#running-as-an-executable) section can be used (make sure to run them in the initialization script of your node).
+For Databricks, the same installation instructions as specified in the [running as an executable](#running-as-an-executable) section can be used (make sure to run them in the initialization script of your node). Also, make sure to add `exit 0` after the commands - Databricks will not start the node if the initalization script fails, to avoid it you should add `exit 0` as the last command.
 
 Additionally, 2 more flags need to be added to gProfiler's commandline: `--disable-pidns-check --perf-mode=none`. You can add them right after the `--service-name` argument.
 
