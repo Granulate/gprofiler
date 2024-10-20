@@ -48,7 +48,12 @@ def get_libc_version() -> Tuple[str, str]:
 
     try:
         ldd_version = run_process(
-            ["ldd", "--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, suppress_log=True, check=False
+            ["ldd", "--version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            suppress_log=True,
+            check=False,
+            pdeathsigger=False,
         ).stdout
     except FileNotFoundError:
         ldd_version = b"ldd not found"

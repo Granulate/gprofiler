@@ -20,13 +20,12 @@ import logging.config
 import logging.handlers
 import os
 import shutil
-import signal
 import sys
 import time
 import traceback
 from pathlib import Path
 from threading import Event
-from types import FrameType, TracebackType
+from types import TracebackType
 from typing import Iterable, List, Optional, Type, cast
 
 import configargparse
@@ -74,6 +73,7 @@ from gprofiler.utils import (
     reset_umask,
     resource_path,
     run_process,
+    setup_signals,
 )
 from gprofiler.utils.fs import escape_filename, mkdir_owned_root
 from gprofiler.utils.proxy import get_https_proxy
@@ -97,21 +97,6 @@ DEFAULT_ALLOC_INTERVAL = "2mb"
 DIAGNOSTICS_INTERVAL_S = 15 * 60
 
 UPLOAD_FILE_SUBCOMMAND = "upload-file"
-
-# 1 KeyboardInterrupt raised per this many seconds, no matter how many SIGINTs we get.
-SIGINT_RATELIMIT = 0.5
-
-last_signal_ts: Optional[float] = None
-
-
-def sigint_handler(sig: int, frame: Optional[FrameType]) -> None:
-    global last_signal_ts
-    ts = time.monotonic()
-    # no need for atomicity here: we can't get another SIGINT before this one returns.
-    # https://www.gnu.org/software/libc/manual/html_node/Signals-in-Handler.html#Signals-in-Handler
-    if last_signal_ts is None or ts > last_signal_ts + SIGINT_RATELIMIT:
-        last_signal_ts = ts
-        raise KeyboardInterrupt
 
 
 class GProfiler:
@@ -937,17 +922,6 @@ def verify_preconditions(args: configargparse.Namespace, processes_to_profile: O
         if len(processes_to_profile) == 0:
             print("There aren't any alive processes provided via --pid PID list")
             sys.exit(1)
-
-
-def setup_signals() -> None:
-    # When we run under staticx & PyInstaller, both of them forward (some of the) signals to gProfiler.
-    # We catch SIGINTs and ratelimit them, to avoid being interrupted again during the handling of the
-    # first INT.
-    # See my commit message for more information.
-    signal.signal(signal.SIGINT, sigint_handler)
-    # handle SIGTERM in the same manner - gracefully stop gProfiler.
-    # SIGTERM is also forwarded by staticx & PyInstaller, so we need to ratelimit it.
-    signal.signal(signal.SIGTERM, sigint_handler)
 
 
 def log_system_info() -> None:
