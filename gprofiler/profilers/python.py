@@ -387,7 +387,7 @@ class PythonProfiler(ProfilerInterface):
         python_pyperf_user_stacks_pages: Optional[int],
         python_pyperf_verbose: bool,
         python_pyspy_process: List[int],
-        python_pyspy_pattern: Optional[str],
+        python_pyspy_pattern: Optional[str] = None,
     ):
         if python_mode == "py-spy":
             python_mode = "pyspy"
