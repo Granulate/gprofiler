@@ -61,7 +61,7 @@ if is_linux():
     from gprofiler.profilers.python_ebpf import PythonEbpfProfiler, PythonEbpfError
 
 from gprofiler.utils import pgrep_exe, pgrep_maps, random_prefix, removed_path, resource_path, run_process
-from gprofiler.utils.process import process_comm, search_proc_maps
+from gprofiler.utils.process import process_comm, search_for_process, search_proc_maps
 
 logger = get_logger_adapter(__name__)
 
@@ -187,11 +187,13 @@ class PySpyProfiler(SpawningProcessProfilerBase):
         *,
         add_versions: bool,
         python_pyspy_process: List[int],
+        python_pyspy_pattern: Optional[str],
     ):
         super().__init__(frequency, duration, profiler_state)
         self.add_versions = add_versions
         self._metadata = PythonMetadata(self._profiler_state.stop_event)
         self._python_pyspy_process = python_pyspy_process
+        self._process_pattern = re.compile(python_pyspy_pattern) if python_pyspy_pattern is not None else None
 
     def _make_command(self, pid: int, output_path: str, duration: int) -> List[str]:
         command = [
@@ -279,6 +281,9 @@ class PySpyProfiler(SpawningProcessProfilerBase):
                 logger.exception(f"Couldn't add pid {process.pid} to list")
 
         filtered_procs.update([Process(pid) for pid in self._python_pyspy_process])
+        pattern = self._process_pattern
+        if pattern is not None:
+            filtered_procs.update(list(search_for_process(filter=lambda p: bool(re.findall(pattern, p.name())))))
         return list(filtered_procs)
 
     def _should_profile_process(self, process: Process) -> bool:
@@ -355,6 +360,14 @@ class PySpyProfiler(SpawningProcessProfilerBase):
             " they are not recognized by gProfiler as Python processes."
             " Note - gProfiler assumes that the given processes are kept running as long as gProfiler runs.",
         ),
+        ProfilerArgument(
+            name="--python-pyspy-pattern",
+            dest="python_pyspy_pattern",
+            default=None,
+            help="Pattern to match for process names to profile with py-spy."
+            " This option forces gProfiler to profile given processes with py-spy, even if"
+            " they are not recognized by gProfiler as Python processes.",
+        ),
     ],
     supported_profiling_modes=["cpu"],
 )
@@ -374,6 +387,7 @@ class PythonProfiler(ProfilerInterface):
         python_pyperf_user_stacks_pages: Optional[int],
         python_pyperf_verbose: bool,
         python_pyspy_process: List[int],
+        python_pyspy_pattern: Optional[str],
     ):
         if python_mode == "py-spy":
             python_mode = "pyspy"
@@ -404,6 +418,7 @@ class PythonProfiler(ProfilerInterface):
                 profiler_state,
                 add_versions=python_add_versions,
                 python_pyspy_process=python_pyspy_process,
+                python_pyspy_pattern=python_pyspy_pattern,
             )
         else:
             self._pyspy_profiler = None
