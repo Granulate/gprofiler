@@ -397,6 +397,14 @@ def test_get_average_frame_count(samples: str, count: float) -> None:
             ),
             id="frame_with_space_parenthesis",
         ),
+        pytest.param(
+            "   4af76b main.cpuIntensiveWork+bar.go:21+bar.go:14 (/tmp/perf/my_go_app)",
+            dict(
+                dso_true="main.cpuIntensiveWork+bar.go:21+bar.go:14 (/tmp/perf/my_go_app)",
+                dso_false="main.cpuIntensiveWork+bar.go:21+bar.go:14",
+            ),
+            id="frame_with_symline",
+        ),
     ],
 )
 def test_collapse_stack_consider_dso(stack: str, insert_dso_name: bool, outcome_dict: Dict[str, str]) -> None:

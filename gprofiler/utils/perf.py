@@ -47,6 +47,7 @@ SAMPLE_REGEX = re.compile(
     r"(?:(?P<freq>\d+)\s+)?(?P<event_family>[\w\-_/]+):(?:(?P<event>[\w-]+):)?(?P<suffix>[^\n]*)(?:\n(?P<stack>.*))?",
     re.MULTILINE | re.DOTALL,
 )
+SYMLINE_REGEX = re.compile(r"(?:\+([^+]+):(\d+)){2}$")
 
 
 class SupportedPerfEvent(Enum):
@@ -160,7 +161,8 @@ def collapse_stack(comm: str, stack: str, insert_dso_name: bool = False) -> str:
         m = FRAME_REGEX.match(line)
         assert m is not None, f"bad line: {line}"
         sym, dso = m.group("symbol"), m.group("dso_brackets") or m.group("dso_plain")
-        sym = sym.split("+")[0]  # strip the offset part.
+        if not SYMLINE_REGEX.search(sym):
+            sym = sym.split("+")[0]  # strip the offset part.
         if sym == "[unknown]" and dso != "unknown":
             sym = f"({dso})"
         # append kernel annotation

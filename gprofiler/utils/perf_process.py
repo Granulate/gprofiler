@@ -190,7 +190,7 @@ class PerfProcess:
                 perf_data = inject_data
 
             perf_script_proc = run_process(
-                [perf_path(), "script", "-F", "+pid", "-i", str(perf_data)],
+                [perf_path(), "script", "-F", "+pid,+symline", "-i", str(perf_data)],
                 suppress_log=True,
             )
             return perf_script_proc.stdout.decode("utf8")
