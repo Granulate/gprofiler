@@ -1321,6 +1321,12 @@ def pids_to_processes(args: configargparse.Namespace) -> Optional[List[Process]]
         return None
 
 
+def log_startup(args: configargparse.Namespace) -> None:
+    sensitive_args = {"server_token"}
+    arguments = {name: value for name, value in vars(args).items() if name not in sensitive_args}
+    logger.info("Running gProfiler", version=__version__, arguments=arguments)
+
+
 def warn_about_deprecated_args(args: configargparse.Namespace) -> None:
     if args.spark_sample_period != 120:
         logger.warning("--spark-sample-period is deprecated and removed in version 1.42.0")
@@ -1372,9 +1378,7 @@ def main() -> None:
     usage_logger = CgroupsUsageLogger(logger, "/") if args.log_usage else NoopUsageLogger()
 
     try:
-        logger.info(
-            "Running gProfiler", version=__version__, commandline=" ".join(sys.argv[1:]), arguments=args.__dict__
-        )
+        log_startup(args)
         if processes_to_profile is not None:
             logger.info("Target PIDs given by --pids", pids=[process.pid for process in processes_to_profile])
         if args.controller_pid is not None:
