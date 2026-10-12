@@ -22,13 +22,15 @@ After=network.target
 [Service]
 PIDFile=/var/run/gprofiler.pid
 User=root
-Environment=GPROFILER_SERVICE=
-Environment=GPROFILER_TOKEN=
+# Credentials are loaded from a mode-0600 environment file instead of command-line args
+# (/proc/<pid>/cmdline is world-readable) or Environment= (shown to any user by `systemctl show`).
+EnvironmentFile=@ENV_FILE@
 WorkingDirectory=/opt/granulate/gprofiler
-ExecStartPre=/bin/bash -c 'if [ -z "${GPROFILER_TOKEN}" ]; then echo "missing GPROFILER_TOKEN!"; exit 1; fi'
-ExecStartPre=/bin/bash -c 'if [ -z "${GPROFILER_SERVICE}" ]; then echo "missing GPROFILER_SERVICE!"; exit 1; fi'
+# "$$" stops systemd from substituting the values into bash's argv; bash reads them from its environment.
+ExecStartPre=/bin/bash -c 'if [ -z "$${GPROFILER_TOKEN}" ]; then echo "missing GPROFILER_TOKEN!"; exit 1; fi'
+ExecStartPre=/bin/bash -c 'if [ -z "$${GPROFILER_SERVICE_NAME}" ]; then echo "missing GPROFILER_SERVICE_NAME!"; exit 1; fi'
 ExecStartPre=/bin/bash -c 'wget --no-verbose https://github.com/intel/gprofiler/releases/latest/download/gprofiler_$(uname -m) -O gprofiler && chmod +x gprofiler'
-ExecStart=/opt/granulate/gprofiler/gprofiler -cu --token='${GPROFILER_TOKEN}' --service-name='${GPROFILER_SERVICE}'
+ExecStart=/opt/granulate/gprofiler/gprofiler -cu
 TimeoutStopSec=10
 
 KillMode=process
