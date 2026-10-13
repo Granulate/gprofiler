@@ -2,7 +2,7 @@ psutil==7.0.0
 requests==2.33.0
 ConfigArgParse==1.7
 distro==1.9.0
-setuptools==78.1.1  # For pkg_resources
+setuptools==83.0.0  # For pkg_resources
 packaging==24.2
 pyelftools~=0.32
 curlify==2.2.1

@@ -17,7 +17,7 @@
 set -uo pipefail
 
 # grep returns 0 if a match is found and 1 if no match is found
-result=$(grep "gprofiler\." "build/pyinstaller/warn-pyinstaller.txt" | grep -v 'missing module named wmi' | grep -v 'missing module named pythoncom' | grep -v 'missing module named netifaces' | grep -v 'missing module named cpuid')
+result=$(grep "gprofiler\." "build/pyinstaller/warn-pyinstaller.txt" | grep -v 'missing module named wmi' | grep -v 'missing module named pythoncom' | grep -v 'missing module named netifaces' | grep -v 'missing module named cpuid' | grep -v 'missing module named pkg_resources')
 
 if [ -n "$result" ]; then
 	echo "$result"
