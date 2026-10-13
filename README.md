@@ -297,7 +297,7 @@ You can generate a systemd service configuration that [runs gProfiler as an exec
 curl -s https://raw.githubusercontent.com/intel/gprofiler/master/deploy/systemd/create_systemd_service.sh | GPROFILER_TOKEN=<TOKEN> GPROFILER_SERVICE=<SERVICE_NAME> bash
 ```
 
-This script generates `granulate-gprofiler.service` in your working directory, and you can go ahead and install it by:
+This script generates `granulate-gprofiler.service` in your working directory, along with `granulate-gprofiler.env` (mode 0600) holding the token and service name, which the unit loads via `EnvironmentFile=` so the credentials don't appear in process command lines or `systemctl show`. Keep both files in place, and you can go ahead and install the service by:
 ```
 systemctl enable $(pwd)/granulate-gprofiler.service
 systemctl start granulate-gprofiler.service
@@ -480,6 +480,8 @@ node when the cluster is provisioned. You will need to provide the token and ser
      - Replace `<BUCKET>` with the bucket where `gprofiler_action.sh` was uploaded.
      - Replace `<TOKEN>` with the token you got from a [self hosted studio](https://localhost:4433/installation) site.
      - Replace `<SERVICE>` with the service name you wish to use.
+
+   The bootstrap action passes `--token` and `--service-name` to gProfiler through environment variables, so they don't appear in the gProfiler process's command line on the cluster nodes. Note that bootstrap action arguments are still visible to anyone who can view the cluster's configuration in EMR (e.g. `aws emr list-bootstrap-actions`), so restrict that access accordingly.
 
    With AWS CLI:
      ```sh

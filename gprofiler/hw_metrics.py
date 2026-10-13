@@ -2,13 +2,14 @@ import base64
 import gzip
 import os
 import platform
-import shutil
 import subprocess  # nosec B404
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event, RLock, Thread
 from typing import Optional
+
+from gprofiler.utils.fs import mkdir_owned_root, safe_copy
 
 DEFAULT_POLLING_INTERVAL_SECONDS = 5
 STOP_TIMEOUT_SECONDS = 2
@@ -114,34 +115,42 @@ class HWMetricsMonitor(HWMetricsMonitorBase):
         self._cleanup()
         self._thread = None
 
+    def _safe_remove(self, path: str) -> None:
+        """
+        Safely remove a file, refusing to follow symlinks.
+
+        Security: Checks if path is a symlink before removal.
+        If path is a symlink, raises an exception instead of removing the target.
+        """
+        if os.path.islink(path):
+            raise Exception(f"Refusing to remove {path}: symlinks are not allowed for security reasons")
+        if os.path.exists(path):
+            os.remove(path)
+
     def _cleanup(self) -> None:
-        # Remove the directory if it exists
-        # and create a new one
-        # to avoid any conflicts
-        # with the old data
-        # and to ensure that the directory is empty
-        # before starting the new process
-        if not os.path.exists(PERFSPECT_DATA_DIRECTORY):
-            os.makedirs(PERFSPECT_DATA_DIRECTORY)
-        else:
-            if os.path.exists(self._ps_raw_csv_filename):
-                os.remove(self._ps_raw_csv_filename)
-            if os.path.exists(self._ps_summary_csv_filename):
-                os.remove(self._ps_summary_csv_filename)
-            if os.path.exists(self._ps_summary_html_filename):
-                os.remove(self._ps_summary_html_filename)
+        # Ensure the directory exists and is owned by root.
+        # mkdir_owned_root() will remove and recreate the directory if it exists
+        # but is not owned by root, protecting against pre-created attacker directories.
+        mkdir_owned_root(PERFSPECT_DATA_DIRECTORY)
+
+        # Remove old data files using safe removal (rejects symlinks)
+        self._safe_remove(self._ps_raw_csv_filename)
+        self._safe_remove(self._ps_summary_csv_filename)
+        self._safe_remove(self._ps_summary_html_filename)
+        self._safe_remove(self._ps_latest_csv_filename)
+        self._safe_remove(self._ps_latest_html_filename)
 
     def _get_hw_metrics_dict(self) -> Optional[dict]:
         summary_dict = {}
         if os.path.exists(self._ps_summary_csv_filename) and os.path.isfile(self._ps_summary_csv_filename):
-            shutil.copy(self._ps_summary_csv_filename, self._ps_latest_csv_filename)
+            safe_copy(self._ps_summary_csv_filename, self._ps_latest_csv_filename)
             with open(self._ps_latest_csv_filename, "r") as f:
                 next(f)  # Skip the first line
                 for line in f:
                     csv_data = line.split(",")
                     summary_dict[csv_data[0]] = csv_data[1]
 
-            os.remove(self._ps_latest_csv_filename)
+            self._safe_remove(self._ps_latest_csv_filename)
             return summary_dict
 
         else:
@@ -150,7 +159,7 @@ class HWMetricsMonitor(HWMetricsMonitorBase):
     def _get_hw_metrics_html(self) -> Optional[str]:
         if os.path.exists(self._ps_summary_html_filename) and os.path.isfile(self._ps_summary_html_filename):
             encoded_html_data = None
-            shutil.copy(self._ps_summary_html_filename, self._ps_latest_html_filename)
+            safe_copy(self._ps_summary_html_filename, self._ps_latest_html_filename)
             with open(self._ps_latest_html_filename, "rb") as f:
                 html_data = f.read()
                 # Compress the HTML data using gzip
@@ -171,7 +180,7 @@ class HWMetricsMonitor(HWMetricsMonitorBase):
                 #     encoded_html_file.write(encoded_html_data)
                 # encoded_html_file.close()
 
-            os.remove(self._ps_latest_html_filename)
+            self._safe_remove(self._ps_latest_html_filename)
             return encoded_html_data
 
         else:

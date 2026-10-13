@@ -16,11 +16,15 @@
 #
 set -euxo pipefail
 
+# Pass credentials via env vars instead of command-line args to avoid
+# exposing them in /proc/<pid>/cmdline (world-readable on Linux).
 GPROFILER_TOKEN=$(/usr/share/google/get_metadata_value attributes/gprofiler-token)
 readonly GPROFILER_TOKEN
+export GPROFILER_TOKEN
 
-GPROFILER_SERVICE=$(/usr/share/google/get_metadata_value attributes/gprofiler-service)
-readonly GPROFILER_SERVICE
+GPROFILER_SERVICE_NAME=$(/usr/share/google/get_metadata_value attributes/gprofiler-service)
+readonly GPROFILER_SERVICE_NAME
+export GPROFILER_SERVICE_NAME
 
 ENABLE_STDOUT=$(/usr/share/google/get_metadata_value attributes/enable-stdout)
 readonly ENABLE_STDOUT
@@ -40,5 +44,8 @@ fi
 
 wget --no-verbose "https://github.com/intel/gprofiler/releases/latest/download/gprofiler_$(uname -m)" -O gprofiler
 sudo chmod +x gprofiler
-sudo sh -c "setsid ./gprofiler -cu --token='$GPROFILER_TOKEN' --service-name='$GPROFILER_SERVICE' $flags $OUTPUT_REDIRECTION &"
+# Token and service name are passed via environment variables (exported above)
+# to avoid exposing credentials in /proc/<pid>/cmdline
+sudo --preserve-env=GPROFILER_TOKEN,GPROFILER_SERVICE_NAME \
+    sh -c "setsid ./gprofiler -cu $flags $OUTPUT_REDIRECTION &"
 echo "gProfiler installed successfully."

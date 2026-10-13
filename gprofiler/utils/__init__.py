@@ -15,6 +15,7 @@
 #
 import atexit
 import datetime
+import errno
 import glob
 import importlib.resources
 import logging
@@ -365,10 +366,38 @@ def remove_prefix(s: str, prefix: str) -> str:
     return s[len(prefix) :]
 
 
+# O_NOFOLLOW is always available on Linux (the target platform for this code).
+# The getattr fallback to 0 covers non-Linux builds; on those platforms symlink
+# protection in touch_path() is best-effort only.
+_O_NOFOLLOW: int = getattr(os, "O_NOFOLLOW", 0)
+
+
 def touch_path(path: str, mode: int) -> None:
-    Path(path).touch()
-    # chmod() afterwards (can't use 'mode' in touch(), because it's affected by umask)
-    os.chmod(path, mode)
+    """
+    Safely touch a file and set its permissions, refusing to follow symlinks.
+
+    Security: Uses O_NOFOLLOW so the kernel rejects symlinks atomically at open time.
+    Uses fchmod() on the fd to set exact permissions (bypassing umask) and to avoid
+    TOCTOU races.
+
+    Raises if path is a symlink.
+    """
+    try:
+        # O_NOFOLLOW makes open() fail with ELOOP if the path is a symlink (Linux).
+        # O_CREAT creates the file if it doesn't exist.
+        # O_WRONLY for write access.
+        # Mode argument to os.open() is affected by umask, so we use fchmod() below.
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | _O_NOFOLLOW | os.O_NONBLOCK, mode)
+    except OSError as e:
+        if e.errno == errno.ELOOP:
+            raise Exception(f"Refusing to touch {path}: symlinks are not allowed for security reasons")
+        raise
+    try:
+        # fchmod() sets exact permissions, bypassing umask, and operates on the fd
+        # so there's no TOCTOU race with the path.
+        os.fchmod(fd, mode)
+    finally:
+        os.close(fd)
 
 
 def remove_path(path: Union[str, Path], missing_ok: bool = False) -> None:
