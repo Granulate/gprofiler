@@ -17,7 +17,7 @@
 import subprocess
 import sys
 from pathlib import Path
-from time import monotonic, sleep
+from time import monotonic
 from typing import Any, List
 
 import pytest
@@ -155,9 +155,6 @@ while True:
     with pytest.raises(IaprofProcessError, match="iaprof snapshot timed out"):
         process.snapshot(timeout=0.5)
 
-    deadline = monotonic() + 2
-    while process.is_running() and monotonic() < deadline:
-        sleep(0.01)
     assert not process.is_running()
     process.stop()
 

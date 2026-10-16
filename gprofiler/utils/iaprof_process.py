@@ -104,6 +104,10 @@ class IaprofProcess:
             return self._reader.request_snapshot().result(timeout)
         except concurrent.futures.TimeoutError as error:
             process.kill()
+            try:
+                process.wait(timeout=self._stop_timeout)
+            except TimeoutExpired as wait_error:
+                raise IaprofProcessError("iaprof failed to stop after SIGKILL") from wait_error
             raise IaprofProcessError(self._error_message("iaprof snapshot timed out")) from error
         except Exception as error:
             raise IaprofProcessError(self._error_message("iaprof snapshot failed")) from error
