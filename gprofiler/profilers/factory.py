@@ -5,7 +5,7 @@ from gprofiler.log import get_logger_adapter
 from gprofiler.metadata.system_metadata import get_arch
 from gprofiler.platform import is_windows
 from gprofiler.profilers.perf import SystemProfiler
-from gprofiler.profilers.profiler_base import NoopProfiler
+from gprofiler.profilers.profiler_base import NoopProfiler, SystemProfilerBase
 from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.utils import is_profiler_disabled
 
@@ -20,10 +20,10 @@ COMMON_PROFILER_ARGUMENT_NAMES = ["frequency", "duration", "min_duration"]
 
 def get_profilers(
     user_args: "UserArgs", **profiler_init_kwargs: Any
-) -> Tuple[Union["SystemProfiler", "NoopProfiler"], List["ProcessProfilerBase"]]:
+) -> Tuple[Union["SystemProfilerBase", "NoopProfiler"], List["ProcessProfilerBase"]]:
     profiling_mode = user_args.get("profiling_mode")
     process_profilers_instances: List["ProcessProfilerBase"] = []
-    system_profiler: Union["SystemProfiler", "NoopProfiler"] = NoopProfiler()
+    system_profiler: Union["SystemProfilerBase", "NoopProfiler"] = NoopProfiler()
 
     # When custom event is specified, only use perf (SystemProfiler), disable all language profilers
     custom_event_mode = user_args.get("perf_event") is not None
@@ -44,17 +44,15 @@ def get_profilers(
                     logger.warning("--java-collect-thread-names is ignored because Java profiling is disabled")
                 continue
 
+            if profiling_mode not in profiler_config.supported_profiling_modes:
+                logger.debug(f"Disabling {profiler_name} because it doesn't support profiling mode {profiling_mode!r}")
+                continue
+
             supported_archs = (
                 profiler_config.supported_windows_archs if is_windows() else profiler_config.supported_archs
             )
             if arch not in supported_archs:
                 logger.warning(f"Disabling {profiler_name} because it doesn't support this architecture ({arch})")
-                continue
-
-            if profiling_mode not in profiler_config.supported_profiling_modes:
-                logger.warning(
-                    f"Disabling {profiler_name} because it doesn't support profiling mode {profiling_mode!r}"
-                )
                 continue
 
             profiler_kwargs = profiler_init_kwargs.copy()
@@ -81,7 +79,7 @@ def get_profilers(
                 )
                 sys.exit(1)
             else:
-                if isinstance(profiler_instance, SystemProfiler):
+                if isinstance(profiler_instance, SystemProfilerBase):
                     system_profiler = profiler_instance
                 else:
                     # In custom event mode, skip all process profilers

@@ -34,6 +34,7 @@ from psutil import NoSuchProcess, Process, ZombieProcess
 from gprofiler.exceptions import StopEventSetException
 from gprofiler.gprofiler_types import ProcessToProfileData, ProfileData, ProfilingErrorStack, StackToSampleCount
 from gprofiler.log import get_logger_adapter
+from gprofiler.metadata import ProfileMetadata
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.utils import limit_frequency
 from gprofiler.utils.process import process_comm
@@ -116,6 +117,14 @@ class ProfilerBase(ProfilerInterface):
             f"Initialized {self.__class__.__name__} ({frequency_str}, duration: {self._duration}s), "
             f"profiling mode: {profiler_state.profiling_mode}"
         )
+
+
+class SystemProfilerBase(ProfilerBase):
+    def _is_system_wide_profiler(self) -> bool:
+        return True
+
+    def get_profile_metadata(self) -> ProfileMetadata:
+        return {}
 
 
 class NoopProfiler(ProfilerInterface):

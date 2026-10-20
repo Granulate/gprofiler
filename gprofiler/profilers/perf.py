@@ -39,7 +39,7 @@ from gprofiler.metadata import ProfileMetadata, application_identifiers
 from gprofiler.metadata.application_metadata import ApplicationMetadata
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.node import clean_up_node_maps, generate_map_for_node_processes, get_node_processes
-from gprofiler.profilers.profiler_base import ProfilerBase
+from gprofiler.profilers.profiler_base import SystemProfilerBase
 from gprofiler.profilers.registry import ProfilerArgument, register_profiler
 from gprofiler.utils.perf import discover_appropriate_perf_event, parse_perf_script_from_iterator, valid_perf_pid
 from gprofiler.utils.perf_process import PerfProcess
@@ -154,17 +154,13 @@ def add_highest_avg_depth_stacks_per_process(
     " and instead only concatenate runtime-specific profilers results",
     supported_profiling_modes=["cpu"],
 )
-class SystemProfiler(ProfilerBase):
+class SystemProfiler(SystemProfilerBase):
     """
     We are running 2 perfs in parallel - one with DWARF and one with FP, and then we merge their results.
     This improves the results from software that is compiled without frame pointers,
     like some native software. DWARF by itself is not good enough, as it has issues with unwinding some
     versions of Go processes.
     """
-
-    def _is_system_wide_profiler(self) -> bool:
-        """Perf is a system-wide profiler that can be disabled on busy systems."""
-        return True
 
     def __init__(
         self,

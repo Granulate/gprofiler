@@ -43,7 +43,12 @@ from gprofiler.client import (
     DEFAULT_UPLOAD_TIMEOUT,
     ProfilerAPIClient,
 )
-from gprofiler.consts import CPU_PROFILING_MODE
+from gprofiler.consts import (
+    CPU_PROFILING_MODE,
+    DEFAULT_GPU_PROFILING_FREQUENCY,
+    GPU_PROFILING_MODE,
+    MAX_GPU_PROFILING_FREQUENCY,
+)
 from gprofiler.containers_client import ContainerNamesClient
 from gprofiler.diagnostics import log_diagnostics, set_diagnostics
 from gprofiler.dynamic_profiling_management.heartbeat import DynamicGProfilerManager, HeartbeatClient
@@ -62,7 +67,7 @@ from gprofiler.platform import is_aarch64, is_linux, is_windows
 from gprofiler.profiler_state import ProfilerState
 from gprofiler.profilers.factory import get_profilers
 from gprofiler.profilers.perf import SystemProfiler
-from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface
+from gprofiler.profilers.profiler_base import NoopProfiler, ProcessProfilerBase, ProfilerInterface, SystemProfilerBase
 from gprofiler.profilers.registry import get_profilers_registry
 from gprofiler.state import State, init_state
 from gprofiler.system_metrics import Metrics, NoopSystemMetricsMonitor, SystemMetricsMonitor, SystemMetricsMonitorBase
@@ -312,7 +317,10 @@ class GProfiler:
 
         # Check if system should skip continuous profilers due to process count
         skip_system_profilers = False
-        if self._profiler_state.max_system_processes_for_system_profilers > 0:
+        if (
+            isinstance(self.system_profiler, SystemProfiler)
+            and self._profiler_state.max_system_processes_for_system_profilers > 0
+        ):
             try:
                 total_processes = len(list(process_iter()))
                 if total_processes > self._profiler_state.max_system_processes_for_system_profilers:
@@ -333,18 +341,12 @@ class GProfiler:
         for prof in list(self.all_profilers):
             try:
                 # Skip system profilers if threshold exceeded
-                if (
-                    skip_system_profilers
-                    and hasattr(prof, "_is_system_wide_profiler")
-                    and prof._is_system_wide_profiler()
-                ):
+                if skip_system_profilers and prof is self.system_profiler:
                     logger.info(f"Skipping {prof.__class__.__name__} due to high system process count")
                     continue
 
                 prof.start()
             except Exception:
-                # the SystemProfiler is handled separately - let the user run with '--perf-mode none' if they
-                # wish so.
                 if prof is self.system_profiler:
                     raise
 
@@ -380,15 +382,12 @@ class GProfiler:
                 future_name = future.name  # type: ignore # hack, add the profiler's name to the Future object
                 logger.exception(f"{future_name} profiling failed")
 
-        local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
-
         try:
             system_result = system_future.result()
         except Exception:
-            logger.critical(
-                "Running perf failed; consider running gProfiler with '--perf-mode disabled' to avoid using perf",
-            )
+            logger.critical(f"Running {self.system_profiler.name} failed")
             raise
+        local_end_time = local_start_time + datetime.timedelta(seconds=(time.monotonic() - monotonic_start_time))
         metadata = (
             get_current_metadata(cast(ProfileMetadata, self._static_metadata))
             if self._collect_metadata
@@ -431,6 +430,8 @@ class GProfiler:
                     "sampling_frequency": self.system_profiler._frequency,
                 }
             )
+        elif isinstance(self.system_profiler, SystemProfilerBase):
+            metadata.update(self.system_profiler.get_profile_metadata())
         else:
             # NoopProfiler - use default values
             metadata.update(
@@ -669,8 +670,10 @@ def parse_cmd_args() -> configargparse.Namespace:
         "--profiling-frequency",
         type=positive_integer,
         dest="frequency",
-        help=f"Profiler frequency in Hz (default: {DEFAULT_SAMPLING_FREQUENCY}), to be used only in CPU profiling "
-        f"(--mode=cpu, also the default mode)",
+        help=(
+            f"CPU sampling or GPU output frequency in Hz (defaults: CPU {DEFAULT_SAMPLING_FREQUENCY}, "
+            f"GPU {DEFAULT_GPU_PROFILING_FREQUENCY})"
+        ),
     )
     parser.add_argument(
         "-d",
@@ -710,10 +713,10 @@ def parse_cmd_args() -> configargparse.Namespace:
     parser.add_argument(
         "--mode",
         dest="profiling_mode",
-        choices=["cpu", "allocation", "none"],
-        default="cpu",
+        choices=[CPU_PROFILING_MODE, GPU_PROFILING_MODE, "allocation", "none"],
+        default=CPU_PROFILING_MODE,
         help="Select gProfiler's profiling mode, default is %(default)s, available options are "
-        "%(choices)s; allocation will profile only Java processes",
+        "%(choices)s; gpu will profile Intel GPUs and allocation will profile only Java processes",
     )
     parser.add_argument(
         "--alloc-interval",
@@ -1114,6 +1117,15 @@ def parse_cmd_args() -> configargparse.Namespace:
         if not args.alloc_interval:
             args.alloc_interval = DEFAULT_ALLOC_INTERVAL
         args.frequency = humanfriendly.parse_size(args.alloc_interval, binary=True)
+    elif args.profiling_mode == GPU_PROFILING_MODE:
+        if args.alloc_interval is not None:
+            parser.error("--alloc-interval is only allowed in allocation profiling (--mode=allocation)")
+        if args.rootless:
+            parser.error("--rootless is not supported in gpu profiling")
+        if args.frequency is None:
+            args.frequency = DEFAULT_GPU_PROFILING_FREQUENCY
+        elif args.frequency > MAX_GPU_PROFILING_FREQUENCY:
+            parser.error(f"-f|--frequency cannot exceed {MAX_GPU_PROFILING_FREQUENCY} in gpu profiling")
 
     if args.subcommand == UPLOAD_FILE_SUBCOMMAND:
         args.upload_results = True

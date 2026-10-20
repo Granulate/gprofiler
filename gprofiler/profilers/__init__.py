@@ -4,6 +4,7 @@ from gprofiler.profilers.dotnet import DotnetProfiler
 from gprofiler.profilers.python import PythonProfiler
 
 if is_linux():
+    from gprofiler.profilers.iaprof import IaprofProfiler
     from gprofiler.profilers.java import JavaProfiler
     from gprofiler.profilers.perf import SystemProfiler
     from gprofiler.profilers.php import PHPSpyProfiler
@@ -12,6 +13,6 @@ if is_linux():
 __all__ = ["PythonProfiler", "DotnetProfiler"]
 
 if is_linux():
-    __all__ += ["JavaProfiler", "PHPSpyProfiler", "RbSpyProfiler", "SystemProfiler"]
+    __all__ += ["IaprofProfiler", "JavaProfiler", "PHPSpyProfiler", "RbSpyProfiler", "SystemProfiler"]
 
 del is_linux
