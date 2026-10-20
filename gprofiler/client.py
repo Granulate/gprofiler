@@ -18,9 +18,10 @@ import gzip
 import json
 from io import BytesIO
 from typing import IO, TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
+from urllib.parse import quote_plus
 
 import requests
-from requests import Session
+from requests import RequestException, Session
 
 from gprofiler import __version__
 from gprofiler.exceptions import APIError
@@ -168,9 +169,14 @@ class ProfilerAPIClient(BaseAPIClient):
         api_version: str = None,
         params: Dict[str, str] = None,
     ) -> Dict:
-        return self._request_url(
-            method, "{}/{}".format(self.get_base_url(api_version), path), data, files, timeout, params
-        )
+        try:
+            return self._request_url(
+                method, "{}/{}".format(self.get_base_url(api_version), path), data, files, timeout, params
+            )
+        except RequestException as e:
+            # requests exceptions embed the request URL, which contains the token ("key=<token>") - redact it
+            # so it doesn't leak when the exception is logged.
+            raise type(e)(str(e).replace(quote_plus(self._key), "***"), response=e.response) from None
 
     def get(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("GET", path, data, **kwargs)
