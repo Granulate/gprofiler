@@ -19,6 +19,7 @@ import os
 import re
 import sys
 import time
+from io import TextIOWrapper
 from logging import LogRecord
 from typing import Any, Dict, Mapping, Optional
 from urllib.parse import urlparse
@@ -137,6 +138,17 @@ class GProfilerFormatter(_ExtraFormatter, _UTCFormatter):
     pass
 
 
+class _PrivateRotatingFileHandler(logging.handlers.RotatingFileHandler):
+    def _open(self) -> TextIOWrapper:
+        # applies to the initial file, an existing file left by an older version, and files created on rotation
+        stream = super()._open()
+        try:
+            os.chmod(self.baseFilename, 0o600)
+        except OSError:
+            pass  # e.g. rootless run with a writable log file owned by another user - keep logging as before
+        return stream
+
+
 def initial_root_logger_setup(
     stream_level: int,
     log_file_path: str,
@@ -152,8 +164,10 @@ def initial_root_logger_setup(
     stream_handler.setFormatter(GProfilerFormatter(LOGS_FORMAT))
     logger_adapter.logger.addHandler(stream_handler)
 
-    os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
-    file_handler = logging.handlers.RotatingFileHandler(
+    # logs may contain sensitive data: a log dir we create is owner-only (an existing dir, e.g. $HOME when running
+    # rootless with --log-file, is left as is), and log files are owner-only.
+    os.makedirs(os.path.dirname(log_file_path), mode=0o700, exist_ok=True)
+    file_handler = _PrivateRotatingFileHandler(
         log_file_path,
         maxBytes=rotate_max_bytes,
         backupCount=rotate_backup_count,
