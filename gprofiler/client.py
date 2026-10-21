@@ -176,7 +176,8 @@ class ProfilerAPIClient(BaseAPIClient):
         except RequestException as e:
             # requests exceptions embed the request URL, which contains the token ("key=<token>") - redact it
             # so it doesn't leak when the exception is logged.
-            raise type(e)(str(e).replace(quote_plus(self._key), "***"), response=e.response) from None
+            e.args = (str(e).replace(quote_plus(self._key), "***").replace(self._key, "***"),)
+            raise e from None
 
     def get(self, path: str, data: Any = None, **kwargs: Any) -> Dict:
         return self._send_request("GET", path, data, **kwargs)
